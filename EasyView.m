@@ -40,49 +40,11 @@ function EasyView()
     event_inx = 1;
     event_comments = {};
     
-    % координаты графических элементов
-    menu_coords = [1070, 510, 150, 100];
-    optionbtn_coords = [150, 600, 90, 30];
-    saveEventsBtn_coords = [270, 140, 70, 30];
-    loadEventsBtn_coords = [270, 110, 70, 30];
-    eventAdd_coords = [10, 10, 80, 30];
-    channelTable_coords = [10, 200, 300, 400];
-    timeSlider_coords = [300, 50, 220, 15];
-    timeUnitPopup_coords = [540, 35, 50, 30];
-    timeCenterPopup_coords = [540, 10, 50, 30];
-    viewallbutton_coords = [850, 35, 30, 30];
-    timeBackEdit_coords = [165, 10, 50, 30];
-    timeForwardEdit_coords = [220, 10, 50, 30];
-    stdCoefEdit_coords = [775, 10, 50, 30];
-    showSpikesButton_coords = [775, 45, 50, 30];
-    showCSDbutton_coords = [720, 45, 50, 30];
-    previousbutton_coords = [305, 10, 100, 30];
-    nextbutton_coords = [415, 10, 100, 30];
-    eventTable_coords = [10, 50, 250, 127];
-    LoadSettingsBtn_coords = [10, 600, 120, 30];
-    eventDeleteEdit_coords = [100, 10, 50, 30];
-    shiftCoeffEdit_coords = [650, 10, 50, 30];
-    FsCoeffEdit_coords = [650, 50, 50, 30];
-    meanEventsWindowEdit_coords = [285, 48, 40, 20];
-    meanEventsWindowText_coords = [265, 60, 80, 20];
-    clearTableBtn_coords = [270, 10, 70, 30];
-    MeanEventsBtn_coords = [270, 80, 70, 30];
-    AutoEventDetectionBtn_coords = [90, 178, 120, 20];
-    DataComparerBtn_coords = [260, 178, 80, 20];
-    DeleteEventBtn_coords = [150, 10, 80, 30];
-    FsText_coords = [600, 43, 80, 30];
-    shiftCoefText_coords = [598, 3, 60, 30];
-    stdCoefText_coords = [708, 4, 80, 30];
-    EventsText_coords = [10, 175, 100, 20];
-    LoadMatFileBtn_coords = [10, 10, 120, 30];
-    TimeWindowText_coords = [165, 42, 100, 30];
-    BeforeText_coords = [165, 27, 50, 30];
-    AfterText_coords = [220, 27, 50, 30];
-    
+    min_scale_coef = 0.8;
+    base_figure_position = [20 60 1280 650]*min_scale_coef;
 
-    
     % Загрузка списка последних файлов
-        SettingsFilepath = fullfile(tempdir, 'last_opened_files.mat');
+    SettingsFilepath = fullfile(tempdir, 'last_opened_files_1.03.mat');
     loadLastOpenedFiles()    
     function loadLastOpenedFiles()
         if exist(SettingsFilepath, 'file')
@@ -94,7 +56,7 @@ function EasyView()
             end
         else
             lastOpenedFiles = {};
-            figure_position = [30 90 800 600];
+            figure_position = base_figure_position;
             % Инициализация структуры настроек по умолчанию
             add_event_settings.mode = 'freehand';
             add_event_settings.channel = 11;
@@ -102,6 +64,53 @@ function EasyView()
             add_event_settings.timeWindow = 10;
         end
     end
+
+    % координаты графических элементов
+    
+    
+    scaleX = figure_position(3) / base_figure_position(3);
+    scaleY = figure_position(4) / base_figure_position(4);
+    scaling_matrix = [scaleX, scaleY, scaleX, scaleY];
+    
+    menu_coords = [1070, 510, 150, 100].*scaling_matrix*min_scale_coef;
+    optionbtn_coords = [150, 600, 90, 30].*scaling_matrix*min_scale_coef;
+    saveEventsBtn_coords = [270, 140, 70, 30].*scaling_matrix*min_scale_coef;
+    loadEventsBtn_coords = [270, 110, 70, 30].*scaling_matrix*min_scale_coef;
+    eventAdd_coords = [10, 10, 80, 30].*scaling_matrix*min_scale_coef;
+    channelTable_coords = [10, 200, 300, 400].*scaling_matrix*min_scale_coef;
+    timeSlider_coords = [300, 50, 220, 15].*scaling_matrix*min_scale_coef;
+    timeUnitPopup_coords = [540, 35, 50, 30].*scaling_matrix*min_scale_coef;
+    timeCenterPopup_coords = [540, 10, 50, 30].*scaling_matrix*min_scale_coef;
+    viewallbutton_coords = [850, 35, 30, 30].*scaling_matrix*min_scale_coef;
+    timeBackEdit_coords = [165, 10, 50, 30].*scaling_matrix*min_scale_coef;
+    timeForwardEdit_coords = [220, 10, 50, 30].*scaling_matrix*min_scale_coef;
+    stdCoefEdit_coords = [775, 10, 50, 30].*scaling_matrix*min_scale_coef;
+    showSpikesButton_coords = [775, 45, 50, 30].*scaling_matrix*min_scale_coef;
+    showCSDbutton_coords = [720, 45, 50, 30].*scaling_matrix*min_scale_coef;
+    previousbutton_coords = [305, 10, 100, 30].*scaling_matrix*min_scale_coef;
+    nextbutton_coords = [415, 10, 100, 30].*scaling_matrix*min_scale_coef;
+    eventTable_coords = [10, 50, 250, 127].*scaling_matrix*min_scale_coef;
+    LoadSettingsBtn_coords = [10, 600, 120, 30].*scaling_matrix*min_scale_coef;
+    eventDeleteEdit_coords = [100, 10, 50, 30].*scaling_matrix*min_scale_coef;
+    shiftCoeffEdit_coords = [650, 10, 50, 30].*scaling_matrix*min_scale_coef;
+    FsCoeffEdit_coords = [650, 50, 50, 30].*scaling_matrix*min_scale_coef;
+    meanEventsWindowEdit_coords = [285, 48, 40, 20].*scaling_matrix*min_scale_coef;
+    meanEventsWindowText_coords = [265, 60, 80, 20].*scaling_matrix*min_scale_coef;
+    clearTableBtn_coords = [270, 10, 70, 30].*scaling_matrix*min_scale_coef;
+    MeanEventsBtn_coords = [270, 80, 70, 30].*scaling_matrix*min_scale_coef;
+    AutoEventDetectionBtn_coords = [90, 178, 120, 20].*scaling_matrix*min_scale_coef;
+    DataComparerBtn_coords = [260, 178, 80, 20].*scaling_matrix*min_scale_coef;
+    DeleteEventBtn_coords = [150, 10, 80, 30].*scaling_matrix*min_scale_coef;
+    FsText_coords = [600, 43, 80, 30].*scaling_matrix*min_scale_coef;
+    shiftCoefText_coords = [598, 3, 60, 30].*scaling_matrix*min_scale_coef;
+    stdCoefText_coords = [708, 4, 80, 30].*scaling_matrix*min_scale_coef;
+    EventsText_coords = [10, 175, 100, 20].*scaling_matrix*min_scale_coef;
+    LoadMatFileBtn_coords = [10, 10, 120, 30].*scaling_matrix*min_scale_coef;
+    TimeWindowText_coords = [165, 42, 100, 30].*scaling_matrix*min_scale_coef;
+    BeforeText_coords = [165, 27, 50, 30].*scaling_matrix*min_scale_coef;
+    AfterText_coords = [220, 27, 50, 30].*scaling_matrix*min_scale_coef;
+    
+
     
     function saveSettings()
         figure_position = f.Position;
@@ -122,6 +131,8 @@ function EasyView()
            'MenuBar', 'none', ... % Отключение стандартного меню
            'ToolBar', 'none', ...
            'KeyPressFcn', @keyPressFunction);
+    
+    
     f.Position = figure_position;       
     
     % Установка callback для обработки клика мыши по фигуре
@@ -259,7 +270,9 @@ function EasyView()
     MeanEventsBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Mean Events', 'Position', MeanEventsBtn_coords, 'Callback', @meanEventsCallback);
     meanEventsWindowText = uicontrol('Parent', sidePanel, 'Style', 'text', 'String', 'Window(+/-, s):', 'Position', meanEventsWindowText_coords);
     meanEventsWindowEdit = uicontrol('Parent', sidePanel, 'Style', 'edit', 'String', '1', 'Position', meanEventsWindowEdit_coords); % Окно ввода временного окна
-
+    
+%     resizeComponents();
+    
     % Callback функция, вызываемая при клике мыши по фигуре
     function figureClickCallback(src, event)
         resetGraphParameters()
