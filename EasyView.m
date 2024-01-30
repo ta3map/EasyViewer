@@ -573,9 +573,11 @@ function EasyView()
             eventIdx = round(events(i) * Fs);
             windowStart = max(eventIdx - round(meanWindow * Fs / 2), 1);
             windowEnd = min(windowStart + round(meanWindow * Fs) - 1, N);
-
-            % Добавление данных в среднее
-            meanData = meanData + lfp(windowStart:windowEnd, :);
+            
+            if windowEnd < size(lfp, 1)            
+                % Добавление данных в среднее
+                meanData = meanData + lfp(windowStart:windowEnd, :) - nanmedian(lfp(windowStart:windowEnd, :));
+            end
         end
 
         % Нормализация среднего
@@ -592,29 +594,32 @@ function EasyView()
                 eventIdx = round(events(i) * Fs);
                 windowStart = max(eventIdx - round(meanWindow * Fs / 2), 1);
                 windowEnd = min(windowStart + round(meanWindow * Fs) - 1, N);
-                % Окно события
-                time_start = time(windowStart);
-                time_end = time(windowEnd);
-                c = 0;
                 
-                time_interval = [time_start, time_end];% s
-                edges = time_interval(1):binsize:time_interval(2);
-                
-                % Смотрим что на каждом канале для этого эвента
-                ch_hists = [];
-                for ch_inx = ch_inxs
-                    c = c+1;
-%                     offset = offsets(c) ;
-                    spk = spks(ch_inx).tStamp/1000;
-                    ampl = abs(spks(ch_inx).ampl);
-                    cond_in_event = spk >= time_interval(1) & spk < time_interval(2) ...
-                        & ampl > std_coef*std(ampl);
-                    spikes_in_event = spk(cond_in_event);
-                    hist_data = histcounts(spikes_in_event, edges);
-                    ch_hists = [ch_hists; hist_data];
+                if windowEnd < size(lfp, 1)                      
+                    % Окно события
+                    time_start = time(windowStart);
+                    time_end = time(windowEnd);
+                    c = 0;
+
+                    time_interval = [time_start, time_end];% s
+                    edges = time_interval(1):binsize:time_interval(2);
+
+                    % Смотрим что на каждом канале для этого эвента
+                    ch_hists = [];
+                    for ch_inx = ch_inxs
+                        c = c+1;
+    %                     offset = offsets(c) ;
+                        spk = spks(ch_inx).tStamp/1000;
+                        ampl = abs(spks(ch_inx).ampl);
+                        cond_in_event = spk >= time_interval(1) & spk < time_interval(2) ...
+                            & ampl > std_coef*std(ampl);
+                        spikes_in_event = spk(cond_in_event);
+                        hist_data = histcounts(spikes_in_event, edges);
+                        ch_hists = [ch_hists; hist_data];
+                    end
+    %                 ev_hists = [ev_hists, ch_hists];
+                    evs(i, :, :) = ch_hists;
                 end
-%                 ev_hists = [ev_hists, ch_hists];
-                evs(i, :, :) = ch_hists;
             end
             ev_hists = squeeze(mean(evs,1));
         end
@@ -661,6 +666,9 @@ function EasyView()
         pl_widths_in = widths_in(ch_enabled);
         pl_colors_in = colors_in(ch_enabled);       
         
+        if show_CSD
+            csdPlotting(pl_timeAxis, pl_meanData)
+        end
         
         offsets = multiplot(pl_timeAxis, pl_meanData, ...
         'ChannelLabels', pl_ch_labels, ...
@@ -674,6 +682,8 @@ function EasyView()
             uistack(im, 'bottom'); % Перемещение изображения на задний план
         end        
         
+        
+    
         xlabel('Time (s)');
         ylabel('Mean Value');
         [path, name, ~] = fileparts(matFilePath);

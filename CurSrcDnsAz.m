@@ -1,5 +1,5 @@
 function [csd, newtrange, newchrange] = CurSrcDnsAz(eeg, varargin)
-method = 0;
+method = 1;
     % Input parameters parsing and setting defaults
     [trange, type, chnum, chanrange, samplerate, step, ColorRange] = ...
         DefaultArgsAz(varargin, {[], 'c', size(eeg,2), 1:size(eeg,2), 1e3, 1, []});

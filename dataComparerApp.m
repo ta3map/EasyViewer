@@ -6,7 +6,7 @@ function dataComparerApp()
     disp('Data Comparer started')
     
     % Получение пути к последнему открытому файлу или использование стандартной директории
-    SettingsFilepath = fullfile(tempdir, 'last_opened_files.mat');
+    SettingsFilepath = fullfile(tempdir, 'last_opened_files_1.03.mat');
     d = load(SettingsFilepath);
     lastOpenedFiles = d.lastOpenedFiles;
     initialDir = fileparts(lastOpenedFiles{end});
