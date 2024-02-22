@@ -1,11 +1,11 @@
 function EasyView()
-    % Инициализация переменных и создание GUI
+    clear global
+
     global Fs N time chosen_time_interval cond ch_inxs m_coef 
     global data time_in shiftCoeff eventTable
     global lfp hd spks multiax lineCoefficients
     global channelNames numChannels channelEnabled scalingCoefficients tableData
     global matFilePath channelSettingsFilePath
-    % Глобальная переменная для хранения текущего множителя времени
     global timeUnitFactor selectedUnit
     global saved_time_interval
     global meanData timeAxis initialDir
@@ -23,7 +23,10 @@ function EasyView()
     global ch_labels_l colors_in_l  widths_in_l
     global add_event_settings
     global mean_group_ch timeSlider menu_visible csd_avaliable filter_avaliable filterSettings
+    global channelTable 
+    global data_loaded
     
+    data_loaded = false;
     menu_visible = false;
     
     binsize = 0.001;%s
@@ -136,14 +139,16 @@ function EasyView()
     f.Position = figure_position;       
     
     % Установка callback для обработки клика мыши по фигуре
-    f.WindowButtonDownFcn = @figureClickCallback;
+%     f.WindowButtonDownFcn = @figureClickCallback;
     
     mainPanel = uipanel('Parent', f, 'Position', [.01 .01 .7 .13]);
     multiax = axes('Position', [0.07    0.2    0.63    0.75]);
     sidePanel = uipanel('Parent', f, 'Position', [.72 .01 .27 .98]);
     
     set(f, 'SizeChangedFcn', @resizeComponents);
-    
+    % Настройка обработчика закрытия для фигуры
+    set(f, 'CloseRequestFcn', @(src, event)closeAllCallback(src, event));
+
     height_of_sidePanel = 195;
     width_of_text = 100;
     % Добавление текстовой метки как заголовка к sidePanel
@@ -164,7 +169,7 @@ function EasyView()
     timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', {'time', 'stimulus', 'event'}, 'Position', timeCenterPopup_coords, 'Callback', @changeTimeCenter);
 
     % Кнопка для загрузки .mat файла
-    LoadMatFileBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Load .mat File (ZAV Format)', 'Position', LoadMatFileBtn_coords, 'Callback', @loadMatFile);
+    LoadMatFileBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Load .mat File (ZAV Format)', 'Position', LoadMatFileBtn_coords, 'Callback', @OpenZavLfpFile);
 
     % Кнопка для просмотра всего сигнала целиком
     viewallbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', '[ ]', 'Position', viewallbutton_coords, 'Callback', @ViewAll);
@@ -197,7 +202,7 @@ function EasyView()
 
     
     % Список настроек
-    options = {'Event Adding','Filtering', 'CSD Displaying', 'Average subtraction'};    
+    options = {'Events','Filtering', 'CSD Displaying', 'Average subtraction', 'Spectral Density'};    
    
     % Создание выпадающего списка
     menu = uicontrol('Style', 'listbox',...
@@ -256,10 +261,14 @@ function EasyView()
 
     % Clear Table
     clearTableBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Clear Table', 'Position', clearTableBtn_coords, 'Callback', @clearTable);
-
+    
     % Add event
-    eventAdd = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Add Event', 'Position', eventAdd_coords, 'Callback', @addEvent);
-
+%     eventAdd = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Add Event', 'Position', eventAdd_coords, 'Callback', @addEvent);
+    eventAdd = uicontrol('Parent', sidePanel, 'Style', 'togglebutton', 'String', 'Add Event', ...
+    'Position', eventAdd_coords, 'Callback', @toggleEventAdding);
+    % Глобальная переменная для контроля процесса добавления
+    isAdding = false;
+    
     % Кнопка для сохранения событий
     saveEventsBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Save Events', 'Position', saveEventsBtn_coords, 'Callback', @saveEvents);
 
@@ -271,8 +280,59 @@ function EasyView()
     meanEventsWindowText = uicontrol('Parent', sidePanel, 'Style', 'text', 'String', 'Window(+/-, s):', 'Position', meanEventsWindowText_coords);
     meanEventsWindowEdit = uicontrol('Parent', sidePanel, 'Style', 'edit', 'String', '1', 'Position', meanEventsWindowEdit_coords); % Окно ввода временного окна
     
-%     resizeComponents();
+    % отключаем все элементы управления кроме начальных
+    setUIControlsEnable({sidePanel, mainPanel} , 'off')
+    set(LoadMatFileBtn, 'Enable', 'on');
+    set(loadEventsBtn, 'Enable', 'on');
     
+    function toggleEventAdding(src, ~)
+        % Переключение состояния добавления
+        isAdding = get(src, 'Value')
+        
+    end
+
+    % Добавление интерактивного маркера при клике на график с зажатой клавишей Ctrl
+    
+    f.WindowButtonDownFcn = @(src, event)checkForCtrlAndAddMarker(multiax, f);
+%     f.WindowButtonUpFcn = @(src, event)updateMarkersDiff(multiax, f);
+    
+    % Функция проверки зажатия Ctrl и добавления маркера
+    function checkForCtrlAndAddMarker(ax, fig)
+        % Проверяем, зажата ли клавиша Ctrl
+        modifiers = get(fig, 'CurrentModifier');
+        if ismember('control', modifiers) % Если зажата Ctrl
+            marker = addMarker(ax);
+            updateMarkersDiff(ax);
+        end
+    end
+    
+    % Функция для добавления маркера
+    function marker = addMarker(ax)
+%         global hT
+        % Получение координат клика
+        cp = ax.CurrentPoint;
+        x = cp(1,1);
+        
+        % Добавление вертикальной линии
+        marker = line(ax, [x x], ylim, 'Color', 'r', 'LineWidth', 2, 'Tag', 'Draggable');
+        
+        % Добавление текста с временем
+        hT = text(x, ax.YLim(2), sprintf('%.2f', x), 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center');
+        
+        % Добавление обработчика для перетаскивания
+        draggable(ax, marker, hT, 'h');
+    end
+    
+%     resizeComponents();
+    % Функция, вызываемая при закрытии фигуры
+    function closeAllCallback(src, event)
+        % Закрытие всех фигур
+        close all;
+        clear global
+        % Удаление текущей фигуры из памяти и её закрытие
+        delete(src);
+    end
+
     % Callback функция, вызываемая при клике мыши по фигуре
     function figureClickCallback(src, event)
         resetGraphParameters()
@@ -308,6 +368,9 @@ function EasyView()
             case options{4} %'Subtract mean ...'
                 % вызов функции для Subtract mean ...
                 SubMeanFigSettings()
+            case options{5}
+                % отображение спектральной плотности текущего сигнала
+                spectralDensityGUI();
         end
         resetGraphParameters()
     end
@@ -551,145 +614,7 @@ function EasyView()
         calculateAndPlotMeanEvents(meanWindow);
     end
 
-    function calculateAndPlotMeanEvents(meanWindow)
-                
-        % Получение данных событий и настроек каналов
-        ch_labels = hd.recChNames(:);
-        
-%         events = eventTable.Data;
-        channelSettings = get(channelTable, 'Data');
-        activeChannels = find([channelSettings{:, 2}]); % Индексы активных каналов
-        scalingCoefficients = [channelSettings{:, 3}]; % Масштабирующие коэффициенты
-        
-        colors_in = channelSettings(:, 4)';
-        widths_in = [channelSettings{:, 5}];
-        
-        % Подготовка данных для среднего
-        meanData = zeros(round(meanWindow * Fs), size(lfp, 2));
-        numEvents = length(events);
-
-        for i = 1:numEvents
-            % Вычисление индексов окна вокруг события
-            eventIdx = round(events(i) * Fs);
-            windowStart = max(eventIdx - round(meanWindow * Fs / 2), 1);
-            windowEnd = min(windowStart + round(meanWindow * Fs) - 1, N);
-            
-            if windowEnd < size(lfp, 1)            
-                % Добавление данных в среднее
-                meanData = meanData + lfp(windowStart:windowEnd, :) - nanmedian(lfp(windowStart:windowEnd, :));
-            end
-        end
-
-        % Нормализация среднего
-        meanData = meanData / numEvents;
-        
-        % Считаем средние спайки
-
-        % show spikes
-        ev_hists = [];
-        if show_spikes
-            clear evs
-            for i = 1:numEvents
-                % Вычисление индексов окна вокруг события
-                eventIdx = round(events(i) * Fs);
-                windowStart = max(eventIdx - round(meanWindow * Fs / 2), 1);
-                windowEnd = min(windowStart + round(meanWindow * Fs) - 1, N);
-                
-                if windowEnd < size(lfp, 1)                      
-                    % Окно события
-                    time_start = time(windowStart);
-                    time_end = time(windowEnd);
-                    c = 0;
-
-                    time_interval = [time_start, time_end];% s
-                    edges = time_interval(1):binsize:time_interval(2);
-
-                    % Смотрим что на каждом канале для этого эвента
-                    ch_hists = [];
-                    for ch_inx = ch_inxs
-                        c = c+1;
-    %                     offset = offsets(c) ;
-                        spk = spks(ch_inx).tStamp/1000;
-                        ampl = abs(spks(ch_inx).ampl);
-                        cond_in_event = spk >= time_interval(1) & spk < time_interval(2) ...
-                            & ampl > std_coef*std(ampl);
-                        spikes_in_event = spk(cond_in_event);
-                        hist_data = histcounts(spikes_in_event, edges);
-                        ch_hists = [ch_hists; hist_data];
-                    end
-    %                 ev_hists = [ev_hists, ch_hists];
-                    evs(i, :, :) = ch_hists;
-                end
-            end
-            ev_hists = squeeze(mean(evs,1));
-        end
-        
-        
-        % Отображение среднего
-        f2 = figure('Name', 'Mean Event Data'); % Создание нового окна для графика
-        
-        hold on
-%         sidePanel = uipanel('Parent', f2, 'Position', [.01 .01 .7 .13]);
-        % Кнопка для сохранения фигуры на среднем
-        meanSaveButton = uicontrol('Style', 'pushbutton', 'String', 'Save Figure', 'Position', [74  388, 80, 30], 'Callback', @(src, event) saveFigure(f2));
-        
-        % Кнопка для сохранения данных
-        saveDataButton = uicontrol('Style', 'pushbutton', 'String', 'Save Data', 'Position', [160  388, 80, 30], 'Callback', @(src, event) saveMeanData());
-
-        function saveMeanData()   
-            [path, name, ~] = fileparts(matFilePath);
-            defaultFileName = fullfile(path, [name '_data.mean']);                
-            [file,path] = uiputfile('*.mean','Save Data As', defaultFileName);
-            if isequal(file,0) || isequal(path,0)
-               disp('User canceled save');
-            else
-               save(fullfile(path,file), 'meanData', 'events', 'channelSettings', ...
-                   'activeChannels', ...
-            'scalingCoefficients', 'Fs', 'N', 'time', 'show_spikes', ...
-            'binsize', 'std_coef', 'spks', 'ch_inxs', 'ev_hists', ...
-            'timeAxis', 'ch_labels', 'shiftCoeff', 'widths_in', 'colors_in');
-            end
-        end
-
-        start_time = -meanWindow / 2;
-        end_time = meanWindow / 2;
-        
-        ch_enabled = repmat(false, length(ch_labels), 1);    
-        ch_enabled(activeChannels) = true;
-        
-        pl_timeAxis = linspace(start_time, end_time, size(meanData, 1));
-        pl_meanData =  meanData.* scalingCoefficients;
-        
-        pl_meanData = pl_meanData(:, ch_enabled);
-        pl_ch_labels = ch_labels(ch_enabled);
-        pl_shiftCoeff = shiftCoeff;
-        pl_widths_in = widths_in(ch_enabled);
-        pl_colors_in = colors_in(ch_enabled);       
-        
-        if show_CSD
-            csdPlotting(pl_timeAxis, pl_meanData)
-        end
-        
-        offsets = multiplot(pl_timeAxis, pl_meanData, ...
-        'ChannelLabels', pl_ch_labels, ...
-        'shiftCoeff',pl_shiftCoeff, ...
-        'linewidth', pl_widths_in, ...
-        'color', pl_colors_in);
     
-        if not(isempty(ev_hists))
-            mua_x = linspace(start_time, end_time, size(ev_hists, 2));
-            im = imagesc(mua_x, offsets, ev_hists);
-            uistack(im, 'bottom'); % Перемещение изображения на задний план
-        end        
-            
-        xlabel('Time (s)');
-        ylabel('Mean Value');
-        [path, name, ~] = fileparts(matFilePath);
-        title([name, ' (mean event data), ', num2str(numEvents), ' events'], 'interpreter', 'none')        
-        
-        ylim([offsets(end)-shiftCoeff, offsets(1)+shiftCoeff])
-        xlim([start_time, end_time])
-    end
 
     function saveFigure(fig)
         % Скрытие кнопки
@@ -900,7 +825,7 @@ function EasyView()
     end
     
     % Внутренние функции для обработки событий GUI
-    function loadMatFile(~, ~)
+    function OpenZavLfpFile(~, ~)
         
         % Получение пути к последнему открытому файлу или использование стандартной директории
         initialDir = pwd;
@@ -914,6 +839,20 @@ function EasyView()
             return;
         end
         filepath = fullfile(path, file);
+        
+        loadMatFile(filepath)
+        
+        % Очистка таблицы событий
+        events = [];
+        UpdateEventTable();
+        event_inx = 1;
+        
+        saveSettings();
+        
+        data_loaded = true;
+    end
+
+    function loadMatFile(filepath)
         
         d = load(filepath); % Загружаем данные в структуру
         spks = d.spks;
@@ -952,23 +891,23 @@ function EasyView()
         set(FsCoeffEdit, 'String', num2str(newFs));
         
         % Сохранение пути к загруженному .mat файлу
-        matFilePath = filepath;
-        
-        % Очистка таблицы событий
-        events = [];
-        UpdateEventTable();
-        event_inx = 1;
-        
+        matFilePath = filepath;        
+
         % Обновление максимального значения слайдера
         set(timeSlider, 'Max', time(end));
         
         % Обновление и сохранение списка последних открытых файлов
         lastOpenedFiles{end + 1} = filepath;
         
-        saveSettings();
-        
         % Попытка загрузить настройки каналов
-        loadChannelSettings();        
+        loadChannelSettings();    
+        
+        % Включаем все элементы управления если файл загрузился в первый
+        % раз
+        if ~data_loaded
+            setUIControlsEnable({sidePanel, mainPanel} , 'on')
+            data_loaded = true;
+        end
     end
 
     function loadSettings(~, ~)
@@ -1088,7 +1027,6 @@ function EasyView()
     end
 
     function addEvent(~, ~)
-%         [event_x, event_y] = ginput(1);
         event_x = addExtraEvent();% alvays in seconds!
         events = [events; event_x];
         event_comments{numel(events), 1} = '...';
@@ -1207,6 +1145,27 @@ function loadEvents(~, ~)
     
     filepath = fullfile(path, file);
     loadedData = load(filepath, '-mat'); % Загружаем данные в структуру
+    
+    % если не был загружен lfp, грузим lfp для этих эвентов
+    [~, name, ~] = fileparts(filepath);
+    fileName = name(1:19);
+    firstMatFile = findFirstMatFile(path, fileName)
+    if ~isempty(firstMatFile)
+        if isempty(matFilePath)
+            loadMatFile(firstMatFile) % Загрузка первого .mat файла если не было matFilePath
+        else
+            [~, current_fileName, ~] = fileparts(matFilePath);
+            if ~strcmp(fileName, current_fileName)
+                loadMatFile(firstMatFile) % Загрузка первого .mat файла если у нас другой файл поступил
+            end
+        end
+    end
+    
+    if isempty(firstMatFile) & isempty(matFilePath)
+        warndlg(['The ' fileName '.mat file was not found in this directory. Open .mat file manually or move .ev file to .mat file''s directory and try again.'], 'File Not Found');
+        return;
+    end
+
     
     if isfield(loadedData, 'manlDet')
         events = time([loadedData.manlDet.t])'; % Обновляем таблицу событий

@@ -12,6 +12,7 @@ function updatePlot()
     data = local_lfp(:, ch_inxs).*m_coef;
     time_in = time(cond);
     
+    
     % Фильтруем если попросили
     if sum(filter_avaliable)>0
         ch_to_filter = filter_avaliable(ch_inxs);
@@ -41,7 +42,8 @@ function updatePlot()
     hold on;
     
     if show_CSD
-        csdPlotting(time_in_transformed, data_res)
+%         csdPlotting(time_in_transformed, data_res)
+        csdPlotting(time_in_transformed, data_res, Fs, offsets)
     end
     
     offsets = multiplot(time_in_transformed, data_res, ...
@@ -80,7 +82,8 @@ function updatePlot()
     hold off;
 
     [path, name, ~] = fileparts(matFilePath);
-    title(name, 'interpreter', 'none')
+%     title(name, 'interpreter', 'none')
+    hylabel_ax(Xlims(1), multiax, name)
 
 
     if not(isempty(stims))

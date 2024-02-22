@@ -3,6 +3,7 @@ function setupSignalFilteringGUI()
     global newFs time_in data ch_inxs channelNames filter_avaliable numChannels matFilePath local_settings
     global filterSettings
     global high_line_enable low_line_enable
+%     global hTable
     
     if isempty(filter_avaliable)
         filter_avaliable = false(numChannels, 1);% Ни один канал не участвует в усреднении
@@ -10,7 +11,8 @@ function setupSignalFilteringGUI()
     
     % Создание и настройка главного окна
     fig = figure('Name', 'Signal Filtering', 'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', 'Position', [100, 100, 450, 600]);
-
+%     fig.WindowButtonDownFcn = @checkbtns;
+    
     % Таблица для выбора каналов
     tableData = [channelNames(ch_inxs), num2cell(filter_avaliable(ch_inxs))];
     SubMeanSettings_coords = [10, 300, 300, 300];
@@ -18,7 +20,7 @@ function setupSignalFilteringGUI()
         'ColumnName', {'Channel', 'Enabled'}, ...
         'ColumnFormat', {'char', 'logical'}, ...
         'ColumnEditable', [false true], ...
-        'Position', SubMeanSettings_coords);
+        'Position', SubMeanSettings_coords, 'CellEditCallback', @checkbtns);
     
     % Выбор типа фильтра
     % Сопоставление типов фильтров с их позициями в списке
@@ -29,7 +31,7 @@ function setupSignalFilteringGUI()
     if isempty(filterIndex)
         filterIndex = 1; % Выберите значение по умолчанию, если текущее значение недопустимо
     end
-
+    
     % Создание выпадающего списка с выбранным значением
     hFilterType = uicontrol('Style', 'popup', 'String', filterTypes, ...
         'Position', [320, 550, 100, 25], 'Callback', @filterTypeCallback, ...
@@ -40,7 +42,7 @@ function setupSignalFilteringGUI()
     hFreqLow = uicontrol('Style', 'edit', 'Position', [320, 510, 50, 25], 'Enable', 'on', 'String', num2str(filterSettings.freqLow));
 
     hFreqHighLabel = uicontrol('Style', 'text', 'Position', [380, 535, 30, 15], 'String', 'Hz', 'HorizontalAlignment', 'left');
-    hFreqHigh = uicontrol('Style', 'edit', 'Position', [380, 510, 50, 25], 'Enable', 'off', 'String', num2str(filterSettings.freqHigh));
+    hFreqHigh = uicontrol('Style', 'edit', 'Position', [380, 510, 50, 25], 'Enable', 'on', 'String', num2str(filterSettings.freqHigh));
 
     % Поле для ввода порядка фильтра
     hOrderLabel = uicontrol('Style', 'text', 'Position', [320, 480, 110, 15], 'String', 'Filter Order:', 'HorizontalAlignment', 'left');
@@ -53,15 +55,44 @@ function setupSignalFilteringGUI()
     ylabel('Power/Frequency (dB/Hz)');
     title('Frequency Response');
     grid on;
-    set(ax, 'Visible', 'off');
+    set(ax, 'Visible', 'off');    
+    
+    
+    % Кнопка для нажатия всех каналов
+    uicontrol('Style', 'pushbutton', 'String', 'Select ALL', 'Position', [320, 400, 110, 25], 'Callback', @selectAll);
+    % Кнопка для отжатия всех каналов
+    uicontrol('Style', 'pushbutton', 'String', 'Deselect ALL', 'Position', [320, 370, 110, 25], 'Callback', @deselectAll);
     
     % Кнопка для проверки фильтрации
-    uicontrol('Style', 'pushbutton', 'String', 'Check Filtration', 'Position', [320, 380, 110, 25], 'Callback', {@checkFiltration, ax});
-
+    checkfiltbtn = uicontrol('Style', 'pushbutton', 'String', 'Check Filtration', 'Position', [320, 320, 110, 25], 'Enable', 'on', 'Callback', {@checkFiltration, ax});
     % Кнопка применения настроек
-    applybtn = uicontrol('Style', 'pushbutton', 'String', 'Apply', 'Position', [320, 350, 70, 25], 'Enable', 'off', 'Callback', @applySettings);
-
+    applybtn = uicontrol('Style', 'pushbutton', 'String', 'Apply', 'Position', [320, 290, 70, 25], 'Enable', 'on', 'Callback', @applySettings);
+    
+    % вызов callback для адекватности отображения окон
+    filterTypeCallback(hFilterType)
+    
     % Функции обратного вызова
+    function selectAll(~, ~)
+        hTable.Data(:,2) = num2cell(true(size(hTable.Data(:,2))));
+        set(checkfiltbtn, 'Enable', 'on');
+    end
+    
+    function deselectAll(~, ~)
+        hTable.Data(:,2) = num2cell(false(size(hTable.Data(:,2))));
+        axes(ax); cla(ax);
+        set(ax, 'Visible', 'off');
+%         set(applybtn, 'Enable', 'on');
+        set(checkfiltbtn, 'Enable', 'off');
+    end
+    
+    function checkbtns(~, ~)
+        if sum(cell2mat(hTable.Data(:, 2)))>0
+            set(checkfiltbtn, 'Enable', 'on');
+        else
+            set(checkfiltbtn, 'Enable', 'off');
+        end
+    end
+
     function filterTypeCallback(src, ~)
         switch src.Value
             case 1 % highpass
@@ -134,10 +165,7 @@ function setupSignalFilteringGUI()
         end
         
         
-        
-
-        
-        set(applybtn, 'Enable', 'on');
+%         set(applybtn, 'Enable', 'on');
     end
 
     function applySettings(~, ~)

@@ -1,12 +1,11 @@
 function calculateAndPlotMeanEvents(meanWindow)
 
-% Инициализация переменных и создание GUI
+% Инициализация переменных
 global Fs N time chosen_time_interval cond ch_inxs m_coef 
 global data time_in shiftCoeff eventTable
 global lfp hd spks multiax lineCoefficients
 global channelNames numChannels channelEnabled scalingCoefficients tableData
 global matFilePath channelSettingsFilePath
-% Глобальная переменная для хранения текущего множителя времени
 global timeUnitFactor selectedUnit
 global saved_time_interval
 global meanData timeAxis initialDir
@@ -46,5 +45,11 @@ params.show_spikes = show_spikes;
 params.ch_inxs = ch_inxs; % Индексы активированных каналов
 params.show_CSD = show_CSD;
 
-[f, calculation_result] = plotMeanEvents(params)
+% Фильтруем если попросили
+if sum(filter_avaliable)>0
+    ch_to_filter = filter_avaliable;
+    params.lfp(:, ch_to_filter) = applyFilter(lfp(:, ch_to_filter), filterSettings, newFs);        
+end
+    
+[f, calculation_result] = plotMeanEvents(params);
 end

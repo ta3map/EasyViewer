@@ -22,12 +22,26 @@
             case 'bandpass'
                 [b, a] = butter(order, [filterSettings.freqLow filterSettings.freqHigh]/(Fs/2), 'bandpass');
         end
-
+        
         % Применение фильтра ко всем выбранным каналам
+        % убираем краевые эффекты через отражение сигнала
+        reflectionLength = round(size(data,1)*0.1); % Например, отражение на 10% от исходного сигнала
         for ch = 1:size(data, 2)
-            % Используйте filtfilt для фильтрации без фазового сдвига
-            filteredData(:, ch) = filtfilt(b, a, double(data(:, ch)));
+            % Отражение сигнала
+            reflectedSignal = [flipud(data(1:reflectionLength, ch)); data(:, ch); flipud(data(end-reflectionLength+1:end, ch))];
+
+            % Фильтрация отраженного сигнала
+            filteredReflectedSignal = filtfilt(b, a, double(reflectedSignal));
+
+            % Удаление отраженных частей, возвращая сигнал к исходной длине
+            filteredData(:, ch) = filteredReflectedSignal(reflectionLength+1:end-reflectionLength);
         end
+    
+        % старый метод без отражения
+%         for ch = 1:size(data, 2)
+%             % Используйте filtfilt для фильтрации без фазового сдвига
+%             filteredData(:, ch) = filtfilt(b, a, double(data(:, ch)));
+%         end
 
         % Возвращение отфильтрованных данных
     end

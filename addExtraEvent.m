@@ -1,5 +1,7 @@
 function event_x = addExtraEvent()
-    global add_event_settings lfp time timeUnitFactor
+    global add_event_settings lfp time timeUnitFactor filter_avaliable filterSettings newFs ch_inxs
+    
+
 
     % Получаем первичную временную координату события
     [event_x, ~] = ginput(1); 
@@ -18,7 +20,13 @@ function event_x = addExtraEvent()
         cond = time >= time_interval(1) & time < time_interval(2);
         data = lfp(cond, ch_inx);
         time_in = time(cond);
-
+        
+        % Фильтруем если попросили
+        if sum(filter_avaliable)>0
+            ch_to_filter = filter_avaliable(ch_inxs);
+            data(:, ch_to_filter) = applyFilter(data(:, ch_to_filter), filterSettings, newFs);        
+        end
+        
         % Определение индекса экстремума
         if strcmp(add_event_settings.polarity, 'positive')
             [~, extr_inx] = max(data);

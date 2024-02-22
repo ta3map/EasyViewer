@@ -1,4 +1,5 @@
 function EasyView()
+    clear global
 
     global Fs N time chosen_time_interval cond ch_inxs m_coef 
     global data time_in shiftCoeff eventTable
@@ -22,8 +23,10 @@ function EasyView()
     global ch_labels_l colors_in_l  widths_in_l
     global add_event_settings
     global mean_group_ch timeSlider menu_visible csd_avaliable filter_avaliable filterSettings
-    global channelTable
+    global channelTable 
+    global data_loaded
     
+    data_loaded = false;
     menu_visible = false;
     
     binsize = 0.001;%s
@@ -135,15 +138,14 @@ function EasyView()
     
     f.Position = figure_position;       
     
-    % Установка callback для обработки клика мыши по фигуре
-    f.WindowButtonDownFcn = @figureClickCallback;
-    
     mainPanel = uipanel('Parent', f, 'Position', [.01 .01 .7 .13]);
     multiax = axes('Position', [0.07    0.2    0.63    0.75]);
     sidePanel = uipanel('Parent', f, 'Position', [.72 .01 .27 .98]);
     
     set(f, 'SizeChangedFcn', @resizeComponents);
-    
+    % Настройка обработчика закрытия для фигуры
+    set(f, 'CloseRequestFcn', @(src, event)closeAllCallback(src, event));
+
     height_of_sidePanel = 195;
     width_of_text = 100;
     % Добавление текстовой метки как заголовка к sidePanel
@@ -164,7 +166,7 @@ function EasyView()
     timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', {'time', 'stimulus', 'event'}, 'Position', timeCenterPopup_coords, 'Callback', @changeTimeCenter);
 
     % Кнопка для загрузки .mat файла
-    LoadMatFileBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Load .mat File (ZAV Format)', 'Position', LoadMatFileBtn_coords, 'Callback', @loadMatFile);
+    LoadMatFileBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Load .mat File (ZAV Format)', 'Position', LoadMatFileBtn_coords, 'Callback', @OpenZavLfpFile);
 
     % Кнопка для просмотра всего сигнала целиком
     viewallbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', '[ ]', 'Position', viewallbutton_coords, 'Callback', @ViewAll);
@@ -197,7 +199,7 @@ function EasyView()
 
     
     % Список настроек
-    options = {'Event Adding','Filtering', 'CSD Displaying', 'Average subtraction'};    
+    options = {'Events','Filtering', 'CSD Displaying', 'Average subtraction', 'Spectral Density'};    
    
     % Создание выпадающего списка
     menu = uicontrol('Style', 'listbox',...
@@ -256,7 +258,7 @@ function EasyView()
 
     % Clear Table
     clearTableBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Clear Table', 'Position', clearTableBtn_coords, 'Callback', @clearTable);
-
+    
     % Add event
     eventAdd = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Add Event', 'Position', eventAdd_coords, 'Callback', @addEvent);
 
@@ -271,11 +273,51 @@ function EasyView()
     meanEventsWindowText = uicontrol('Parent', sidePanel, 'Style', 'text', 'String', 'Window(+/-, s):', 'Position', meanEventsWindowText_coords);
     meanEventsWindowEdit = uicontrol('Parent', sidePanel, 'Style', 'edit', 'String', '1', 'Position', meanEventsWindowEdit_coords); % Окно ввода временного окна
     
-%     resizeComponents();
+    % отключаем все элементы управления кроме начальных
+    setUIControlsEnable({sidePanel, mainPanel} , 'off')
+    set(LoadMatFileBtn, 'Enable', 'on');
+    set(loadEventsBtn, 'Enable', 'on');
+           
+    f.WindowButtonDownFcn = @(src, event)ButtonDownFcn(multiax, f);
+    function ButtonDownFcn(ax, fig)
+        % Проверяем, зажата ли клавиша Ctrl
+        modifiers = get(fig, 'CurrentModifier');
+        if ismember('control', modifiers) % Если зажата Ctrl
+            % Добавление интерактивного маркера при клике на график 
+            marker = addMarker(ax);
+            updateMarkersDiff(ax);
+            
+        elseif ismember('shift', modifiers) % Если зажата Ctrl
+            % Добавление события
+            addEvent(eventAdd);
+        end
+    end
     
-    % Callback функция, вызываемая при клике мыши по фигуре
-    function figureClickCallback(src, event)
-        resetGraphParameters()
+    % Функция для добавления маркера
+    function marker = addMarker(ax)
+%         global hT
+        % Получение координат клика
+        cp = ax.CurrentPoint;
+        x = cp(1,1);
+        
+        % Добавление вертикальной линии
+        marker = line(ax, [x x], ylim, 'Color', 'r', 'LineWidth', 2, 'Tag', 'Draggable');
+        
+        % Добавление текста с временем
+        hT = text(x, ax.YLim(2), sprintf('%.2f', x), 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center');
+        
+        % Добавление обработчика для перетаскивания
+        draggable(ax, marker, hT, 'h');
+    end
+    
+%     resizeComponents();
+    % Функция, вызываемая при закрытии фигуры
+    function closeAllCallback(src, event)
+        % Закрытие всех фигур
+        close all;
+        clear global
+        % Удаление текущей фигуры из памяти и её закрытие
+        delete(src);
     end
 
     % Callback для сброса параметров
@@ -308,6 +350,9 @@ function EasyView()
             case options{4} %'Subtract mean ...'
                 % вызов функции для Subtract mean ...
                 SubMeanFigSettings()
+            case options{5}
+                % отображение спектральной плотности текущего сигнала
+                spectralDensityGUI();
         end
         resetGraphParameters()
     end
@@ -762,7 +807,7 @@ function EasyView()
     end
     
     % Внутренние функции для обработки событий GUI
-    function loadMatFile(~, ~)
+    function OpenZavLfpFile(~, ~)
         
         % Получение пути к последнему открытому файлу или использование стандартной директории
         initialDir = pwd;
@@ -776,6 +821,20 @@ function EasyView()
             return;
         end
         filepath = fullfile(path, file);
+        
+        loadMatFile(filepath)
+        
+        % Очистка таблицы событий
+        events = [];
+        UpdateEventTable();
+        event_inx = 1;
+        
+        saveSettings();
+        
+        data_loaded = true;
+    end
+
+    function loadMatFile(filepath)
         
         d = load(filepath); % Загружаем данные в структуру
         spks = d.spks;
@@ -814,23 +873,23 @@ function EasyView()
         set(FsCoeffEdit, 'String', num2str(newFs));
         
         % Сохранение пути к загруженному .mat файлу
-        matFilePath = filepath;
-        
-        % Очистка таблицы событий
-        events = [];
-        UpdateEventTable();
-        event_inx = 1;
-        
+        matFilePath = filepath;        
+
         % Обновление максимального значения слайдера
         set(timeSlider, 'Max', time(end));
         
         % Обновление и сохранение списка последних открытых файлов
         lastOpenedFiles{end + 1} = filepath;
         
-        saveSettings();
-        
         % Попытка загрузить настройки каналов
-        loadChannelSettings();        
+        loadChannelSettings();    
+        
+        % Включаем все элементы управления если файл загрузился в первый
+        % раз
+        if ~data_loaded
+            setUIControlsEnable({sidePanel, mainPanel} , 'on')
+            data_loaded = true;
+        end
     end
 
     function loadSettings(~, ~)
@@ -950,7 +1009,6 @@ function EasyView()
     end
 
     function addEvent(~, ~)
-%         [event_x, event_y] = ginput(1);
         event_x = addExtraEvent();% alvays in seconds!
         events = [events; event_x];
         event_comments{numel(events), 1} = '...';
@@ -1069,6 +1127,27 @@ function loadEvents(~, ~)
     
     filepath = fullfile(path, file);
     loadedData = load(filepath, '-mat'); % Загружаем данные в структуру
+    
+    % если не был загружен lfp, грузим lfp для этих эвентов
+    [~, name, ~] = fileparts(filepath);
+    fileName = name(1:19);
+    firstMatFile = findFirstMatFile(path, fileName)
+    if ~isempty(firstMatFile)
+        if isempty(matFilePath)
+            loadMatFile(firstMatFile) % Загрузка первого .mat файла если не было matFilePath
+        else
+            [~, current_fileName, ~] = fileparts(matFilePath);
+            if ~strcmp(fileName, current_fileName)
+                loadMatFile(firstMatFile) % Загрузка первого .mat файла если у нас другой файл поступил
+            end
+        end
+    end
+    
+    if isempty(firstMatFile) & isempty(matFilePath)
+        warndlg(['The ' fileName '.mat file was not found in this directory. Open .mat file manually or move .ev file to .mat file''s directory and try again.'], 'File Not Found');
+        return;
+    end
+
     
     if isfield(loadedData, 'manlDet')
         events = time([loadedData.manlDet.t])'; % Обновляем таблицу событий
