@@ -23,7 +23,7 @@ global ev_hists ch_hists
 global ch_labels_l colors_in_l  widths_in_l
 global add_event_settings
 global mean_group_ch timeSlider menu_visible csd_avaliable filter_avaliable filterSettings
-global channelTable
+global channelTable csd_smooth_coef csd_contrast_coef
 
 [~, titlename, ~] = fileparts(matFilePath);
 
@@ -44,6 +44,9 @@ params.titlename = titlename;
 params.show_spikes = show_spikes;
 params.ch_inxs = ch_inxs; % Индексы активированных каналов
 params.show_CSD = show_CSD;
+params.csd_smooth_coef = csd_smooth_coef;
+params.csd_contrast_coef = csd_contrast_coef;
+params.csd_active = csd_avaliable(ch_inxs);
 
 % Фильтруем если попросили
 if sum(filter_avaliable)>0

@@ -1,7 +1,7 @@
 function EasyView()
-    clear global
+%     clear global
 
-    global Fs N time chosen_time_interval cond ch_inxs m_coef 
+    global Fs N time chosen_time_interval cond ch_inxs m_coef
     global data time_in shiftCoeff eventTable
     global lfp hd spks multiax lineCoefficients
     global channelNames numChannels channelEnabled scalingCoefficients tableData
@@ -25,6 +25,11 @@ function EasyView()
     global mean_group_ch timeSlider menu_visible csd_avaliable filter_avaliable filterSettings
     global channelTable 
     global data_loaded
+    global SettingsFilepath
+    global csd_smooth_coef csd_contrast_coef
+    global autodetection_settings
+    
+    csd_contrast_coef = 99.9;
     
     data_loaded = false;
     menu_visible = false;
@@ -32,7 +37,7 @@ function EasyView()
     binsize = 0.001;%s
     show_spikes = false;
     show_CSD = false;
-    std_coef = 0.5;
+    std_coef = 5;
     time_back = 1;
     time_forward = 1;
     
@@ -54,18 +59,38 @@ function EasyView()
             d = load(SettingsFilepath);
             lastOpenedFiles = d.lastOpenedFiles;
             figure_position = d.figure_position;
+            % настройки добавления события
             if isfield(d, 'add_event_settings')
                 add_event_settings = d.add_event_settings;
             end
+            % глобальные настройки единиц времени
+            if isfield(d, 'timeUnitFactor')
+                timeUnitFactor = d.timeUnitFactor;
+                selectedUnit = d.selectedUnit;
+            else
+                timeUnitFactor = 1;    
+                selectedUnit = 's';
+            end            
+            % глобальные настройки автодетекции
+            if isfield(d, 'autodetection_settings')
+                autodetection_settings = d.autodetection_settings;
+            else
+                autodetection_settings = [];
+            end
+
         else
+            % Инициализация всех переменных при первом запуске
             lastOpenedFiles = {};
-            figure_position = base_figure_position;
-            % Инициализация структуры настроек по умолчанию
-            add_event_settings.mode = 'freehand';
+            figure_position = base_figure_position;            
+            add_event_settings.mode = 'manual';
             add_event_settings.channel = 11;
             add_event_settings.polarity = 'positive';
             add_event_settings.timeWindow = 10;
+            timeUnitFactor = 1;    
+            selectedUnit = 's';
+            save(SettingsFilepath, 'lastOpenedFiles', 'figure_position', 'add_event_settings');
         end
+        
     end
 
     % координаты графических элементов
@@ -117,13 +142,12 @@ function EasyView()
     
     function saveSettings()
         figure_position = f.Position;
-        save(SettingsFilepath, 'lastOpenedFiles', 'figure_position', 'add_event_settings');
+        save(SettingsFilepath, 'lastOpenedFiles', 'figure_position', 'add_event_settings', '-append');
     end
 
     clc
     
-    timeUnitFactor = 1;    
-    selectedUnit = 's';
+
     activ_all_view = true;
     
     % Создание таймера
@@ -131,6 +155,7 @@ function EasyView()
     
     % Создание фигуры и панелей
     f = figure('Name', 'LFP Data Viewer', ...
+           'NumberTitle', 'off',...
            'MenuBar', 'none', ... % Отключение стандартного меню
            'ToolBar', 'none', ...
            'KeyPressFcn', @keyPressFunction);
@@ -145,7 +170,11 @@ function EasyView()
     set(f, 'SizeChangedFcn', @resizeComponents);
     % Настройка обработчика закрытия для фигуры
     set(f, 'CloseRequestFcn', @(src, event)closeAllCallback(src, event));
-
+    
+    % multiax невидим при запуске
+    set(multiax, 'Visible', 'off')
+    text(multiax, 0.5, 0.5, 'Open MAT or EV file', 'color', 'r', 'horizontalalignment', 'center')
+    
     height_of_sidePanel = 195;
     width_of_text = 100;
     % Добавление текстовой метки как заголовка к sidePanel
@@ -160,7 +189,10 @@ function EasyView()
     timeSlider = uicontrol('Parent', mainPanel, 'Style', 'slider', 'Position', timeSlider_coords, 'Min', 0, 'Max', 1, 'Value', 0, 'Callback', @timeSliderCallback);
 
     % Добавление выпадающего списка для выбора единиц времени
-    timeUnitPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', {'s', 'ms', 'min'}, 'Position', timeUnitPopup_coords, 'Callback', @changeTimeUnit);
+    units = {'s', 'ms', 'min'};
+    timeUnitPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', units, 'Position', timeUnitPopup_coords, 'Callback', @changeTimeUnit);
+    index = find(strcmp(units, selectedUnit));
+    set(timeUnitPopup, 'Value', index);
 
     % Добавление выпадающего списка для выбора режима просмотра
     timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', {'time', 'stimulus', 'event'}, 'Position', timeCenterPopup_coords, 'Callback', @changeTimeCenter);
@@ -180,9 +212,9 @@ function EasyView()
 
     % Spikes
     % STD
-    stdCoefText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'STD coef:', 'Position', stdCoefText_coords);
+    stdCoefText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'MUA coef:', 'Position', stdCoefText_coords);
     stdCoefEdit = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', num2str(std_coef), 'Position', stdCoefEdit_coords, 'Callback', @StdCoefCallback);
-    showSpikesButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'spikes', 'Position', showSpikesButton_coords, 'Callback', @ShowSpikesButtonCallback);
+    showSpikesButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'MUA', 'Position', showSpikesButton_coords, 'Callback', @ShowSpikesButtonCallback);
     showCSDbutton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'CSD', 'Position', showCSDbutton_coords, 'Callback', @ShowCSDButtonCallback);
 
     % Кнопки для навигации по времени
@@ -199,7 +231,7 @@ function EasyView()
 
     
     % Список настроек
-    options = {'Events','Filtering', 'CSD Displaying', 'Average subtraction', 'Spectral Density'};    
+    options = {'Event Creation Settings','Filtering', 'CSD Displaying', 'Average subtraction', 'Spectral Density'};    
    
     % Создание выпадающего списка
     menu = uicontrol('Style', 'listbox',...
@@ -338,7 +370,7 @@ function EasyView()
         val = src.Value;
         str = src.String;
         selectedOption = str{val};
-        disp(selectedOption)
+%         disp(selectedOption)
         switch selectedOption
             case options{2}%'Filtering ...'
                 setupSignalFilteringGUI();
@@ -423,157 +455,7 @@ function EasyView()
     end
 
     function openAutoEventDetectionWindow(~, ~)
-        % Окно Auto Event Detection
-        detectionFig = figure('Name', 'Auto Event Detection', 'NumberTitle', 'off', 'Position', [100, 100, 800, 400]);
-
-        % Окошко для ввода MinPeakProminence
-        uicontrol(detectionFig, 'Style', 'text', 'Position', [10, 350, 150, 20], 'String', 'MinPeakProminence:');
-        hMinPeakProminence = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, 350, 130, 20], 'String', '50');
-
-        % Окно выбора ChPos и ChNeg из списка каналов
-        uicontrol(detectionFig, 'Style', 'text', 'Position', [10, 310, 150, 20], 'String', 'ChPos:');
-        hChPos = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, 310, 130, 20], 'String', hd.recChNames);
-        uicontrol(detectionFig, 'Style', 'text', 'Position', [10, 270, 150, 20], 'String', 'ChNeg:');
-        hChNeg = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, 270, 130, 20], 'String', hd.recChNames);
-
-        % Окошко для ввода MinPeakDistance
-        uicontrol(detectionFig, 'Style', 'text', 'Position', [10, 230, 150, 20], 'String', 'MinPeakDistance (s):');
-        hMinPeakDistance = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, 230, 130, 20], 'String', '3');
-
-        % Окошко для ввода onset_threshold
-        uicontrol(detectionFig, 'Style', 'text', 'Position', [10, 190, 150, 20], 'String', 'onset_threshold:');
-        hOnsetThreshold = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, 190, 130, 20], 'String', '10');
-
-        % Окошко для ввода sig_part_window
-        uicontrol(detectionFig, 'Style', 'text', 'Position', [10, 150, 150, 20], 'String', 'sig_part_window (s):');
-        hSigPartWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, 150, 130, 20], 'String', '1');
-
-        % Окно выбора режима детекции
-        uicontrol(detectionFig, 'Style', 'text', 'Position', [10, 110, 150, 20], 'String', 'Detection Mode:');
-        hDetectionMode = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, 110, 130, 20], 'String', {'peaks', 'onsets'});
-
-       
-        ax = axes('Position', [0.43    0.27    0.54    0.3]);
-        
-        axpos = axes('Position', [0.43    0.8267   0.54    0.15]);
-        axneg = axes('Position', [0.43    0.6283    0.54    0.15]);
-       
-        
-        % Кнопка 'Check Detection'
-        uicontrol(detectionFig, 'Style', 'pushbutton', 'String', 'Check Detection',...
-            'Position', [340, 10, 280, 40], 'Callback', @checkDetectionCallback);
-        
-        % Кнопка 'Apply'
-        uicontrol(detectionFig, 'Style', 'pushbutton', 'String', 'Apply',...
-            'Position', [650, 10, 120, 40], 'Callback', @detectButtonCallback);
-        
-        function checkDetectionCallback(~, ~)
-            clc
-            % Сбор значений параметров и упаковка их в структуру
-            params.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
-            params.ChPos = get(hChPos, 'Value');
-            params.ChNeg = get(hChNeg, 'Value');
-            params.MinPeakDistance = str2double(get(hMinPeakDistance, 'String'));
-            params.OnsetThreshold = str2double(get(hOnsetThreshold, 'String'));
-            params.SigPartWindow = str2double(get(hSigPartWindow, 'String'));
-            DetectionModes = get(hDetectionMode, 'String');
-            params.DetectionMode = DetectionModes{get(hDetectionMode, 'Value')};
-        
-            [events_detected, PosTrace, NegTrace, Filtered_Reversion, time_res] = autoEventDetection(params);
-            
-            axes(axpos)
-            cla, hold on
-            plot(time_res, PosTrace)
-            xlim([time_res(1), time_res(end)])
-            ylim([-shiftCoeff, shiftCoeff])
-            Lines(events_detected, [], 'r',':');
-            
-            axes(axneg)
-            cla, hold on
-            plot(time_res, NegTrace)
-            xlim([time_res(1), time_res(end)])
-            ylim([-shiftCoeff, shiftCoeff])
-            Lines(events_detected, [], 'r',':');
-            
-            axes(ax)
-            cla, hold on
-            plot(time_res, Filtered_Reversion)
-            xlim([time_res(1), time_res(end)])
-            
-            Lines(events_detected, [], 'r',':');
-        end
-        
-        function detectButtonCallback(~, ~)
-
-            events = events_detected;
-            event_comments = repmat({'...'}, numel(events), 1); % Инициализация комментариев
-            
-            % Закрыть окно Auto Event Detection
-            close(detectionFig);
-            
-            if not(isempty(events))
-                
-                UpdateEventTable();
-                events_exist = true;
-                event_inx = 1;
-                updatePlot()            
-            end        
-        end
-        
-    end
-
-
-
-    function [events_detected, PosTrace, NegTrace, Filtered_Reversion, time_res] = autoEventDetection(params)
-        % Распаковка параметров из структуры
-        sig_part_window = params.SigPartWindow;
-        MinPeakProminence = params.MinPeakProminence;
-        ChPos = params.ChPos;
-        ChNeg = params.ChNeg;
-        MinPeakDistance = params.MinPeakDistance;
-        onset_threshold = params.OnsetThreshold;
-        DetectionMode = params.DetectionMode;
-        % detecting eSPW events and onsets by Mikhail Sintsov's method
-        raw_frq = Fs;
-        lfp_frq = round(newFs);
-        NegTrace = resample(double(lfp(:, ChNeg)), lfp_frq , raw_frq)';
-        PosTrace = resample(double(lfp(:, ChPos)), lfp_frq , raw_frq)';
-        time_res = linspace(time(1),time(end),numel(PosTrace));   
-        Reversion = PosTrace - NegTrace;
-        Reversion = medfilt1(Reversion, 20);
-        baseline = medfilt1(Reversion, 1000);
-        Filtered_Reversion = Reversion;
-        Filtered_Reversion(Filtered_Reversion<baseline) = baseline(Filtered_Reversion<baseline);
-        Filtered_Reversion = Filtered_Reversion - baseline;
-        [~, peak_times] = findpeaks(Filtered_Reversion, time_res, 'MinPeakProminence',MinPeakProminence, 'MinPeakDistance', MinPeakDistance);
-        peak_locs_inx = ClosestIndex(peak_times, time_res);
-        
-        switch DetectionMode
-            case 'peaks'
-                events_detected = peak_times';
-            case 'onsets'
-                % onset of peaks by Khazipov method
-                onset_locs_inx = zeros(size(peak_locs_inx));
-                sig_part_window_inx = ClosestIndex(sig_part_window, time_res);
-                o_i = 0;
-                for peak_loc_inx = peak_locs_inx
-                    o_i = o_i + 1;
-                    
-                    start_inx = peak_loc_inx - sig_part_window_inx;
-                    end_inx = peak_loc_inx + sig_part_window_inx;
-                    
-                    if start_inx > 1 & end_inx < numel(Filtered_Reversion)
-                        signal_part = Filtered_Reversion(start_inx : end_inx);
-                        onset_l = find(diff(signal_part) > onset_threshold);
-                        if not(isempty(onset_l))
-                            onset_locs_inx(o_i) = start_inx + onset_l(1);
-                        end
-                    end                    
-                end
-                onset_locs_inx(onset_locs_inx == 0) = [];
-                onset_times = time_res(onset_locs_inx)';
-                events_detected = onset_times;
-        end
+        openAutoEventDetection();
     end
         
     % Функция обработки нажатия клавиш
@@ -746,6 +628,9 @@ function EasyView()
         end
         UpdateEventTable();
         updatePlot(); % Обновление графика с новыми единицами времени
+        
+        % сохраняем фактор в глобальные настройки              
+        save(SettingsFilepath, 'selectedUnit', 'timeUnitFactor', '-append');
     end
 
     function changeTimeCenter(src, ~)
@@ -769,7 +654,8 @@ function EasyView()
         channelSettings = get(channelTable, 'Data');
         save(channelSettingsFilePath, 'channelSettings', 'newFs', 'shiftCoeff', ...
             'time_forward', 'time_back', 'mean_group_ch', ...
-            'csd_avaliable', 'filter_avaliable', 'filterSettings');
+            'csd_avaliable', 'filter_avaliable', 'filterSettings', ...
+            'csd_smooth_coef', 'csd_contrast_coef');
     end
     
     % Функция обратного вызова слайдера
@@ -890,6 +776,9 @@ function EasyView()
             setUIControlsEnable({sidePanel, mainPanel} , 'on')
             data_loaded = true;
         end
+        
+        % включаем multiax
+        set(multiax, 'Visible', 'on')
     end
 
     function loadSettings(~, ~)
@@ -945,7 +834,7 @@ function EasyView()
                 mean_group_ch = false(numChannels, 1);% Ни один канал не участвует в усреднении
                 disp('settings were without mean_group_ch')
             end
-            if isfield(loadedSettings, 'csd_avaliable')
+            if isfield(loadedSettings, 'csd_avaliable') & ~(isempty(loadedSettings.csd_avaliable))
                 csd_avaliable = loadedSettings.csd_avaliable;
             else% если настройки старые                
                 csd_avaliable = true(numChannels, 1);% Все каналы участвуют в CSD
@@ -957,7 +846,7 @@ function EasyView()
                 filter_avaliable = false(numChannels, 1);% Ни один канал не участвует в фильтрации
                 disp('settings were without filter_avaliable')
             end            
-            if isfield(loadedSettings, 'filterSettings')
+            if isfield(loadedSettings, 'filterSettings') & ~(isempty(loadedSettings.filterSettings))
                 filterSettings = loadedSettings.filterSettings;
             else% если настройки старые                
                 filterSettings.filterType = 'highpass';
@@ -967,6 +856,18 @@ function EasyView()
                 filterSettings.channelsToFilter = false(numChannels, 1);% Ни один канал не участвует в фильтрации
                 disp('settings were without filterSettings')
             end            
+            if isfield(loadedSettings, 'csd_smooth_coef')
+                csd_smooth_coef = loadedSettings.csd_smooth_coef;
+            else
+                csd_smooth_coef = 10;
+                disp('settings were without CSD smooth coef')
+            end
+            if isfield(loadedSettings, 'csd_contrast_coef')
+                csd_contrast_coef = loadedSettings.csd_contrast_coef;
+            else
+                csd_contrast_coef = 99.99;
+                disp('settings were without CSD contrast coef')
+            end
     end
 
     % Функция загрузки настроек каналов
@@ -974,6 +875,7 @@ function EasyView()
         [path, name, ~] = fileparts(matFilePath);
         channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
         if isfile(channelSettingsFilePath)
+            disp('loading Channel settings ..')
             loadSettingsFile()
             updateChannelSelection();
         else % если не было настроек
@@ -1110,15 +1012,14 @@ function EasyView()
         addEventSettingsUicontrol();
     end
 
-% Функция загрузки событий
+% Функция загрузки событий с расширенными опциями для поиска .mat файла
 function loadEvents(~, ~)
-    
     % Получение пути к последнему открытому файлу или использование стандартной директории
     initialDir = pwd;
     if ~isempty(lastOpenedFiles)
         initialDir = fileparts(lastOpenedFiles{end});
     end
-        
+    
     [file, path] = uigetfile({'*.ev'; '*.mean'}, 'Load Events', initialDir);
     if isequal(file, 0)
         disp('File selection canceled.');
@@ -1128,53 +1029,67 @@ function loadEvents(~, ~)
     filepath = fullfile(path, file);
     loadedData = load(filepath, '-mat'); % Загружаем данные в структуру
     
-    % если не был загружен lfp, грузим lfp для этих эвентов
+    % Если не был загружен mat файл, инициируем поиск
     [~, name, ~] = fileparts(filepath);
     fileName = name(1:19);
-    firstMatFile = findFirstMatFile(path, fileName)
-    if ~isempty(firstMatFile)
-        if isempty(matFilePath)
-            loadMatFile(firstMatFile) % Загрузка первого .mat файла если не было matFilePath
+    keepSearching = true; % Флаг продолжения поиска
+    while keepSearching
+        firstMatFile = findFirstMatFile(path, fileName);
+        if ~isempty(firstMatFile)
+            loadMatFile(firstMatFile); % Загрузка .mat файла
+            keepSearching = false; % Останавливаем поиск, если файл найден
         else
-            [~, current_fileName, ~] = fileparts(matFilePath);
-            if ~strcmp(fileName, current_fileName)
-                loadMatFile(firstMatFile) % Загрузка первого .mat файла если у нас другой файл поступил
+            choice = questdlg('The .mat file was not found. What do you want to do?', ...
+                'File Not Found', ...
+                'Retry in Parent Directory', 'Select File Manually', 'Cancel', ...
+                'Retry in Parent Directory');
+            
+            switch choice
+                case 'Retry in Parent Directory'
+                    [path, ~, ~] = fileparts(path); % Переход на уровень выше
+                    if isempty(path)
+                        warndlg('Reached the top directory. Please select the file manually.');
+                        keepSearching = false; % Прекращаем поиск, если достигнута верхняя директория
+                    end
+                case 'Select File Manually'
+                    [file, path] = uigetfile('*.mat', 'Select the .mat file', path);
+                    if isequal(file, 0)
+                        disp('File selection canceled.');
+                        return;
+                    else
+                        matFilePath = fullfile(path, file);
+                        loadMatFile(matFilePath); % Загрузка выбранного .mat файла
+                        keepSearching = false; % Останавливаем поиск, если файл выбран вручную
+                    end
+                otherwise % В случае отмены
+                    return;
             end
         end
     end
     
-    if isempty(firstMatFile) & isempty(matFilePath)
-        warndlg(['The ' fileName '.mat file was not found in this directory. Open .mat file manually or move .ev file to .mat file''s directory and try again.'], 'File Not Found');
-        return;
-    end
-
-    
     if isfield(loadedData, 'manlDet')
         events = time([loadedData.manlDet.t])'; % Обновляем таблицу событий
         
-        if not(isfield(loadedData, 'event_comments'))% если комментариев не было
+        if ~isfield(loadedData, 'event_comments') % если комментариев не было
             event_comments = repmat({'...'}, numel(events), 1); % Инициализация комментариев
         else % если были комментарии
-            event_comments = loadedData.event_comments;      
+            event_comments = loadedData.event_comments;
         end
-            
+        
         UpdateEventTable();
         events_exist = true;
         event_inx = 1;
         timeForwardEditCallback(timeForwardEdit);
-        updatePlot();
-    elseif isfield(loadedData, 'events') % Добавлено условие для .mean файлов
-        events = loadedData.events; % Извлечение переменной events из .mean файла
-        event_comments = repmat({'...'}, numel(events), 1); % Инициализация комментариев
-        UpdateEventTable();
-        events_exist = true;
-        event_inx = 1;
-        timeForwardEditCallback(timeForwardEdit);
+        
+        set(timeCenterPopup, 'Value', 3);
+        changeTimeCenter(timeCenterPopup);
+        
         updatePlot();
     else
         errordlg('No events found in the file.');
     end
 end
+
 
 
     function saveEvents(~, ~)

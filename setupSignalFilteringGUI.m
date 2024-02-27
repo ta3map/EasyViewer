@@ -1,6 +1,7 @@
 function setupSignalFilteringGUI()
     % Глобальные переменные
-    global newFs time_in data ch_inxs channelNames filter_avaliable numChannels matFilePath local_settings
+    global newFs time_in data time chosen_time_interval time_back lfp m_coef
+    global ch_inxs channelNames filter_avaliable numChannels matFilePath local_settings
     global filterSettings
     global high_line_enable low_line_enable
 %     global hTable
@@ -67,6 +68,8 @@ function setupSignalFilteringGUI()
     checkfiltbtn = uicontrol('Style', 'pushbutton', 'String', 'Check Filtration', 'Position', [320, 320, 110, 25], 'Enable', 'on', 'Callback', {@checkFiltration, ax});
     % Кнопка применения настроек
     applybtn = uicontrol('Style', 'pushbutton', 'String', 'Apply', 'Position', [320, 290, 70, 25], 'Enable', 'on', 'Callback', @applySettings);
+    % Кнопка отмены
+    cancelbtn = uicontrol('Style', 'pushbutton', 'String', 'Cancel', 'Position', [320, 260, 70, 25], 'Enable', 'on', 'Callback', @cancelSettings);
     
     % вызов callback для адекватности отображения окон
     filterTypeCallback(hFilterType)
@@ -130,7 +133,14 @@ function setupSignalFilteringGUI()
             local_settings.freqHigh = str2double(hFreqHigh.String);
             local_settings.order = str2double(hOrder.String);
             local_settings.channelsToFilter = find(cell2mat(hTable.Data(:, 2)));
+            
+            % Выборка данных в заданном временном интервале
+            plot_time_interval = chosen_time_interval;
+            plot_time_interval(1) = plot_time_interval(1) - time_back;
 
+            cond = time >= plot_time_interval(1) & time < plot_time_interval(2);
+            local_lfp = lfp(cond, :);% все каналы данного участка времени
+            data = local_lfp(:, ch_inxs).*m_coef;
 
             order = 4; % Порядок фильтра
             filtered_data = applyFilter(data(:, selectedChannels), local_settings, newFs);        
@@ -169,7 +179,11 @@ function setupSignalFilteringGUI()
     end
 
     function applySettings(~, ~)
-
+        local_settings.filterType = hFilterType.String{hFilterType.Value};
+        local_settings.freqLow = str2double(hFreqLow.String);
+        local_settings.freqHigh = str2double(hFreqHigh.String);
+        local_settings.order = str2double(hOrder.String);
+        local_settings.channelsToFilter = find(cell2mat(hTable.Data(:, 2)));
         % обновляем глобальную переменную для фильтрации
         
         filterSettings = local_settings;
@@ -181,8 +195,9 @@ function setupSignalFilteringGUI()
         updatePlot(); % функция для обновления графика
         close(fig); % закрытие GUI
     end
-
-
-
+    
+    function cancelSettings(~, ~)
+        close(fig); % закрытие GUI
+    end
 end
 

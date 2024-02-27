@@ -25,7 +25,7 @@
         
         % Применение фильтра ко всем выбранным каналам
         % убираем краевые эффекты через отражение сигнала
-        reflectionLength = round(size(data,1)*0.1); % Например, отражение на 10% от исходного сигнала
+        reflectionLength = round(size(data,1)*0.10);
         for ch = 1:size(data, 2)
             % Отражение сигнала
             reflectedSignal = [flipud(data(1:reflectionLength, ch)); data(:, ch); flipud(data(end-reflectionLength+1:end, ch))];

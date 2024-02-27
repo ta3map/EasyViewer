@@ -1,7 +1,10 @@
 function updatePlot()
     global chosen_time_interval time_back cond time lfp mean_group_ch ch_inxs m_coef Fs newFs timeUnitFactor multiax
     global ch_labels_l shiftCoeff widths_in_l colors_in_l show_spikes spks std_coef selectedUnit matFilePath stims events timeSlider
-    global data time_in offsets show_CSD filterSettings filter_avaliable
+    global data time_in offsets show_CSD filterSettings filter_avaliable csd_resample_coef csd_smooth_coef
+    global csd_contrast_coef csd_avaliable
+    
+    csd_active = csd_avaliable(ch_inxs);
     
     plot_time_interval = chosen_time_interval;
     plot_time_interval(1) = plot_time_interval(1) - time_back;
@@ -11,7 +14,6 @@ function updatePlot()
     local_lfp(:, mean_group_ch) = local_lfp(:, mean_group_ch) - mean(local_lfp(:, mean_group_ch), 2); % вычитание выбранных средних каналов
     data = local_lfp(:, ch_inxs).*m_coef;
     time_in = time(cond);
-    
     
     % Фильтруем если попросили
     if sum(filter_avaliable)>0
@@ -42,8 +44,15 @@ function updatePlot()
     hold on;
     
     if show_CSD
+        numChannels = size(data_res, 2);
+        offsets = zeros(1, numChannels);
+        % Plot each column with specified parameters
+        for p = 1:numChannels
+            % Determine the offset
+            offsets(p) = -(p-1) * shiftCoeff;
+        end        
 %         csdPlotting(time_in_transformed, data_res)
-        csdPlotting(time_in_transformed, data_res, Fs, offsets)
+        csdPlotting(time_in_transformed, data_res, Fs, offsets, csd_smooth_coef, csd_contrast_coef, csd_active)
     end
     
     offsets = multiplot(time_in_transformed, data_res, ...
