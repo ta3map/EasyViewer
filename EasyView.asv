@@ -230,12 +230,8 @@ function EasyView()
     
     
     % Список действий
-    file_functions = {'open ZAV(.mat) file', ...
-            'open event (.ev) file',...
-            'file manager', ...
-            'convert Neuralynx to ZAV', ...
-            'compare average data'};
-        
+    file_functions = {'Convert to ZAV...', ...
+        'Сompare Average data'};
     % Создание выпадающего списка
     file_menu = uicontrol('Style', 'listbox',...
               'String', file_functions,...
@@ -400,7 +396,7 @@ function EasyView()
                 OpenZavLfpFile([], []);
             case file_functions{2}
                 % загрузка события
-                loadEvents([], []);
+                
             case file_functions{3}
                 % открытие менеджера файлов
                 fileManagerBtnClb([], []);
@@ -411,7 +407,6 @@ function EasyView()
                 % сравнение средних данных
                 dataComparerApp();
         end
-
         resetGraphParameters()
     end
     % Обратный вызов выпадающего списка

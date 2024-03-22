@@ -78,7 +78,7 @@ function updatePlot()
             x_coord = [x_coord, spk(cond4)'];
             y_coord = [y_coord, zeros(1, numel(spk(cond4))) + offset];
         end
-        scatter(x_coord, y_coord, 'r|')
+        scatter(x_coord*timeUnitFactor, y_coord, 'r|')
     end
 
     Xlims = plot_time_interval*timeUnitFactor;

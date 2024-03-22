@@ -3,13 +3,10 @@ function dataComparerApp()
     global data1 data2 mergeSettings mergedData
     global mergeFig comparerFig mergeTableData
     global saveResultButton saveFigureButton d1filename
+    global SettingsFilepath
     disp('Data Comparer started')
     
-    % Получение пути к последнему открытому файлу или использование стандартной директории
-    SettingsFilepath = fullfile(tempdir, 'last_opened_files_1.03.mat');
-    d = load(SettingsFilepath);
-    lastOpenedFiles = d.lastOpenedFiles;
-    initialDir = fileparts(lastOpenedFiles{end});
+
     
     % Основное окно GUI
     comparerFig = figure('Name', 'Data Comparer', 'NumberTitle', 'off', ...
@@ -33,7 +30,10 @@ function dataComparerApp()
 
     % Функция для загрузки данных
     function loadData(datasetNumber)
-        
+        % Получение пути к последнему открытому файлу или использование стандартной директории
+        d = load(SettingsFilepath);
+        lastOpenedFiles = d.lastOpenedFiles;
+        initialDir = fileparts(lastOpenedFiles{end});
         
         [file, path] = uigetfile('*.mean', 'Select Data File', initialDir);
         if isequal(file, 0) || isequal(path, 0)
@@ -62,6 +62,8 @@ function dataComparerApp()
             d1filename = 'merging';
         end
         
+        % Сохраняем информацию о том какой файл открыли
+        lastOpenedFiles = {fullfile(path, file)};
         save(SettingsFilepath, 'lastOpenedFiles', '-append');
     end
 
@@ -256,9 +258,13 @@ function dataComparerApp()
         j = length(mergeSettings);
         for i = 1:length(mergeSettings)
             if strcmp(mergeSettings{i}, 'sum')
+                try
                 mergedData.meanData(:, i) = (data1.meanData(:, i) ...
                     + data2.meanData(:, i))/2;
                 mergedData.channelEnabled(i) = mergeTableData{i, 3};
+                catch
+                    disp('error')
+                end
             elseif strcmp(mergeSettings{i}, 'keep')                
                 j = j+1;
                 mergedData.meanData(:, j) = data1.meanData(:, i);
