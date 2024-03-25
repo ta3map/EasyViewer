@@ -18,7 +18,7 @@ function convertNlx2zavGUI
     % Создаем главное окно GUI
     fig = figure('Name', 'Convert to ZAV', 'Position', [100, 100, 280, 200], 'NumberTitle', 'off',...
             'MenuBar', 'none', ... % Отключение стандартного меню
-            'ToolBar', 'none');
+            'ToolBar', 'none', 'Resize', 'off');
     
     % Кнопка для выбора пути к записи
     uicontrol('Style', 'pushbutton', 'String', 'Select Record Path', ...

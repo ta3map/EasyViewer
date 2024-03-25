@@ -8,7 +8,8 @@ function SubMeanFigSettings()
     SubMeanFig = figure('Name', label, 'NumberTitle', 'off', ...
                 'MenuBar', 'none', ... % Отключение стандартного меню
                 'ToolBar', 'none',...
-                'Position', [300  100  350  400]);
+                'Position', [300  100  350  400], ...
+                'Resize', 'off');
             
     if numel(channelNames)<2
         close(SubMeanFig);

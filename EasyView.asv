@@ -167,9 +167,9 @@ function EasyView()
     multiax = axes('Position', multiax_position);
     sidePanel = uipanel('Parent', f, 'Position', [.72 .01 .27 .98]);
     
-    % боковая панель видна по умолчанию
-    side_panel_visible = true;
-    set(sidePanel, 'Visible', 'on');
+    % скрываем боковую панель
+    side_panel_visible = false;
+    set(sidePanel, 'Visible', 'off');
     
     set(f, 'SizeChangedFcn', @resizeComponents);
     % Настройка обработчика закрытия для фигуры
@@ -240,7 +240,7 @@ function EasyView()
             'file manager', ...
             'convert NLX to ZAV', ...
             'compare average data', ...
-            'hide Side Panel'};
+            'View Side Panel'};
         
     % Создание выпадающего списка
     file_menu = uicontrol('Style', 'listbox',...
@@ -456,17 +456,15 @@ function EasyView()
         if side_panel_visible
             disp('Hiding Side Panel')
             set(sidePanel, 'Visible', 'off');
-            file_functions{6} = 'view Side Panel';
+            file_functions{6} = 'View Side Panel';
             set(file_menu, 'String', file_functions);
-            multiax_position = [0.07    0.2    0.9    0.75];
-            set(multiax,'Position', multiax_position);
+            multiax_position = [0.07    0.2    0.63    0.75];
+            multiax = axes('Position', multiax_position);
         else
             disp('Showing Side Panel')
             set(sidePanel, 'Visible', 'on');
-            file_functions{6} = 'hide Side Panel';
+            file_functions{6} = 'Hide Side Panel';
             set(file_menu, 'String', file_functions);
-            multiax_position = [0.07    0.2    0.63    0.75];
-            set(multiax,'Position', multiax_position);
         end
         
         side_panel_visible = ~side_panel_visible;

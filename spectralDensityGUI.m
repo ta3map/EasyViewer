@@ -8,7 +8,9 @@ function spectralDensityGUI()
     end
 
     % Создание и настройка главного окна
-    f = figure('Name', 'Spectral Density', 'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', 'Position', [100, 100, 600, 400]);
+    f = figure('Name', 'Spectral Density', 'NumberTitle', 'off',...
+        'MenuBar', 'none', 'ToolBar', 'none', 'Position', [100, 100, 600, 400], ...
+        'Resize', 'off');
     clf
     ax = axes('position', [0.1, 0.12, 0.82, 0.75]);
 

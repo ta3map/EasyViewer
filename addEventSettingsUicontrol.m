@@ -5,7 +5,9 @@ function addEventSettingsUicontrol()
     
     shift = 150;
     % Creating the graphical interface
-    fDet = figure('Name', 'Event Creation Settings', 'NumberTitle', 'off', 'MenuBar', 'none', 'Position', [100, 100, 300, 400-shift]);
+    fDet = figure('Name', 'Event Creation Settings', 'NumberTitle', 'off', ...
+        'MenuBar', 'none', 'Position', [100, 100, 300, 400-shift], ...
+        'Resize', 'off');
     
     x1pos = 10;
     x2pos = 150;

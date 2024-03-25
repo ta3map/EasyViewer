@@ -5,9 +5,11 @@ function dataComparerApp()
     global saveResultButton saveFigureButton d1filename
     global SettingsFilepath
     
-    persistent initialDir
+    persistent
     
     disp('Data Comparer started')
+    
+
     
     % Основное окно GUI
     comparerFig = figure('Name', 'Data Comparer', 'NumberTitle', 'off', ...
@@ -233,8 +235,7 @@ function dataComparerApp()
             set(saveFigureButton, 'Visible', 'off');
 
             % Открытие диалогового окна для сохранения файла
-            inidir = [initialDir, '/', titleEdit.String, '_merged.png'];
-            [fileName, filePath, filterIndex] = uiputfile('*.png', 'Save as', inidir);
+            [fileName, filePath, filterIndex] = uiputfile('*.png', 'Save as', initialDir);
 
             % Проверка, был ли выбран файл
             if fileName ~= 0

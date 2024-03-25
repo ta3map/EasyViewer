@@ -11,7 +11,9 @@ function setupSignalFilteringGUI()
     end
     
     % Создание и настройка главного окна
-    fig = figure('Name', 'Signal Filtering', 'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', 'Position', [100, 100, 450, 600]);
+    fig = figure('Name', 'Signal Filtering', 'NumberTitle', 'off', ...
+        'MenuBar', 'none', 'ToolBar', 'none', 'Position', [100, 100, 450, 600], ...
+        'Resize', 'off');
 %     fig.WindowButtonDownFcn = @checkbtns;
     
     % Таблица для выбора каналов

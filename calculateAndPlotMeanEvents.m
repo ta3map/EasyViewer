@@ -29,7 +29,7 @@ global channelTable csd_smooth_coef csd_contrast_coef
 
 params.events = events;
 params.figure = figure('Name', 'Mean Event Data'); % Создание нового окна для графика;
-params.meanWindow = time_forward*2;
+params.meanWindow = 2;% s
 params.hd = hd;
 params.channelSettings = get(channelTable, 'Data');
 params.Fs = Fs;
@@ -56,6 +56,7 @@ if sum(filter_avaliable)>0
 end
     
 [mean_f, calculation_result] = plotMeanEvents(params);
+xlim([-time_back, time_forward]*timeUnitFactor)
 xline(0, 'r:');
 
 % Кнопка для сохранения файлов
