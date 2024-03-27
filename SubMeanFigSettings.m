@@ -1,11 +1,23 @@
 function SubMeanFigSettings()
 
+    % Идентификатор (tag) для GUI фигуры
+    figTag = 'SubMeanFigSettings';
+    
+        % Поиск открытой фигуры с заданным идентификатором
+    guiFig = findobj('Type', 'figure', 'Tag', figTag);
+    
+    if ~isempty(guiFig)
+        % Делаем существующее окно текущим (активным)
+        figure(guiFig);
+        return
+    end
+    
     % Инициализация таблиц
     global channelNames mean_group_ch matFilePath
     
     
     label = 'Average subtraction settings';
-    SubMeanFig = figure('Name', label, 'NumberTitle', 'off', ...
+    SubMeanFig = figure('Name', label, 'Tag', figTag, 'NumberTitle', 'off', ...
                 'MenuBar', 'none', ... % Отключение стандартного меню
                 'ToolBar', 'none',...
                 'Position', [300  100  350  400], ...
@@ -29,7 +41,7 @@ function SubMeanFigSettings()
     uicontrol('Style', 'pushbutton', 'String', 'Deselect ALL', 'Position', [220, 320, 110, 25], 'Callback', @deselectAll);
     
     % Button to save settings
-    saveButton = uicontrol('Style', 'pushbutton', 'Position', [220, 250, 100, 25], 'String', 'Apply', 'Callback', @saveSettings);
+    uicontrol('Style', 'pushbutton', 'Position', [220, 250, 100, 25], 'String', 'Apply', 'Callback', @saveSettings);
     
     function selectAll(~, ~)
         hTable.Data(:,2) = num2cell(true(size(hTable.Data(:,2))));
@@ -39,7 +51,7 @@ function SubMeanFigSettings()
         hTable.Data(:,2) = num2cell(false(size(hTable.Data(:,2))));
     end
     
-    function saveSettings(src, ~)
+    function saveSettings(~, ~)
         updatedData = get(hTable, 'Data');
         mean_group_ch = [updatedData{:, 2}]';
         updatePlot();

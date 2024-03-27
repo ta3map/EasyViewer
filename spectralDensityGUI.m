@@ -1,4 +1,17 @@
 function spectralDensityGUI()
+
+    % Идентификатор (tag) для GUI фигуры
+    figTag = 'spectralDensityGUI';
+    
+    % Поиск открытой фигуры с заданным идентификатором
+    guiFig = findobj('Type', 'figure', 'Tag', figTag);
+    
+    if ~isempty(guiFig)
+        % Делаем существующее окно текущим (активным)
+        figure(guiFig);
+        return
+    end    
+        
     global newFs data ch_labels_l
     
     channelNames = ch_labels_l;
@@ -8,7 +21,7 @@ function spectralDensityGUI()
     end
 
     % Создание и настройка главного окна
-    f = figure('Name', 'Spectral Density', 'NumberTitle', 'off',...
+    figure('Name', 'Spectral Density', 'Tag', figTag, 'NumberTitle', 'off',...
         'MenuBar', 'none', 'ToolBar', 'none', 'Position', [100, 100, 600, 400], ...
         'Resize', 'off');
     clf
@@ -19,17 +32,17 @@ function spectralDensityGUI()
     popupChannel = uicontrol('Style', 'popupmenu',...
                       'String', channelList,...
                       'Position', [20 350 160 40],...
-                      'Callback', @updatePlot);
+                      'Callback', @updateSDPlot);
 
     % Выпадающий список для выбора типа шкалы оси Y
     yScaleOptions = {'Linear', 'Logarithmic'};
     popupYScale = uicontrol('Style', 'popupmenu',...
                             'String', yScaleOptions,...
                             'Position', [200 350 100 40],...
-                            'Callback', @updatePlot);
+                            'Callback', @updateSDPlot);
 
     % Функция для обновления графика в зависимости от выбора канала и шкалы Y
-    function updatePlot(source, event)
+    function updateSDPlot(~, ~)
         channelIdx = popupChannel.Value;
         yScaleIdx = popupYScale.Value;
         
@@ -47,19 +60,19 @@ function spectralDensityGUI()
         axis(ax)
         cla
         plot(F, 10*log10(Pxx));
-        title('Спектральная плотность мощности сигнала');
-        xlabel('Частота (Гц)');
-        ylabel('Плотность мощности (dB/Гц)');
+        title('Signal power spectral density');
+        xlabel('Frequency (Hz)');
+        ylabel('Power density (dB/Hz)');
         grid on;
         
         % Установка шкалы оси Y в зависимости от выбора пользователя
         if yScaleIdx == 1
-            set(ax, 'YScale', 'linear') % Логарифмическая шкала
+            set(ax, 'YScale', 'linear'); % Логарифмическая шкала
         else
-            set(ax, 'YScale', 'log') % Линейная шкала
+            set(ax, 'YScale', 'log'); % Линейная шкала
         end
     end
 
     % Инициализация графика с выбором "All Channels"
-    updatePlot(popupChannel, []);
+    updateSDPlot(popupChannel, []);
 end

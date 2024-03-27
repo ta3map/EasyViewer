@@ -13,7 +13,7 @@ function event_x = addExtraEvent()
     if strcmp(add_event_settings.mode, 'locked')
         % Определение временного интервала (мл-сек в настройках)
         
-        range_half = (add_event_settings.timeWindow/1000)/2
+        range_half = (add_event_settings.timeWindow/1000)/2;
         time_interval = [event_x - range_half, event_x + range_half];
 
         % Выборка данных в заданном временном интервале
@@ -23,7 +23,7 @@ function event_x = addExtraEvent()
         
         % Фильтруем если попросили
         if sum(filter_avaliable)>0
-            ch_to_filter = filter_avaliable(ch_inxs);
+            ch_to_filter = filter_avaliable(ch_inx);
             data(:, ch_to_filter) = applyFilter(data(:, ch_to_filter), filterSettings, newFs);        
         end
         

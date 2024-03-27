@@ -1,20 +1,31 @@
 function setupSignalFilteringGUI()
     % Глобальные переменные
-    global newFs time_in data time chosen_time_interval time_back lfp m_coef
+    global newFs data time chosen_time_interval time_back lfp m_coef
     global ch_inxs channelNames filter_avaliable numChannels matFilePath local_settings
     global filterSettings
     global high_line_enable low_line_enable
-%     global hTable
+
+    % Идентификатор (tag) для GUI фигуры
+    figTag = 'SignalFiltering';
+    
+        % Поиск открытой фигуры с заданным идентификатором
+    guiFig = findobj('Type', 'figure', 'Tag', figTag);
+    
+    if ~isempty(guiFig)
+        % Делаем существующее окно текущим (активным)
+        figure(guiFig);
+        return
+    end
     
     if isempty(filter_avaliable)
         filter_avaliable = false(numChannels, 1);% Ни один канал не участвует в усреднении
     end
     
     % Создание и настройка главного окна
-    fig = figure('Name', 'Signal Filtering', 'NumberTitle', 'off', ...
+    fig = figure('Name', 'Signal Filtering', 'Tag', figTag, ...
+        'NumberTitle', 'off', ...
         'MenuBar', 'none', 'ToolBar', 'none', 'Position', [100, 100, 450, 600], ...
         'Resize', 'off');
-%     fig.WindowButtonDownFcn = @checkbtns;
     
     % Таблица для выбора каналов
     tableData = [channelNames(ch_inxs), num2cell(filter_avaliable(ch_inxs))];
@@ -41,14 +52,14 @@ function setupSignalFilteringGUI()
         'Value', filterIndex);
 
     % Поля для ввода частот обрезки с подписями 'Hz'
-    hFreqLowLabel = uicontrol('Style', 'text', 'Position', [320, 535, 30, 15], 'String', 'Hz', 'HorizontalAlignment', 'left');
+    uicontrol('Style', 'text', 'Position', [320, 535, 30, 15], 'String', 'Hz', 'HorizontalAlignment', 'left');
     hFreqLow = uicontrol('Style', 'edit', 'Position', [320, 510, 50, 25], 'Enable', 'on', 'String', num2str(filterSettings.freqLow));
 
-    hFreqHighLabel = uicontrol('Style', 'text', 'Position', [380, 535, 30, 15], 'String', 'Hz', 'HorizontalAlignment', 'left');
+    uicontrol('Style', 'text', 'Position', [380, 535, 30, 15], 'String', 'Hz', 'HorizontalAlignment', 'left');
     hFreqHigh = uicontrol('Style', 'edit', 'Position', [380, 510, 50, 25], 'Enable', 'on', 'String', num2str(filterSettings.freqHigh));
 
     % Поле для ввода порядка фильтра
-    hOrderLabel = uicontrol('Style', 'text', 'Position', [320, 480, 110, 15], 'String', 'Filter Order:', 'HorizontalAlignment', 'left');
+    uicontrol('Style', 'text', 'Position', [320, 480, 110, 15], 'String', 'Filter Order:', 'HorizontalAlignment', 'left');
     hOrder = uicontrol('Style', 'edit', 'Position', [320, 455, 50, 25], 'String', filterSettings.order);  % Значение по умолчанию 4
 
     
@@ -69,9 +80,9 @@ function setupSignalFilteringGUI()
     % Кнопка для проверки фильтрации
     checkfiltbtn = uicontrol('Style', 'pushbutton', 'String', 'Check Filtration', 'Position', [320, 320, 110, 25], 'Enable', 'on', 'Callback', {@checkFiltration, ax});
     % Кнопка применения настроек
-    applybtn = uicontrol('Style', 'pushbutton', 'String', 'Apply', 'Position', [320, 290, 70, 25], 'Enable', 'on', 'Callback', @applySettings);
+    uicontrol('Style', 'pushbutton', 'String', 'Apply', 'Position', [320, 290, 70, 25], 'Enable', 'on', 'Callback', @applySettings);
     % Кнопка отмены
-    cancelbtn = uicontrol('Style', 'pushbutton', 'String', 'Cancel', 'Position', [320, 260, 70, 25], 'Enable', 'on', 'Callback', @cancelSettings);
+    uicontrol('Style', 'pushbutton', 'String', 'Cancel', 'Position', [320, 260, 70, 25], 'Enable', 'on', 'Callback', @cancelSettings);
     
     % вызов callback для адекватности отображения окон
     filterTypeCallback(hFilterType)
@@ -144,7 +155,6 @@ function setupSignalFilteringGUI()
             local_lfp = lfp(cond, :);% все каналы данного участка времени
             data = local_lfp(:, ch_inxs).*m_coef;
 
-            order = 4; % Порядок фильтра
             filtered_data = applyFilter(data(:, selectedChannels), local_settings, newFs);        
 
             % Расчет частотной характеристики

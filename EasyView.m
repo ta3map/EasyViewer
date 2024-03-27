@@ -1,14 +1,23 @@
 function EasyView()
-%     clear global
 
-    global Fs N time chosen_time_interval cond ch_inxs m_coef
-    global data time_in shiftCoeff eventTable
+    
+    EV_version = '1.08.01';
+    
+    clc
+    disp(['Easy Viewer version: ' EV_version])
+    
+    EV_path = pwd;
+    disp('working directory:')
+    fprintf('%s\n',EV_path);
+    disp('wait ...')
+    
+    global Fs N time chosen_time_interval ch_inxs m_coef
+    global shiftCoeff eventTable
     global lfp hd spks multiax lineCoefficients
     global channelNames numChannels channelEnabled scalingCoefficients tableData
     global matFilePath channelSettingsFilePath
     global timeUnitFactor selectedUnit
-    global saved_time_interval
-    global meanData timeAxis initialDir
+    global initialDir
     global events event_inx events_exist event_comments
     global stims stim_inx stims_exist
     global lastOpenedFiles
@@ -16,10 +25,7 @@ function EasyView()
     global zavp newFs selectedCenter
     global time_back time_forward
     global figure_position timeForwardEdit
-    global meanSaveButton saveDataButton
     global std_coef show_spikes binsize show_CSD % спайки/CSD
-    global events_detected
-    global ev_hists ch_hists 
     global ch_labels_l colors_in_l  widths_in_l
     global add_event_settings
     global mean_group_ch timeSlider menu_visible csd_avaliable filter_avaliable filterSettings
@@ -34,11 +40,12 @@ function EasyView()
     data_loaded = false;
     menu_visible = false;
     file_menu_visible = false;
+    view_menu_visible = false;
     
     binsize = 0.001;%s
     show_spikes = false;
     show_CSD = false;
-    std_coef = 5;
+    std_coef = 0;
     time_back = 1;
     time_forward = 1;
     
@@ -101,14 +108,33 @@ function EasyView()
     scaleY = figure_position(4) / base_figure_position(4);
     scaling_matrix = [scaleX, scaleY, scaleX, scaleY];
     
-    file_menu_coords = [3, 525, 150, 100].*scaling_matrix*min_scale_coef;
-    filebtn_coords = [3, 625, 25, 20].*scaling_matrix*min_scale_coef;
-    menu_coords = [1070, 510, 150, 100].*scaling_matrix*min_scale_coef;
-    optionbtn_coords = [150, 600, 90, 30].*scaling_matrix*min_scale_coef;
+    file_menu_coords = [3, 528, 150, 100].*scaling_matrix*min_scale_coef;
+    file_btn_coords = [3, 628, 150, 20].*scaling_matrix*min_scale_coef;    
+    
+    view_menu_coords = [153, 528, 150, 100].*scaling_matrix*min_scale_coef;
+    view_btn_coords = [153, 628, 150, 20].*scaling_matrix*min_scale_coef;
+    
+    opt_menu_coords = [303, 528, 150, 100].*scaling_matrix*min_scale_coef;
+    option_btn_coords = [303, 628, 150, 20].*scaling_matrix*min_scale_coef;
+    
+    % Side panel
+    channelTable_coords = [10, 27, 300, 370].*scaling_matrix*min_scale_coef;
+    LoadSettingsBtn_coords = [10, 5, 120, 20].*scaling_matrix*min_scale_coef;
+    
+    % Event panel
+    EventsText_coords = [10, 177, 100, 20].*scaling_matrix*min_scale_coef;
     saveEventsBtn_coords = [270, 140, 70, 30].*scaling_matrix*min_scale_coef;
     loadEventsBtn_coords = [270, 110, 70, 30].*scaling_matrix*min_scale_coef;
     eventAdd_coords = [10, 10, 80, 30].*scaling_matrix*min_scale_coef;
-    channelTable_coords = [10, 200, 300, 400].*scaling_matrix*min_scale_coef;
+    eventDeleteEdit_coords = [100, 10, 50, 30].*scaling_matrix*min_scale_coef;
+    eventTable_coords = [10, 50, 250, 127].*scaling_matrix*min_scale_coef;    
+    meanEventsWindowEdit_coords = [285, 48, 40, 20].*scaling_matrix*min_scale_coef;
+    meanEventsWindowText_coords = [265, 60, 80, 20].*scaling_matrix*min_scale_coef;    
+    MeanEventsBtn_coords = [270, 80, 70, 30].*scaling_matrix*min_scale_coef;    
+    clearTableBtn_coords = [270, 10, 70, 30].*scaling_matrix*min_scale_coef;
+    AutoEventDetectionBtn_coords = [220, 178, 120, 20].*scaling_matrix*min_scale_coef;    
+    DeleteEventBtn_coords = [150, 10, 80, 30].*scaling_matrix*min_scale_coef;
+    
     timeSlider_coords = [300, 50, 220, 15].*scaling_matrix*min_scale_coef;
     timeUnitPopup_coords = [540, 35, 50, 30].*scaling_matrix*min_scale_coef;
     timeCenterPopup_coords = [540, 10, 50, 30].*scaling_matrix*min_scale_coef;
@@ -120,21 +146,13 @@ function EasyView()
     showCSDbutton_coords = [720, 45, 50, 30].*scaling_matrix*min_scale_coef;
     previousbutton_coords = [305, 10, 100, 30].*scaling_matrix*min_scale_coef;
     nextbutton_coords = [415, 10, 100, 30].*scaling_matrix*min_scale_coef;
-    eventTable_coords = [10, 50, 250, 127].*scaling_matrix*min_scale_coef;
-    LoadSettingsBtn_coords = [10, 600, 120, 30].*scaling_matrix*min_scale_coef;
-    eventDeleteEdit_coords = [100, 10, 50, 30].*scaling_matrix*min_scale_coef;
+    
     shiftCoeffEdit_coords = [650, 10, 50, 30].*scaling_matrix*min_scale_coef;
     FsCoeffEdit_coords = [650, 50, 50, 30].*scaling_matrix*min_scale_coef;
-    meanEventsWindowEdit_coords = [285, 48, 40, 20].*scaling_matrix*min_scale_coef;
-    meanEventsWindowText_coords = [265, 60, 80, 20].*scaling_matrix*min_scale_coef;
-    clearTableBtn_coords = [270, 10, 70, 30].*scaling_matrix*min_scale_coef;
-    MeanEventsBtn_coords = [270, 80, 70, 30].*scaling_matrix*min_scale_coef;
-    AutoEventDetectionBtn_coords = [90, 178, 120, 20].*scaling_matrix*min_scale_coef;    
-    DeleteEventBtn_coords = [150, 10, 80, 30].*scaling_matrix*min_scale_coef;
     FsText_coords = [600, 43, 80, 30].*scaling_matrix*min_scale_coef;
     shiftCoefText_coords = [598, 3, 60, 30].*scaling_matrix*min_scale_coef;
     stdCoefText_coords = [708, 4, 80, 30].*scaling_matrix*min_scale_coef;
-    EventsText_coords = [10, 175, 100, 20].*scaling_matrix*min_scale_coef;
+    
     LoadMatFileBtn_coords = [10, 40, 120, 30].*scaling_matrix*min_scale_coef;
     TimeWindowText_coords = [165, 42, 100, 30].*scaling_matrix*min_scale_coef;
     BeforeText_coords = [165, 27, 50, 30].*scaling_matrix*min_scale_coef;
@@ -145,12 +163,10 @@ function EasyView()
         save(SettingsFilepath, 'lastOpenedFiles', 'figure_position', 'add_event_settings', '-append');
     end
 
-    clc
     
-    activ_all_view = true;
     
     % Создание таймера
-    t = timer('TimerFcn', @resetParametersCallback, 'StartDelay', 1, 'ExecutionMode', 'singleShot');
+    timer('TimerFcn', @resetParametersCallback, 'StartDelay', 1, 'ExecutionMode', 'singleShot');
     
     % Создание фигуры и панелей
     f = figure('Name', 'LFP Data Viewer', ...
@@ -163,13 +179,39 @@ function EasyView()
     f.Position = figure_position;           
     
     mainPanel = uipanel('Parent', f, 'Position', [.01 .01 .7 .13]);
-    multiax_position = [0.07    0.2    0.63    0.75];
-    multiax = axes('Position', multiax_position);
-    sidePanel = uipanel('Parent', f, 'Position', [.72 .01 .27 .98]);
+    multiax_position_a = [0.07    0.2    0.63    0.74];
+    multiax_position_b = [0.07    0.2    0.9    0.74];
+    multiax = axes('Position', multiax_position_a);
+    
+    sidePanel = uipanel('Parent', f, 'Position', [.72 .33 .27 .63]);
     
     % боковая панель видна по умолчанию
     side_panel_visible = true;
     set(sidePanel, 'Visible', 'on');
+ 
+    % Подготовка данных для таблицы каналов
+    channelNames = {'Ch1'};
+    numChannels = length(channelNames);
+    channelEnabled = true(numChannels, 1); % Все каналы активированы по умолчанию
+    scalingCoefficients = ones(numChannels, 1); % Коэффициенты масштабирования по умолчанию
+    colorsIn = repmat({'black'}, numChannels, 1); % Инициализация цветов
+    lineCoefficients = ones(numChannels, 1)*0.1; % Инициализация толщины линий
+
+    tableData = [channelNames, num2cell(channelEnabled), num2cell(scalingCoefficients), colorsIn, num2cell(lineCoefficients)];
+
+    % Создание таблицы каналов в GUI
+    channelTable = uitable('Parent', sidePanel, ...
+                           'Data', tableData, ...
+                           'ColumnName', {'Channel', 'Enabled', 'Scale', 'Color', 'Line Width'}, ...
+                           'ColumnFormat', {'char', 'logical', 'numeric', 'char', 'numeric'}, ...
+                           'ColumnEditable', [false true true true true], ...
+                           'Position', channelTable_coords);
+        % Кнопка для загрузки настроек    
+    LoadSettingsBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Load Channel Settings', 'Position', LoadSettingsBtn_coords, 'Callback', @loadSettings);
+    
+    % Панель событий                   
+    event_panel_position_a = [.72 .01 .27 .31];
+    eventPanel = uipanel('Parent', f, 'Position', event_panel_position_a);
     
     set(f, 'SizeChangedFcn', @resizeComponents);
     % Настройка обработчика закрытия для фигуры
@@ -179,16 +221,12 @@ function EasyView()
     set(multiax, 'Visible', 'off')
     text(multiax, 0.5, 0.5, 'Open MAT or EV file', 'color', 'r', 'horizontalalignment', 'center')
     
-    height_of_sidePanel = 195;
-    width_of_text = 100;
     % Добавление текстовой метки как заголовка к sidePanel
-    EventsText = uicontrol('Parent', sidePanel, 'Style', 'text', 'String', 'Events', ...
-              'Position', [10, height_of_sidePanel - 20, width_of_text, 20], ...
+    EventsText = uicontrol('Parent', eventPanel, 'Style', 'text', 'String', 'Events', ...
+              'Position', EventsText_coords, ...
               'HorizontalAlignment', 'left', ...
-              'FontSize', 10, ... % Можно настроить размер шрифта
               'FontWeight', 'bold'); % Жирный шрифт для заголовка
       
-    buttonY_line = 10;
     % Добавление слайдера для времени
     timeSlider = uicontrol('Parent', mainPanel, 'Style', 'slider', 'Position', timeSlider_coords, 'Min', 0, 'Max', 1, 'Value', 0, 'Callback', @timeSliderCallback);
 
@@ -236,47 +274,72 @@ function EasyView()
     
     % Список действий
     file_functions = {'open ZAV(.mat) file', ...
-            'open event (.ev) file',...
-            'file manager', ...
-            'convert NLX to ZAV', ...
-            'compare average data', ...
-            'hide Side Panel'};
+        'open event (.ev) file',...
+        '', ...
+        'file manager', ...
+        '', ...
+        'convert NLX to ZAV', ...
+        '', ...
+        'compare average data', ...
+        '',...
+        'check for a new version'};
         
     % Создание выпадающего списка
     file_menu = uicontrol('Style', 'listbox',...
-              'String', file_functions,...
-              'Visible', 'off', ...
-              'Position', file_menu_coords,...
-              'Callback', @FileMenuSelectionCallback);
-          
+        'String', file_functions,...
+        'Visible', 'off', ...
+        'Position', file_menu_coords,...
+        'Callback', @FileMenuSelectionCallback);
+    
     % Создание кнопки для активации выпадающего списка
     fileBtn = uicontrol('Style', 'pushbutton', 'String', 'File',...
-                    'Visible', 'on', ...
-                    'Position', filebtn_coords,...
-                    'Callback', @showFileMenu);
+        'Visible', 'on', ...
+        'Position', file_btn_coords,...
+        'Callback', @showFileMenu);
+                
+    view_functions = {'close all windows', ...
+        '', ...
+        'hide Channel Settings'};
+          
+    % Создание выпадающего списка
+    view_menu = uicontrol('Style', 'listbox',...
+        'String', view_functions,...
+        'Visible', 'off', ...
+        'Position', view_menu_coords,...
+        'Callback', @ViewMenuSelectionCallback);
+    
+    % Создание кнопки для активации выпадающего списка
+    viewBtn = uicontrol('Style', 'pushbutton', 'String', 'View',...
+        'Visible', 'on', ...
+        'Position', view_btn_coords,...
+        'Callback', @showViewMenu);          
                 
     % Список настроек
-    options = {'Event Creation Settings',...
-        'Filtering', 'CSD Displaying', ...
+    options = {'Event Creation',...
+        'Auto Event Detection',...
+        '',...
+        'Filtering', ...
+        'CSD Displaying', ...
         'Average subtraction', ...
+        '',...
         'Spectral Density'};    
    
     % Создание выпадающего списка
-    menu = uicontrol('Style', 'listbox',...
+    opt_menu = uicontrol('Style', 'listbox',...
               'String', options,...
               'Visible', 'off', ...
-              'Position', menu_coords,...
+              'Position', opt_menu_coords,...
               'Callback', @OptionsSelectionCallback);
     % Создание кнопки для активации выпадающего списка
-    btn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Options ...',...
+    OptBtn = uicontrol('Style', 'pushbutton', 'String', 'Options',...
                     'Visible', 'on', ...
-                    'Position', optionbtn_coords + [0, 0, 0, 0],...
+                    'Position', option_btn_coords + [0, 0, 0, 0],...
                     'Callback', @showMenu);
 
     
     % Таблица для отображения событий
     event_table_data = [num2cell([]), num2cell([])];    
-    eventTable = uitable('Parent', sidePanel, ...
+    eventTable = uitable('Parent', eventPanel, ...
                      'Position', eventTable_coords, ...
                      'ColumnName', {'Time', 'Comment'}, ...
                      'ColumnFormat', {'bank', 'char'}, ... % Формат для отображения чисел
@@ -284,53 +347,33 @@ function EasyView()
                      'ColumnEditable', [false true]);
                  
     % Автоматический детектор событий
-    AutoEventDetectionBtn = uicontrol('Parent', sidePanel,'Style', 'pushbutton', 'String', 'Auto Event Detection',...
+    AutoEventDetectionBtn = uicontrol('Parent', eventPanel,'Style', 'pushbutton', 'String', 'Auto Event Detection',...
         'Position', AutoEventDetectionBtn_coords, 'Callback', @openAutoEventDetectionWindow);
     
-    % Подготовка данных для таблицы каналов
-    channelNames = {'Ch1'};
-    numChannels = length(channelNames);
-    channelEnabled = true(numChannels, 1); % Все каналы активированы по умолчанию
-    scalingCoefficients = ones(numChannels, 1); % Коэффициенты масштабирования по умолчанию
-    colorsIn = repmat({'black'}, numChannels, 1); % Инициализация цветов
-    lineCoefficients = ones(numChannels, 1)*0.1; % Инициализация толщины линий
-
-    tableData = [channelNames, num2cell(channelEnabled), num2cell(scalingCoefficients), colorsIn, num2cell(lineCoefficients)];
-
-    % Создание таблицы каналов в GUI
-    channelTable = uitable('Parent', sidePanel, ...
-                           'Data', tableData, ...
-                           'ColumnName', {'Channel', 'Enabled', 'Scale', 'Color', 'Line Width'}, ...
-                           'ColumnFormat', {'char', 'logical', 'numeric', 'char', 'numeric'}, ...
-                           'ColumnEditable', [false true true true true], ...
-                           'Position', channelTable_coords);
-
-    % Кнопка для загрузки настроек    
-    LoadSettingsBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Load Channel Settings', 'Position', LoadSettingsBtn_coords, 'Callback', @loadSettings);
-
     % Кнопки и поля для управления событиями    
-    DeleteEventBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Delete Event', 'Position', DeleteEventBtn_coords, 'Callback', @deleteEvent);
-    eventDeleteEdit = uicontrol('Parent', sidePanel, 'Style', 'edit', 'Position', eventDeleteEdit_coords);
+    DeleteEventBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Delete Event', 'Position', DeleteEventBtn_coords, 'Callback', @deleteEvent);
+    eventDeleteEdit = uicontrol('Parent', eventPanel, 'Style', 'edit', 'Position', eventDeleteEdit_coords);
 
     % Clear Table
-    clearTableBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Clear Table', 'Position', clearTableBtn_coords, 'Callback', @clearTable);
+    clearTableBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Clear Table', 'Position', clearTableBtn_coords, 'Callback', @clearTable);
     
     % Add event
-    eventAdd = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Add Event', 'Position', eventAdd_coords, 'Callback', @addEvent);
+    eventAdd = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Add Event', 'Position', eventAdd_coords, 'Callback', @addEvent);
 
     % Кнопка для сохранения событий
-    saveEventsBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Save Events', 'Position', saveEventsBtn_coords, 'Callback', @saveEvents);
+    saveEventsBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Save Events', 'Position', saveEventsBtn_coords, 'Callback', @saveEvents);
 
     % Кнопка для загрузки событий
-    loadEventsBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Load Events', 'Position', loadEventsBtn_coords, 'Callback', @loadEvents);
+    loadEventsBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Load Events', 'Position', loadEventsBtn_coords, 'Callback', @loadEvents);
 
     % Кнопка и окно ввода для 'Mean Events'
-    MeanEventsBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Mean Events', 'Position', MeanEventsBtn_coords, 'Callback', @meanEventsCallback);
-    meanEventsWindowText = uicontrol('Parent', sidePanel, 'Style', 'text', 'String', 'Window(+/-, s):', 'Position', meanEventsWindowText_coords, 'visible', 'off');
-    meanEventsWindowEdit = uicontrol('Parent', sidePanel, 'Style', 'edit', 'String', '1', 'Position', meanEventsWindowEdit_coords, 'visible', 'off'); % Окно ввода временного окна (скрыл)
+    MeanEventsBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Mean Events', 'Position', MeanEventsBtn_coords, 'Callback', @meanEventsCallback);
+    meanEventsWindowText = uicontrol('Parent', eventPanel, 'Style', 'text', 'String', 'Window(+/-, s):', 'Position', meanEventsWindowText_coords, 'visible', 'off');
+    meanEventsWindowEdit = uicontrol('Parent', eventPanel, 'Style', 'edit', 'String', '1', 'Position', meanEventsWindowEdit_coords, 'visible', 'off'); % Окно ввода временного окна (скрыл)
     
     % отключаем все элементы управления кроме начальных
-    setUIControlsEnable({sidePanel, mainPanel} , 'off')
+    set(OptBtn, 'Enable', 'off');
+    setUIControlsEnable({eventPanel, sidePanel, mainPanel} , 'off')    
     set(LoadMatFileBtn, 'Enable', 'on');
     set(FMbutton, 'Enable', 'on');
     set(loadEventsBtn, 'Enable', 'on');
@@ -341,7 +384,7 @@ function EasyView()
         modifiers = get(fig, 'CurrentModifier');
         if ismember('control', modifiers) % Если зажата Ctrl
             % Добавление интерактивного маркера при клике на график 
-            marker = addMarker(ax);
+            addMarker(ax);
             updateMarkersDiff(ax);
             
         elseif ismember('shift', modifiers) % Если зажата Ctrl
@@ -369,28 +412,48 @@ function EasyView()
     
 %     resizeComponents();
     % Функция, вызываемая при закрытии фигуры
-    function closeAllCallback(src, event)
+    function closeAllCallback(src, ~)
         % Закрытие всех фигур
-        close all;
         clear global
-        % Удаление текущей фигуры из памяти и её закрытие
+        closeAllButOne(src)
         delete(src);
+    end
+
+    function closeAllButOne(targetFigure)
+        % Получаем массив всех текущих фигур
+        figures = findobj(allchild(0), 'flat', 'Type', 'figure');
+        % Перебираем все фигуры и закрываем те, которые не совпадают с целевой
+        for i = 1:length(figures)
+            if figures(i) ~= targetFigure
+                close(figures(i));
+            end
+        end
     end
 
     % Callback для сброса параметров
     function resetParametersCallback(~, ~)
-        resetGraphParameters()
+        try
+            resetGraphParameters()
+        catch
+            disp('')
+        end
     end
 
     % Функция для сброса графических параметров
     function resetGraphParameters()
-        % disp('Resetting graphic parameters...');
+        try
         % Код для сброса параметров здесь
-        set(menu, 'Visible', 'off'); % Скрыть меню
+        set(opt_menu, 'Visible', 'off'); % Скрыть меню
+        menu_visible = false;
+        
         set(file_menu, 'Visible', 'off'); % Скрыть меню
         file_menu_visible = false;
-        set(btn, 'String', 'Options ...');
-        menu_visible = false;
+        
+        set(view_menu, 'Visible', 'off'); % Скрыть меню
+        view_menu_visible = false;
+        catch
+            disp('bravo 5')
+        end
     end
 
     % Обратный вызов выпадающего списка
@@ -398,7 +461,7 @@ function EasyView()
         val = src.Value;
         str = src.String;
         selectedOption = str{val};
-%         disp(selectedOption)
+        dont_close_menu = false;
         switch selectedOption
             case file_functions{1}
                 % загрузка файла
@@ -406,44 +469,76 @@ function EasyView()
             case file_functions{2}
                 % загрузка события
                 loadEvents([], []);
-            case file_functions{3}
+            case file_functions{4}
                 % открытие менеджера файлов
                 fileManagerBtnClb([], []);
-            case file_functions{4}
+            case file_functions{6}
                 % конвертация в ZAV формат
                 convertNlx2zavGUI();
-            case file_functions{5}
+            case file_functions{8}
                 % сравнение средних данных
                 dataComparerApp();
-            case file_functions{6}
+            case file_functions{10}
+                updateAndRunInstaller();
+            case ''
+                dont_close_menu = true;
+        end
+        disp(selectedOption);
+        if ~dont_close_menu
+            resetGraphParameters()
+        end
+    end
+
+    % Обратный вызов выпадающего списка
+    function ViewMenuSelectionCallback(src, ~)
+        val = src.Value;
+        str = src.String;
+        selectedOption = str{val};
+        dont_close_menu = false;
+        switch selectedOption
+            case view_functions{1}
+                % закрыть все окна кроме основного
+                closeAllButOne(f);
+            case view_functions{3}
                 % показывать или скрывать боковую панель
                 showHideSidePanel();
+            case ''
+            dont_close_menu = true;
         end
-
-        resetGraphParameters()
+        disp(selectedOption);
+        if ~dont_close_menu
+            resetGraphParameters()
+        end
     end
     % Обратный вызов выпадающего списка
     function OptionsSelectionCallback(src, ~)
         val = src.Value;
         str = src.String;
         selectedOption = str{val};
-%         disp(selectedOption)
+        dont_close_menu = false;
         switch selectedOption
-            case options{2}%'Filtering ...'
-                setupSignalFilteringGUI();
             case options{1}% Add event options
                 addEventSettingsUicontrol();
-            case options{3}%'CSD ...'
+            case options{2}% Auto event detection
+                openAutoEventDetectionWindow();
+            case options{4}%'Filtering ...'
+                setupSignalFilteringGUI();
+            case options{5}%'CSD ...'
                 % вызов функции для CSD ...
                 CSDfigSettings();
-            case options{4} %'Subtract mean ...'
+            case options{6} %'Subtract mean ...'
                 % вызов функции для Subtract mean ...
-                SubMeanFigSettings()
-            case options{5}
+                SubMeanFigSettings();
+            case options{8}
                 % отображение спектральной плотности текущего сигнала
-                spectralDensityGUI();                
+                spectralDensityGUI();  
+            case ''
+            dont_close_menu = true;
         end
-        resetGraphParameters()
+        disp(selectedOption);
+        if ~dont_close_menu
+            resetGraphParameters()
+        end
     end
     
     % вызов файл-менеджера
@@ -456,24 +551,70 @@ function EasyView()
         if side_panel_visible
             disp('Hiding Side Panel')
             set(sidePanel, 'Visible', 'off');
-            file_functions{6} = 'view Side Panel';
-            set(file_menu, 'String', file_functions);
-            multiax_position = [0.07    0.2    0.9    0.75];
-            set(multiax,'Position', multiax_position);
+            set(multiax,'Position', multiax_position_b);
+            str_out = 'view Channel Settings';
+            resizeUIControls(eventPanel, 1, 0.5);
         else
             disp('Showing Side Panel')
-            set(sidePanel, 'Visible', 'on');
-            file_functions{6} = 'hide Side Panel';
-            set(file_menu, 'String', file_functions);
-            multiax_position = [0.07    0.2    0.63    0.75];
-            set(multiax,'Position', multiax_position);
+            set(sidePanel, 'Visible', 'on');            
+            set(multiax,'Position', multiax_position_a);
+            str_out = 'hide Channel Settings';
+            resizeUIControls(eventPanel, 1, 1/0.5);
         end
         
+        view_functions{3} = str_out;
+        set(view_menu, 'String', view_functions);
+            
         side_panel_visible = ~side_panel_visible;
     end
 
+    function showSidePanel()
+        if ~side_panel_visible
+            disp('Showing Side Panel')
+            set(sidePanel, 'Visible', 'on');            
+            set(multiax,'Position', multiax_position_a);
+            str_out = 'hide Channel Settings';
+
+            view_functions{3} = str_out;
+            set(view_menu, 'String', view_functions);
+
+            resizeUIControls(eventPanel, 1, 1/0.5);
+            side_panel_visible = true;
+        end
+    end
+
+
+    function resizeUIControls(panelHandle, scaleX, scaleY)
+        % Находим все uicontrols и uitable внутри указанной панели
+        controls = findall(panelHandle, 'Type', 'uicontrol');
+        controls = [controls; findall(panelHandle, 'Type', 'uitable')];
+
+        % Перебираем каждый элемент управления для изменения размера
+        for i = 1:length(controls)
+            control = controls(i);
+
+            % Получаем текущее положение элемента управления
+            currentPosition = get(control, 'Position');
+
+            % Масштабируем положение согласно заданным коэффициентам
+            newPosition = [currentPosition(1) * scaleX, currentPosition(2) * scaleY, ...
+                           currentPosition(3) * scaleX, currentPosition(4) * scaleY];
+
+            % Применяем новое положение элемента управления
+            set(control, 'Position', newPosition);
+        end
+
+        % Получаем и изменяем размер самой панели
+        panelPosition = get(panelHandle, 'Position');
+        newPanelPosition = [panelPosition(1) * scaleX, panelPosition(2) * scaleY, ...
+                            panelPosition(3) * scaleX, panelPosition(4) * scaleY];
+        set(panelHandle, 'Position', newPanelPosition);
+    end
+
+
+
     % Функция обратного вызова для кнопки
-    function showFileMenu(src, ~)
+    function showFileMenu(~, ~)
         if file_menu_visible
             set(file_menu, 'Visible', 'off'); % Убрать меню
         else
@@ -481,31 +622,44 @@ function EasyView()
         end
         file_menu_visible = not(file_menu_visible);
     end
-
+    
     % Функция обратного вызова для кнопки
-    function showMenu(src, ~)
-        if menu_visible
-            set(menu, 'Visible', 'off'); % Убрать меню
-            strn = 'Options ...';
+    function showViewMenu(~, ~)
+        if view_menu_visible
+            set(view_menu, 'Visible', 'off'); % Убрать меню
         else
-            set(menu, 'Visible', 'on'); % Показать меню    
-            strn = 'Options:';
+            set(view_menu, 'Visible', 'on'); % Показать меню
         end
-        set(btn, 'String', strn);
+        view_menu_visible = not(view_menu_visible);
+    end
+    
+    % Функция обратного вызова для кнопки
+    function showMenu(~, ~)
+        if menu_visible
+            set(opt_menu, 'Visible', 'off'); % Убрать меню
+        else
+            set(opt_menu, 'Visible', 'on'); % Показать меню   
+        end
         menu_visible = not(menu_visible);
     end
 
     function resizeComponents(~, ~)
+        
+        % сбрасываем изменения боковой панели
+        showSidePanel();
+        
         % Получение текущего размера фигуры
         pos = get(f, 'Position');
         scaleX = pos(3) / figure_position(3);
         scaleY = pos(4) / figure_position(4);
         scaling_matrix = [scaleX, scaleY, scaleX, scaleY];
 
-        set(btn, 'Position', optionbtn_coords .*scaling_matrix);
-        set(menu, 'Position', menu_coords .*scaling_matrix);
+        set(OptBtn, 'Position', option_btn_coords .*scaling_matrix);
+        set(opt_menu, 'Position', opt_menu_coords .*scaling_matrix);
         set(file_menu, 'Position', file_menu_coords .*scaling_matrix);
-        set(fileBtn, 'Position', filebtn_coords .*scaling_matrix);        
+        set(view_menu, 'Position', view_menu_coords .*scaling_matrix);
+        set(fileBtn, 'Position', file_btn_coords .*scaling_matrix);        
+        set(viewBtn, 'Position', view_btn_coords .*scaling_matrix);
         set(saveEventsBtn, 'Position', saveEventsBtn_coords .* scaling_matrix);
         set(loadEventsBtn, 'Position', loadEventsBtn_coords .* scaling_matrix);
         set(eventAdd, 'Position', eventAdd_coords .* scaling_matrix);
@@ -569,31 +723,6 @@ function EasyView()
 
     
 
-    function saveFigure(fig)
-        % Скрытие кнопки
-        set(meanSaveButton, 'Visible', 'off');
-        set(saveDataButton, 'Visible', 'off');
-        
-        [path, name, ~] = fileparts(matFilePath);
-        defaultFileName = fullfile(path, [name '_events.png']);
-        
-        % Открытие диалогового окна для сохранения файла
-        [fileName, filePath, filterIndex] = uiputfile('*.png', 'Save as', defaultFileName);
-
-        % Проверка, был ли выбран файл
-        if fileName ~= 0
-            % Создание полного пути к файлу
-            fullFilePath = fullfile(filePath, fileName);
-            saveas(fig, fullFilePath, 'png');
-        else
-            disp('File save cancelled.');
-        end
-        
-        % Восстановление видимости кнопки
-        set(meanSaveButton, 'Visible', 'on');
-        set(saveDataButton, 'Visible', 'on');
-    end
-
 
     function shiftCoeffEditCallback(src, ~)
         newShiftCoeff = str2double(get(src, 'String'));
@@ -616,48 +745,19 @@ function EasyView()
         saveChannelSettings();
         updatePlot(); % Обновление графика с новым shiftCoeff
     end
-
-%     % Функция просмотра всего сигнала
-%     function ViewAll(~, ~)
-%         if activ_all_view
-%             buttonstring = '][';
-%             buttonmode = 'off';
-%             % сохраняем старую позицию
-%             saved_time_interval = chosen_time_interval;
-%             % меняем позицию
-%             chosen_time_interval = [time(1), time(end)];
-%         else
-%             buttonstring = '[ ]';
-%             buttonmode = 'on';     
-%             % возвращаем позицию
-%             chosen_time_interval = saved_time_interval;    
-%         end
-% 
-%         % (де)активировать кнопки
-%         set(previousbutton, 'Enable', buttonmode);
-%         set(nextbutton, 'Enable', buttonmode);
-%         set(timeForwardEdit, 'Enable', buttonmode);
-%         set(FMbutton, 'String', buttonstring);
-%             
-%             
-%         % Меняем состояние
-%         activ_all_view = not(activ_all_view);
-% 
-%         updatePlot(); % Обновление графика
-%     end
     
     % std coef
     function StdCoefCallback(src, ~)
         std_coef = str2double(get(src, 'String'));
         updatePlot(); % Обновление графика
     end
-    function ShowSpikesButtonCallback(src, ~)
+    function ShowSpikesButtonCallback(~, ~)
         show_spikes = not(show_spikes);
         set(showSpikesButton, 'Value', show_spikes);
         updatePlot(); % Обновление графика
     end
 
-    function ShowCSDButtonCallback(src, ~)
+    function ShowCSDButtonCallback(~, ~)
         show_CSD = not(show_CSD);
         set(showCSDbutton, 'Value', show_CSD);
         updatePlot(); % Обновление графика
@@ -788,7 +888,7 @@ function EasyView()
     
     % Внутренние функции для обработки событий GUI
     function OpenZavLfpFile(~, ~)
-        
+
         % Получение пути к последнему открытому файлу или использование стандартной директории
         initialDir = pwd;
         if ~isempty(lastOpenedFiles)
@@ -815,7 +915,8 @@ function EasyView()
     end
 
     function loadMatFile(filepath)
-        
+        % разрешение опций
+        set(OptBtn, 'Enable', 'on');
         % если идет вызов снаружи
         if ~isempty(outside_calling_filepath)
             filepath = outside_calling_filepath;
@@ -873,7 +974,7 @@ function EasyView()
         % Включаем все элементы управления если файл загрузился в первый
         % раз
         if ~data_loaded
-            setUIControlsEnable({sidePanel, mainPanel} , 'on')
+            setUIControlsEnable({eventPanel, sidePanel, mainPanel} , 'on')
             data_loaded = true;
         end
         
@@ -934,7 +1035,7 @@ function EasyView()
                 mean_group_ch = false(numChannels, 1);% Ни один канал не участвует в усреднении
                 disp('settings were without mean_group_ch')
             end
-            if isfield(loadedSettings, 'csd_avaliable') & ~(isempty(loadedSettings.csd_avaliable))
+            if isfield(loadedSettings, 'csd_avaliable') && ~(isempty(loadedSettings.csd_avaliable))
                 csd_avaliable = loadedSettings.csd_avaliable;
             else% если настройки старые                
                 csd_avaliable = true(numChannels, 1);% Все каналы участвуют в CSD
@@ -946,7 +1047,7 @@ function EasyView()
                 filter_avaliable = false(numChannels, 1);% Ни один канал не участвует в фильтрации
                 disp('settings were without filter_avaliable')
             end            
-            if isfield(loadedSettings, 'filterSettings') & ~(isempty(loadedSettings.filterSettings))
+            if isfield(loadedSettings, 'filterSettings') && ~(isempty(loadedSettings.filterSettings))
                 filterSettings = loadedSettings.filterSettings;
             else% если настройки старые                
                 filterSettings.filterType = 'highpass';
@@ -1116,11 +1217,6 @@ function EasyView()
         updatePlot()
     end
 
-    function addEventSettingsCallback(~, ~)
-%         addEventSettings();
-        addEventSettingsUicontrol();
-    end
-
 % добавляем возможность вызвать функцию открытия извне
 global event_calling outside_calling_filepath zav_calling
 zav_calling = @loadMatFile;
@@ -1225,8 +1321,10 @@ end
             return;
         end
         filepath = fullfile(path, file);
-        events; % Получение данных событий
         clear manlDet
+        % Преаллокация структуры
+        manlDet(numel(events)) = struct('t', [], 'ch', [], 'subT', [], 'subCh', [], 'sw', []);
+
         for i = 1:numel(events)
             manlDet(i).t = ClosestIndex(events(i), time);
             manlDet(i).ch = 1;
@@ -1234,10 +1332,46 @@ end
             manlDet(i).subCh = 2;
             manlDet(i).sw = 1;
         end
-        event_comments;
+
         save(filepath, 'manlDet', 'event_comments'); % Сохранение в .ev файл
     end
 
     set(eventTable, 'CellEditCallback', @updateEventTable);
     set(channelTable, 'CellEditCallback', @updateChannelSelection);
+    
+    
+    function updateAndRunInstaller()
+        saveDirectory = fullfile(fileparts(EV_path), 'EV updates'); % Save directory
+
+        % Check for the existence of the save directory and create it if necessary
+        if ~exist(saveDirectory, 'dir')
+            mkdir(saveDirectory);
+        end
+
+        % Call the function to check and update the version
+        [isNewVersionAvailable, newVersion] = checkAndUpdateVersion(EV_version, saveDirectory);
+
+        % Check if a new version has been downloaded
+        if isNewVersionAvailable
+            % Dialog box to confirm the installation of the new version
+            choice = questdlg(['New version ' newVersion ' is available. Do you want to install it now?'], ...
+                'Update Available', ...
+                'Yes', 'No', 'Yes');
+
+            % Handle the user's response
+            if strcmp(choice, 'Yes')
+                % Form the full path to the downloaded installer file
+                installerPath = fullfile(saveDirectory, ['EasyView ', newVersion, '.exe']);
+                % открываем папку с установщиком
+                winopen(saveDirectory)
+                % закрываем программу
+                closeAllCallback(f, []);
+            end
+        else
+            % Dialog box to inform the user that the latest version is already installed
+            msgbox('The latest version is already installed.', 'No Update Required', 'warn');
+        end
+    end
+
 end
+

@@ -1,18 +1,30 @@
 
 function CSDfigSettings()
-
+    
+    % Идентификатор (tag) для GUI фигуры
+    figTag = 'CSDfigSettings';
+    
+        % Поиск открытой фигуры с заданным идентификатором
+    guiFig = findobj('Type', 'figure', 'Tag', figTag);
+    
+    if ~isempty(guiFig)
+        % Делаем существующее окно текущим (активным)
+        figure(guiFig);
+        return
+    end
+    
     % Инициализация таблиц
-    global channelNames csd_avaliable matFilePath csd_resample_coef csd_smooth_coef csd_contrast_coef
+    global channelNames csd_avaliable matFilePath csd_smooth_coef csd_contrast_coef
         
     label = 'CSD Displaying Settings';
-    SubMeanFig = figure('Name', label, 'NumberTitle', 'off', ...
+    CSDfigSettingsFig = figure('Name', label, 'Tag', figTag, 'NumberTitle', 'off', ...
                 'MenuBar', 'none', ... % Отключение стандартного меню
                 'ToolBar', 'none',...
                 'Position', [300  100  350  400], ...
                 'Resize', 'off');
             
     if numel(channelNames)<2
-        close(SubMeanFig);
+        close(CSDfigSettingsFig);
     end
     tableData = [channelNames, num2cell(csd_avaliable)];
     position = [10, 50, 200, 350];
@@ -20,7 +32,7 @@ function CSDfigSettings()
             'ColumnName', {'Channel', 'Enabled'}, ...
             'ColumnFormat', {'char', 'logical'}, ...
             'ColumnEditable', [false true], ...
-            'Position', position, 'Parent', SubMeanFig);
+            'Position', position, 'Parent', CSDfigSettingsFig);
         
     % Кнопка для нажатия всех каналов
     uicontrol('Style', 'pushbutton', 'String', 'Select ALL', 'Position', [220, 350, 110, 25], 'Callback', @selectAll);
@@ -36,7 +48,7 @@ function CSDfigSettings()
     csdSmoothCoefEdit = uicontrol('Style', 'edit', 'String', num2str(csd_smooth_coef), 'Position', [220, 230, 100, 20], 'BackgroundColor', 'white');
     
     % Button to save settings
-    saveButton = uicontrol('Style', 'pushbutton', 'Position', [220, 150, 100, 25], 'String', 'Apply', 'Callback', @saveSettings);
+    uicontrol('Style', 'pushbutton', 'Position', [220, 150, 100, 25], 'String', 'Apply', 'Callback', @saveSettings);
     
     function selectAll(~, ~)
         hTable.Data(:,2) = num2cell(true(size(hTable.Data(:,2))));
@@ -46,7 +58,7 @@ function CSDfigSettings()
         hTable.Data(:,2) = num2cell(false(size(hTable.Data(:,2))));
     end
     
-    function saveSettings(src, ~)
+    function saveSettings(~, ~)
         updatedData = get(hTable, 'Data');
         csd_avaliable = [updatedData{:, 2}]';
         csd_contrast_coef = str2double(get(csdContrastCoeffEdit, 'String')); % Обновление значения коэффициента
@@ -55,7 +67,7 @@ function CSDfigSettings()
         [path, name, ~] = fileparts(matFilePath);
         channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
         save(channelSettingsFilePath, 'csd_avaliable', 'csd_smooth_coef', 'csd_contrast_coef', '-append');
-        close(SubMeanFig);
+        close(CSDfigSettingsFig);
     end
 
 end

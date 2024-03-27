@@ -3,11 +3,24 @@ function openAutoEventDetection()
     global autodetection_settings
     settings = autodetection_settings;
     
-    global events event_inx events_exist event_comments hd events_detected eventTable timeUnitFactor
+    global events event_comments hd events_detected eventTable timeUnitFactor
     global hd hMinPeakProminence hDetectionType hChPos hChNeg hMinPeakDistance hSmoothCoefWindow hDetectionMode hOnsetThreshold hOnsetSearchWindow
     
+    % Идентификатор (tag) для GUI фигуры
+    figTag = 'EventDetection';
+    
+        % Поиск открытой фигуры с заданным идентификатором
+    guiFig = findobj('Type', 'figure', 'Tag', figTag);
+    
+    if ~isempty(guiFig)
+        % Делаем существующее окно текущим (активным)
+        figure(guiFig);
+        return
+    end
+        
     % Окно Auto Event Detection
-    detectionFig = figure('Name', 'Auto Event Detection', 'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', 'Position', [100, 100, 800, 400]);
+    detectionFig = figure('Name', 'Auto Event Detection', 'Tag', figTag, ...
+        'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', 'Position', [100, 100, 800, 400]);
 
     ypos = [linspace(310, 80, 8), 350];
 
@@ -244,4 +257,5 @@ function [events_detected, Trace_out, time_res] = autoEventDetection(params)
             onset_times = time_res(onset_locs_inx)';
             events_detected = onset_times;
     end
+    
 end
