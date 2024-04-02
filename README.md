@@ -10,21 +10,21 @@
 #### Управление временем
 Панель управления временем позволяет выбирать интересующий временной диапазон для детального просмотра, а также быстро перемещаться между различными сегментами данных.
 ![Пролистывание](https://github.com/ta3map/EasyViewer/blob/main/images/time1.PNG)
-![Диапазон отображения](https://github.com/ta3map/EasyViewer/blob/main/images/time2.png)
-![Дополнительные Функции](https://github.com/ta3map/EasyViewer/blob/main/images/time3.png)
+![Диапазон отображения](https://github.com/ta3map/EasyViewer/blob/main/images/time2.PNG)
+![Дополнительные Функции](https://github.com/ta3map/EasyViewer/blob/main/images/time3.PNG)
 
 #### Файловое меню
 Файловое меню предлагает функции для открытия и обработки файлов данных, включая импорт из форматов ZAV и NLX, а также экспорт событий.
-![Файловое Меню](https://github.com/ta3map/EasyViewer/blob/main/images/FileMenu.png)
+![Файловое Меню](https://github.com/ta3map/EasyViewer/blob/main/images/FileMenu.PNG)
 
 #### Меню просмотра
 Меню "View" предоставляет опции для управления видимостью панелей, в том числе возможность скрыть настройки каналов для увеличения рабочего пространства.
-![Меню View](https://github.com/ta3map/EasyViewer/blob/main/images/ViewMenu.png)
+![Меню View](https://github.com/ta3map/EasyViewer/blob/main/images/ViewMenu.PNG)
 
 ### Функции обработки сигналов
 В меню "Опции" доступны различные инструменты для обработки сигналов, включая автоматическое обнаружение событий, фильтрацию, отображение CSD и вычет среднего.
-![Меню опций](https://github.com/ta3map/EasyViewer/blob/main/images/OptionsMenu.png)
+![Меню опций](https://github.com/ta3map/EasyViewer/blob/main/images/OptionsMenu.PNG)
 
 ### Управление событиями
 Инструменты для добавления, удаления и автоматического обнаружения событий на временных рядах LFP, а также для сохранения и загрузки этих событий.
-![Меню событий](https://github.com/ta3map/EasyViewer/blob/main/images/EventMenu.png)
+![Меню событий](https://github.com/ta3map/EasyViewer/blob/main/images/EventMenu.PNG)
