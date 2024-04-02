@@ -54,11 +54,11 @@
 
 ### Вычитание среднего
 
-[Вычитание среднего](https://github.com/ta3map/EasyViewer/blob/main/images/average_subtr.PNG)
+![Вычитание среднего](https://github.com/ta3map/EasyViewer/blob/main/images/average_subtr.PNG)
 
 ### Отображение CSD
 
-[Отображение CSD](https://github.com/ta3map/EasyViewer/blob/main/images/CSD_settings.PNG)
+![Отображение CSD](https://github.com/ta3map/EasyViewer/blob/main/images/CSD_settings.PNG)
 
 <a id="events-panel"></a>
 ## Управление событиями
