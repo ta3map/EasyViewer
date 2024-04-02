@@ -1,11 +1,11 @@
 
 ### Основное окно просмотра сигналов
 Основное окно отображает многоканальные LFP сигналы. Пользователи могут наблюдать за активностью сигналов в разных каналах, что позволяет проводить визуальный анализ.
-![Основное окно просмотра](https://github.com/ta3map/EasyViewer/blob/main/images//Main Window.PNG)
+![Основное окно просмотра](https://github.com/ta3map/EasyViewer/blob/main/images//MainWindow.PNG)
 
 #### Настройки каналов
 Боковая панель настроек каналов дает возможность выбора отображаемых каналов, масштабирования и изменения цветов для лучшего визуального различия сигналов.
-![Настройки каналов](https://github.com/ta3map/EasyViewer/blob/main/images/Channel%20Settings.PNG)
+![Настройки каналов](https://github.com/ta3map/EasyViewer/blob/main/images/ChannelSettings.PNG)
 
 #### Управление временем
 Панель управления временем позволяет выбирать интересующий временной диапазон для детального просмотра, а также быстро перемещаться между различными сегментами данных.
@@ -15,16 +15,16 @@
 
 #### Файловое меню
 Файловое меню предлагает функции для открытия и обработки файлов данных, включая импорт из форматов ZAV и NLX, а также экспорт событий.
-![Файловое Меню](https://github.com/ta3map/EasyViewer/blob/main/images/File Menu.png)
+![Файловое Меню](https://github.com/ta3map/EasyViewer/blob/main/images/FileMenu.png)
 
 #### Меню просмотра
 Меню "View" предоставляет опции для управления видимостью панелей, в том числе возможность скрыть настройки каналов для увеличения рабочего пространства.
-![Меню View](https://github.com/ta3map/EasyViewer/blob/main/images/View Menu.png)
+![Меню View](https://github.com/ta3map/EasyViewer/blob/main/images/ViewMenu.png)
 
 ### Функции обработки сигналов
 В меню "Опции" доступны различные инструменты для обработки сигналов, включая автоматическое обнаружение событий, фильтрацию, отображение CSD и вычет среднего.
-![Меню опций](https://github.com/ta3map/EasyViewer/blob/main/images/Options Menu.png)
+![Меню опций](https://github.com/ta3map/EasyViewer/blob/main/images/OptionsMenu.png)
 
 ### Управление событиями
 Инструменты для добавления, удаления и автоматического обнаружения событий на временных рядах LFP, а также для сохранения и загрузки этих событий.
-![Меню событий](https://github.com/ta3map/EasyViewer/blob/main/images/Event Menu.png)
+![Меню событий](https://github.com/ta3map/EasyViewer/blob/main/images/EventMenu.png)
