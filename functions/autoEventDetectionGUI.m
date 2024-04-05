@@ -207,8 +207,17 @@ function autoEventDetectionGUI()
         
         cla; hold on;
         % Автоматическое определение количества бинов для улучшения визуализации
-        h = histogram(Trace_filtered, 50,'Normalization','probability');
-        std3 = 3*std(Trace_filtered);
+        h = histogram(Trace_out, 50,'Normalization','probability');
+        
+        outlier = quantile(Trace_out, [0.999]);
+        xline(outlier, 'k:')
+        
+        outlier_h = max(h.Values)*0.9;
+        
+        text(outlier, outlier_h, 'outlier')
+        text(outlier, outlier_h*0.95, num2str(outlier, 3))
+        
+        std3 = 3*std(Trace_out);
         std3_h = max(h.Values);
         
         xline(std3, 'k:')
@@ -278,7 +287,7 @@ function saveSettings()
 end
 
 function [events_detected, Trace_out, time_res] = autoEventDetection(params)
-    global Fs time newFs lfp wb ch_inxs csd_avaliable filterSettings filter_avaliable
+    global Fs time newFs lfp wb ch_inxs csd_avaliable filterSettings filter_avaliable mean_group_ch
     data_in = lfp;
     wb = msgbox('Please wait...', 'Status');
     
@@ -306,6 +315,9 @@ function [events_detected, Trace_out, time_res] = autoEventDetection(params)
     catch ME
         errordlg(['An error occurred: ', ME.message], 'Error');
     end
+    
+    % Вычитаем среднее из запрошенных
+    data_in(:, mean_group_ch) = data_in(:, mean_group_ch) - mean(data_in(:, mean_group_ch), 2); % вычитание выбранных средних каналов
     
     % Если источником выбран CSD
     switch SourceType
