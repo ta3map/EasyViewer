@@ -1,7 +1,8 @@
 function [csd, newtrange, newchrange] = CurSrcDnsAz(eeg, varargin)
-method = 1;
+    
+    method = 1;
     % Input parameters parsing and setting defaults
-    [trange, type, chnum, chanrange, samplerate, step, ColorRange] = ...
+    [trange, ~, chnum, chanrange, samplerate, step, ~] = ...
         DefaultArgsAz(varargin, {[], 'c', size(eeg,2), 1:size(eeg,2), 1e3, 1, []});
     
     % Ensure eeg is channels x time
@@ -35,29 +36,6 @@ method = 1;
     csd = interp2(csd, 3, 'linear');
     newtrange = linspace(trange(1), trange(end), size(csd,1))';
     newchrange = linspace(chanrange(2), chanrange(end), size(csd,2))';
-
-    % Visualize or return CSD
-    if nargout == 0
-        visualizeCSD(csd, newtrange, newchrange, type, ch, ColorRange);
-    end
-end
-
-function visualizeCSD(csd, trange, chrange, type, channels, ColorRange)
-    if type == 'c'
-        imagesc(trange, chrange, csd');
-        set(gca, 'YTick', channels);
-        axis tight;
-        set(gca, 'ydir', 'rev');
-        if isempty(ColorRange)
-            cxmax = max(abs(caxis));
-            caxis([-cxmax cxmax]);
-        else
-            caxis(ColorRange);
-        end
-    elseif type == 'l'
-        spacing = mean(max(csd,[],1) - min(csd,[],1));
-        plot(trange, csd' - repmat(chrange * spacing, length(trange), 1)', 'k');
-    end
 end
 
 function varargout = DefaultArgsAz(Args, DefArgs)

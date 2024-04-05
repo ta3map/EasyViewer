@@ -18,7 +18,7 @@ function fileManagerGUI()
         
     
         % Главное окно интерфейса
-        fig = figure('Position', [100, 100, 600, 385],...
+        fig = figure('Position', [100, 100, 600, 420],...
             'Name', 'File Manager', ...
             'NumberTitle', 'off',...
             'MenuBar', 'none', ... % Отключение стандартного меню
@@ -27,11 +27,11 @@ function fileManagerGUI()
             'Tag', figTag);
 
         % Кнопки
-        uicontrol('Style', 'pushbutton', 'Position', [10, 350, 100, 25], 'String', 'Load list', 'Callback', @loadList);
-%         uicontrol('Style', 'pushbutton', 'Position', [120, 380, 100, 25], 'String', 'Save list', 'Callback', @saveList);
-        uicontrol('Style', 'pushbutton', 'Position', [230, 350, 100, 25], 'String', 'Open file', 'Callback', @openFile);
-%         uicontrol('Style', 'pushbutton', 'Position', [480, 380, 100, 25], 'String', 'Delete file', 'Callback', @deleteFile);
-%         uicontrol('Style', 'pushbutton', 'Position', [480, 350, 100, 25], 'String', 'Add file', 'Callback', @addFile);
+        uicontrol('Style', 'pushbutton', 'Position', [10, 380, 100, 25], 'String', 'Load list', 'Callback', @loadList);
+        uicontrol('Style', 'pushbutton', 'Position', [120, 380, 100, 25], 'String', 'Save list', 'Callback', @saveList);
+        uicontrol('Style', 'pushbutton', 'Position', [230, 380, 100, 25], 'String', 'Open file', 'Callback', @openFile);
+        uicontrol('Style', 'pushbutton', 'Position', [450, 380, 100, 25], 'String', 'Delete file', 'Callback', @deleteFile);
+        uicontrol('Style', 'pushbutton', 'Position', [450, 350, 100, 25], 'String', 'Add file', 'Callback', @addFile);
         
 
         % Таблица для отображения списка файлов

@@ -1,4 +1,4 @@
-function data_clean = cleanDataInterp(data, avaliable)
+function data_clean = cleanData(data, avaliable)
     % Инициализация результата теми же данными
     data_clean = data;
 

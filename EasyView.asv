@@ -1,6 +1,5 @@
 function EasyView()
-    
-    % Easy Viewer:  visualization and analysis and electrophysiological data
+    % Easy Viewer 
     % 
     % 
     % Author:       Azat Gainutdinov
@@ -16,7 +15,7 @@ function EasyView()
     EV_path = pwd;
     disp('working directory:')
     fprintf('%s\n',EV_path);
-    disp('please wait ...')
+    disp('wait ...')
     
     global Fs N time chosen_time_interval ch_inxs m_coef
     global shiftCoeff eventTable
@@ -43,7 +42,7 @@ function EasyView()
     global autodetection_settings
     global show_power power_window % для мощности
     global lfpVar windowSize
-    global timeCenterPopup wb
+    global timeCenterPopup
     
     csd_contrast_coef = 99.9;
     
@@ -139,7 +138,7 @@ function EasyView()
     LoadSettingsBtn_coords = [10, 5, 120, 20].*scaling_matrix*min_scale_coef;
     
     % Event panel
-    EventsText_coords = [10, 177, 200, 20].*scaling_matrix*min_scale_coef;
+    EventsText_coords = [10, 177, 100, 20].*scaling_matrix*min_scale_coef;
     saveEventsBtn_coords = [270, 140, 70, 30].*scaling_matrix*min_scale_coef;
     loadEventsBtn_coords = [270, 110, 70, 30].*scaling_matrix*min_scale_coef;
     eventAdd_coords = [10, 10, 80, 30].*scaling_matrix*min_scale_coef;
@@ -894,7 +893,7 @@ function EasyView()
                 end
         end
         
-        saveChannelSettings();
+%         saveChannelSettings();
         updatePlot(); % Обновление графика
     end
 
@@ -1024,7 +1023,7 @@ function EasyView()
         % если идет вызов снаружи
         if ~isempty(outside_calling_filepath)
             filepath = outside_calling_filepath;
-            outside_calling_filepath = [];            
+            outside_calling_filepath = [];
         end
         
         d = load(filepath); % Загружаем данные в структуру
@@ -1236,7 +1235,6 @@ function EasyView()
                 UpdateEventTable();
                 events_exist = false;
                 updatePlot();
-                set(EventsText, 'String', 'Events');
             case 'No'
                 % Do nothing if the user selects 'No'
         end
@@ -1351,12 +1349,10 @@ function loadEvents(~, ~)
             return;
         end
         filepath = fullfile(path, file);
-        
     else
         disp('loading file from outside')
         filepath = outside_calling_filepath;
-        [path,file,ext] = fileparts(outside_calling_filepath);
-        file = [file,ext];
+        [path,~,~] = fileparts(outside_calling_filepath);
         outside_calling_filepath = [];
     end
     
@@ -1416,7 +1412,6 @@ function loadEvents(~, ~)
         set(timeCenterPopup, 'Value', 3);
         changeTimeCenter(timeCenterPopup);
         
-        set(EventsText, 'String', file);
         updatePlot();
     else
         errordlg('No events found in the file.');

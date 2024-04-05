@@ -10,7 +10,7 @@ function [f, calculation_result] = plotMeanEvents(params)
     N = params.N;
     time = params.time;
     binsize = params.binsize;
-    std_coef = params.spk_threshold;
+    prg = params.spk_threshold;
     spks = params.spks;
     shiftCoeff = params.shiftCoeff;
     titlename = params.titlename;
@@ -20,6 +20,7 @@ function [f, calculation_result] = plotMeanEvents(params)
     csd_smooth_coef = params.csd_smooth_coef;
     csd_contrast_coef = params.csd_contrast_coef;
     csd_active = params.csd_active;
+    lfpVar = params.lfpVar;
     
     if isfield(params, 'timeUnitFactor')
         timeUnitFactor = params.timeUnitFactor;
@@ -59,7 +60,7 @@ function [f, calculation_result] = plotMeanEvents(params)
 
     % show spikes
     ev_hists = [];
-    if show_spikes & not(isempty(spks))
+    if show_spikes && not(isempty(spks))
         clear evs
         for i = 1:numEvents
             % Вычисление индексов окна вокруг события
@@ -80,16 +81,17 @@ function [f, calculation_result] = plotMeanEvents(params)
                 ch_hists = [];
                 for ch_inx = ch_inxs
                     c = c+1;
-%                     offset = offsets(c) ;
-                    spk = spks(ch_inx).tStamp/1000;
-                    ampl = abs(spks(ch_inx).ampl);
-                    cond_in_event = spk >= time_interval(1) & spk < time_interval(2) ...
-                        & ampl > std_coef*std(ampl);
-                    spikes_in_event = spk(cond_in_event);
-                    hist_data = histcounts(spikes_in_event, edges);
+                    
+                    % Порог ZAV метод
+                    ii = double(spks(ch_inx).ampl) <= (-lfpVar(ch_inx) * prg);
+                    spks_in(ch_inx).tStamp = spks(ch_inx).tStamp(ii);
+                    spks_in(ch_inx).ampl = spks(ch_inx).ampl(ii);
+
+                    spk = spks_in(ch_inx).tStamp/1000;
+                    
+                    hist_data = histcounts(spk, edges);
                     ch_hists = [ch_hists; hist_data];
                 end
-%                 ev_hists = [ev_hists, ch_hists];
                 evs(i, :, :) = ch_hists;
             end
             disp(['event #' num2str(i) ' of ' num2str(numEvents)])
@@ -132,8 +134,17 @@ function [f, calculation_result] = plotMeanEvents(params)
         for p = 1:numChannels
             % Determine the offset
             offsets(p) = -(p-1) * shiftCoeff;
-        end        
-        csdPlotting(timeAxis, pl_meanData, Fs, offsets, csd_smooth_coef, csd_contrast_coef, csd_active)
+        end    
+        
+        params.time_in_csd = timeAxis;
+        params.data_in_csd = pl_meanData;
+        params.Fs = Fs;
+        params.offsets = offsets;
+        params.csd_smooth_coef = csd_smooth_coef;
+        params.csd_active = csd_active;
+        
+        [csd_image, csd_trange, csd_ch_range] = csdCalc(params);
+        csdPlotting(csd_image, csd_trange, csd_ch_range, csd_contrast_coef);
     end
     
     offsets = multiplot(timeAxis, pl_meanData, ...
@@ -167,7 +178,7 @@ function [f, calculation_result] = plotMeanEvents(params)
     calculation_result.time = time;
     calculation_result.show_spikes = show_spikes;
     calculation_result.binsize = binsize;
-    calculation_result.std_coef = std_coef;
+    calculation_result.std_coef = prg;
     calculation_result.ch_inxs = ch_inxs;
     calculation_result.ev_hists = ev_hists;
     calculation_result.timeAxis = timeAxis/timeUnitFactor;

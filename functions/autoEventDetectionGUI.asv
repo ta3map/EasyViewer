@@ -1,15 +1,18 @@
-function openAutoEventDetection()
+function autoEventDetectionGUI()
     % Загрузка настроек
-    global autodetection_settings
+    global autodetection_settings events_exist event_inx
+    global timeUnitFactor
+    
     settings = autodetection_settings;
     
-    global events event_comments hd events_detected eventTable timeUnitFactor
+    global events event_comments hd events_detected eventTable
     global hd hMinPeakProminence hDetectionType hChPos hChNeg hMinPeakDistance hSmoothCoefWindow hDetectionMode hOnsetThreshold hOnsetSearchWindow
+    global hSourceType selectedCenter timeCenterPopup windowSize chosen_time_interval
     
     % Идентификатор (tag) для GUI фигуры
     figTag = 'EventDetection';
     
-        % Поиск открытой фигуры с заданным идентификатором
+    % Поиск открытой фигуры с заданным идентификатором
     guiFig = findobj('Type', 'figure', 'Tag', figTag);
     
     if ~isempty(guiFig)
@@ -20,15 +23,19 @@ function openAutoEventDetection()
         
     % Окно Auto Event Detection
     detectionFig = figure('Name', 'Auto Event Detection', 'Tag', figTag, ...
+        'Resize', 'off', ...
         'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', 'Position', [100, 100, 800, 400]);
 
-    ypos = [linspace(310, 80, 8), 350];
+    ypos = [linspace(300, 70, 8), 340, 365];
+    % Окно выбора источника данных LFP или CSD
+    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(10), 150, 20], 'String', 'Source:');
+    hSourceType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(10), 130, 20], 'String', {'LFP', 'CSD'});
 
     % Окно выбора типа детекции (1 или 2 канала)
-    hDetectionType_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(9), 150, 20], 'String', 'Detection Type:');
-    hDetectionType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(9), 130, 20], 'String', {'two channels difference', 'one channel positive', 'one channel negative'}, 'Callback', @changeDetectionType);
+    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(9), 150, 20], 'String', 'Detection Type:');
+    hDetectionType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(9), 130, 20], 'String', {'two channels difference', 'two channels multiplied', 'one channel positive', 'one channel negative'}, 'Callback', @changeDetectionType);
 
-    % Окошко для ввода MinPeakProminence
+    % Окошко для ввода MinPeakHeight
     uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(1), 150, 20], 'String', 'Minimal Peak Amplitude:');
     hMinPeakProminence = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(1), 130, 20], 'String', '50');
 
@@ -42,7 +49,7 @@ function openAutoEventDetection()
     uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(4), 150, 30], 'String', 'Minimal Time Between Peaks (s):');
     hMinPeakDistance = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(4), 130, 20], 'String', '3');
 
-    hSmoothCoefWindow_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(5), 150, 20], 'String', 'Smooth coefficient :');
+    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(5), 150, 20], 'String', 'Smooth coefficient :');
     hSmoothCoefWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(5), 130, 20], 'String', '20');
 
     % Окно выбора режима детекции
@@ -57,8 +64,8 @@ function openAutoEventDetection()
     hOnsetSearchWindow_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(8), 150, 20], 'visible', 'off', 'String', 'Onset Search Window (s):');
     hOnsetSearchWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(8), 130, 20], 'visible', 'off', 'String', '1');
 
-    ax = axes('Position', [0.43    0.27    0.54    0.65]);
-
+    ax = axes('Position', [0.40    0.27    0.25    0.65]);
+    ax2 = axes('Position', [0.70    0.27    0.25    0.65]);
     
     % Инициализация значений из настроек, если они существуют
     if ~isempty(settings)
@@ -71,6 +78,17 @@ function openAutoEventDetection()
         set(hDetectionMode, 'Value', settings.DetectionModeIndex);
         set(hOnsetThreshold, 'String', num2str(settings.OnsetThreshold));
         set(hOnsetSearchWindow, 'String', num2str(settings.OnsetSearchWindow));
+        
+        if isfield(settings, 'SourceTypeIndex')
+            if ~isempty(settings.SourceTypeIndex)
+                set(hSourceType, 'Value', settings.SourceTypeIndex);
+            else
+                set(hSourceType, 'Value', 1);
+            end
+        else
+            set(hSourceType, 'Value', 1);
+        end
+        
         % Вызовите функции изменения режима/типа детекции, если необходимо
         changeDetectionMode(hDetectionMode)
         changeDetectionType(hDetectionType)
@@ -81,9 +99,10 @@ function openAutoEventDetection()
         'Position', [340, 10, 280, 40], 'Callback', @checkDetectionCallback);
 
     % Кнопка 'Apply'
-    uicontrol(detectionFig, 'Style', 'pushbutton', 'String', 'Apply',...
+    applybutton = uicontrol(detectionFig, 'Style', 'pushbutton', 'String', 'Apply',...
         'Position', [650, 10, 120, 40], 'Callback', @detectButtonCallback);
-
+    set(applybutton, 'Enable', 'off')
+    
     function changeDetectionMode(~,~)
         DetectionModes = get(hDetectionMode, 'String');
         DetectionMode = DetectionModes{get(hDetectionMode, 'Value')};
@@ -106,6 +125,11 @@ function openAutoEventDetection()
         DetectionType = DetectionTypes{get(hDetectionType, 'Value')};
         switch DetectionType
             case 'two channels difference'
+                set(hChPos_text, 'visible', 'on')
+                set(hChPos, 'visible', 'on')
+                set(hChNeg_text, 'visible', 'on')
+                set(hChNeg, 'visible', 'on')
+            case 'two channels multiplied'
                 set(hChPos_text, 'visible', 'on')
                 set(hChPos, 'visible', 'on')
                 set(hChNeg_text, 'visible', 'on')
@@ -137,16 +161,30 @@ function openAutoEventDetection()
         DetectionTypes = get(hDetectionType, 'String');
         params.DetectionType = DetectionTypes{get(hDetectionType, 'Value')};
         params.smooth_coef = str2double(get(hSmoothCoefWindow, 'String'));
-
+        SourceTypes = get(hSourceType, 'String');
+        params.SourceType = SourceTypes{get(hSourceType, 'Value')};
+        
         [events_detected, Trace_out, time_res] = autoEventDetection(params);
 
 
         axes(ax)
         cla, hold on
-        plot(time_res, Trace_out)
-        xlim([time_res(1), time_res(end)])
+        localTimeUnitFactor = 1/60; % секунды в минуты
+        plot(time_res*localTimeUnitFactor, Trace_out)
+        xlabel('Time, min');
+        
+        yline(params.MinPeakProminence, 'k:')
+        
+        xlim([time_res(1), time_res(end)]*localTimeUnitFactor)
 
         Lines(events_detected, [], 'r',':');
+        
+        axes(ax2)
+        cla, hold on
+        hist()
+        
+        set(applybutton, 'Enable', 'on')
+        
     end
 
     function detectButtonCallback(~, ~)
@@ -158,9 +196,19 @@ function openAutoEventDetection()
             event_comments = event_comments(ev_inxs);
             eventTable.Data = [num2cell(events*timeUnitFactor), event_comments];
         end
-        updatePlot(); % Обновление графика с новыми событиями
+        
         % Сохранение настроек перед закрытием
         saveSettings();
+        
+        events_exist = true;
+        event_inx = 1;
+        selectedCenter = 'event';
+        set(timeCenterPopup, 'Value', 3);
+        
+        chosen_time_interval(1) = events(event_inx);
+        chosen_time_interval(2) = events(event_inx)+windowSize;
+                        
+        updatePlot(); % Обновление графика с новыми событиями        
     
         % Закрыть окно Auto Event Detection
         close(detectionFig);
@@ -169,8 +217,9 @@ function openAutoEventDetection()
 end
 
 function saveSettings()
-    global hd hMinPeakProminence hDetectionType hChPos hChNeg hMinPeakDistance hSmoothCoefWindow hDetectionMode hOnsetThreshold hOnsetSearchWindow
+    global hMinPeakProminence hDetectionType hChPos hChNeg hMinPeakDistance hSmoothCoefWindow hDetectionMode hOnsetThreshold hOnsetSearchWindow
     global autodetection_settings SettingsFilepath
+    global hSourceType
     
     settings.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
     settings.DetectionTypeIndex = get(hDetectionType, 'Value');
@@ -181,6 +230,7 @@ function saveSettings()
     settings.DetectionModeIndex = get(hDetectionMode, 'Value');
     settings.OnsetThreshold = str2double(get(hOnsetThreshold, 'String'));
     settings.OnsetSearchWindow = str2double(get(hOnsetSearchWindow, 'String'));
+    settings.SourceTypeIndex = get(hSourceType, 'Value');
     
     autodetection_settings = settings;
     % сохраняем фактор в глобальные настройки              
@@ -188,8 +238,9 @@ function saveSettings()
 end
 
 function [events_detected, Trace_out, time_res] = autoEventDetection(params)
-    global Fs time newFs lfp
-
+    global Fs time newFs lfp wb ch_inxs csd_avaliable filterSettings filter_avaliable
+    data_in = lfp;
+    wb = msgbox('Please wait...', 'Status');
     
     % Распаковка параметров из структуры
     DetectionType = params.DetectionType;
@@ -201,34 +252,56 @@ function [events_detected, Trace_out, time_res] = autoEventDetection(params)
     MinPeakDistance = params.MinPeakDistance;
     onset_threshold = params.OnsetThreshold;
     DetectionMode = params.DetectionMode;
-    % detecting eSPW events and onsets by Mikhail Sintsov's method
+    SourceType = params.SourceType;
+    
     raw_frq = Fs;
     lfp_frq = round(newFs);
+    
+    % Фильтруем если попросили
+    try
+        if sum(filter_avaliable)>0
+            ch_to_filter = filterSettings.channelsToFilter;
+            data_in(:, ch_to_filter) = applyFilter(data_in(:, ch_to_filter), filterSettings, newFs);        
+        end
+    catch ME
+        errordlg(['An error occurred: ', ME.message], 'Error');
+    end
+    
+    % Если источником выбран CSD
+    switch SourceType
+        case 'CSD'
+        % Выборка только разрешенных каналов, которым доступен CSD
+        allowed_ch_inxs = ch_inxs(csd_avaliable(ch_inxs) == 1);
+        data_in = -globalCSD(data_in, allowed_ch_inxs);
+    end
 
-
+        
     switch DetectionType
         case 'two channels difference'
 
-            NegTrace = resample(double(lfp(:, ChNeg)), lfp_frq , raw_frq)';
-            PosTrace = resample(double(lfp(:, ChPos)), lfp_frq , raw_frq)';           
+            NegTrace = resample(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
+            PosTrace = resample(double(data_in(:, ChPos)), lfp_frq , raw_frq)';           
             Reversion = PosTrace - NegTrace;
             Reversion = medfilt1(Reversion, smooth_coef);
             baseline = medfilt1(Reversion, 1000);
             Filtered_Reversion = Reversion;
             Filtered_Reversion(Filtered_Reversion<baseline) = baseline(Filtered_Reversion<baseline);
             Trace_out = Filtered_Reversion - baseline;
-
+        case 'two channels multiplied'
+            NegTrace = resample(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
+            PosTrace = resample(double(data_in(:, ChPos)), lfp_frq , raw_frq)';              
+            Trace_out = -(NegTrace.*PosTrace);        
         case 'one channel negative'
-            NegTrace = resample(double(lfp(:, ChNeg)), lfp_frq , raw_frq)';
+            NegTrace = resample(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
             Trace_out = -medfilt1(NegTrace, smooth_coef);
         case 'one channel positive'
-            PosTrace = resample(double(lfp(:, ChPos)), lfp_frq , raw_frq)'; 
+            PosTrace = resample(double(data_in(:, ChPos)), lfp_frq , raw_frq)'; 
             Trace_out = medfilt1(PosTrace, smooth_coef);
     end
 
     time_res = linspace(time(1),time(end),numel(Trace_out));
 
-    [~, peak_times] = findpeaks(Trace_out, time_res, 'MinPeakProminence',MinPeakProminence, 'MinPeakDistance', MinPeakDistance);
+    [~, peak_times] = findpeaks(Trace_out, time_res, 'MinPeakHeight',MinPeakProminence, 'MinPeakDistance', MinPeakDistance);
     peak_locs_inx = ClosestIndex(peak_times, time_res);
 
     switch DetectionMode
@@ -245,7 +318,7 @@ function [events_detected, Trace_out, time_res] = autoEventDetection(params)
                 start_inx = peak_loc_inx - sig_part_window_inx;
                 end_inx = peak_loc_inx + sig_part_window_inx;
 
-                if start_inx > 1 & end_inx < numel(Trace_out)
+                if start_inx > 1 && end_inx < numel(Trace_out)
                     signal_part = Trace_out(start_inx : end_inx);
                     onset_l = find(diff(signal_part) > onset_threshold);
                     if not(isempty(onset_l))
@@ -258,4 +331,5 @@ function [events_detected, Trace_out, time_res] = autoEventDetection(params)
             events_detected = onset_times;
     end
     
+    close(wb)
 end
