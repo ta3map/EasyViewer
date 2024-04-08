@@ -6,9 +6,9 @@ function EasyView()
     % Author:       Azat Gainutdinov
     %               ta3map@gmail.com
     %               
-    % Date:         05.04.2024
+    % Date:         08.04.2024
     
-    EV_version = '1.09.01';
+    EV_version = '1.09.03';
     
     clc
     disp(['Easy Viewer version: ' EV_version])
@@ -806,7 +806,7 @@ function EasyView()
     function shiftCoeffEditCallback(src, ~)
         newShiftCoeff = str2double(get(src, 'String'));
         if isnan(newShiftCoeff) || newShiftCoeff <= 0
-            errordlg('Invalid Shift Coeff Value');
+            uiwait(errordlg('Invalid Shift Coeff Value'));
             return;
         end
         shiftCoeff = newShiftCoeff;
@@ -817,7 +817,7 @@ function EasyView()
     function FsCoeffEditCallback(src, ~)
         newFsCoeff = str2double(get(src, 'String'));
         if isnan(newFsCoeff) || newFsCoeff <= 0
-            errordlg('Invalid Fs Value');
+            uiwait(errordlg('Invalid Fs Value'));
             return;
         end
         newFs = newFsCoeff;
@@ -856,18 +856,17 @@ function EasyView()
     end
 
     % Функция обратного вызова для timeBackEdit
-    function timeBackEditCallback(src, ~)
-        disp('changed time back')
+    function timeBackEditCallback(src, ~)        
         time_back = str2double(get(src, 'String'))/timeUnitFactor;% time_back - в секундах
         timeForwardEditCallback(timeForwardEdit);% используем функционал обратного вызова timeForwardEdit
     end
     % Функция обратного вызова для timeForwardEdit
     function timeForwardEditCallback(src, ~)
-        disp('changed time forward')
+        disp('time edited')
         windowSize = str2double(get(src, 'String'))/timeUnitFactor;% time_forward - в секундах
         time_forward = windowSize;
         if isnan(windowSize) || windowSize <= 0
-            errordlg('Invalid time window size.');
+            uiwait(errordlg('Invalid time window size.'));
             return;
         end
                 
@@ -1015,7 +1014,7 @@ function EasyView()
     end
 
     function loadMatFile(filepath)
-        
+        disp('loading mat file')
         windowSize = str2double(get(timeForwardEdit, 'String'))/timeUnitFactor;% должен быть в секундах
         
         % разрешение опций
@@ -1024,7 +1023,7 @@ function EasyView()
         % если идет вызов снаружи
         if ~isempty(outside_calling_filepath)
             filepath = outside_calling_filepath;
-            outside_calling_filepath = [];            
+            outside_calling_filepath = [];          
         end
         
         d = load(filepath); % Загружаем данные в структуру
@@ -1185,6 +1184,7 @@ function EasyView()
             loadSettingsFile()
             updateChannelSelection();
         else % если не было настроек
+            disp('Warning: Could not find Settings (.stn) file')
             % Подготовка данных для таблицы каналов
             
             channelEnabled = true(numChannels, 1); % Все каналы активированы по умолчанию
@@ -1193,7 +1193,7 @@ function EasyView()
             lineCoefficients = ones(numChannels, 1)*0.5; % Инициализация толщины линий
             mean_group_ch = false(numChannels, 1);% Ни один канал не участвует в усреднении
             csd_avaliable = true(numChannels, 1);% Все каналы участвуют в CSD
-            filter_avaliable = true(numChannels, 1);
+            filter_avaliable = false(numChannels, 1);% Ни один канал не участвует в фильтрации
             
             filterSettings.filterType = 'highpass';
             filterSettings.freqLow = 10;
@@ -1292,7 +1292,7 @@ function EasyView()
                 next_step_2 = chosen_time_interval(2)+windowSize; 
                 % проверка           
                 if next_step_2>time(end)
-                    errordlg('Invalid time interval.');
+                    showErrorDialog('Invalid time interval.');
                     return;
                 end
                 % Обновление интервала времени
@@ -1303,7 +1303,7 @@ function EasyView()
                 next_step_1 = chosen_time_interval(1)-windowSize;
                 next_step_2 = next_step_1 + windowSize;
                 if next_step_1<0
-                    errordlg('Invalid time interval.');
+                    showErrorDialog('Invalid time interval.');
                     return;
                 end         
                 chosen_time_interval(1) = next_step_1;
@@ -1316,7 +1316,7 @@ function EasyView()
     function deleteEvent(~, ~)
         eventIndex = str2double(get(eventDeleteEdit, 'String'));
         if isnan(eventIndex) || eventIndex <= 0 || eventIndex > size(events, 1)
-            errordlg('Invalid event index.');
+            showErrorDialog('Invalid event index.');
             return;
         end
         % Удаление события
@@ -1326,6 +1326,16 @@ function EasyView()
         if isempty(events)
             events_exist = false;
         end
+        
+        if event_inx>numel(events)
+            event_inx = numel(events);
+        end
+        
+        if events_exist
+            chosen_time_interval(1) = events(event_inx);
+            chosen_time_interval(2) = events(event_inx)+windowSize;
+        end
+        
         updatePlot()
     end
 
@@ -1417,9 +1427,9 @@ function loadEvents(~, ~)
         changeTimeCenter(timeCenterPopup);
         
         set(EventsText, 'String', file);
-        updatePlot();
+%         updatePlot(); Уже обновили график когда вызывали timeForwardEditCallback
     else
-        errordlg('No events found in the file.');
+        uiwait(errordlg('No events found in the file.'));
     end
 end
 

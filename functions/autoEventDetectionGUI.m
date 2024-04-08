@@ -1,12 +1,13 @@
 function autoEventDetectionGUI()
     % Загрузка настроек
     global autodetection_settings events_exist event_inx
-    global timeUnitFactor
+    global timeUnitFactor 
     
     settings = autodetection_settings;
     
     global events event_comments hd events_detected eventTable
-    global hd hMinPeakProminence hDetectionType hChPos hChNeg hMinPeakDistance hSmoothCoefWindow hDetectionMode hOnsetThreshold hOnsetSearchWindow
+    global hd hMinPeakProminence hDetectionType hChPos hChNeg hMaxPeakWidth
+    global hMinPeakDistance hSmoothCoefWindow hDetectionMode hOnsetThreshold hOnsetSearchWindow
     global hSourceType selectedCenter timeCenterPopup windowSize chosen_time_interval
     
     % Идентификатор (tag) для GUI фигуры
@@ -26,14 +27,14 @@ function autoEventDetectionGUI()
         'Resize', 'off', ...
         'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', 'Position', [100, 100, 800, 400]);
 
-    ypos = [linspace(300, 70, 8), 340, 365];
+    ypos = [linspace(300, 70, 9), 340, 365];
     % Окно выбора источника данных LFP или CSD
-    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(10), 150, 20], 'String', 'Source:');
-    hSourceType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(10), 130, 20], 'String', {'LFP', 'CSD'});
+    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(11), 150, 20], 'String', 'Source:');
+    hSourceType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(11), 130, 20], 'String', {'LFP', 'CSD'}, 'Callback', @changeDetectionType);
 
     % Окно выбора типа детекции (1 или 2 канала)
-    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(9), 150, 20], 'String', 'Detection Type:');
-    hDetectionType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(9), 130, 20], 'String', {'two channels difference', 'two channels multiplied', 'one channel positive', 'one channel negative'}, 'Callback', @changeDetectionType);
+    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(10), 150, 20], 'String', 'Detection Type:');
+    hDetectionType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(10), 130, 20], 'String', {'two channels difference', 'two channels multiplied', 'one channel positive', 'one channel negative'}, 'Callback', @changeDetectionType);
 
     % Окошко для ввода MinPeakHeight
     uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(1), 150, 20], 'String', 'Minimal Peak Amplitude:');
@@ -41,28 +42,31 @@ function autoEventDetectionGUI()
 
     % Окно выбора ChPos и ChNeg из списка каналов
     hChPos_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(2), 150, 20], 'String', 'Positive Channel:');
-    hChPos = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(2), 130, 20], 'String', hd.recChNames);
+    hChPos = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(2), 130, 20], 'String', hd.recChNames, 'Callback', @changeDetectionType);
     hChNeg_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(3), 150, 20], 'String', 'Negative Channel:');
-    hChNeg = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(3), 130, 20], 'String', hd.recChNames);
+    hChNeg = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(3), 130, 20], 'String', hd.recChNames, 'Callback', @changeDetectionType);
 
     % Окошко для ввода MinPeakDistance
     uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(4), 150, 30], 'String', 'Minimal Time Between Peaks (s):');
     hMinPeakDistance = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(4), 130, 20], 'String', '3');
 
-    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(5), 150, 20], 'String', 'Smooth coefficient :');
+    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(5), 150, 20], 'String', 'Smooth coefficient (ms):');
     hSmoothCoefWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(5), 130, 20], 'String', '20');
 
+    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(6), 150, 20], 'String', 'Max peak width (ms):');
+    hMaxPeakWidth = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(6), 130, 20], 'String', '50');
+    
     % Окно выбора режима детекции
-    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(6), 150, 20], 'String', 'Detection Mode:');
-    hDetectionMode = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(6), 130, 20], 'String', {'peaks', 'onsets'}, 'Callback', @changeDetectionMode);
+    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(7), 150, 20], 'String', 'Detection Mode:');
+    hDetectionMode = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(7), 130, 20], 'String', {'peaks', 'onsets'}, 'Callback', @changeDetectionType);
 
     % Окошко для ввода Onset Threshold
-    hOnsetThreshold_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(7), 150, 20], 'visible', 'off', 'String', 'Onset Threshold:');
-    hOnsetThreshold = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(7), 130, 20], 'visible', 'off', 'String', '10');
+    hOnsetThreshold_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(8), 150, 20], 'visible', 'off', 'String', 'Onset Threshold:');
+    hOnsetThreshold = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(8), 130, 20], 'visible', 'off', 'String', '10');
 
     % Окошко для ввода Onset Search Window
-    hOnsetSearchWindow_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(8), 150, 20], 'visible', 'off', 'String', 'Onset Search Window (s):');
-    hOnsetSearchWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(8), 130, 20], 'visible', 'off', 'String', '1');
+    hOnsetSearchWindow_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(9), 150, 20], 'visible', 'off', 'String', 'Onset Search Window (s):');
+    hOnsetSearchWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(9), 130, 20], 'visible', 'off', 'String', '1');
 
     ax1 = axes('Position', [0.40    0.27    0.25    0.65]);
     ax2 = axes('Position', [0.70    0.27    0.25    0.65]);
@@ -92,9 +96,16 @@ function autoEventDetectionGUI()
             set(hSourceType, 'Value', 1);
         end
         
+        if isfield(settings, 'MaxPeakWidth')
+            if ~isempty(settings.MaxPeakWidth)
+                set(hMaxPeakWidth, 'String', num2str(settings.MaxPeakWidth));
+            else
+                set(hMaxPeakWidth, 'String', 50);
+            end
+        end
+        
         % Вызовите функции изменения режима/типа детекции, если необходимо
-        changeDetectionMode(hDetectionMode)
-        changeDetectionType(hDetectionType)
+        changeDetectionType()
     end
     
     % Кнопка 'Check Detection'
@@ -105,8 +116,9 @@ function autoEventDetectionGUI()
     applybutton = uicontrol(detectionFig, 'Style', 'pushbutton', 'String', 'Apply',...
         'Position', [650, 10, 120, 40], 'Callback', @detectButtonCallback);
     set(applybutton, 'Enable', 'off')
-    
-    function changeDetectionMode(~,~)
+
+    function changeDetectionType(~,~)
+        
         DetectionModes = get(hDetectionMode, 'String');
         DetectionMode = DetectionModes{get(hDetectionMode, 'Value')};
         switch DetectionMode
@@ -121,9 +133,7 @@ function autoEventDetectionGUI()
                 set(hOnsetSearchWindow_text, 'visible', 'off')
                 set(hOnsetSearchWindow, 'visible', 'off')
         end
-    end
-
-    function changeDetectionType(~,~)
+        
         DetectionTypes = get(hDetectionType, 'String');
         DetectionType = DetectionTypes{get(hDetectionType, 'Value')};
         switch DetectionType
@@ -148,10 +158,13 @@ function autoEventDetectionGUI()
                 set(hChNeg_text, 'visible', 'off')
                 set(hChNeg, 'visible', 'off')
         end
+        
+        previewData()
+
     end
 
-    function checkDetectionCallback(~, ~)
-        clc
+    function previewData()
+        % Предварительная прорисовка
         % Сбор значений параметров и упаковка их в структуру
         params.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
         params.ChPos = get(hChPos, 'Value');
@@ -166,40 +179,80 @@ function autoEventDetectionGUI()
         params.smooth_coef = str2double(get(hSmoothCoefWindow, 'String'));
         SourceTypes = get(hSourceType, 'String');
         params.SourceType = SourceTypes{get(hSourceType, 'Value')};
+        params.detect = false;
+        params.max_peak_width = str2double(get(hMaxPeakWidth, 'String'));
+        
+        [events_detected, Trace_out, time_res] = autoEventDetection(params);
+        
+        outlier = plotRequest(events_detected, Trace_out, time_res, params);
+        set(hMinPeakProminence, 'String', num2str(outlier));
+    end
+
+    function checkDetectionCallback(~, ~)
+        
+        % Сбор значений параметров и упаковка их в структуру
+        params.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
+        params.ChPos = get(hChPos, 'Value');
+        params.ChNeg = get(hChNeg, 'Value');
+        params.MinPeakDistance = str2double(get(hMinPeakDistance, 'String'));
+        params.OnsetThreshold = str2double(get(hOnsetThreshold, 'String'));
+        params.OnsetSearchWindow = str2double(get(hOnsetSearchWindow, 'String'));
+        DetectionModes = get(hDetectionMode, 'String');
+        params.DetectionMode = DetectionModes{get(hDetectionMode, 'Value')};
+        DetectionTypes = get(hDetectionType, 'String');
+        params.DetectionType = DetectionTypes{get(hDetectionType, 'Value')};
+        params.smooth_coef = str2double(get(hSmoothCoefWindow, 'String'));
+        SourceTypes = get(hSourceType, 'String');
+        params.SourceType = SourceTypes{get(hSourceType, 'Value')};
+        params.detect = true;
+        params.max_peak_width = str2double(get(hMaxPeakWidth, 'String'));
         
         [events_detected, Trace_out, time_res] = autoEventDetection(params);
 
+        plotRequest(events_detected, Trace_out, time_res, params);
+        
+        set(applybutton, 'Enable', 'on')
+        
+    end
 
+    function outlier = plotRequest(events_detected, Trace_out, time_res, params)
+                
+        outlier = quantile(Trace_out, [0.999]);
+        
+        numSegments = 100;
+        Trace_out = findSegmentMaxima(Trace_out, numSegments);
+        time_res = linspace(time_res(1),time_res(end),numSegments);
+        
+        if params.detect % если идет детекция
+            chosen_th = params.MinPeakProminence;
+        else % если предварительная прорисовка
+            chosen_th = outlier;
+        end
+        
         axes(ax1)
         set(ax1, 'visible', 'on')
         
         cla, hold on
         localTimeUnitFactor = 1/60; % секунды в минуты
-        plot(time_res*localTimeUnitFactor, Trace_out)
-        xlabel('Time, min');
-        ylim([0, max(Trace_out)])
+%         stem(time_res*localTimeUnitFactor, Trace_out, 'Marker', '|')
+        stairs(time_res*localTimeUnitFactor, Trace_out)
         
-        yline(params.MinPeakProminence, 'k:')
+        xlabel('Time, min');
+%         ylim([0, max(Trace_out)])
+        
+        yline(chosen_th, 'k:')
         
         xlim([time_res(1), time_res(end)]*localTimeUnitFactor)
 
         Lines(events_detected*localTimeUnitFactor, [], 'r',':');
         
         numEvents = numel(events_detected);
-        
-        title([ num2str(numEvents), ' events'], 'interpreter', 'none')     
-        
-        % Предварительная обработка данных для удаления выбросов
-        % Вычисляем квантили
-        q = quantile(Trace_out, [0.05 0.95]);
-        % Интерквартильный размах
-        iqr = q(2) - q(1);
-        % Границы для определения выбросов
-        lowerBound = q(1) - 1.5*iqr;
-        upperBound = q(2) + 1.5*iqr;
+        if params.detect
+            title([ num2str(numEvents), ' events'], 'interpreter', 'none')     
+        else
+            title('')
+        end
 
-        % Отфильтровываем выбросы
-        Trace_filtered = Trace_out(Trace_out >= lowerBound & Trace_out <= upperBound);
 
         % Визуализация
         axes(ax2);
@@ -207,9 +260,8 @@ function autoEventDetectionGUI()
         
         cla; hold on;
         % Автоматическое определение количества бинов для улучшения визуализации
-        h = histogram(Trace_out, 50,'Normalization','probability');
+        h = histogram(Trace_out, 50,'Normalization','probability');        
         
-        outlier = quantile(Trace_out, [0.999]);
         xline(outlier, 'k:')
         
         outlier_h = max(h.Values)*0.9;
@@ -217,24 +269,23 @@ function autoEventDetectionGUI()
         text(outlier, outlier_h, 'outlier')
         text(outlier, outlier_h*0.95, num2str(outlier, 3))
         
-        std3 = 3*std(Trace_out);
+        std3 = 3*nanstd(Trace_out);
         std3_h = max(h.Values);
         
         xline(std3, 'k:')
         text(std3, std3_h, '3*STD')
         text(std3, std3_h*0.95, num2str(std3, 3))
         
-        chosen_th = params.MinPeakProminence;
+        
+        
         chosen_th_h = std3_h*0.5;
         xline(chosen_th, 'r:')
         text(chosen_th, chosen_th_h, 'now')
         text(chosen_th, std3_h*0.45, num2str(chosen_th, 3), 'color', 'r')
         
         hold off;
-        
-        set(applybutton, 'Enable', 'on')
-        
     end
+
 
     function detectButtonCallback(~, ~)
         % Обновление таблицы событий
@@ -266,7 +317,8 @@ function autoEventDetectionGUI()
 end
 
 function saveSettings()
-    global hMinPeakProminence hDetectionType hChPos hChNeg hMinPeakDistance hSmoothCoefWindow hDetectionMode hOnsetThreshold hOnsetSearchWindow
+    global hMinPeakProminence hDetectionType hChPos hChNeg hMaxPeakWidth
+    global hMinPeakDistance hSmoothCoefWindow hDetectionMode hOnsetThreshold hOnsetSearchWindow
     global autodetection_settings SettingsFilepath
     global hSourceType
     
@@ -280,6 +332,7 @@ function saveSettings()
     settings.OnsetThreshold = str2double(get(hOnsetThreshold, 'String'));
     settings.OnsetSearchWindow = str2double(get(hOnsetSearchWindow, 'String'));
     settings.SourceTypeIndex = get(hSourceType, 'Value');
+    settings.MaxPeakWidth = str2double(get(hMaxPeakWidth, 'String'));
     
     autodetection_settings = settings;
     % сохраняем фактор в глобальные настройки              
@@ -303,6 +356,10 @@ function [events_detected, Trace_out, time_res] = autoEventDetection(params)
     DetectionMode = params.DetectionMode;
     SourceType = params.SourceType;
     
+    detect = params.detect;
+    
+    max_peak_width = params.max_peak_width;
+    
     raw_frq = Fs;
     lfp_frq = round(newFs);
     
@@ -313,7 +370,7 @@ function [events_detected, Trace_out, time_res] = autoEventDetection(params)
             data_in(:, ch_to_filter) = applyFilter(data_in(:, ch_to_filter), filterSettings, newFs);        
         end
     catch ME
-        errordlg(['An error occurred: ', ME.message], 'Error');
+        uiwait(errordlg(['An error occurred: ', ME.message], 'Error'));
     end
     
     % Вычитаем среднее из запрошенных
@@ -350,38 +407,48 @@ function [events_detected, Trace_out, time_res] = autoEventDetection(params)
             PosTrace = resample(double(data_in(:, ChPos)), lfp_frq , raw_frq)'; 
             Trace_out = medfilt1(PosTrace, smooth_coef);
     end
-
-    time_res = linspace(time(1),time(end),numel(Trace_out));
-
-    [~, peak_times] = findpeaks(Trace_out, time_res, 'MinPeakHeight',MinPeakProminence, 'MinPeakDistance', MinPeakDistance);
-    peak_locs_inx = ClosestIndex(peak_times, time_res);
-
-    switch DetectionMode
-        case 'peaks'
-            events_detected = peak_times';
-        case 'onsets'
-            % onset of peaks by Khazipov method
-            onset_locs_inx = zeros(size(peak_locs_inx));
-            sig_part_window_inx = ClosestIndex(OnsetSearchWindow, time_res);
-            o_i = 0;
-            for peak_loc_inx = peak_locs_inx
-                o_i = o_i + 1;
-
-                start_inx = peak_loc_inx - sig_part_window_inx;
-                end_inx = peak_loc_inx + sig_part_window_inx;
-
-                if start_inx > 1 && end_inx < numel(Trace_out)
-                    signal_part = Trace_out(start_inx : end_inx);
-                    onset_l = find(diff(signal_part) > onset_threshold);
-                    if not(isempty(onset_l))
-                        onset_locs_inx(o_i) = start_inx + onset_l(1);
-                    end
-                end                    
-            end
-            onset_locs_inx(onset_locs_inx == 0) = [];
-            onset_times = time_res(onset_locs_inx)';
-            events_detected = onset_times;
-    end
+    Trace_out(isnan(Trace_out)) = nanmean(Trace_out);
+    Trace_out = Trace_out - mean(Trace_out);
+    Trace_out = np_flatten(Trace_out);
     
+    time_res = linspace(time(1),time(end),numel(Trace_out));
+    
+    if detect         
+        [~,peak_times,widths,~] = findpeaks(Trace_out, time_res, 'MinPeakHeight',MinPeakProminence, 'MinPeakDistance', MinPeakDistance,'WidthReference','halfheight');
+        
+        % убираем слишком широкие пики
+        peak_times(widths > max_peak_width/lfp_frq) = [];
+        
+        peak_locs_inx = ClosestIndex(peak_times, time_res);
+
+        switch DetectionMode
+            case 'peaks'
+                events_detected = peak_times';
+            case 'onsets'
+                % onset of peaks by Khazipov method
+                onset_locs_inx = zeros(size(peak_locs_inx));
+                sig_part_window_inx = ClosestIndex(OnsetSearchWindow, time_res);
+                o_i = 0;
+                for peak_loc_inx = peak_locs_inx
+                    o_i = o_i + 1;
+
+                    start_inx = peak_loc_inx - sig_part_window_inx;
+                    end_inx = peak_loc_inx + sig_part_window_inx;
+
+                    if start_inx > 1 && end_inx < numel(Trace_out)
+                        signal_part = Trace_out(start_inx : end_inx);
+                        onset_l = find(diff(signal_part) > onset_threshold);
+                        if not(isempty(onset_l))
+                            onset_locs_inx(o_i) = start_inx + onset_l(1);
+                        end
+                    end                    
+                end
+                onset_locs_inx(onset_locs_inx == 0) = [];
+                onset_times = time_res(onset_locs_inx)';
+                events_detected = onset_times;
+        end
+    else
+        events_detected = [];
+    end
     close(wb)
 end

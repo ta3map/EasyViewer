@@ -12,7 +12,8 @@ global time_back time_forward
 global std_coef show_spikes binsize show_CSD % спайки/CSD
 global csd_avaliable filter_avaliable filterSettings
 global channelTable csd_smooth_coef csd_contrast_coef
-global lfpVar
+global lfpVar 
+global mean_group_ch
 
 [mat_file_folder, original_filename, ~] = fileparts(matFilePath);
 
@@ -38,6 +39,7 @@ params.csd_contrast_coef = csd_contrast_coef;
 params.csd_active = csd_avaliable(ch_inxs);
 params.timeUnitFactor = timeUnitFactor;% экспериментальный не проверенный параметр
 params.lfpVar = lfpVar;
+params.mean_group_ch = mean_group_ch;
 
 % Фильтруем если попросили
 if sum(filter_avaliable)>0
