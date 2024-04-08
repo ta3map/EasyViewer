@@ -21,6 +21,7 @@ function [f, calculation_result] = plotMeanEvents(params)
     csd_contrast_coef = params.csd_contrast_coef;
     csd_active = params.csd_active;
     lfpVar = params.lfpVar;
+    mean_group_ch = params.mean_group_ch;
     
     if isfield(params, 'timeUnitFactor')
         timeUnitFactor = params.timeUnitFactor;
@@ -40,14 +41,16 @@ function [f, calculation_result] = plotMeanEvents(params)
     % Подготовка данных для среднего
     meanData = zeros(round(meanWindow * Fs), size(lfp, 2));
     numEvents = length(events);
-
+    
+    lfp(:, mean_group_ch) = lfp(:, mean_group_ch) - nanmean(lfp(:, mean_group_ch), 2); % вычитание выбранных средних каналов
+    
     for i = 1:numEvents
         % Вычисление индексов окна вокруг события
         eventIdx = round(events(i) * Fs);
         windowStart = max(eventIdx - round(meanWindow * Fs / 2), 1);
         windowEnd = min(windowStart + round(meanWindow * Fs) - 1, N);
 
-        if windowEnd < size(lfp, 1)            
+        if windowEnd < size(lfp, 1)                  
             % Добавление данных в среднее
             meanData = meanData + lfp(windowStart:windowEnd, :) - nanmedian(lfp(windowStart:windowEnd, :));
         end
