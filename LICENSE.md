@@ -1,6 +1,6 @@
 # LICENSE
 
-## Easy Viewer Version 1.08.01, March 30, 2024
+## Easy Viewer Version 1.09.03, April 09, 2024
 
 ### Copyright (C) 2024 Gainutdinov Azat
 
@@ -13,7 +13,7 @@ You should have received a copy of the GNU General Public License along with thi
 
 # ЛИЦЕНЗИЯ
 
-## Easy Viewer версия 1.08.01, 30.03.2024
+## Easy Viewer версия 1.09.03, 09.04.2024
 
 ### Copyright (C) 2024 Gainutdinov Azat
 
