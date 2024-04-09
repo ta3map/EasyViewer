@@ -44,7 +44,9 @@ function EasyView()
     global show_power power_window % для мощности
     global lfpVar windowSize
     global timeCenterPopup wb
+    global event_title_string
     
+    event_title_string = 'Events';
     csd_contrast_coef = 99.9;
     
     show_power = false;
@@ -60,8 +62,8 @@ function EasyView()
     show_spikes = false;
     show_CSD = false;
     std_coef = 0;
-    time_back = 1;
-    time_forward = 1;
+    time_back = 0.6;
+    time_forward = 0.6;
     
     stims = [];
     stim_inx = 1;
@@ -139,7 +141,7 @@ function EasyView()
     LoadSettingsBtn_coords = [10, 5, 120, 20].*scaling_matrix*min_scale_coef;
     
     % Event panel
-    EventsText_coords = [10, 177, 200, 20].*scaling_matrix*min_scale_coef;
+    EventsTableTitle_coords = [10, 177, 200, 20].*scaling_matrix*min_scale_coef;
     saveEventsBtn_coords = [270, 140, 70, 30].*scaling_matrix*min_scale_coef;
     loadEventsBtn_coords = [270, 110, 70, 30].*scaling_matrix*min_scale_coef;
     eventAdd_coords = [10, 10, 80, 30].*scaling_matrix*min_scale_coef;
@@ -247,8 +249,8 @@ function EasyView()
     text(multiax, 0.5, 0.5, 'Open MAT or EV file', 'color', 'r', 'horizontalalignment', 'center')
     
     % Добавление текстовой метки как заголовка к sidePanel
-    EventsText = uicontrol('Parent', eventPanel, 'Style', 'text', 'String', 'Events', ...
-              'Position', EventsText_coords, ...
+    EventsTableTitle = uicontrol('Parent', eventPanel, 'Style', 'text', 'String', event_title_string, ...
+              'Position', EventsTableTitle_coords, ...
               'HorizontalAlignment', 'left', ...
               'FontWeight', 'bold'); % Жирный шрифт для заголовка
       
@@ -397,7 +399,7 @@ function EasyView()
     
     % Кнопки и поля для управления событиями    
     DeleteEventBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Delete Event', 'Position', DeleteEventBtn_coords, 'Callback', @deleteEvent);
-    eventDeleteEdit = uicontrol('Parent', eventPanel, 'Style', 'edit', 'Position', eventDeleteEdit_coords);
+    eventDeleteEdit = uicontrol('Parent', eventPanel, 'Style', 'edit', 'Position', eventDeleteEdit_coords, 'Callback', @eventEdited);
 
     % Clear Table
     clearTableBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Clear Table', 'Position', clearTableBtn_coords, 'Callback', @clearTable);
@@ -776,7 +778,7 @@ function EasyView()
         set(FsText, 'Position', FsText_coords .* scaling_matrix);
         set(shiftCoefText, 'Position', shiftCoefText_coords .* scaling_matrix);
         set(stdCoefText, 'Position', stdCoefText_coords .* scaling_matrix);
-        set(EventsText, 'Position', EventsText_coords .* scaling_matrix);
+        set(EventsTableTitle, 'Position', EventsTableTitle_coords .* scaling_matrix);
         set(LoadMatFileBtn, 'Position', LoadMatFileBtn_coords .* scaling_matrix);
         set(TimeWindowText, 'Position', TimeWindowText_coords .* scaling_matrix);
         set(BeforeText, 'Position', BeforeText_coords .* scaling_matrix);
@@ -958,6 +960,12 @@ function EasyView()
             sliderValue = time(end) - windowSize;
         end
         chosen_time_interval = [sliderValue, sliderValue + windowSize];
+        
+        if not(isempty(events))
+            event_inx = ClosestIndex(sliderValue, events);
+            set(eventDeleteEdit, 'String', num2str(event_inx));  
+        end
+        
         updatePlot(); % Обновление графика
     end
 
@@ -1003,8 +1011,11 @@ function EasyView()
         
         % Очистка таблицы событий
         events = [];
+        event_title_string = 'Events';
         UpdateEventTable();
         event_inx = 1;
+        
+        set(eventDeleteEdit, 'String', num2str(event_inx));   
         
         saveSettings();
         
@@ -1034,13 +1045,13 @@ function EasyView()
         N = size(lfp, 1);
         zavp = d.zavp;
         time = (0:N-1) / Fs;% s
-        time_forward = 1;
+        time_forward = 0.6;
+        time_back = 0.6;        
         chosen_time_interval = [0, time_forward];
         shiftCoeff = 200;
         newFs = 1000;
         selectedCenter = 'time';
-        stim_inx = 1;
-        time_back = 1;
+        stim_inx = 1;        
         show_spikes = false;
         show_CSD = false;
         channelNames = hd.recChNames;
@@ -1209,11 +1220,11 @@ function EasyView()
         end
     end
     
-    function UpdateEventTable()
-        
+    function UpdateEventTable()        
         [events, ev_inxs] = sort(events);
         event_comments = event_comments(ev_inxs);
         eventTable.Data = [num2cell(events*timeUnitFactor), event_comments];
+        set(EventsTableTitle, 'String', [event_title_string, ': ', num2str(numel(events))]);
     end
 
     function addEvent(~, ~)
@@ -1233,10 +1244,10 @@ function EasyView()
             case 'Yes'
                 events = [];
                 event_comments = {};
+                event_title_string = 'Events';
                 UpdateEventTable();
                 events_exist = false;
                 updatePlot();
-                set(EventsText, 'String', 'Events');
             case 'No'
                 % Do nothing if the user selects 'No'
         end
@@ -1265,6 +1276,8 @@ function EasyView()
                     else
                         event_inx = 1;
                     end
+                    % обновляем активное окно
+                    set(eventDeleteEdit, 'String', num2str(event_inx));                    
                 end
             case 'stimulus'
                 if stims_exist
@@ -1339,9 +1352,27 @@ function EasyView()
         updatePlot()
     end
 
+    function eventEdited(~, ~)
+        eventIndex = str2double(get(eventDeleteEdit, 'String'));
+        if isnan(eventIndex) || eventIndex <= 0 || eventIndex > size(events, 1)
+            showErrorDialog('Invalid event index.');
+            return;
+        else
+            event_inx = eventIndex;
+        end
+        
+        if events_exist
+            chosen_time_interval(1) = events(event_inx);
+            chosen_time_interval(2) = events(event_inx)+windowSize;
+        end
+        
+        updatePlot()
+    end
+
 % добавляем возможность вызвать функцию открытия извне
-global event_calling outside_calling_filepath zav_calling
+global event_calling outside_calling_filepath zav_calling table_calling
 zav_calling = @loadMatFile;
+table_calling = @UpdateEventTable;
 event_calling = @loadEvents;
 outside_calling_filepath = [];
 
@@ -1418,6 +1449,7 @@ function loadEvents(~, ~)
             event_comments = loadedData.event_comments;
         end
         
+        event_title_string = file;
         UpdateEventTable();
         events_exist = true;
         event_inx = 1;
@@ -1426,7 +1458,6 @@ function loadEvents(~, ~)
         set(timeCenterPopup, 'Value', 3);
         changeTimeCenter(timeCenterPopup);
         
-        set(EventsText, 'String', file);
 %         updatePlot(); Уже обновили график когда вызывали timeForwardEditCallback
     else
         uiwait(errordlg('No events found in the file.'));
