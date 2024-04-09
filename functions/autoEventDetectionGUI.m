@@ -218,6 +218,7 @@ function autoEventDetectionGUI()
     function outlier = plotRequest(events_detected, Trace_out, time_res, params)
                 
         outlier = quantile(Trace_out, [0.999]);
+        std3 = 3*nanstd(Trace_out);
         
         numSegments = 100;
         Trace_out = findSegmentMaxima(Trace_out, numSegments);
@@ -269,7 +270,7 @@ function autoEventDetectionGUI()
         text(outlier, outlier_h, 'outlier')
         text(outlier, outlier_h*0.95, num2str(outlier, 3))
         
-        std3 = 3*nanstd(Trace_out);
+        
         std3_h = max(h.Values);
         
         xline(std3, 'k:')
