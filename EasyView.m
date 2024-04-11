@@ -28,7 +28,7 @@ function EasyView()
     % если папки с иконками нет, скачиваем с GitHub и помещаем куда надо
     % это нужно для скомпилированного приложения
     if exist(icons_path) == 0 
-        icons_path = downloadAndExtractGithub('icons');
+        icons_path = downloadAndExtractGithub(app_path, 'icons');
     end
     
     disp('please wait ...')
