@@ -16,6 +16,16 @@ function EasyView()
     EV_path = pwd;
     disp('working directory:')
     fprintf('%s\n',EV_path);
+    
+    app_path = fileparts(mfilename('fullpath'));
+    disp('app directory:')
+    fprintf('%s\n',app_path);
+    
+    icons_path = [app_path, '\icons'];
+    if exist(icons_path) == 0 % если папки с иконками нет, скачиваем и помещаем куда надо
+        icons_path = downloadAndExtractIcons();
+    end
+    
     disp('please wait ...')
     
     global Fs N time chosen_time_interval ch_inxs m_coef
@@ -44,7 +54,9 @@ function EasyView()
     global show_power power_window % для мощности
     global lfpVar windowSize
     global timeCenterPopup wb
+    global event_title_string
     
+    event_title_string = 'Events';
     csd_contrast_coef = 99.9;
     
     show_power = false;
@@ -139,7 +151,7 @@ function EasyView()
     LoadSettingsBtn_coords = [10, 5, 120, 20].*scaling_matrix*min_scale_coef;
     
     % Event panel
-    EventsText_coords = [10, 177, 200, 20].*scaling_matrix*min_scale_coef;
+    EventsTableTitle_coords = [10, 177, 200, 20].*scaling_matrix*min_scale_coef;
     saveEventsBtn_coords = [270, 140, 70, 30].*scaling_matrix*min_scale_coef;
     loadEventsBtn_coords = [270, 110, 70, 30].*scaling_matrix*min_scale_coef;
     eventAdd_coords = [10, 10, 80, 30].*scaling_matrix*min_scale_coef;
@@ -247,8 +259,8 @@ function EasyView()
     text(multiax, 0.5, 0.5, 'Open MAT or EV file', 'color', 'r', 'horizontalalignment', 'center')
     
     % Добавление текстовой метки как заголовка к sidePanel
-    EventsText = uicontrol('Parent', eventPanel, 'Style', 'text', 'String', 'Events', ...
-              'Position', EventsText_coords, ...
+    EventsTableTitle = uicontrol('Parent', eventPanel, 'Style', 'text', 'String', event_title_string, ...
+              'Position', EventsTableTitle_coords, ...
               'HorizontalAlignment', 'left', ...
               'FontWeight', 'bold'); % Жирный шрифт для заголовка
       
@@ -266,7 +278,8 @@ function EasyView()
 
     % Кнопка для загрузки .mat файла
     LoadMatFileBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Load .mat File (ZAV Format)', 'Position', LoadMatFileBtn_coords, 'Callback', @OpenZavLfpFile);
-       
+    btnIcon(LoadMatFileBtn, [icons_path, 'open-file.png']) % ставим иконку для кнопки
+    
     % Кнопка для менеджера файлов
     FMbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'File Manager', 'Position', FMbutton_coords, 'Callback', @fileManagerBtnClb);
 
@@ -776,7 +789,7 @@ function EasyView()
         set(FsText, 'Position', FsText_coords .* scaling_matrix);
         set(shiftCoefText, 'Position', shiftCoefText_coords .* scaling_matrix);
         set(stdCoefText, 'Position', stdCoefText_coords .* scaling_matrix);
-        set(EventsText, 'Position', EventsText_coords .* scaling_matrix);
+        set(EventsTableTitle, 'Position', EventsTableTitle_coords .* scaling_matrix);
         set(LoadMatFileBtn, 'Position', LoadMatFileBtn_coords .* scaling_matrix);
         set(TimeWindowText, 'Position', TimeWindowText_coords .* scaling_matrix);
         set(BeforeText, 'Position', BeforeText_coords .* scaling_matrix);
@@ -796,6 +809,8 @@ function EasyView()
                 shiftTime(src, [], -1, timeForwardEdit); % Или вызов Callback функции previousButton
             case 'rightarrow'
                 shiftTime(src, [], 1, timeForwardEdit); % Или вызов Callback функции nextButton
+            case 'delete'
+                deleteEvent();
         end
     end
 
@@ -1009,6 +1024,7 @@ function EasyView()
         
         % Очистка таблицы событий
         events = [];
+        event_title_string = 'Events';
         UpdateEventTable();
         event_inx = 1;
         
@@ -1062,6 +1078,8 @@ function EasyView()
             stims = [];
             stims_exist = false;
         end
+        
+        lfp = removeStimArtifact(lfp, stims, time, 10);
         
         set(showSpikesButton, 'Value', show_spikes);
         set(showCSDbutton, 'Value', show_CSD);
@@ -1217,11 +1235,11 @@ function EasyView()
         end
     end
     
-    function UpdateEventTable(title_string)        
+    function UpdateEventTable()        
         [events, ev_inxs] = sort(events);
         event_comments = event_comments(ev_inxs);
         eventTable.Data = [num2cell(events*timeUnitFactor), event_comments];
-        set(EventsText, 'String', title_string);
+        set(EventsTableTitle, 'String', [event_title_string, ': ', num2str(numel(events))]);
     end
 
     function addEvent(~, ~)
@@ -1241,10 +1259,10 @@ function EasyView()
             case 'Yes'
                 events = [];
                 event_comments = {};
+                event_title_string = 'Events';
                 UpdateEventTable();
                 events_exist = false;
                 updatePlot();
-                set(EventsText, 'String', 'Events');
             case 'No'
                 % Do nothing if the user selects 'No'
         end
@@ -1446,6 +1464,7 @@ function loadEvents(~, ~)
             event_comments = loadedData.event_comments;
         end
         
+        event_title_string = file;
         UpdateEventTable();
         events_exist = true;
         event_inx = 1;
@@ -1454,7 +1473,6 @@ function loadEvents(~, ~)
         set(timeCenterPopup, 'Value', 3);
         changeTimeCenter(timeCenterPopup);
         
-        set(EventsText, 'String', file);
 %         updatePlot(); Уже обновили график когда вызывали timeForwardEditCallback
     else
         uiwait(errordlg('No events found in the file.'));

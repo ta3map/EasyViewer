@@ -1,7 +1,7 @@
 function autoEventDetectionGUI()
     % Загрузка настроек
     global autodetection_settings events_exist event_inx
-    global timeUnitFactor 
+    global timeUnitFactor table_calling event_title_string
     
     settings = autodetection_settings;
     
@@ -181,8 +181,11 @@ function autoEventDetectionGUI()
         params.SourceType = SourceTypes{get(hSourceType, 'Value')};
         params.detect = false;
         params.max_peak_width = str2double(get(hMaxPeakWidth, 'String'));
-        
+               
         [events_detected, Trace_out, time_res] = autoEventDetection(params);
+        
+        Trace_out(isnan(Trace_out)) = 0;
+        Trace_out(isinf(Trace_out)) = 0;
         
         outlier = plotRequest(events_detected, Trace_out, time_res, params);
         set(hMinPeakProminence, 'String', num2str(outlier));
@@ -208,7 +211,10 @@ function autoEventDetectionGUI()
         params.max_peak_width = str2double(get(hMaxPeakWidth, 'String'));
         
         [events_detected, Trace_out, time_res] = autoEventDetection(params);
-
+        
+        Trace_out(isnan(Trace_out)) = 0;
+        Trace_out(isinf(Trace_out)) = 0;
+        
         plotRequest(events_detected, Trace_out, time_res, params);
         
         set(applybutton, 'Enable', 'on')
@@ -291,13 +297,18 @@ function autoEventDetectionGUI()
     function detectButtonCallback(~, ~)
         % Обновление таблицы событий
         events = events_detected;
+        
         event_comments = repmat({'...'}, numel(events), 1); % Инициализация комментариев
         if not(isempty(events))
             [events, ev_inxs] = sort(events);
             event_comments = event_comments(ev_inxs);
-            eventTable.Data = [num2cell(events*timeUnitFactor), event_comments];
+%             eventTable.Data = [num2cell(events*timeUnitFactor), event_comments];
         end
         
+        event_title_string = 'Autodetected';
+        table_calling()
+        event_inx = 1;     
+                        
         % Сохранение настроек перед закрытием
         saveSettings();
         
@@ -341,7 +352,9 @@ function saveSettings()
 end
 
 function [events_detected, Trace_out, time_res] = autoEventDetection(params)
-    global Fs time newFs lfp wb ch_inxs csd_avaliable filterSettings filter_avaliable mean_group_ch
+    global Fs time newFs lfp wb ch_inxs csd_avaliable filterSettings filter_avaliable mean_group_ch 
+    global stims_exist stims time
+    
     data_in = lfp;
     wb = msgbox('Please wait...', 'Status');
     
@@ -373,6 +386,8 @@ function [events_detected, Trace_out, time_res] = autoEventDetection(params)
     catch ME
         uiwait(errordlg(['An error occurred: ', ME.message], 'Error'));
     end
+    
+
     
     % Вычитаем среднее из запрошенных
     data_in(:, mean_group_ch) = data_in(:, mean_group_ch) - mean(data_in(:, mean_group_ch), 2); % вычитание выбранных средних каналов

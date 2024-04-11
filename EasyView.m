@@ -16,6 +16,16 @@ function EasyView()
     EV_path = pwd;
     disp('working directory:')
     fprintf('%s\n',EV_path);
+    
+    app_path = fileparts(mfilename('fullpath'));
+    disp('app directory:')
+    fprintf('%s\n',app_path);
+    
+    icons_path = [app_path, '\icons'];
+    if exist(icons_path) == 0 % если папки с иконками нет, скачиваем и помещаем куда надо
+        icons_path = downloadAndExtractIcons();
+    end
+    
     disp('please wait ...')
     
     global Fs N time chosen_time_interval ch_inxs m_coef
@@ -268,7 +278,8 @@ function EasyView()
 
     % Кнопка для загрузки .mat файла
     LoadMatFileBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Load .mat File (ZAV Format)', 'Position', LoadMatFileBtn_coords, 'Callback', @OpenZavLfpFile);
-       
+    btnIcon(LoadMatFileBtn, [icons_path, '\open-file.png']) % ставим иконку для кнопки
+    
     % Кнопка для менеджера файлов
     FMbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'File Manager', 'Position', FMbutton_coords, 'Callback', @fileManagerBtnClb);
 
@@ -798,6 +809,8 @@ function EasyView()
                 shiftTime(src, [], -1, timeForwardEdit); % Или вызов Callback функции previousButton
             case 'rightarrow'
                 shiftTime(src, [], 1, timeForwardEdit); % Или вызов Callback функции nextButton
+            case 'delete'
+                deleteEvent();
         end
     end
 
@@ -1065,6 +1078,8 @@ function EasyView()
             stims = [];
             stims_exist = false;
         end
+        
+        lfp = removeStimArtifact(lfp, stims, time, 10);
         
         set(showSpikesButton, 'Value', show_spikes);
         set(showCSDbutton, 'Value', show_CSD);
