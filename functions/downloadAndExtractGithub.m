@@ -1,20 +1,17 @@
-function outputPath = downloadAndExtractGithub(target_folder)
+function outputPath = downloadAndExtractGithub(app_path, target_folder)
     outputPath = ''; % Инициализация пустого пути на случай ошибки
-    try
-        % Определение пути к папке, где находится функция
-        appPath = fileparts(mfilename('fullpath'));
-        
+    try        
         % Путь, куда будет распакован архив
-        tempFolderPath = fullfile(appPath, 'tempEasyViewer');
+        tempFolderPath = fullfile(app_path, 'tempEasyViewer');
         
         % Путь для сохранения распакованной папки target_folder
-        iconsFolderPath = appPath;
+        iconsFolderPath = app_path;
         
         % URL архива репозитория
         url = 'https://github.com/ta3map/EasyViewer/archive/refs/heads/main.zip';
         
         % Путь для временного сохранения архива
-        tempZipFilePath = fullfile(appPath, 'EasyViewer-main.zip');
+        tempZipFilePath = fullfile(app_path, 'EasyViewer-main.zip');
         
         % Скачивание архива репозитория
         websave(tempZipFilePath, url);
@@ -30,10 +27,11 @@ function outputPath = downloadAndExtractGithub(target_folder)
         rmdir(tempFolderPath, 's');
         
         % Возврат пути к папке target_folder
-        outputPath = fullfile(appPath, target_folder);
+        outputPath = fullfile(app_path, target_folder);
         
         disp('data downloaded from github')
-    catch
+    catch ME
         % В случае ошибки, outputPath останется пустым
+        disp(ME)
     end
 end
