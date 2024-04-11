@@ -1,4 +1,4 @@
-function outputPath = downloadAndExtractIcons()
+function outputPath = downloadAndExtractGithub(target_folder)
     outputPath = ''; % Инициализация пустого пути на случай ошибки
     try
         % Определение пути к папке, где находится функция
@@ -7,7 +7,7 @@ function outputPath = downloadAndExtractIcons()
         % Путь, куда будет распакован архив
         tempFolderPath = fullfile(appPath, 'tempEasyViewer');
         
-        % Путь для сохранения распакованной папки icons
+        % Путь для сохранения распакованной папки target_folder
         iconsFolderPath = appPath;
         
         % URL архива репозитория
@@ -22,15 +22,17 @@ function outputPath = downloadAndExtractIcons()
         % Распаковка архива
         unzip(tempZipFilePath, tempFolderPath);
         
-        % Перемещение нужной папки icons в целевую директорию
-        movefile(fullfile(tempFolderPath, 'EasyViewer-main', 'icons'), iconsFolderPath);
+        % Перемещение нужной папки target_folder в целевую директорию
+        movefile(fullfile(tempFolderPath, 'EasyViewer-main', target_folder), iconsFolderPath);
         
         % Удаление временных файлов и папок
         delete(tempZipFilePath);
         rmdir(tempFolderPath, 's');
         
-        % Возврат пути к папке с иконками
-        outputPath = iconsFolderPath;
+        % Возврат пути к папке target_folder
+        outputPath = fullfile(appPath, target_folder);
+        
+        disp('data downloaded from github')
     catch
         % В случае ошибки, outputPath останется пустым
     end

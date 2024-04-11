@@ -67,9 +67,9 @@ k = 0;
 for y_pos = offsets+shiftCoeff/2
     k = k+1;
     color = colors_in{k};
-    if k == 1 || scaling_coefs(k)~=1 || ~strcmp(color, 'black')
-        text(x_pos, y_pos, ['  ', num2str(scaling_coefs(k)*shiftCoeff, 3)], 'color', color);
-        plot([x_pos, x_pos], [y_pos+shiftCoeff/2, y_pos-shiftCoeff/2], 'color', color, 'linewidth', 2)
+    if k == 1 || scaling_coefs(k)~=1 ~strcmp(color, 'black')
+        text(x_pos, y_pos, ['  ', num2str(scaling_coefs(k)*shiftCoeff, 3)], 'color', colors_in{k});
+        plot([x_pos, x_pos], [y_pos+shiftCoeff/2, y_pos-shiftCoeff/2], 'color', colors_in{k}, 'linewidth', 2)
     end
 end
 
@@ -101,7 +101,6 @@ function SaveBtnClb(~,~)
 end
 
 function SaveImageClb(~,~)
-    set(saveImgbutton, 'Visible', 'off')
     [file,path] = uiputfile([mat_file_folder '/' local_evfilename '_mean.png'], 'Save file name');
     if isequal(file,0) || isequal(path,0)
        disp('User pressed cancel')
@@ -110,7 +109,7 @@ function SaveImageClb(~,~)
        saveas(mean_f, filename)
        disp(['Image saved to ', filename]);
     end
-    
+    set(saveImgbutton, 'Visible', 'off')
 end
 
 end

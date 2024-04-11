@@ -13,6 +13,8 @@ function EasyView()
     clc
     disp(['Easy Viewer version: ' EV_version])
     
+    global app_path
+    
     EV_path = pwd;
     disp('working directory:')
     fprintf('%s\n',EV_path);
@@ -22,12 +24,15 @@ function EasyView()
     fprintf('%s\n',app_path);
     
     icons_path = [app_path, '\icons'];
-    if exist(icons_path) == 0 % если папки с иконками нет, скачиваем и помещаем куда надо
-        icons_path = downloadAndExtractIcons();
+    
+    % если папки с иконками нет, скачиваем с GitHub и помещаем куда надо
+    % это нужно для скомпилированного приложения
+    if exist(icons_path) == 0 
+        icons_path = downloadAndExtractGithub('icons');
     end
     
     disp('please wait ...')
-    
+   
     global Fs N time chosen_time_interval ch_inxs m_coef
     global shiftCoeff eventTable
     global lfp hd spks multiax lineCoefficients
@@ -54,7 +59,7 @@ function EasyView()
     global show_power power_window % для мощности
     global lfpVar windowSize
     global timeCenterPopup wb
-    global event_title_string
+    global event_title_string evfilename
     
     event_title_string = 'Events';
     csd_contrast_coef = 99.9;
@@ -93,6 +98,7 @@ function EasyView()
             d = load(SettingsFilepath);
             lastOpenedFiles = d.lastOpenedFiles;
             figure_position = d.figure_position;
+            matFilePath = lastOpenedFiles{end};
             % настройки добавления события
             if isfield(d, 'add_event_settings')
                 add_event_settings = d.add_event_settings;
@@ -278,11 +284,12 @@ function EasyView()
 
     % Кнопка для загрузки .mat файла
     LoadMatFileBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Load .mat File (ZAV Format)', 'Position', LoadMatFileBtn_coords, 'Callback', @OpenZavLfpFile);
-    btnIcon(LoadMatFileBtn, [icons_path, '\open-file.png']) % ставим иконку для кнопки
+    btnIcon(LoadMatFileBtn, [icons_path, '\open-file.png'], false) % ставим иконку для кнопки
     
     % Кнопка для менеджера файлов
     FMbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'File Manager', 'Position', FMbutton_coords, 'Callback', @fileManagerBtnClb);
-
+    btnIcon(FMbutton, [icons_path, '\file manager.png'], false) % ставим иконку для кнопки
+    
     % Поля для выбора временного окна
     TimeWindowText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', ['Time Window, ' selectedUnit ':'] , 'Position', TimeWindowText_coords);
     BeforeText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'before', 'Position', BeforeText_coords);
@@ -1418,9 +1425,10 @@ function loadEvents(~, ~)
     
     loadedData = load(filepath, '-mat'); % Загружаем данные в структуру
     % Если не был загружен mat файл, инициируем поиск
-    [~, name, ~] = fileparts(filepath);
-    fileName = name(1:19);
-    keepSearching = true; % Флаг продолжения поиска
+    [~, matname, ~] = fileparts(matFilePath);
+    [~, evfilename, ~] = fileparts(filepath);
+    fileName = evfilename(1:19);    
+    keepSearching = ~strcmp(matname, fileName); % Флаг продолжения поиска
     while keepSearching
         firstMatFile = findFirstMatFile(path, fileName);
         if ~isempty(firstMatFile)

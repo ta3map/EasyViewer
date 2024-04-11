@@ -22,12 +22,15 @@ function EasyView()
     fprintf('%s\n',app_path);
     
     icons_path = [app_path, '\icons'];
-    if exist(icons_path) == 0 % если папки с иконками нет, скачиваем и помещаем куда надо
-        icons_path = downloadAndExtractIcons();
+    
+    % если папки с иконками нет, скачиваем с GitHub и помещаем куда надо
+    % это нужно для скомпилированного приложения
+    if exist(icons_path) == 0 
+        icons_path = downloadAndExtractGithub('icons');
     end
     
     disp('please wait ...')
-    
+   
     global Fs N time chosen_time_interval ch_inxs m_coef
     global shiftCoeff eventTable
     global lfp hd spks multiax lineCoefficients
@@ -278,7 +281,7 @@ function EasyView()
 
     % Кнопка для загрузки .mat файла
     LoadMatFileBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Load .mat File (ZAV Format)', 'Position', LoadMatFileBtn_coords, 'Callback', @OpenZavLfpFile);
-    btnIcon(LoadMatFileBtn, [icons_path, 'open-file.png']) % ставим иконку для кнопки
+    btnIcon(LoadMatFileBtn, [icons_path, '\open-file.png']) % ставим иконку для кнопки
     
     % Кнопка для менеджера файлов
     FMbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'File Manager', 'Position', FMbutton_coords, 'Callback', @fileManagerBtnClb);
