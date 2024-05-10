@@ -5,7 +5,7 @@ function autoEventDetectionGUI()
     
     settings = autodetection_settings;
     
-    global events event_comments hd events_detected eventTable
+    global events event_comments hd events_detected eventTable matFilePath evfilename eventDeleteEdit
     global hd hMinPeakProminence hDetectionType hChPos hChNeg hMaxPeakWidth
     global hMinPeakDistance hSmoothCoefWindow hDetectionMode hOnsetThreshold hOnsetSearchWindow
     global hSourceType selectedCenter timeCenterPopup windowSize chosen_time_interval
@@ -159,7 +159,7 @@ function autoEventDetectionGUI()
                 set(hChNeg, 'visible', 'off')
         end
         
-        previewData()
+%         previewData()
 
     end
 
@@ -305,9 +305,13 @@ function autoEventDetectionGUI()
 %             eventTable.Data = [num2cell(events*timeUnitFactor), event_comments];
         end
         
+        [~, filename, ~] = fileparts(matFilePath);
+        
+        evfilename = [filename '_auto'];
         event_title_string = 'Autodetected';
         table_calling()
         event_inx = 1;     
+        set(eventDeleteEdit, 'String', num2str(event_inx));
                         
         % Сохранение настроек перед закрытием
         saveSettings();
@@ -332,7 +336,7 @@ function saveSettings()
     global hMinPeakProminence hDetectionType hChPos hChNeg hMaxPeakWidth
     global hMinPeakDistance hSmoothCoefWindow hDetectionMode hOnsetThreshold hOnsetSearchWindow
     global autodetection_settings SettingsFilepath
-    global hSourceType
+    global hSourceType 
     
     settings.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
     settings.DetectionTypeIndex = get(hDetectionType, 'Value');

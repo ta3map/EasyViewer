@@ -15,6 +15,7 @@ global channelTable csd_smooth_coef csd_contrast_coef
 global lfpVar 
 global mean_group_ch
 global app_path evfilename offsets
+global calculation_result
 
 local_evfilename = evfilename;
 
@@ -23,7 +24,7 @@ local_evfilename = evfilename;
 channelSettings = get(channelTable, 'Data');
 
 params.events = events;
-params.figure = figure('Name', 'Mean Event Data'); % Создание нового окна для графика;
+params.figure = figure('Name', 'Mean Event Data', 'Tag', 'meanSignalResult'); % Создание нового окна для графика;
 params.meanWindow = 2;% s
 params.hd = hd;
 params.channelSettings = channelSettings;
@@ -88,6 +89,7 @@ btn_list = [savebutton, saveImgbutton];
 set(mean_f, 'WindowButtonMotionFcn', @(src, event)autoHideBtn(src, event, btn_list));
 
 function SaveBtnClb(~,~)
+    set(savebutton, 'Visible', 'off')
     [file,path] = uiputfile([mat_file_folder '/' local_evfilename '_data.mean'], 'Save file name');
     if isequal(file,0) || isequal(path,0)
        disp('User pressed cancel')
@@ -102,15 +104,30 @@ end
 
 function SaveImageClb(~,~)
     set(saveImgbutton, 'Visible', 'off')
-    [file,path] = uiputfile([mat_file_folder '/' local_evfilename '_mean.png'], 'Save file name');
+    [file, path, filterindex] = uiputfile(...
+        {'*.pdf', 'PDF files (*.pdf)';...
+         '*.eps', 'EPS files (*.eps)';...
+         '*.png', 'PNG files (*.png)';...
+         '*.*', 'All Files (*.*)'},...
+         'Save file name', [mat_file_folder '/' local_evfilename '_mean']);
     if isequal(file,0) || isequal(path,0)
-       disp('User pressed cancel')
+       disp('User pressed cancel');
     else
        filename = fullfile(path, file);      
-       saveas(mean_f, filename)
+       switch filterindex
+           case 1
+               print(mean_f, filename, '-dpdf', '-bestfit');
+           case 2
+               print(mean_f, filename, '-depsc');
+           case 3
+               saveas(mean_f, filename, 'png');
+           otherwise
+               saveas(mean_f, filename);
+       end
        disp(['Image saved to ', filename]);
     end
     
 end
+
 
 end
