@@ -6,7 +6,7 @@ function EasyView()
     % Author:       Azat Gainutdinov
     %               ta3map@gmail.com
     %               
-    % Date:         08.04.2024
+    % Date:         12.04.2024
     
     EV_version = '1.09.03';
     
@@ -59,7 +59,9 @@ function EasyView()
     global show_power power_window % для мощности
     global lfpVar windowSize
     global timeCenterPopup wb
-    global event_title_string evfilename
+    global event_title_string evfilename eventDeleteEdit
+    
+    csd_smooth_coef = 5;
     
     event_title_string = 'Events';
     csd_contrast_coef = 99.9;
@@ -90,6 +92,19 @@ function EasyView()
     min_scale_coef = 0.8;
     base_figure_position = [20 60 1280 650]*min_scale_coef;
 
+    
+    % добавляем возможность вызвать функцию извне
+    global event_calling outside_calling_filepath zav_calling table_calling 
+    global call_mean_events call_csd call_closeall
+    
+    zav_calling = @loadMatFile;
+    table_calling = @UpdateEventTable;
+    event_calling = @loadEvents;
+    outside_calling_filepath = [];
+    call_mean_events = @meanEventsCallback;
+    call_csd = @ShowCSDButtonCallback;
+    call_closeall = @closeAllButOne;
+
     % Загрузка списка последних файлов
     SettingsFilepath = fullfile(tempdir, 'last_opened_files_1.06.mat');
     loadLastOpenedFiles()
@@ -98,7 +113,11 @@ function EasyView()
             d = load(SettingsFilepath);
             lastOpenedFiles = d.lastOpenedFiles;
             figure_position = d.figure_position;
-            matFilePath = lastOpenedFiles{end};
+            if ~isempty(lastOpenedFiles)
+                matFilePath = lastOpenedFiles{end};
+            else
+                matFilePath = '';
+            end
             % настройки добавления события
             if isfield(d, 'add_event_settings')
                 add_event_settings = d.add_event_settings;
@@ -206,8 +225,6 @@ function EasyView()
         save(SettingsFilepath, 'lastOpenedFiles', 'figure_position', 'add_event_settings', '-append');
     end
 
-    
-    
     % Создание таймера
     timer('TimerFcn', @resetParametersCallback, 'StartDelay', 1, 'ExecutionMode', 'singleShot');
     
@@ -216,10 +233,13 @@ function EasyView()
            'NumberTitle', 'off',...
            'MenuBar', 'none', ... % Отключение стандартного меню
            'ToolBar', 'none', ...
+           'Tag', 'EasyViwerFigure', ...
            'KeyPressFcn', @keyPressFunction);
     
     
     f.Position = figure_position;
+    
+    
     
     mainPanel = uipanel('Parent', f, 'Position', [.01 .01 .7 .13]);
     multiax_position_a = [0.07    0.2    0.63    0.74];
@@ -343,9 +363,9 @@ function EasyView()
         'open event (.ev) file',...
         '', ...
         'file manager', ...
-        '', ...
+        'open figure', ...
         'convert NLX to ZAV', ...
-        '', ...
+        'save figure snapshot', ...
         'compare average data', ...
         '',...
         'check for a new version'};
@@ -485,6 +505,7 @@ function EasyView()
         delete(src);
     end
 
+    % Закрываем все фигуры, кроме EasyViewer
     function closeAllButOne(targetFigure)
         % Получаем массив всех текущих фигур
         figures = findobj(allchild(0), 'flat', 'Type', 'figure');
@@ -564,9 +585,14 @@ function EasyView()
             case file_functions{4}
                 % открытие менеджера файлов
                 fileManagerBtnClb([], []);
+            case file_functions{5}
+                openFigureWithFileDialog();
             case file_functions{6}
                 % конвертация в ZAV формат
                 convertNlx2zavGUI();
+            case file_functions{7}
+                % save figure snapshot
+                saveMainAxisAs();
             case file_functions{8}
                 % сравнение средних данных
                 dataComparerApp();
@@ -579,6 +605,36 @@ function EasyView()
         if ~dont_close_menu
             resetGraphParameters()
         end
+    end
+    
+
+    function saveMainAxisAs()
+        
+        [mat_file_folder, figure_name, ~] = fileparts(matFilePath);
+        
+        [file, path, filterindex] = uiputfile(...
+            {'*.pdf', 'PDF files (*.pdf)';...
+             '*.eps', 'EPS files (*.eps)';...
+             '*.png', 'PNG files (*.png)';...
+             '*.*', 'All Files (*.*)'},...
+             'Save file name', [mat_file_folder '/' figure_name]);
+        if isequal(file,0) || isequal(path,0)
+           disp('User pressed cancel');
+        else
+           filename = fullfile(path, file);      
+           switch filterindex
+               case 1
+                   print(f, filename, '-dpdf', '-bestfit');
+               case 2
+                   print(f, filename, '-depsc');
+               case 3
+                   saveas(f, filename, 'png');
+               otherwise
+                   saveas(f, filename);
+           end
+           disp(['Image saved to ', filename]);
+        end
+
     end
 
     % Обратный вызов выпадающего списка
@@ -1197,7 +1253,7 @@ function EasyView()
             if isfield(loadedSettings, 'csd_smooth_coef')
                 csd_smooth_coef = loadedSettings.csd_smooth_coef;
             else
-                csd_smooth_coef = 1;
+                csd_smooth_coef = 5;
                 disp('settings were without CSD smooth coef')
             end
             if isfield(loadedSettings, 'csd_contrast_coef')
@@ -1391,12 +1447,6 @@ function EasyView()
         updatePlot()
     end
 
-% добавляем возможность вызвать функцию открытия извне
-global event_calling outside_calling_filepath zav_calling table_calling
-zav_calling = @loadMatFile;
-table_calling = @UpdateEventTable;
-event_calling = @loadEvents;
-outside_calling_filepath = [];
 
 % Функция загрузки событий
 function loadEvents(~, ~)
@@ -1420,51 +1470,56 @@ function loadEvents(~, ~)
         filepath = outside_calling_filepath;
         [path,file,ext] = fileparts(outside_calling_filepath);
         file = [file,ext];
-        outside_calling_filepath = [];
+        outside_calling_filepath = [];% очищаем наружний путь
     end
     
     loadedData = load(filepath, '-mat'); % Загружаем данные в структуру
     % Если не был загружен mat файл, инициируем поиск
-    [~, matname, ~] = fileparts(matFilePath);
+%     [~, matname, ~] = fileparts(matFilePath);
     [~, evfilename, ~] = fileparts(filepath);
     fileName = evfilename(1:19);    
-    keepSearching = ~strcmp(matname, fileName); % Флаг продолжения поиска
-    while keepSearching
-        firstMatFile = findFirstMatFile(path, fileName);
-        if ~isempty(firstMatFile)
+    firstMatFile = findFirstMatFile(path, fileName);
+    if ~isempty(firstMatFile)
             loadMatFile(firstMatFile); % Загрузка .mat файла
-            keepSearching = false; % Останавливаем поиск, если файл найден
-        else
-            choice = questdlg('The .mat file was not found. What do you want to do?', ...
-                'File Not Found', ...
-                'Retry in Parent Directory', 'Select File Manually', 'Cancel', ...
-                'Retry in Parent Directory');
-            
-            switch choice
-                case 'Retry in Parent Directory'
-                    [path, ~, ~] = fileparts(path); % Переход на уровень выше
-                    if isempty(path)
-                        warndlg('Reached the top directory. Please select the file manually.');
-                        keepSearching = false; % Прекращаем поиск, если достигнута верхняя директория
-                    end
-                case 'Select File Manually'
-                    [file, path] = uigetfile('*.mat', 'Select the .mat file', path);
-                    if isequal(file, 0)
-                        disp('File selection canceled.');
-                        return;
-                    else
-                        matFilePath = fullfile(path, file);
-                        loadMatFile(matFilePath); % Загрузка выбранного .mat файла
-                        keepSearching = false; % Останавливаем поиск, если файл выбран вручную
-                    end
-                otherwise % В случае отмены
-                    return;
-            end
-        end
     end
+%     
+%     keepSearching = ~strcmp(matname, fileName); % Флаг продолжения поиска
+%     while keepSearching
+%         firstMatFile = findFirstMatFile(path, fileName);
+%         if ~isempty(firstMatFile)
+%             loadMatFile(firstMatFile); % Загрузка .mat файла
+%             keepSearching = false; % Останавливаем поиск, если файл найден
+%         else
+%             choice = questdlg('The .mat file was not found. What do you want to do?', ...
+%                 'File Not Found', ...
+%                 'Retry in Parent Directory', 'Select File Manually', 'Cancel', ...
+%                 'Retry in Parent Directory');
+%             
+%             switch choice
+%                 case 'Retry in Parent Directory'
+%                     [path, ~, ~] = fileparts(path); % Переход на уровень выше
+%                     if isempty(path)
+%                         warndlg('Reached the top directory. Please select the file manually.');
+%                         keepSearching = false; % Прекращаем поиск, если достигнута верхняя директория
+%                     end
+%                 case 'Select File Manually'
+%                     [file, path] = uigetfile('*.mat', 'Select the .mat file', path);
+%                     if isequal(file, 0)
+%                         disp('File selection canceled.');
+%                         return;
+%                     else
+%                         matFilePath = fullfile(path, file);
+%                         loadMatFile(matFilePath); % Загрузка выбранного .mat файла
+%                         keepSearching = false; % Останавливаем поиск, если файл выбран вручную
+%                     end
+%                 otherwise % В случае отмены
+%                     return;
+%             end
+%         end
+%     end
     
     if isfield(loadedData, 'manlDet')
-        events = time([loadedData.manlDet.t])'; % Обновляем таблицу событий
+        events = time(round([loadedData.manlDet.t]))'; % Обновляем таблицу событий
         
         if ~isfield(loadedData, 'event_comments') % если комментариев не было
             event_comments = repmat({'...'}, numel(events), 1); % Инициализация комментариев
