@@ -8,7 +8,7 @@ function EasyView()
     %               
     % Date:         12.04.2024
     
-    EV_version = '1.09.03';
+    EV_version = '1.09.05';
     
     clc
     disp(['Easy Viewer version: ' EV_version])
@@ -60,6 +60,9 @@ function EasyView()
     global lfpVar windowSize
     global timeCenterPopup wb
     global event_title_string evfilename eventDeleteEdit
+    global art_rem_window_ms
+    
+    art_rem_window_ms = 0;
     
     csd_smooth_coef = 5;
     
@@ -136,6 +139,12 @@ function EasyView()
             else
                 autodetection_settings = [];
             end
+            % размер окна очистки артефакта
+            if isfield(d, 'art_rem_window_ms')
+                art_rem_window_ms = d.art_rem_window_ms;
+            else
+                art_rem_window_ms = 0;
+            end
 
         else
             % Инициализация всех переменных при первом запуске
@@ -147,12 +156,15 @@ function EasyView()
             add_event_settings.timeWindow = 10;
             timeUnitFactor = 1;    
             selectedUnit = 's';
-            save(SettingsFilepath, 'lastOpenedFiles', 'figure_position', 'add_event_settings');
+            art_rem_window_ms = 0;
+            save(SettingsFilepath, 'lastOpenedFiles', 'figure_position', ...
+                'add_event_settings', 'timeUnitFactor', 'selectedUnit', ...
+                'art_rem_window_ms');
         end
         
     end
 
-    % координаты графических элементов
+    %% координаты графических элементов
     
     
     scaleX = figure_position(3) / base_figure_position(3);
@@ -219,7 +231,9 @@ function EasyView()
     TimeWindowText_coords = [165, 42, 100, 30].*scaling_matrix*min_scale_coef;
     BeforeText_coords = [165, 27, 50, 30].*scaling_matrix*min_scale_coef;
     AfterText_coords = [220, 27, 50, 30].*scaling_matrix*min_scale_coef;
-        
+    
+    % Конец координат графических элементов
+        %%
     function saveSettings()
         figure_position = f.Position;
         save(SettingsFilepath, 'lastOpenedFiles', 'figure_position', 'add_event_settings', '-append');
@@ -238,8 +252,6 @@ function EasyView()
     
     
     f.Position = figure_position;
-    
-    
     
     mainPanel = uipanel('Parent', f, 'Position', [.01 .01 .7 .13]);
     multiax_position_a = [0.07    0.2    0.63    0.74];
@@ -341,9 +353,10 @@ function EasyView()
     FsText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'Fs:', 'Position', FsText_coords);
     FsCoeffEdit = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', '1000', 'Position', FsCoeffEdit_coords, 'Callback', @FsCoeffEditCallback);
     
+    %% Выпадающие меню
     analysis_functions = {'Auto Event Detection',...
         '',...
-        'ICA analysis',...
+        'Z-score',...
         '',...
         'Spectral Density'};
     % Создание выпадающего списка
@@ -403,7 +416,7 @@ function EasyView()
     % Список настроек
     options = {'Event Detection',...
         '',...
-        '',...
+        'Removal of Artifacts',...
         'Filtering', ...
         'CSD Displaying', ...
         'Average subtraction', ...
@@ -421,7 +434,8 @@ function EasyView()
                     'Position', option_btn_coords + [0, 0, 0, 0],...
                     'Callback', @showMenu);
 
-    
+                % Конец выпадающих меню
+    %%
     % Таблица для отображения событий
     event_table_data = [num2cell([]), num2cell([])];    
     eventTable = uitable('Parent', eventPanel, ...
@@ -556,8 +570,9 @@ function EasyView()
         switch selectedOption            
             case analysis_functions{1}% Auto event detection
                 openAutoEventDetectionWindow();
-            case analysis_functions{3}% ICA анализ                
-                ICAazGUI();  
+            case analysis_functions{3}% ICA анализ   
+                ZScoreGUI();
+%                 ICAazGUI();  
             case analysis_functions{5}
                 % отображение спектральной плотности текущего сигнала
                 spectralDensityGUI();  
@@ -667,6 +682,8 @@ function EasyView()
         switch selectedOption
             case options{1}% Add event options
                 addEventSettingsUicontrol();
+            case options{3}
+                optionsRemovalArtifactsGUI();
             case options{4}%'Filtering ...'
                 setupSignalFilteringGUI();
             case options{5}%'CSD ...'
@@ -876,10 +893,11 @@ function EasyView()
                 deleteEvent();
         end
     end
-
+%% Построение среднего графика
     function meanEventsCallback(~, ~)
         calculateAndPlotMeanEvents();
     end
+%%
 
     function shiftCoeffEditCallback(src, ~)
         newShiftCoeff = str2double(get(src, 'String'));
@@ -940,7 +958,7 @@ function EasyView()
     end
     % Функция обратного вызова для timeForwardEdit
     function timeForwardEditCallback(src, ~)
-        disp('time edited')
+%         disp('time edited')
         windowSize = str2double(get(src, 'String'))/timeUnitFactor;% time_forward - в секундах
         time_forward = windowSize;
         if isnan(windowSize) || windowSize <= 0
@@ -1135,14 +1153,17 @@ function EasyView()
         lfpVar = d.lfpVar;
         
         if isfield(zavp, 'realStim')
-            stims = zavp.realStim(:).r(:) * zavp.siS;  
-            stims_exist = ~isempty(stims);
+            try
+                stims = zavp.realStim(:).r(:) * zavp.siS;  
+                stims_exist = ~isempty(stims);
+            catch ME
+                warning('Problem with stimulation data');
+                disp(ME.message)
+            end
         else
             stims = [];
             stims_exist = false;
         end
-        
-        lfp = removeStimArtifact(lfp, stims, time, 10);
         
         set(showSpikesButton, 'Value', show_spikes);
         set(showCSDbutton, 'Value', show_CSD);
@@ -1333,16 +1354,16 @@ function EasyView()
 
 
     function shiftTime(~, ~, direction, timeForwardEdit)
-        disp('changed position')
+%         disp('changed position')
         windowSize = str2double(get(timeForwardEdit, 'String'))/timeUnitFactor;% должен быть в секундах
         switch selectedCenter
             case 'event'
                 if events_exist
                     if direction == 1% движение вперед  
-                        disp('event forward')
+%                         disp('event forward')
                         event_inx = event_inx+1;                    
                     else% движение назад 
-                        disp('event back')
+%                         disp('event back')
                         event_inx = event_inx-1;                    
                     end
                     if event_inx > numel(events)
@@ -1360,10 +1381,10 @@ function EasyView()
             case 'stimulus'
                 if stims_exist
                     if direction == 1% движение вперед  
-                        disp('stimulus forward')
+%                         disp('stimulus forward')
                         stim_inx = stim_inx+1;                    
                     else% движение назад 
-                        disp('stimulus back')
+%                         disp('stimulus back')
                         stim_inx = stim_inx-1;                    
                     end
                     if stim_inx > numel(stims)
@@ -1378,7 +1399,7 @@ function EasyView()
                 end
             case 'time'            
             if direction == 1% движение вперед     
-                disp('time forward')
+%                 disp('time forward')
                 next_step_1 = chosen_time_interval(2);
                 next_step_2 = chosen_time_interval(2)+windowSize; 
                 % проверка           
@@ -1390,7 +1411,7 @@ function EasyView()
                 chosen_time_interval(1) = next_step_1;
                 chosen_time_interval(2) = next_step_2;
             else% движение назад 
-                disp('time back')
+%                 disp('time back')
                 next_step_1 = chosen_time_interval(1)-windowSize;
                 next_step_2 = next_step_1 + windowSize;
                 if next_step_1<0

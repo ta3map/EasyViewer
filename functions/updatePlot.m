@@ -4,6 +4,7 @@ function updatePlot()
     global data time_in show_CSD filterSettings filter_avaliable csd_smooth_coef
     global csd_contrast_coef csd_avaliable show_power power_window lfpVar
     global csd_image csd_t_range csd_ch_range offsets wb
+    global art_rem_window_ms
     
     csd_active = csd_avaliable(ch_inxs);
     
@@ -16,6 +17,16 @@ function updatePlot()
     data = local_lfp(:, ch_inxs).*m_coef;
     time_in = time(cond);
     
+    if not(isempty(stims))
+        cond3 = stims >= plot_time_interval(1) & stims < plot_time_interval(2); 
+        stims_x = stims(cond3)*timeUnitFactor;
+        % Убираем артефакт
+        data = removeStimArtifact(data, stims(cond3), time_in, art_rem_window_ms);
+    else
+        cond3 = [];
+        stims_x = [];
+    end
+
     % Фильтруем если попросили
     if sum(filter_avaliable)>0
         ch_to_filter = filter_avaliable(ch_inxs);
@@ -149,13 +160,6 @@ function updatePlot()
     hylabel_ax(Xlims(1), multiax, name)
 
 
-    if not(isempty(stims))
-        cond3 = stims >= plot_time_interval(1) & stims < plot_time_interval(2); 
-        stims_x = stims(cond3)*timeUnitFactor;
-    else
-        cond3 = [];
-        stims_x = [];
-    end
 
     cond2 = events >= plot_time_interval(1) & events < plot_time_interval(2);    
     evets_x = events(cond2)*timeUnitFactor;     
