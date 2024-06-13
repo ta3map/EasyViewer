@@ -8,7 +8,7 @@ function EasyView()
     %               
     % Date:         12.04.2024
     
-    EV_version = '1.09.05';
+    EV_version = '1.09.06';
     
     clc
     disp(['Easy Viewer version: ' EV_version])
@@ -1134,10 +1134,17 @@ function EasyView()
         d = load(filepath); % Загружаем данные в структуру
         spks = d.spks;
         lfp = d.lfp;
+        
+        % для случаев со свипами
+        [m, n, p] = size(lfp);  % получение размеров исходной матрицы
+        lfp = reshape(lfp, [m * p, n]); 
+        
         hd = d.hd;
         Fs = d.zavp.dwnSmplFrq;
         N = size(lfp, 1);
+        
         zavp = d.zavp;
+        
         time = (0:N-1) / Fs;% s
         time_forward = 0.6;
         time_back = 0.6;        
@@ -1156,7 +1163,9 @@ function EasyView()
             try
                 stims = zavp.realStim(:).r(:) * zavp.siS;  
                 stims_exist = ~isempty(stims);
-            catch ME
+            catch ME % случай со свипами
+                stims = ([zavp.realStim(:).r]* zavp.siS + ((m:m:(m * p)) - m)/Fs)' ; 
+                stims_exist = ~isempty(stims);
                 warning('Problem with stimulation data');
                 disp(ME.message)
             end
