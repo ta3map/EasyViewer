@@ -109,13 +109,12 @@ function [f, calculation_result] = plotMeanEvents(params)
 
     % Отображение среднего
     f = params.figure; % Создание нового окна для графика
-    clf
-    hold on
+%     clf
 
     start_time = -meanWindow / 2;
     end_time = meanWindow / 2;
     
-    ch_enabled = repmat(false, length(ch_labels), 1);    
+    ch_enabled = false(length(ch_labels), 1);    
     ch_enabled(activeChannels) = true;
 
     timeAxis = linspace(start_time, end_time, size(meanData, 1))*timeUnitFactor;
@@ -147,7 +146,28 @@ function [f, calculation_result] = plotMeanEvents(params)
         params.csd_active = csd_active;
         
         [csd_image, csd_trange, csd_ch_range] = csdCalc(params);
+        csd_ch_range = linspace(csd_ch_range(1), csd_ch_range(2), size(csd_image, 1));
+        
+        ax = axes('Position', [0.13,0.11,0.72,0.82]);
+        hold on        
         csdPlotting(csd_image, csd_trange, csd_ch_range, csd_contrast_coef);
+        
+        % Построение профиля CSD
+        csd_time_zero_idx = round(ClosestIndex(0, csd_trange)/csd_smooth_coef);
+        csd_profile = csd_image(:, csd_time_zero_idx);
+        
+        csd_profile_ax = axes('Position', [0.86,0.11,0.11,0.82]);
+        hold on
+        plot(csd_profile, csd_ch_range, 'k');
+        title(csd_profile_ax, 'CSD (t=0)');       
+        
+        ylim([offsets(end)-shiftCoeff, offsets(1)+shiftCoeff])
+        axis off
+        
+        axes(ax)% возвращаемся на основную
+    else
+        ax = axes('Position', [0.13,0.11,0.8,0.82]);
+        hold on 
     end
     
     offsets = multiplot(timeAxis, pl_meanData, ...

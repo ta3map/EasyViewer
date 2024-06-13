@@ -1,9 +1,10 @@
-function data_in = removeStimArtifact(data_in, stims, time, win_r)
+function data_out = removeStimArtifact(data_in, stims, time, win_r)
 
+data_out = data_in;
 % Убираем артефакт стимула
-if ~isempty(stims)
-    stim_inxs = ClosestIndex(stims, time);
-%     win_r = 10; % Размер окна для удаления вокруг стимула
+if ~isempty(stims) && win_r ~= 0
+    stim_inxs = ClosestIndex(stims, time); % Индекс стимулов
+    % win_r  Размер окна в индекс формате
 
     for i = 1:length(stim_inxs)
         start_inx = stim_inxs(i) - win_r;
@@ -21,7 +22,7 @@ if ~isempty(stims)
                 interpolated_vals = linspace(start_val, end_val, end_inx-start_inx+3)';
 
                 % Заменяем данные в текущем столбце
-                data_in(start_inx:end_inx, col) = interpolated_vals(2:end-1);
+                data_out(start_inx:end_inx, col) = interpolated_vals(2:end-1);
             end
         end
     end

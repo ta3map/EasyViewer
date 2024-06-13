@@ -29,8 +29,10 @@ function [csd_image, csd_t_range, csd_ch_range] = csdCalc(params)
         csd_image_res = zeros(numPoints, size(csd_image, 1)); % предварительное выделение памяти
         
         for ch = 1:size(csd_image, 1)
-            csd_image_res(:, ch) = resample(csd_image(ch, :), new_frq , raw_frq)';
+            csd_image_res(:, ch) = resample(csd_image(ch, :), new_frq , raw_frq)';            
         end
+        
+%         csd_t_range = resample(csd_t_range, new_frq , raw_frq);
         csd_image = csd_image_res';
         
         for ch = 1:size(csd_image, 1)
