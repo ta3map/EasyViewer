@@ -1138,17 +1138,16 @@ function EasyView()
         [m, n, p] = size(lfp);  % получение размеров исходной матрицы
         lfp_new = zeros(m * p, n);  % создание новой матрицы нужного размера
         
-        if p > 1 % случай со свипами
-            index = 1;
-            for i = 1:p
-                for j = 1:m
-                    lfp_new(index, :) = lfp(j, :, i);
-                    index = index + 1;
-                end
+        if p > 1
+        index = 1;
+        for i = 1:p
+            for j = 1:m
+                lfp_new(index, :) = lfp(j, :, i);
+                index = index + 1;
             end
-            lfp = lfp_new;
-            clear lfp_new
         end
+        lfp = lfp_new;
+        clear lfp_new
         
         hd = d.hd;
         Fs = d.zavp.dwnSmplFrq;
