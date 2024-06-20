@@ -4,7 +4,7 @@ function updatePlot()
     global data time_in show_CSD filterSettings filter_avaliable csd_smooth_coef
     global csd_contrast_coef csd_avaliable show_power power_window lfpVar
     global csd_image csd_t_range csd_ch_range offsets wb
-    global art_rem_window_ms
+    global art_rem_window_ms stimShowFlag lines_and_styles
     
     csd_active = csd_avaliable(ch_inxs);
     
@@ -17,7 +17,7 @@ function updatePlot()
     data = local_lfp(:, ch_inxs).*m_coef;
     time_in = time(cond);
     
-    if not(isempty(stims))
+    if not(isempty(stims)) && stimShowFlag
         cond3 = stims >= plot_time_interval(1) & stims < plot_time_interval(2); 
         stims_x = stims(cond3)*timeUnitFactor;
         % Убираем артефакт
@@ -164,26 +164,30 @@ function updatePlot()
     cond2 = events >= plot_time_interval(1) & events < plot_time_interval(2);    
     evets_x = events(cond2)*timeUnitFactor;     
 
-    events_color = [255, 15, 107]/255;
-    stims_color = [126, 237, 219]/255;
+%     events_color = [255, 15, 107]/255;
+%     stims_color = [126, 237, 219]/255;
 
-    Lines(evets_x, [], events_color, ':');
-    Lines(stims_x, [], stims_color, ':');
-
+%     Lines(evets_x, [], events_color, ':');
+%     Lines(stims_x, [], stims_color, ':');
+    xlineMod(evets_x, lines_and_styles, 'events_lines')
+    xlineMod(stims_x, lines_and_styles, 'stimulus_lines')
+    
     % events number
     text_y = Ylims(2) - diff(Ylims)*0.05;
     text_y = zeros(numel(evets_x), 1) + text_y;
     text_x = evets_x + diff(Xlims)*0.01;
     text_text = num2str(find(cond2));
-    text(text_x, text_y, text_text, 'color', events_color);
+    textMod(text_x, text_y, text_text, lines_and_styles, 'events_lines')
+%     text(text_x, text_y, text_text, 'color', events_color);
 
     % stims number
     text_y = Ylims(2) - diff(Ylims)*0.1;
     text_y = zeros(numel(stims_x), 1) + text_y;
     text_x = stims_x + diff(Xlims)*0.01;
     text_text = num2str(find(cond3));
-    text(text_x, text_y, text_text, 'color', stims_color);    
-
+%     text(text_x, text_y, text_text, 'color', stims_color);    
+    textMod(text_x, text_y, text_text, lines_and_styles, 'stimulus_lines')
+    
     % Обновление положения слайдера
     set(timeSlider, 'Value', chosen_time_interval(1));
 

@@ -162,6 +162,7 @@ function [f, calculation_result] = plotMeanEvents(params)
         title(csd_profile_ax, 'CSD (t=0)');       
         
         ylim([offsets(end)-shiftCoeff, offsets(1)+shiftCoeff])
+        xline(0, 'r--')
         axis off
         
         axes(ax)% возвращаемся на основную

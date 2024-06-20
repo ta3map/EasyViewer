@@ -6,7 +6,7 @@ if ~isempty(stims) && win_r ~= 0
     stim_inxs = ClosestIndex(stims, time); % Индекс стимулов
     % win_r  Размер окна в индекс формате
 
-    for i = 1:length(stim_inxs)
+    for i = 1:length(stim_inxs) 
         start_inx = stim_inxs(i) - win_r;
         end_inx = stim_inxs(i) + win_r;
 
