@@ -8,7 +8,7 @@ function EasyView()
     %               
     % Date:         12.04.2024
     
-    EV_version = '1.09.07';
+    EV_version = '1.09.09';
     
     clc
     disp(['Easy Viewer version: ' EV_version])
@@ -37,7 +37,7 @@ function EasyView()
     global shiftCoeff eventTable
     global lfp hd spks multiax lineCoefficients
     global channelNames numChannels channelEnabled scalingCoefficients tableData
-    global matFilePath channelSettingsFilePath
+    global matFilePath matFileName channelSettingsFilePath
     global timeUnitFactor selectedUnit
     global initialDir
     global events event_inx events_exist event_comments
@@ -61,6 +61,39 @@ function EasyView()
     global timeCenterPopup wb
     global event_title_string evfilename eventDeleteEdit
     global art_rem_window_ms
+    global stimShowFlag 
+    global lines_and_styles
+    
+    lines_and_styles = struct(...
+        'stimulus_lines', struct(...
+            'Name', 'Line 1', ...
+            'LineColor', 'b', ...
+            'LineStyle', '-', ...
+            'LineWidth', 2, ...
+            'LabelText', 'stimuli', ...
+            'LabelColor', 'b', ...
+            'LabelFontSize', 10, ...
+            'LabelBackgroundColor', 'y', ...
+            'LabelFontWeight', 'normal' ...
+        ), ...
+        'events_lines', struct(...
+            'Name', 'Line 2', ...
+            'LineColor', 'r', ...
+            'LineStyle', '--', ...
+            'LineWidth', 2, ...
+            'LabelText', 'event', ...
+            'LabelColor', 'r', ...
+            'LabelFontSize', 10, ...
+            'LabelBackgroundColor', 'y', ...
+            'LabelFontWeight', 'bold' ...
+        )...
+    );
+
+
+    
+    matFileName = '';
+    
+    stimShowFlag = true;
     
     art_rem_window_ms = 0;
     
@@ -109,7 +142,7 @@ function EasyView()
     call_closeall = @closeAllButOne;
 
     % Загрузка списка последних файлов
-    SettingsFilepath = fullfile(tempdir, 'last_opened_files_1.06.mat');
+    SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
     loadLastOpenedFiles()
     function loadLastOpenedFiles()
         if exist(SettingsFilepath, 'file')
@@ -118,6 +151,7 @@ function EasyView()
             figure_position = d.figure_position;
             if ~isempty(lastOpenedFiles)
                 matFilePath = lastOpenedFiles{end};
+                [~, matFileName, ~] = fileparts(matFilePath);
             else
                 matFilePath = '';
             end
@@ -145,7 +179,10 @@ function EasyView()
             else
                 art_rem_window_ms = 0;
             end
-
+            % настройки стиля линей
+            if isfield(d, 'lines_and_styles')
+                lines_and_styles = d.lines_and_styles;
+            end
         else
             % Инициализация всех переменных при первом запуске
             lastOpenedFiles = {};
@@ -159,7 +196,7 @@ function EasyView()
             art_rem_window_ms = 0;
             save(SettingsFilepath, 'lastOpenedFiles', 'figure_position', ...
                 'add_event_settings', 'timeUnitFactor', 'selectedUnit', ...
-                'art_rem_window_ms');
+                'art_rem_window_ms', 'lines_and_styles');
         end
         
     end
@@ -380,8 +417,8 @@ function EasyView()
         'convert NLX to ZAV', ...
         'save figure snapshot', ...
         'compare average data', ...
-        '',...
-        'check for a new version'};
+        'import events from stimulus',...
+        ''};
         
     % Создание выпадающего списка
     file_menu = uicontrol('Style', 'listbox',...
@@ -398,7 +435,11 @@ function EasyView()
                 
     view_functions = {'close all windows', ...
         '', ...
-        'hide Channel Settings'};
+        'hide Channel Settings', ...
+        '', ...
+        'hide stimulus', ...
+        '', ...
+        'lines and styles'};
           
     % Создание выпадающего списка
     view_menu = uicontrol('Style', 'listbox',...
@@ -611,8 +652,10 @@ function EasyView()
             case file_functions{8}
                 % сравнение средних данных
                 dataComparerApp();
-            case file_functions{10}
-                updateAndRunInstaller();
+            case file_functions{9}
+                importEventsFromSimulus();
+%             case file_functions{10}
+%                 updateAndRunInstaller();
             case ''
                 dont_close_menu = true;
         end
@@ -622,6 +665,25 @@ function EasyView()
         end
     end
     
+    function importEventsFromSimulus()
+        if not(isempty(stims))
+            
+            importEventsFromSimulusGUI()
+            
+            if not(isempty(events))
+                sliderValue = get(timeSlider, 'Value'); % Текущее значение слайдера
+                event_inx = ClosestIndex(sliderValue, events);% Индекс текущего эвента во времени
+                event_comments = repmat({'...'}, numel(events), 1); % Инициализация комментариев
+                event_title_string = [matFileName, ' stimulus imported'];
+                evfilename = matFileName;
+                events_exist = true;
+                set(timeCenterPopup, 'Value', 3);
+                changeTimeCenter(timeCenterPopup);
+                UpdateEventTable();
+                updatePlot();
+            end
+        end
+    end
 
     function saveMainAxisAs()
         
@@ -665,6 +727,10 @@ function EasyView()
             case view_functions{3}
                 % показывать или скрывать боковую панель
                 showHideSidePanel();
+            case view_functions{5}
+                showHideStimulus()
+            case view_functions{7}
+                lineStyleGUI()
             case ''
             dont_close_menu = true;
         end
@@ -726,6 +792,23 @@ function EasyView()
         set(view_menu, 'String', view_functions);
             
         side_panel_visible = ~side_panel_visible;
+    end
+
+    function showHideStimulus()
+        
+        if stimShowFlag
+            disp('Hiding Stimulus')
+            str_out = 'show stimulus';
+        else
+            disp('Showing Stimulus')
+            str_out = 'hide stimulus';
+        end
+        
+        view_functions{5} = str_out;
+        set(view_menu, 'String', view_functions);
+        stimShowFlag = ~stimShowFlag;
+        
+        updatePlot()
     end
 
     function showSidePanel()
@@ -1195,7 +1278,8 @@ function EasyView()
         
         % Сохранение пути к загруженному .mat файлу
         matFilePath = filepath;        
-
+        [~, matFileName, ~] = fileparts(matFilePath);
+        
         % Обновление максимального значения слайдера
         set(timeSlider, 'Max', time(end));
         

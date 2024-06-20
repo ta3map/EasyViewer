@@ -1,6 +1,7 @@
 function optionsRemovalArtifactsGUI()
     
     global art_rem_window_ms SettingsFilepath
+    
     window_ms = art_rem_window_ms; % локальное значение
     
     % Идентификатор (tag) для GUI фигуры

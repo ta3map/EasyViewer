@@ -1,0 +1,90 @@
+function lineStyleGUI()
+
+    % Идентификатор (tag) для GUI фигуры
+    figTag = 'lineStyleGUI';
+    activateOrCreateFigure(figTag)
+    
+    % Create the figure
+    fig = figure('Name', 'Line Style', 'Tag', figTag, ...
+        'NumberTitle', 'off', ...
+        'MenuBar', 'none', 'ToolBar', 'none',...
+        'Position', [100, 100, 500, 400],. 'Name', 'Line Style GUI');
+    
+    % Axes for displaying the line
+    ax = axes('Parent', fig, 'Position', [0.3, 0.3, 0.65, 0.65]);
+    hLine = line(ax, [0 1], [0.5 0.5], 'Color', 'b', 'LineWidth', 2, 'LineStyle', '-');
+    hText = text(ax, 0.5, 0.6, 'Test Label', 'Color', 'k', 'FontSize', 12, ...
+        'BackgroundColor', 'none', 'FontWeight', 'normal', 'HorizontalAlignment', 'center');
+    axis off
+    
+    % The start of element position
+    x_ground = 50;
+    
+    % Create UI controls for line style
+    x_pos = x_ground+300;
+    uicontrol('Style', 'text', 'Position', [20, x_pos, 80, 20], 'String', 'Line Color');
+    colorList = uicontrol('Style', 'popupmenu', 'Position', [20, x_pos-20, 100, 20], ...
+        'String', {'Red', 'Green', 'Blue', 'Black', 'Yellow'}, 'Callback', @updateLine);
+    
+    x_pos = x_ground+250;
+    uicontrol('Style', 'text', 'Position', [20, x_pos, 80, 20], 'String', 'Line Style');
+    styleList = uicontrol('Style', 'popupmenu', 'Position', [20, x_pos-20, 100, 20], ...
+        'String', {'-', '--', ':', '-.'}, 'Callback', @updateLine);
+    
+    x_pos = x_ground+200;
+    uicontrol('Style', 'text', 'Position', [20, x_pos, 80, 20], 'String', 'Line Width');
+    widthList = uicontrol('Style', 'popupmenu', 'Position', [20, x_pos-20, 100, 20], ...
+        'String', {'1', '2', '3', '4', '5'}, 'Callback', @updateLine);
+    
+    % Create UI controls for text label style
+    x_pos = x_ground+150;
+    uicontrol('Style', 'text', 'Position', [20, x_pos, 80, 20], 'String', 'Text Color');
+    textColorList = uicontrol('Style', 'popupmenu', 'Position', [20, x_pos-20, 100, 20], ...
+        'String', {'Red', 'Green', 'Blue', 'Black', 'Yellow'}, 'Callback', @updateText);
+    
+    x_pos = x_ground+100;
+    uicontrol('Style', 'text', 'Position', [20, x_pos, 80, 20], 'String', 'Font Size');
+    fontSizeList = uicontrol('Style', 'popupmenu', 'Position', [20, x_pos-20, 100, 20], ...
+        'String', {'8', '10', '12', '14', '16'}, 'Callback', @updateText);
+    
+    x_pos = x_ground+50;
+    uicontrol('Style', 'text', 'Position', [20, x_pos, 80, 20], 'String', 'Background Color');
+    bgColorList = uicontrol('Style', 'popupmenu', 'Position', [20, x_pos-20, 100, 20], ...
+        'String', {'None', 'Red', 'Green', 'Blue', 'Yellow'}, 'Callback', @updateText);
+    
+    x_pos = x_ground;
+    uicontrol('Style', 'text', 'Position', [20, x_pos, 80, 20], 'String', 'Font Weight');
+    fontWeightList = uicontrol('Style', 'popupmenu', 'Position', [20, x_pos-20, 100, 20], ...
+        'String', {'Normal', 'Bold'}, 'Callback', @updateText);
+    
+    
+    % Callback functions to update line and text
+    function updateLine(~, ~)
+        colors = {'r', 'g', 'b', 'k', 'y'};
+        lineStyles = {'-', '--', ':', '-.'};
+        lineWidths = [1, 2, 3, 4, 5];
+        
+        color = colors{get(colorList, 'Value')};
+        style = lineStyles{get(styleList, 'Value')};
+        width = lineWidths(get(widthList, 'Value'));
+        
+        set(hLine, 'Color', color, 'LineStyle', style, 'LineWidth', width);
+    end
+
+    function updateText(~, ~)
+        colors = {'r', 'g', 'b', 'k', 'y'};
+        fontSizes = [8, 10, 12, 14, 16];
+        bgColors = {'none', 'r', 'g', 'b', 'y'};
+        fontWeights = {'normal', 'bold'};
+        
+        color = colors{get(textColorList, 'Value')};
+        size = fontSizes(get(fontSizeList, 'Value'));
+        bgColor = bgColors{get(bgColorList, 'Value')};
+        weight = fontWeights{get(fontWeightList, 'Value')};
+        
+        set(hText, 'Color', color, 'FontSize', size, 'BackgroundColor', bgColor, 'FontWeight', weight);
+    end
+
+    updateText()
+    updateLine()
+end

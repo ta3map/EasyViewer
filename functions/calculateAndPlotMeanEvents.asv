@@ -17,7 +17,7 @@ global mean_group_ch
 global app_path evfilename offsets
 global calculation_result
 global art_rem_window_ms
-global stims
+
 
 local_evfilename = evfilename;
 
@@ -51,8 +51,7 @@ params.mean_group_ch = mean_group_ch;
 
 
 % Убираем артефакт стимуляции
-if art_rem_window_ms > 0
-    win_r = art_rem_window_ms  * (Fs/1000);
+if 
     params.lfp = removeStimArtifact(params.lfp, stims, time, win_r);
 end
 
