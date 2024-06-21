@@ -20,8 +20,9 @@ function updatePlot()
     if not(isempty(stims)) && stimShowFlag
         cond3 = stims >= plot_time_interval(1) & stims < plot_time_interval(2); 
         stims_x = stims(cond3)*timeUnitFactor;
-        % Убираем артефакт
+        % Убираем артефакт из LFP
         data = removeStimArtifact(data, stims(cond3), time_in, art_rem_window_ms);
+    
     else
         cond3 = [];
         stims_x = [];
@@ -123,6 +124,24 @@ function updatePlot()
             x_coord = [x_coord, spk'];
             y_coord = [y_coord, zeros(1, numel(spk)) + offset];
         end
+        cond4 = x_coord >= plot_time_interval(1) & x_coord < plot_time_interval(2);
+        x_coord = x_coord(cond4);
+        y_coord = y_coord(cond4);
+        
+        if not(isempty(stims)) && stimShowFlag
+            stims_in = stims(cond3);
+            stim_inxs = ClosestIndex(stims_in, time_in); % Индекс стимулов
+            win_r = art_rem_window_ms;
+            for i = 1:length(stim_inxs) 
+                start_inx = stim_inxs(i) - win_r;
+                end_inx = stim_inxs(i) + win_r;
+                cond5 = x_coord >= time_in(start_inx) & x_coord < time_in(end_inx);
+                x_coord = x_coord(~cond5);
+                y_coord = y_coord(~cond5);
+            end
+            
+        end
+        
         scatter(x_coord*timeUnitFactor, y_coord, 'r|')
     end
     

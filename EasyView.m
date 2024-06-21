@@ -8,7 +8,7 @@ function EasyView()
     %               
     % Date:         12.04.2024
     
-    EV_version = '1.09.09';
+    EV_version = '1.09.10';
     
     clc
     disp(['Easy Viewer version: ' EV_version])
@@ -1217,24 +1217,42 @@ function EasyView()
         d = load(filepath); % Загружаем данные в структуру
         spks = d.spks;
         lfp = d.lfp;
+        hd = d.hd;
+        Fs = d.zavp.dwnSmplFrq;
         
         [m, n, p] = size(lfp);  % получение размеров исходной матрицы
         lfp_new = zeros(m * p, n);  % создание новой матрицы нужного размера
-        
+
         if p > 1 % случай со свипами
+            spks_new = repmat(struct('tStamp', [], 'ampl', [], 'shape', []), n, 1);
+            for ch = 1:n
+                spks_new(ch).tStamp = spks(ch, 1).tStamp;
+                spks_new(ch).ampl = spks(ch, 1).ampl;
+                spks_new(ch).shape = spks(ch, 1).shape;
+            end
+
+            lfp_new = zeros(p * m, size(lfp, 2));
             index = 1;
             for i = 1:p
                 for j = 1:m
                     lfp_new(index, :) = lfp(j, :, i);
                     index = index + 1;
                 end
+                spks_time_shift_ms = (m/Fs) * 1000;
+                for ch = 1:n
+                    spks_new(ch).tStamp = [spks_new(ch).tStamp; spks(ch, i).tStamp + spks_time_shift_ms*i];
+                    spks_new(ch).ampl = [spks_new(ch).ampl; spks(ch, i).ampl];
+                    spks_new(ch).shape = [spks_new(ch).shape; spks(ch, i).shape];
+                end
+                disp([num2str(i) ' sweep of ' num2str(p)])
             end
+            
             lfp = lfp_new;
-            clear lfp_new
+            spks = spks_new;
+            clear lfp_new spks_new
         end
-        
-        hd = d.hd;
-        Fs = d.zavp.dwnSmplFrq;
+
+                
         N = size(lfp, 1);
         
         zavp = d.zavp;
@@ -1260,6 +1278,8 @@ function EasyView()
             catch ME % случай со свипами
                 stims = ([zavp.realStim(:).r]* zavp.siS + ((m:m:(m * p)) - m)/Fs)' ; 
                 stims_exist = ~isempty(stims);
+                
+                spks1 = spks;
                 warning('Problem with stimulation data');
                 disp(ME.message)
             end
