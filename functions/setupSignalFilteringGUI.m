@@ -19,10 +19,10 @@ function setupSignalFilteringGUI()
     fig = figure('Name', 'Signal Filtering', 'Tag', figTag, ...
         'NumberTitle', 'off', ...
         'MenuBar', 'none', 'ToolBar', 'none', 'Position', [100, 100, 450, 600], ...
-        'Resize', 'off');
+        'Resize', 'off',  'WindowStyle', 'modal');
     
     % Таблица для выбора каналов
-    tableData = [channelNames(ch_inxs), num2cell(filter_avaliable(ch_inxs))];
+    tableData = [channelNames(ch_inxs); num2cell(filter_avaliable(ch_inxs))]';
     SubMeanSettings_coords = [10, 300, 300, 300];
     hTable = uitable('Parent', fig, 'Data', tableData, ...
         'ColumnName', {'Channel', 'Enabled'}, ...
@@ -80,6 +80,8 @@ function setupSignalFilteringGUI()
     
     % вызов callback для адекватности отображения окон
     filterTypeCallback(hFilterType)
+    
+    uiwait(fig);
     
     % Функции обратного вызова
     function selectAll(~, ~)
@@ -195,14 +197,18 @@ function setupSignalFilteringGUI()
         filterSettings = local_settings;
         filter_avaliable = false(numChannels, 1);
         filter_avaliable(ch_inxs(cell2mat(hTable.Data(:, 2)))) = true;
+        filter_avaliable = np_flatten(filter_avaliable);
         [path, name, ~] = fileparts(matFilePath);
         channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
         save(channelSettingsFilePath, 'filter_avaliable', 'filterSettings', '-append');
+        
         updatePlot(); % функция для обновления графика
+        uiresume(fig);
         close(fig); % закрытие GUI
     end
     
     function cancelSettings(~, ~)
+        uiresume(fig);
         close(fig); % закрытие GUI
     end
 end

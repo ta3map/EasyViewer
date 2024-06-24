@@ -21,12 +21,12 @@ function SubMeanFigSettings()
                 'MenuBar', 'none', ... % Отключение стандартного меню
                 'ToolBar', 'none',...
                 'Position', [300  100  350  400], ...
-                'Resize', 'off');
+                'Resize', 'off',  'WindowStyle', 'modal');
             
     if numel(channelNames)<2
         close(SubMeanFig);
     end
-    tableData = [channelNames, num2cell(mean_group_ch)];
+    tableData = [channelNames; num2cell(mean_group_ch)]';
     position = [10, 50, 200, 350];
 %     uicontrol('Style', 'text', 'String', label, 'Position', [position(1), position(2) + position(4) - 20, 100, 20], 'Parent', SubMeanFig);
     hTable = uitable('Data', tableData, ...
@@ -43,6 +43,8 @@ function SubMeanFigSettings()
     % Button to save settings
     uicontrol('Style', 'pushbutton', 'Position', [220, 250, 100, 25], 'String', 'Apply', 'Callback', @saveSettings);
     
+    uiwait(SubMeanFig);
+    
     function selectAll(~, ~)
         hTable.Data(:,2) = num2cell(true(size(hTable.Data(:,2))));
     end
@@ -53,11 +55,12 @@ function SubMeanFigSettings()
     
     function saveSettings(~, ~)
         updatedData = get(hTable, 'Data');
-        mean_group_ch = [updatedData{:, 2}]';
+        mean_group_ch = np_flatten([updatedData{:, 2}]);
         updatePlot();
         [path, name, ~] = fileparts(matFilePath);
         channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
         save(channelSettingsFilePath, 'mean_group_ch', '-append');
+        uiresume(SubMeanFig);
         close(SubMeanFig);
     end
 

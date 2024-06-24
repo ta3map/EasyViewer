@@ -8,7 +8,7 @@ function EasyView()
     %               
     % Date:         12.04.2024
     
-    EV_version = '1.09.10';
+    EV_version = '1.10.00';
     
     clc
     disp(['Easy Viewer version: ' EV_version])
@@ -35,8 +35,8 @@ function EasyView()
    
     global Fs N time chosen_time_interval ch_inxs m_coef
     global shiftCoeff eventTable
-    global lfp hd spks multiax lineCoefficients
-    global channelNames numChannels channelEnabled scalingCoefficients tableData
+    global lfp hd spks multiax
+    
     global matFilePath matFileName channelSettingsFilePath
     global timeUnitFactor selectedUnit
     global initialDir
@@ -50,8 +50,8 @@ function EasyView()
     global std_coef show_spikes binsize show_CSD % спайки/CSD
     global ch_labels_l colors_in_l  widths_in_l
     global add_event_settings
-    global mean_group_ch timeSlider menu_visible csd_avaliable filter_avaliable filterSettings
-    global channelTable 
+    global timeSlider menu_visible filterSettings
+    
     global data_loaded
     global SettingsFilepath
     global csd_smooth_coef csd_contrast_coef
@@ -63,6 +63,26 @@ function EasyView()
     global art_rem_window_ms
     global stimShowFlag 
     global lines_and_styles
+    global keyboardpressed previousKey
+    
+    global numChannels % число каналов
+    global tableData
+    
+    global channelTable % отображаемые данные о каналах
+    
+    global channelNames % названия каналов
+    global channelEnabled % вкл/выкл каналы
+    global scalingCoefficients % множитель амплитуды
+    global colorsIn % цвет линии
+    global lineCoefficients % толщина линии
+    global mean_group_ch % каналы учавствующие в усреднении
+    global csd_avaliable % каналы которые показывают CSD
+    global filter_avaliable % каналы к которым применяется фильтрация
+     
+    
+    previousKey = '';
+    keyboardpressed = false;
+
     
     lines_and_styles = struct(...
         'stimulus_lines', struct(...
@@ -395,7 +415,12 @@ function EasyView()
         '',...
         'Z-score',...
         '',...
-        'Spectral Density'};
+        'Spectral Density', ...
+        '', ...
+        'Cross-Correlation Between Channels', ...
+        '', ...
+        'Cross-Correlation Between Events'};
+    
     % Создание выпадающего списка
     analysis_menu = uicontrol('Style', 'listbox',...
         'String', analysis_functions,...
@@ -439,7 +464,9 @@ function EasyView()
         '', ...
         'hide stimulus', ...
         '', ...
-        'lines and styles'};
+        'lines and styles', ...
+        '', ...
+        'CSD displaying'};
           
     % Создание выпадающего списка
     view_menu = uicontrol('Style', 'listbox',...
@@ -455,13 +482,13 @@ function EasyView()
         'Callback', @showViewMenu);          
                 
     % Список настроек
-    options = {'Event Detection',...
+    options = {'Manual events settings',...
         '',...
         'Removal of Artifacts',...
-        'Filtering', ...
-        'CSD Displaying', ...
+        '', ...
         'Average subtraction', ...
-        ''};    
+        '', ...
+        'Filtering'};    
    
     % Создание выпадающего списка
     opt_menu = uicontrol('Style', 'listbox',...
@@ -513,6 +540,7 @@ function EasyView()
     
     % отключаем все элементы управления кроме начальных
     set(OptBtn, 'Enable', 'off');
+    set(viewBtn, 'Enable', 'off');
     set(analysisBtn, 'Enable', 'off');
     setUIControlsEnable({eventPanel, sidePanel, mainPanel} , 'off')    
     set(LoadMatFileBtn, 'Enable', 'on');
@@ -617,6 +645,10 @@ function EasyView()
             case analysis_functions{5}
                 % отображение спектральной плотности текущего сигнала
                 spectralDensityGUI();  
+            case analysis_functions{7}
+                chCossCorrelationGUI();
+            case analysis_functions{9}
+                eventCrossCorrelationGUI();
             case ''
                 dont_close_menu = true;
         end    
@@ -664,7 +696,8 @@ function EasyView()
             resetGraphParameters()
         end
     end
-    
+
+
     function importEventsFromSimulus()
         if not(isempty(stims))
             
@@ -731,6 +764,10 @@ function EasyView()
                 showHideStimulus()
             case view_functions{7}
                 lineStyleGUI()
+            case view_functions{9}%'CSD ...'
+                % вызов функции для CSD ...
+                CSDfigSettings();
+                updateTable();
             case ''
             dont_close_menu = true;
         end
@@ -749,15 +786,14 @@ function EasyView()
             case options{1}% Add event options
                 addEventSettingsUicontrol();
             case options{3}
-                optionsRemovalArtifactsGUI();
-            case options{4}%'Filtering ...'
-                setupSignalFilteringGUI();
-            case options{5}%'CSD ...'
-                % вызов функции для CSD ...
-                CSDfigSettings();
-            case options{6} %'Subtract mean ...'
+                optionsRemovalArtifactsGUI();                       
+            case options{5} %'Subtract mean ...'
                 % вызов функции для Subtract mean ...
                 SubMeanFigSettings();
+                updateTable();
+            case options{7}%'Filtering ...'
+                setupSignalFilteringGUI(); 
+                updateTable();
             case ''
             dont_close_menu = true;
         end
@@ -964,9 +1000,25 @@ function EasyView()
         autoEventDetectionGUI();
     end
         
+    % Nested function to check key press
+    function check_key_press(~, ~)
+%         drawnow; % Process GUI events
+        key = get(f, 'CurrentCharacter');
+        if ~isempty(key)
+            disp(['Key pressed: ', key]);
+%             set(gcf, 'CurrentCharacter', ''); % Reset current character
+        end
+    end
+
     % Функция обработки нажатия клавиш
     function keyPressFunction(src, event)
+%         disp('key pressed:')
 %         disp(event.Key)
+        % Если кнопка уже была нажата - блокируем исполнение
+        if keyboardpressed
+           return;
+        end
+        
         switch event.Key            
             case 'leftarrow'
                 shiftTime(src, [], -1, timeForwardEdit); % Или вызов Callback функции previousButton
@@ -975,6 +1027,8 @@ function EasyView()
             case 'delete'
                 deleteEvent();
         end
+        
+%         previousKey = event.Key
     end
 %% Построение среднего графика
     function meanEventsCallback(~, ~)
@@ -1122,10 +1176,24 @@ function EasyView()
         [path, name, ~] = fileparts(matFilePath);
         channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
         channelSettings = get(channelTable, 'Data');
-        save(channelSettingsFilePath, 'channelSettings', 'newFs', 'shiftCoeff', ...
-            'time_forward', 'time_back', 'mean_group_ch', ...
-            'csd_avaliable', 'filter_avaliable', 'filterSettings', ...
-            'csd_smooth_coef', 'csd_contrast_coef');
+        save(channelSettingsFilePath, ...
+            'channelSettings', ...% для версии начиная с 1.10.00 не актуален как хранитель данных
+            'newFs', ...
+            'shiftCoeff', ...
+            'time_forward', ...
+            'time_back', ...
+            'filterSettings', ...
+            'csd_smooth_coef', ...
+            'csd_contrast_coef', ...
+            'channelNames', ...% (*) - начиная с 1.10.00 заменяет собой channelSettings
+            'channelEnabled', ...%(*)
+            'scalingCoefficients', ...%(*)
+            'colorsIn', ...%(*)
+            'lineCoefficients', ...%(*)
+            'mean_group_ch', ...%(*)
+            'csd_avaliable', ...%(*)
+            'filter_avaliable', ...
+            'EV_version');%(*)
     end
     
     % Функция обратного вызова слайдера
@@ -1150,17 +1218,33 @@ function EasyView()
     function updateChannelSelection(~, ~)
         % Получение данных из таблицы
         updatedData = get(channelTable, 'Data');
-        ch_inxs = find([updatedData{:, 2}]); % Индексы активированных каналов
-        m_coef = [updatedData{:, 3}]; % Обновленные коэффициенты масштабирования
-        m_coef = m_coef(ch_inxs);
-        ch_labels_l = updatedData(ch_inxs, 1)';
-        colors_in_l = updatedData(ch_inxs, 4)';
-        widths_in_l = [updatedData{:, 5}];
-        widths_in_l = widths_in_l(ch_inxs);
+        
+        channelNames = updatedData(:, 1)';
+        channelEnabled = [updatedData{:, 2}];
+        scalingCoefficients = [updatedData{:, 3}];
+        colorsIn = updatedData(:, 4)';
+        lineCoefficients = [updatedData{:, 5}];
+        mean_group_ch = [updatedData{:, 6}];
+        csd_avaliable = [updatedData{:, 7}];
+        filter_avaliable  = [updatedData{:, 8}];
+%         mean_group_ch - каналы учавствующие в усреднении
+% 
+%         csd_avaliable - каналы которые показывают CSD
+% 
+%         filter_avaliable - каналы к которым применяется фильтрация
+        updateLocalCoefs()
+
         saveChannelSettings();
         updatePlot(); % Обновление графика
     end
 
+    function updateLocalCoefs()
+        ch_inxs = find(channelEnabled); % Индексы активированных каналов
+        m_coef = np_flatten(scalingCoefficients(ch_inxs));% Обновленные коэффициенты масштабирования
+        ch_labels_l = channelNames(ch_inxs);
+        colors_in_l = colorsIn(ch_inxs);
+        widths_in_l = lineCoefficients(ch_inxs);
+    end
     % Функция для обновления данных на основе выбора в таблице
     function updateEventTable(~, ~)
         % Получение данных из таблицы
@@ -1207,6 +1291,7 @@ function EasyView()
         
         % разрешение опций
         set(OptBtn, 'Enable', 'on');
+        set(viewBtn, 'Enable', 'on');
         set(analysisBtn, 'Enable', 'on');
         % если идет вызов снаружи
         if ~isempty(outside_calling_filepath)
@@ -1344,12 +1429,87 @@ function EasyView()
         end
     end
 
+    function updateTable()
+        tableData = [np_flatten(channelNames); ...
+        np_flatten(num2cell(channelEnabled));...
+        np_flatten(num2cell(scalingCoefficients)); ...
+        np_flatten(colorsIn); ...
+        np_flatten(num2cell(lineCoefficients)); ...
+        np_flatten(num2cell(mean_group_ch)); ...
+        np_flatten(num2cell(csd_avaliable));...
+        np_flatten(num2cell(filter_avaliable))]';
+
+        set(channelTable, 'Data', tableData, ... % Обновляем данные в таблице
+                   'ColumnName', {'Channel', 'Enabled', 'Scale', 'Color', 'Line Width', 'Averaging', 'CSD', 'Filter'}, ...
+                   'ColumnFormat', {'char', 'logical', 'numeric', 'char', 'numeric', 'logical', 'logical', 'logical'}, ...
+                   'ColumnEditable', [false true true true true true true true]);
+        
+        updateLocalCoefs()
+    end
+
     % Функция загрузки настроек из файла
     function loadSettingsFile()                
             loadedSettings = load(channelSettingsFilePath, '-mat');
-            if isfield(loadedSettings, 'channelSettings')
-                set(channelTable, 'Data', loadedSettings.channelSettings);
+            if isfield(loadedSettings, 'EV_version')% работает с 1.10.00  
+                channelNames = np_flatten(loadedSettings.channelNames);
+                channelEnabled  = np_flatten(loadedSettings.channelEnabled);
+                scalingCoefficients  = np_flatten(loadedSettings.scalingCoefficients);
+                colorsIn = np_flatten(loadedSettings.colorsIn);
+                lineCoefficients = np_flatten(loadedSettings.lineCoefficients);
+                mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
+                csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
+                filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
+                
+                
+                           
+            else% неактуально с 1.10.00  
+                
+                disp('WARNING - old settings!')
+                % Получение данных из таблицы
+                updatedData = loadedSettings.channelSettings;
+
+                channelNames = updatedData(:, 1)';
+                channelEnabled = [updatedData{:, 2}];
+                scalingCoefficients = [updatedData{:, 3}];
+                colorsIn = updatedData(:, 4)';
+                lineCoefficients = [updatedData{:, 5}];
+                
+                mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
+                csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
+                filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
+                
+%                 if isfield(loadedSettings, 'mean_group_ch')
+%                     mean_group_ch = loadedSettings.mean_group_ch;
+%                 else% если настройки старые
+%                     mean_group_ch = false(numChannels, 1);% Ни один канал не участвует в усреднении
+%                     disp('settings were without mean_group_ch')
+%                 end
+%                 if isfield(loadedSettings, 'csd_avaliable') && ~(isempty(loadedSettings.csd_avaliable))
+%                     csd_avaliable = loadedSettings.csd_avaliable;
+%                 else% если настройки старые                
+%                     csd_avaliable = true(numChannels, 1);% Все каналы участвуют в CSD
+%                     disp('settings were without csd_avaliable')
+%                 end
+%                 if isfield(loadedSettings, 'filter_avaliable')
+%                     filter_avaliable = loadedSettings.filter_avaliable;
+%                 else% если настройки старые                
+%                     filter_avaliable = false(numChannels, 1);% Ни один канал не участвует в фильтрации
+%                     disp('settings were without filter_avaliable')
+%                 end                 
             end
+            updateTable();
+            
+            if isfield(loadedSettings, 'filterSettings') && ~(isempty(loadedSettings.filterSettings))
+                filterSettings = loadedSettings.filterSettings;
+            else% если настройки старые                
+                filterSettings.filterType = 'highpass';
+                filterSettings.freqLow = 10;
+                filterSettings.freqHigh = 50;
+                filterSettings.order = 4;
+                filterSettings.channelsToFilter = false(numChannels, 1);% Ни один канал не участвует в фильтрации
+                disp('settings were without filterSettings')
+            end       
+
             if isfield(loadedSettings, 'newFs')
                 newFs = loadedSettings.newFs;
                 set(FsCoeffEdit, 'String', num2str(newFs));
@@ -1367,34 +1527,7 @@ function EasyView()
                 chosen_time_interval = [0, time_forward];
                 set(timeForwardEdit, 'String', num2str(time_forward*timeUnitFactor));
             end
-            if isfield(loadedSettings, 'mean_group_ch')
-                mean_group_ch = loadedSettings.mean_group_ch;
-            else% если настройки старые
-                mean_group_ch = false(numChannels, 1);% Ни один канал не участвует в усреднении
-                disp('settings were without mean_group_ch')
-            end
-            if isfield(loadedSettings, 'csd_avaliable') && ~(isempty(loadedSettings.csd_avaliable))
-                csd_avaliable = loadedSettings.csd_avaliable;
-            else% если настройки старые                
-                csd_avaliable = true(numChannels, 1);% Все каналы участвуют в CSD
-                disp('settings were without csd_avaliable')
-            end
-            if isfield(loadedSettings, 'filter_avaliable')
-                filter_avaliable = loadedSettings.filter_avaliable;
-            else% если настройки старые                
-                filter_avaliable = false(numChannels, 1);% Ни один канал не участвует в фильтрации
-                disp('settings were without filter_avaliable')
-            end            
-            if isfield(loadedSettings, 'filterSettings') && ~(isempty(loadedSettings.filterSettings))
-                filterSettings = loadedSettings.filterSettings;
-            else% если настройки старые                
-                filterSettings.filterType = 'highpass';
-                filterSettings.freqLow = 10;
-                filterSettings.freqHigh = 50;
-                filterSettings.order = 4;
-                filterSettings.channelsToFilter = false(numChannels, 1);% Ни один канал не участвует в фильтрации
-                disp('settings were without filterSettings')
-            end            
+
             if isfield(loadedSettings, 'csd_smooth_coef')
                 csd_smooth_coef = loadedSettings.csd_smooth_coef;
             else
@@ -1421,26 +1554,29 @@ function EasyView()
             disp('Warning: Could not find Settings (.stn) file')
             % Подготовка данных для таблицы каналов
             
-            channelEnabled = true(numChannels, 1); % Все каналы активированы по умолчанию
-            scalingCoefficients = ones(numChannels, 1); % Коэффициенты масштабирования по умолчанию
-            colorsIn = repmat({'black'}, numChannels, 1); % Инициализация цветов
-            lineCoefficients = ones(numChannels, 1)*0.5; % Инициализация толщины линий
-            mean_group_ch = false(numChannels, 1);% Ни один канал не участвует в усреднении
-            csd_avaliable = true(numChannels, 1);% Все каналы участвуют в CSD
-            filter_avaliable = false(numChannels, 1);% Ни один канал не участвует в фильтрации
+            channelNames = np_flatten(channelNames);
+            channelEnabled = true(1, numChannels); % Все каналы активированы по умолчанию
+            scalingCoefficients = ones(1, numChannels); % Коэффициенты масштабирования по умолчанию
+            colorsIn = np_flatten(repmat({'black'}, numChannels, 1)); % Инициализация цветов
+            lineCoefficients = ones(1, numChannels)*0.5; % Инициализация толщины линий
+            mean_group_ch = false(1, numChannels);% Ни один канал не участвует в усреднении
+            csd_avaliable = true(1, numChannels);% Все каналы участвуют в CSD
+            filter_avaliable = false(1, numChannels);% Ни один канал не участвует в фильтрации
             
             filterSettings.filterType = 'highpass';
             filterSettings.freqLow = 10;
             filterSettings.freqHigh = 50;
             filterSettings.order = 4;
             filterSettings.channelsToFilter = false(numChannels, 1);% Ни один канал не участвует в фильтрации
-                
-            tableData = [channelNames, num2cell(channelEnabled), num2cell(scalingCoefficients), colorsIn, num2cell(lineCoefficients)];
 
-            set(channelTable, 'Data', tableData); % Обновляем данные в таблице
-
-            updateChannelSelection(); % Вызываем функцию для обновления выбора каналов
+%             tableData = [channelNames, num2cell(channelEnabled), num2cell(scalingCoefficients), colorsIn, num2cell(lineCoefficients), ];
+%             set(channelTable, 'Data', tableData); % Обновляем данные в таблице
+%             updateChannelSelection(); % Вызываем функцию для обновления выбора каналов
+            updateTable();
+            saveChannelSettings();
+            updatePlot(); % Обновление графика
         end
+        
     end
     
     function UpdateEventTable()        
@@ -1478,6 +1614,15 @@ function EasyView()
 
 
     function shiftTime(~, ~, direction, timeForwardEdit)
+        
+        % отключаем возможность использовать клавиатуру
+%         set(f, 'KeyPressFcn', '');
+        
+        if keyboardpressed
+           return;
+        end
+        keyboardpressed = true;
+        
 %         disp('changed position')
         windowSize = str2double(get(timeForwardEdit, 'String'))/timeUnitFactor;% должен быть в секундах
         switch selectedCenter
@@ -1526,27 +1671,27 @@ function EasyView()
 %                 disp('time forward')
                 next_step_1 = chosen_time_interval(2);
                 next_step_2 = chosen_time_interval(2)+windowSize; 
-                % проверка           
-                if next_step_2>time(end)
-                    showErrorDialog('Invalid time interval.');
-                    return;
-                end
-                % Обновление интервала времени
-                chosen_time_interval(1) = next_step_1;
-                chosen_time_interval(2) = next_step_2;
+                
             else% движение назад 
 %                 disp('time back')
                 next_step_1 = chosen_time_interval(1)-windowSize;
                 next_step_2 = next_step_1 + windowSize;
-                if next_step_1<0
-                    showErrorDialog('Invalid time interval.');
-                    return;
-                end         
+            end
+            
+            % Обновление интервала времени
+            % проверка 
+            if ~(next_step_1<0 || next_step_2>time(end)+windowSize)
                 chosen_time_interval(1) = next_step_1;
                 chosen_time_interval(2) = next_step_2;
             end
         end
+
         updatePlot(); % Обновление графика
+
+        keyboardpressed = false;
+        
+        % Включаем callback нажатия клавиш
+%         set(f, 'KeyPressFcn', @keyPressFunction);
     end
     
     function deleteEvent(~, ~)
@@ -1711,8 +1856,15 @@ end
             manlDet(i).subCh = 2;
             manlDet(i).sw = 1;
         end
-
-        save(filepath, 'manlDet', 'event_comments'); % Сохранение в .ev файл
+        
+        clear viewer_data
+        viewer_data.matFileName = matFileName;
+        viewer_data.autodetection_settings = autodetection_settings;
+        viewer_data.add_event_settings = add_event_settings;
+        viewer_data.EV_version = EV_version;
+        
+        save(filepath, 'manlDet', 'event_comments', ...
+            'viewer_data'); % Сохранение в .ev файл
     end
 
     set(eventTable, 'CellEditCallback', @updateEventTable);
