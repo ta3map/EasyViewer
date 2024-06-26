@@ -140,15 +140,21 @@ function offsets = multiplot(varargin)
         plot(time, data(:, p) + offsets(p), plotArgs{:});
     end
     
-    mid_y = round(size(data, 2) / 2);
-    coord_y_line = offsets([mid_y, mid_y+1]);
+    if size(data, 2)>1
+        mid_y = round(size(data, 2) / 2);
+        coord_y_line = offsets([mid_y, mid_y+1]);
+        text_in = [num2str(round(-offsets(2)))];
+    else
+        coord_y_line = [0, shiftCoeff];
+        text_in = [num2str(shiftCoeff)];
+    end
     
     coordx = time(1) + (time(end)-time(1))*0.95;
     coord_x_line = [coordx, coordx];
     
     text_x = time(1) + (time(end)-time(1))*0.96;
     text_y = coord_y_line(1) + diff(coord_y_line)/2;
-    text_in = [num2str(round(-offsets(2)))];
+    
     
     plot(coord_x_line, coord_y_line, AmplitudeMarkerColor, 'LineWidth',2)
     text(text_x,text_y, text_in, 'Color', AmplitudeMarkerColor)

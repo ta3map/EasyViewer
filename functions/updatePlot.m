@@ -118,7 +118,7 @@ function updatePlot()
             spks_in(ch_inx).tStamp = spks(ch_inx).tStamp(ii);
             spks_in(ch_inx).ampl = spks(ch_inx).ampl(ii);
             
-            spk = spks_in(ch_inx).tStamp/1000;
+            spk = spks_in(ch_inx).tStamp/1000;% переводим из мс в сек формат
             ampl = abs(spks_in(ch_inx).ampl);
             
             x_coord = [x_coord, spk'];

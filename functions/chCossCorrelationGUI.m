@@ -61,8 +61,8 @@ function chCossCorrelationGUI()
         end
 
         % Compute the sum of the selected channels
-        sumSignal1 = sum(lfp(:, selectedChannels1), 2);
-        sumSignal2 = sum(lfp(:, selectedChannels2), 2);
+        sumSignal1 = nansum(lfp(:, selectedChannels1), 2);
+        sumSignal2 = nansum(lfp(:, selectedChannels2), 2);
 
         % Compute cross-correlation
         sampleRate = 1 / (time(2) - time(1));
