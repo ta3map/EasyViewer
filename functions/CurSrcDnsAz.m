@@ -1,5 +1,8 @@
 function [csd, newtrange, newchrange] = CurSrcDnsAz(eeg, varargin)
     
+if size(eeg, 2) < 4
+     errordlg('Error: At least 4 channels are required to compute CSD.', 'CSD Error');
+else
     method = 1;
     % Input parameters parsing and setting defaults
     [trange, ~, chnum, chanrange, samplerate, step, ~] = ...
@@ -34,8 +37,11 @@ function [csd, newtrange, newchrange] = CurSrcDnsAz(eeg, varargin)
 
     % Interpolate the CSD for better visualization
     csd = interp2(csd, 3, 'linear');
-    newtrange = linspace(trange(1), trange(end), size(csd,1))';
-    newchrange = linspace(chanrange(2), chanrange(end), size(csd,2))';
+    newtrange = linspace(trange(1), trange(end), size(csd, 1))';
+    newchrange = linspace(chanrange(2), chanrange(end), size(csd, 2))';
+
+end
+
 end
 
 function varargout = DefaultArgsAz(Args, DefArgs)

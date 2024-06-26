@@ -35,7 +35,7 @@ function EasyView()
    
     global Fs N time chosen_time_interval ch_inxs m_coef
     global shiftCoeff eventTable
-    global lfp hd spks multiax
+    global lfp hd spks multiax chnlGrp
     
     global matFilePath matFileName channelSettingsFilePath
     global timeUnitFactor selectedUnit
@@ -64,6 +64,7 @@ function EasyView()
     global stimShowFlag 
     global lines_and_styles
     global keyboardpressed previousKey
+    global ica_flag pca_flag
     
     global numChannels % число каналов
     global tableData
@@ -80,6 +81,8 @@ function EasyView()
     global filter_avaliable % каналы к которым применяется фильтрация
      
     
+    ica_flag = false;
+    pca_flag = false;
     previousKey = '';
     keyboardpressed = false;
 
@@ -151,16 +154,22 @@ function EasyView()
     
     % добавляем возможность вызвать функцию извне
     global event_calling outside_calling_filepath zav_calling table_calling 
-    global call_mean_events call_csd call_closeall
+    global call_mean_events call_csd call_closeall zav_saving 
+    global call_resetMainWindowButtons call_updateTable
+    global call_setStandardChannelSettings
     
     zav_calling = @loadMatFile;
+    zav_saving = @saveMatFile;
     table_calling = @UpdateEventTable;
     event_calling = @loadEvents;
     outside_calling_filepath = [];
     call_mean_events = @meanEventsCallback;
     call_csd = @ShowCSDButtonCallback;
     call_closeall = @closeAllButOne;
-
+    call_resetMainWindowButtons = @resetMainWindowButtons;
+    call_updateTable = @updateTable;
+    call_setStandardChannelSettings = @setStandardChannelSettings;
+    
     % Загрузка списка последних файлов
     SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
     loadLastOpenedFiles()
@@ -419,7 +428,11 @@ function EasyView()
         '', ...
         'Cross-Correlation Between Channels', ...
         '', ...
-        'Cross-Correlation Between Events'};
+        'Cross-Correlation Between Events', ...
+        '', ...
+        'ICA', ...
+        '', ...
+        'PCA'};
     
     % Создание выпадающего списка
     analysis_menu = uicontrol('Style', 'listbox',...
@@ -436,14 +449,14 @@ function EasyView()
     % Список действий
     file_functions = {'open ZAV(.mat) file', ...
         'open event (.ev) file',...
-        '', ...
+        'save ZAV(.mat) file', ...
         'file manager', ...
         'open figure', ...
         'convert NLX to ZAV', ...
         'save figure snapshot', ...
         'compare average data', ...
         'import events from stimulus',...
-        ''};
+        'import data from ZAV(.mat) file'};
         
     % Создание выпадающего списка
     file_menu = uicontrol('Style', 'listbox',...
@@ -639,7 +652,7 @@ function EasyView()
         switch selectedOption            
             case analysis_functions{1}% Auto event detection
                 openAutoEventDetectionWindow();
-            case analysis_functions{3}% ICA анализ   
+            case analysis_functions{3} 
                 ZScoreGUI();
 %                 ICAazGUI();  
             case analysis_functions{5}
@@ -649,6 +662,10 @@ function EasyView()
                 chCossCorrelationGUI();
             case analysis_functions{9}
                 eventCrossCorrelationGUI();
+            case analysis_functions{11}% ICA анализ  
+                ICAazGUI();
+            case analysis_functions{13}% PCA analysis
+                PCAazGUI();
             case ''
                 dont_close_menu = true;
         end    
@@ -670,6 +687,8 @@ function EasyView()
             case file_functions{2}
                 % загрузка события
                 loadEvents([], []);
+            case file_functions{3}
+                saveMatFile(matFilePath);
             case file_functions{4}
                 % открытие менеджера файлов
                 fileManagerBtnClb([], []);
@@ -686,8 +705,8 @@ function EasyView()
                 dataComparerApp();
             case file_functions{9}
                 importEventsFromSimulus();
-%             case file_functions{10}
-%                 updateAndRunInstaller();
+            case file_functions{10}
+                importLFP();
             case ''
                 dont_close_menu = true;
         end
@@ -1172,28 +1191,33 @@ function EasyView()
     end
     % Функция сохранения настроек каналов
     function saveChannelSettings()
-%         global mean_group_ch time_back time_forward shiftCoeff newFs channelTable matFilePath
-        [path, name, ~] = fileparts(matFilePath);
-        channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
-        channelSettings = get(channelTable, 'Data');
-        save(channelSettingsFilePath, ...
-            'channelSettings', ...% для версии начиная с 1.10.00 не актуален как хранитель данных
-            'newFs', ...
-            'shiftCoeff', ...
-            'time_forward', ...
-            'time_back', ...
-            'filterSettings', ...
-            'csd_smooth_coef', ...
-            'csd_contrast_coef', ...
-            'channelNames', ...% (*) - начиная с 1.10.00 заменяет собой channelSettings
-            'channelEnabled', ...%(*)
-            'scalingCoefficients', ...%(*)
-            'colorsIn', ...%(*)
-            'lineCoefficients', ...%(*)
-            'mean_group_ch', ...%(*)
-            'csd_avaliable', ...%(*)
-            'filter_avaliable', ...
-            'EV_version');%(*)
+        if exist(matFilePath, 'file') == 2
+            % если мат файл существует, 
+            % это не просто промежуточные варианты, как ICA,
+            % то сохранять настройки
+
+            [path, name, ~] = fileparts(matFilePath);
+            channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
+            channelSettings = get(channelTable, 'Data');
+            save(channelSettingsFilePath, ...
+                'channelSettings', ...% для версии начиная с 1.10.00 не актуален как хранитель данных
+                'newFs', ...
+                'shiftCoeff', ...
+                'time_forward', ...
+                'time_back', ...
+                'filterSettings', ...
+                'csd_smooth_coef', ...
+                'csd_contrast_coef', ...
+                'channelNames', ...% (*) - начиная с 1.10.00 заменяет собой channelSettings
+                'channelEnabled', ...%(*)
+                'scalingCoefficients', ...%(*)
+                'colorsIn', ...%(*)
+                'lineCoefficients', ...%(*)
+                'mean_group_ch', ...%(*)
+                'csd_avaliable', ...%(*)
+                'filter_avaliable', ...
+                'EV_version');%(*)
+        end
     end
     
     % Функция обратного вызова слайдера
@@ -1219,22 +1243,19 @@ function EasyView()
         % Получение данных из таблицы
         updatedData = get(channelTable, 'Data');
         
-        channelNames = updatedData(:, 1)';
+        channelNames = updatedData(:, 1)';% имена каналов
         channelEnabled = [updatedData{:, 2}];
         scalingCoefficients = [updatedData{:, 3}];
         colorsIn = updatedData(:, 4)';
         lineCoefficients = [updatedData{:, 5}];
-        mean_group_ch = [updatedData{:, 6}];
-        csd_avaliable = [updatedData{:, 7}];
-        filter_avaliable  = [updatedData{:, 8}];
-%         mean_group_ch - каналы учавствующие в усреднении
-% 
-%         csd_avaliable - каналы которые показывают CSD
-% 
-%         filter_avaliable - каналы к которым применяется фильтрация
-        updateLocalCoefs()
+        mean_group_ch = [updatedData{:, 6}];% каналы учавствующие в усреднении
+        csd_avaliable = [updatedData{:, 7}];% каналы которые показывают CSD
+        filter_avaliable  = [updatedData{:, 8}];%каналы к которым применяется фильтрация
+
+        updateLocalCoefs()% локальные аналоги для текущего учаска времени
 
         saveChannelSettings();
+
         updatePlot(); % Обновление графика
     end
 
@@ -1284,15 +1305,48 @@ function EasyView()
         
         
     end
+    
+    function saveMatFile(filepath)
+        % Get initial path and file name from the provided filepath
+        if nargin < 1
+            filepath = ''; % Default to empty if no filepath is provided
+        end
+
+        % Split the filepath into path and file name components
+        [initialPath, initialFile, ext] = fileparts(filepath);
+        if isempty(ext)
+            ext = '.mat'; % Default extension if none provided
+        end
+
+        % Open a file save dialog with initial path and file name
+        [file, path] = uiputfile(['*' ext], 'Save ZAV (.mat) File', fullfile(initialPath, [initialFile ext]));
+        if isequal(file, 0) || isequal(path, 0)
+            disp('User canceled the operation');
+            return;
+        end
+        filepath = fullfile(path, file);
+
+        % Extract the file name without extension
+        [~, matFileName, ~] = fileparts(filepath);
+        disp(['Saving mat file: ' matFileName]);
+
+        % Save the variables to the specified file
+        save(filepath, 'spks', 'lfp', 'hd', 'zavp', 'chnlGrp', 'lfpVar');
+        
+        % Сохраняем настройки каналов
+        saveChannelSettings()
+    end
+
+
 
     function loadMatFile(filepath)
         disp('loading mat file')
+        ica_flag = false;
+        pca_flag = false;
+        
         windowSize = str2double(get(timeForwardEdit, 'String'))/timeUnitFactor;% должен быть в секундах
         
-        % разрешение опций
-        set(OptBtn, 'Enable', 'on');
-        set(viewBtn, 'Enable', 'on');
-        set(analysisBtn, 'Enable', 'on');
+
         % если идет вызов снаружи
         if ~isempty(outside_calling_filepath)
             filepath = outside_calling_filepath;
@@ -1304,43 +1358,26 @@ function EasyView()
         lfp = d.lfp;
         hd = d.hd;
         Fs = d.zavp.dwnSmplFrq;
+        zavp = d.zavp;
+        lfpVar = d.lfpVar;
         
         [m, n, p] = size(lfp);  % получение размеров исходной матрицы
-        lfp_new = zeros(m * p, n);  % создание новой матрицы нужного размера
-
+        
         if p > 1 % случай со свипами
-            spks_new = repmat(struct('tStamp', [], 'ampl', [], 'shape', []), n, 1);
-            for ch = 1:n
-                spks_new(ch).tStamp = spks(ch, 1).tStamp;
-                spks_new(ch).ampl = spks(ch, 1).ampl;
-                spks_new(ch).shape = spks(ch, 1).shape;
+            [lfp, spks, stims, lfpVar] = sweepProcessData(p, spks, n, m, lfp, Fs, zavp, lfpVar);            
+        else
+            if isfield(zavp, 'realStim') 
+                stims = zavp.realStim(:).r(:) * zavp.siS;  
+                stims_exist = ~isempty(stims);
+            else
+                stims = [];
+                stims_exist = false;
             end
-
-            lfp_new = zeros(p * m, size(lfp, 2));
-            index = 1;
-            for i = 1:p
-                for j = 1:m
-                    lfp_new(index, :) = lfp(j, :, i);
-                    index = index + 1;
-                end
-                spks_time_shift_ms = (m/Fs) * 1000;
-                for ch = 1:n
-                    spks_new(ch).tStamp = [spks_new(ch).tStamp; spks(ch, i).tStamp + spks_time_shift_ms*i];
-                    spks_new(ch).ampl = [spks_new(ch).ampl; spks(ch, i).ampl];
-                    spks_new(ch).shape = [spks_new(ch).shape; spks(ch, i).shape];
-                end
-                disp([num2str(i) ' sweep of ' num2str(p)])
-            end
-            
-            lfp = lfp_new;
-            spks = spks_new;
-            clear lfp_new spks_new
         end
-
                 
         N = size(lfp, 1);
         
-        zavp = d.zavp;
+        
         
         time = (0:N-1) / Fs;% s
         time_forward = 0.6;
@@ -1354,24 +1391,29 @@ function EasyView()
         show_CSD = false;
         channelNames = hd.recChNames;
         numChannels = length(channelNames);
-        lfpVar = d.lfpVar;
         
-        if isfield(zavp, 'realStim')
-            try
-                stims = zavp.realStim(:).r(:) * zavp.siS;  
-                stims_exist = ~isempty(stims);
-            catch ME % случай со свипами
-                stims = ([zavp.realStim(:).r]* zavp.siS + ((m:m:(m * p)) - m)/Fs)' ; 
-                stims_exist = ~isempty(stims);
-                
-                spks1 = spks;
-                warning('Problem with stimulation data');
-                disp(ME.message)
-            end
-        else
-            stims = [];
-            stims_exist = false;
-        end
+        
+        chnlGrp = d.chnlGrp;
+
+        resetMainWindowButtons()
+        
+        % Сохранение пути к загруженному .mat файлу
+        matFilePath = filepath;        
+        [~, matFileName, ~] = fileparts(matFilePath);
+        
+        % Обновление и сохранение списка последних открытых файлов
+        lastOpenedFiles{end + 1} = filepath;
+        
+        % Попытка загрузить настройки каналов
+        loadChannelSettings();    
+    end
+
+    function resetMainWindowButtons()
+        
+        % разрешение опций
+        set(OptBtn, 'Enable', 'on');
+        set(viewBtn, 'Enable', 'on');
+        set(analysisBtn, 'Enable', 'on');
         
         set(showSpikesButton, 'Value', show_spikes);
         set(showCSDbutton, 'Value', show_CSD);
@@ -1381,18 +1423,8 @@ function EasyView()
         set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
         set(FsCoeffEdit, 'String', num2str(newFs));
         
-        % Сохранение пути к загруженному .mat файлу
-        matFilePath = filepath;        
-        [~, matFileName, ~] = fileparts(matFilePath);
-        
         % Обновление максимального значения слайдера
         set(timeSlider, 'Max', time(end));
-        
-        % Обновление и сохранение списка последних открытых файлов
-        lastOpenedFiles{end + 1} = filepath;
-        
-        % Попытка загрузить настройки каналов
-        loadChannelSettings();    
         
         % Включаем все элементы управления если файл загрузился в первый
         % раз
@@ -1447,100 +1479,87 @@ function EasyView()
         updateLocalCoefs()
     end
 
-    % Функция загрузки настроек из файла
-    function loadSettingsFile()                
-            loadedSettings = load(channelSettingsFilePath, '-mat');
-            if isfield(loadedSettings, 'EV_version')% работает с 1.10.00  
-                channelNames = np_flatten(loadedSettings.channelNames);
-                channelEnabled  = np_flatten(loadedSettings.channelEnabled);
-                scalingCoefficients  = np_flatten(loadedSettings.scalingCoefficients);
-                colorsIn = np_flatten(loadedSettings.colorsIn);
-                lineCoefficients = np_flatten(loadedSettings.lineCoefficients);
-                mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
-                csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
-                filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
-                
-                
-                           
-            else% неактуально с 1.10.00  
-                
-                disp('WARNING - old settings!')
-                % Получение данных из таблицы
-                updatedData = loadedSettings.channelSettings;
+% Функция загрузки настроек из файла
+function loadSettingsFile()
+    try
+        loadedSettings = load(channelSettingsFilePath, '-mat');
+        if isfield(loadedSettings, 'EV_version') % работает с 1.10.00  
+            channelNames = np_flatten(loadedSettings.channelNames);
+            channelEnabled  = np_flatten(loadedSettings.channelEnabled);
+            scalingCoefficients  = np_flatten(loadedSettings.scalingCoefficients);
+            colorsIn = np_flatten(loadedSettings.colorsIn);
+            lineCoefficients = np_flatten(loadedSettings.lineCoefficients);
+            mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
+            csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
+            filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
+        else % неактуально с 1.10.00  
+            disp('WARNING - old settings!')
+            % Получение данных из таблицы
+            updatedData = loadedSettings.channelSettings;
 
-                channelNames = updatedData(:, 1)';
-                channelEnabled = [updatedData{:, 2}];
-                scalingCoefficients = [updatedData{:, 3}];
-                colorsIn = updatedData(:, 4)';
-                lineCoefficients = [updatedData{:, 5}];
-                
-                mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
-                csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
-                filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
-                
-%                 if isfield(loadedSettings, 'mean_group_ch')
-%                     mean_group_ch = loadedSettings.mean_group_ch;
-%                 else% если настройки старые
-%                     mean_group_ch = false(numChannels, 1);% Ни один канал не участвует в усреднении
-%                     disp('settings were without mean_group_ch')
-%                 end
-%                 if isfield(loadedSettings, 'csd_avaliable') && ~(isempty(loadedSettings.csd_avaliable))
-%                     csd_avaliable = loadedSettings.csd_avaliable;
-%                 else% если настройки старые                
-%                     csd_avaliable = true(numChannels, 1);% Все каналы участвуют в CSD
-%                     disp('settings were without csd_avaliable')
-%                 end
-%                 if isfield(loadedSettings, 'filter_avaliable')
-%                     filter_avaliable = loadedSettings.filter_avaliable;
-%                 else% если настройки старые                
-%                     filter_avaliable = false(numChannels, 1);% Ни один канал не участвует в фильтрации
-%                     disp('settings were without filter_avaliable')
-%                 end                 
-            end
-            updateTable();
+            channelNames = updatedData(:, 1)';
+            channelEnabled = [updatedData{:, 2}];
+            scalingCoefficients = [updatedData{:, 3}];
+            colorsIn = updatedData(:, 4)';
+            lineCoefficients = [updatedData{:, 5}];
             
-            if isfield(loadedSettings, 'filterSettings') && ~(isempty(loadedSettings.filterSettings))
-                filterSettings = loadedSettings.filterSettings;
-            else% если настройки старые                
-                filterSettings.filterType = 'highpass';
-                filterSettings.freqLow = 10;
-                filterSettings.freqHigh = 50;
-                filterSettings.order = 4;
-                filterSettings.channelsToFilter = false(numChannels, 1);% Ни один канал не участвует в фильтрации
-                disp('settings were without filterSettings')
-            end       
+            mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
+            csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
+            filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
+        end
+        updateTable();
 
-            if isfield(loadedSettings, 'newFs')
-                newFs = loadedSettings.newFs;
-                set(FsCoeffEdit, 'String', num2str(newFs));
-            end
-            if isfield(loadedSettings, 'shiftCoeff')
-                shiftCoeff = loadedSettings.shiftCoeff;
-                set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
-            end
-            if isfield(loadedSettings, 'time_back')
-                time_back = loadedSettings.time_back;% time window before (s)
-                set(timeBackEdit, 'String', num2str(time_back*timeUnitFactor));
-            end
-            if isfield(loadedSettings, 'time_forward')
-                time_forward = loadedSettings.time_forward;% time window after (s)
-                chosen_time_interval = [0, time_forward];
-                set(timeForwardEdit, 'String', num2str(time_forward*timeUnitFactor));
-            end
+        if isfield(loadedSettings, 'filterSettings') && ~(isempty(loadedSettings.filterSettings))
+            filterSettings = loadedSettings.filterSettings;
+        else % если настройки старые                
+            filterSettings.filterType = 'highpass';
+            filterSettings.freqLow = 10;
+            filterSettings.freqHigh = 50;
+            filterSettings.order = 4;
+            filterSettings.channelsToFilter = false(numChannels, 1); % Ни один канал не участвует в фильтрации
+            disp('settings were without filterSettings')
+        end       
 
-            if isfield(loadedSettings, 'csd_smooth_coef')
-                csd_smooth_coef = loadedSettings.csd_smooth_coef;
-            else
-                csd_smooth_coef = 5;
-                disp('settings were without CSD smooth coef')
-            end
-            if isfield(loadedSettings, 'csd_contrast_coef')
-                csd_contrast_coef = loadedSettings.csd_contrast_coef;
-            else
-                csd_contrast_coef = 99.99;
-                disp('settings were without CSD contrast coef')
-            end
+        if isfield(loadedSettings, 'newFs')
+            newFs = loadedSettings.newFs;
+            set(FsCoeffEdit, 'String', num2str(newFs));
+        end
+        if isfield(loadedSettings, 'shiftCoeff')
+            shiftCoeff = loadedSettings.shiftCoeff;
+            set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
+        end
+        if isfield(loadedSettings, 'time_back')
+            time_back = loadedSettings.time_back; % time window before (s)
+            set(timeBackEdit, 'String', num2str(time_back * timeUnitFactor));
+        end
+        if isfield(loadedSettings, 'time_forward')
+            time_forward = loadedSettings.time_forward; % time window after (s)
+            chosen_time_interval = [0, time_forward];
+            set(timeForwardEdit, 'String', num2str(time_forward * timeUnitFactor));
+        end
+
+        if isfield(loadedSettings, 'csd_smooth_coef')
+            csd_smooth_coef = loadedSettings.csd_smooth_coef;
+        else
+            csd_smooth_coef = 5;
+            disp('settings were without CSD smooth coef')
+        end
+        if isfield(loadedSettings, 'csd_contrast_coef')
+            csd_contrast_coef = loadedSettings.csd_contrast_coef;
+        else
+            csd_contrast_coef = 99.99;
+            disp('settings were without CSD contrast coef')
+        end
+    catch
+        createNewChoice = questdlg('An error occurred when loading channel settings. Do you want to create new channel settings file?', ...
+            'Save Results', ...
+            'Yes', 'No', 'Yes');
+        if strcmp(createNewChoice, 'Yes')
+            createNewSettingsFile();
+        end
     end
+end
+
 
     % Функция загрузки настроек каналов
     function loadChannelSettings()
@@ -1550,10 +1569,22 @@ function EasyView()
             disp('loading Channel settings ..')
             loadSettingsFile()
             updateChannelSelection();
-        else % если не было настроек
+        else % если не было настроек создаем новый файл с настройками
             disp('Warning: Could not find Settings (.stn) file')
-            % Подготовка данных для таблицы каналов
-            
+            createNewSettingsFile()
+        end
+        
+    end
+    
+    function createNewSettingsFile()
+            % Подготовка данных для таблицы каналов            
+            setStandardChannelSettings()
+            updateTable();
+            saveChannelSettings();
+            updatePlot(); % Обновление графика
+    end
+    
+    function setStandardChannelSettings()
             channelNames = np_flatten(channelNames);
             channelEnabled = true(1, numChannels); % Все каналы активированы по умолчанию
             scalingCoefficients = ones(1, numChannels); % Коэффициенты масштабирования по умолчанию
@@ -1568,17 +1599,8 @@ function EasyView()
             filterSettings.freqHigh = 50;
             filterSettings.order = 4;
             filterSettings.channelsToFilter = false(numChannels, 1);% Ни один канал не участвует в фильтрации
-
-%             tableData = [channelNames, num2cell(channelEnabled), num2cell(scalingCoefficients), colorsIn, num2cell(lineCoefficients), ];
-%             set(channelTable, 'Data', tableData); % Обновляем данные в таблице
-%             updateChannelSelection(); % Вызываем функцию для обновления выбора каналов
-            updateTable();
-            saveChannelSettings();
-            updatePlot(); % Обновление графика
-        end
-        
     end
-    
+
     function UpdateEventTable()        
         [events, ev_inxs] = sort(events);
         event_comments = event_comments(ev_inxs);
@@ -1685,10 +1707,9 @@ function EasyView()
                 chosen_time_interval(2) = next_step_2;
             end
         end
-
-        updatePlot(); % Обновление графика
-
+        
         keyboardpressed = false;
+        updatePlot(); % Обновление графика
         
         % Включаем callback нажатия клавиш
 %         set(f, 'KeyPressFcn', @keyPressFunction);
