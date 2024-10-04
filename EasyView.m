@@ -452,7 +452,8 @@ function EasyView()
         'save ZAV(.mat) file', ...
         'file manager', ...
         'open figure', ...
-        'convert NLX to ZAV', ...
+        'convert ABF', ...
+        'convert NLX', ...
         'save figure snapshot', ...
         'compare average data', ...
         'import events from stimulus',...
@@ -695,17 +696,19 @@ function EasyView()
             case file_functions{5}
                 openFigureWithFileDialog();
             case file_functions{6}
+                convertAbf2zavGUI()
+            case file_functions{7}
                 % конвертация в ZAV формат
                 convertNlx2zavGUI();
-            case file_functions{7}
+            case file_functions{8}
                 % save figure snapshot
                 saveMainAxisAs();
-            case file_functions{8}
+            case file_functions{9}
                 % сравнение средних данных
                 dataComparerApp();
-            case file_functions{9}
-                importEventsFromSimulus();
             case file_functions{10}
+                importEventsFromSimulus();
+            case file_functions{11}
                 importLFP();
             case ''
                 dont_close_menu = true;
@@ -1360,6 +1363,7 @@ function EasyView()
         Fs = d.zavp.dwnSmplFrq;
         zavp = d.zavp;
         lfpVar = d.lfpVar;
+        chnlGrp = d.chnlGrp;
         
         [m, n, p] = size(lfp);  % получение размеров исходной матрицы
         
@@ -1393,7 +1397,7 @@ function EasyView()
         numChannels = length(channelNames);
         
         
-        chnlGrp = d.chnlGrp;
+        
 
         resetMainWindowButtons()
         
