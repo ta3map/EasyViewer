@@ -1,10 +1,16 @@
 function [lfp, spks, stims, lfpVar] = sweepProcessData(p, spks, n, m, lfp, Fs, zavp, lfpVar)
 
-    spks_new = repmat(struct('tStamp', [], 'ampl', [], 'shape', []), n, 1);
-    for ch = 1:n
-        spks_new(ch).tStamp = spks(ch, 1).tStamp;
-        spks_new(ch).ampl = spks(ch, 1).ampl;
-        spks_new(ch).shape = spks(ch, 1).shape;
+    sps_exist = not(isempty(spks))
+    
+    if sps_exist
+        spks_new = repmat(struct('tStamp', [], 'ampl', [], 'shape', []), n, 1);
+        for ch = 1:n
+            spks_new(ch).tStamp = spks(ch, 1).tStamp;
+            spks_new(ch).ampl = spks(ch, 1).ampl;
+            spks_new(ch).shape = spks(ch, 1).shape;
+        end
+    else
+        spks_new = [];
     end
 
     lfp_new = zeros(m * p, n);
@@ -14,12 +20,16 @@ function [lfp, spks, stims, lfpVar] = sweepProcessData(p, spks, n, m, lfp, Fs, z
             lfp_new(index, :) = lfp(j, :, i);
             index = index + 1;
         end
-        spks_time_shift_ms = (m / Fs) * 1000;
-        for ch = 1:n
-            spks_new(ch).tStamp = [spks_new(ch).tStamp; spks(ch, i).tStamp + spks_time_shift_ms * (i - 1)];
-            spks_new(ch).ampl = [spks_new(ch).ampl; spks(ch, i).ampl];
-            spks_new(ch).shape = [spks_new(ch).shape; spks(ch, i).shape];
+        
+        if sps_exist
+            spks_time_shift_ms = (m / Fs) * 1000;
+            for ch = 1:n
+                spks_new(ch).tStamp = [spks_new(ch).tStamp; spks(ch, i).tStamp + spks_time_shift_ms * (i - 1)];
+                spks_new(ch).ampl = [spks_new(ch).ampl; spks(ch, i).ampl];
+                spks_new(ch).shape = [spks_new(ch).shape; spks(ch, i).shape];
+            end
         end
+        
         disp([num2str(i) ' sweep of ' num2str(p)])
     end
 

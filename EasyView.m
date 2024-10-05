@@ -8,7 +8,7 @@ function EasyView()
     %               
     % Date:         12.04.2024
     
-    EV_version = '1.10.00';
+    EV_version = '1.10.01';
     
     clc
     disp(['Easy Viewer version: ' EV_version])
@@ -1368,7 +1368,8 @@ function EasyView()
         [m, n, p] = size(lfp);  % получение размеров исходной матрицы
         
         if p > 1 % случай со свипами
-            [lfp, spks, stims, lfpVar] = sweepProcessData(p, spks, n, m, lfp, Fs, zavp, lfpVar);            
+            [lfp, spks, stims, lfpVar] = sweepProcessData(p, spks, n, m, lfp, Fs, zavp, lfpVar);  
+            stims_exist = ~isempty(stims);
         else
             if isfield(zavp, 'realStim') 
                 stims = zavp.realStim(:).r(:) * zavp.siS;  

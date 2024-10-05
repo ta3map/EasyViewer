@@ -1,4 +1,4 @@
-function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, collectSweeps)
+function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, collectSweeps, selectedChannels, mua_std_coef, hWaitBar)
     % Конвертирует ABF-файл в формат ZAV.
     %
     % Параметры:
@@ -8,20 +8,18 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
     %   detectMua     - логическое значение, указывающее, нужно ли обнаруживать МСА.
     %   doResample    - логическое значение, указывающее, нужно ли выполнять ресемплинг.
     %   collectSweeps - логическое значение, указывающее, нужно ли сохранять данные по свипам.
-
-    if nargin < 6
-        collectSweeps = false; % По умолчанию данные объединяются по времени.
-    end
-    if nargin < 5
-        doResample = true; % По умолчанию ресемплинг выполняется.
-    end
-
+    
+    sweepStartAsStim = true;
+    
     % Чтение заголовка ABF-файла.
     [~, ~, hd_abf] = abfload(abfFilePath, 'stop', 1);
 
     % Получение списка имен каналов.
     channelNames = hd_abf.recChNames; % Имена каналов.
-    numChannels = numel(channelNames); % Количество каналов.
+    % Находим индексы выбранных каналов.
+    [~, selectedChannelIndices] = ismember(selectedChannels, channelNames);
+
+    numChannels = numel(selectedChannels); % Количество каналов.
 
     % Оригинальная частота дискретизации.
     orig_Fs = 1e6 / hd_abf.si; % hd_abf.si в микросекундах на сэмпл.
@@ -40,18 +38,18 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
         spks = repmat(struct('tStamp', [], 'ampl', [], 'shape', []), numChannels, 1);
     end
 
-    % Параметры для обнаружения МСА.
-    mua_std_coef = 5; % Коэффициент для определения порога, можно настроить.
-
     % Предварительные переменные для LFP.
     lfp_initialized = false;
-
-    for chIdx = 1:numChannels
-        chName = channelNames(chIdx); % Используем круглые скобки.
-        disp(['Обработка канала: ', chName{1}]); % Выводим имя канала.
-
+    chIdx = 1;
+    for truechIdx = selectedChannelIndices'        
+        chName = channelNames(truechIdx); % Используем круглые скобки.
+        current_message = ['Channel processing: ', chName{1}];
+        disp(current_message); % Выводим имя канала.
+        
+        waitbar([chIdx/numChannels], hWaitBar, current_message);
+        
         % Чтение данных канала.
-        [data, ~, ~] = abfload(abfFilePath, 'channels', chName);
+        [data, ~, ~] = abfload(abfFilePath, 'channels', chName, 'doDispInfo', false);
 
         % Определение количества свипов и длины свипа.
         numSweeps = size(data, 3);
@@ -72,7 +70,7 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
                 t_resampled = (0:lfp_length-1) / actual_lfp_Fs;
                 data_resampled = interp1(t_original, double(sweepData), t_resampled, 'linear', 'extrap')';
             else
-                data_resampled = double(sweepData);
+                data_resampled = sweepData;
                 lfp_length = length(data_resampled);
             end
 
@@ -84,19 +82,20 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
                 % Используем данные текущего свипа для обнаружения МСА.
                 [tStamp, ampl, shape] = detectMUA(sweepData, hd_abf, mua_std_coef, true);
                 spks(chIdx, sweepIdx).tStamp = single(tStamp);
-                spks(chIdx, sweepIdx).ampl = single(ampl);
+                spks(chIdx, sweepIdx).ampl = single(-ampl);
                 spks(chIdx, sweepIdx).shape = shape;
             else
                 % Инициализируем пустые поля.
-                spks(chIdx, sweepIdx).tStamp = [];
-                spks(chIdx, sweepIdx).ampl = [];
-                spks(chIdx, sweepIdx).shape = [];
+%                 spks(chIdx, sweepIdx).tStamp = [];
+%                 spks(chIdx, sweepIdx).ampl = [];
+%                 spks(chIdx, sweepIdx).shape = [];
+                spks = [];
             end
         end
 
         % Проверяем, что длина данных одинаковая для всех свипов.
         if any(lfp_lengths ~= lfp_lengths(1))
-            warning('Длина ресемплированных данных различается между свипами. Будут усечены до минимальной длины.');
+            warning('The length of resampled data varies between sweeps. Will be truncated to minimum length.');
             lfp_length = min(lfp_lengths);
         else
             lfp_length = lfp_lengths(1);
@@ -131,13 +130,14 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
                 lfp(idx_start:idx_end, chIdx) = data_resampled;
             end
         end
+        chIdx = chIdx+1;
     end
 
     % Расчет вариации LFP по каналам.
     if collectSweeps
-        lfpVar = var(reshape(lfp, [], numChannels));
+        lfpVar = squeeze(var(lfp));        
     else
-        lfpVar = var(lfp);
+        lfpVar = var(reshape(lfp, [], numChannels));
     end
 
     % Сборка структуры hd для ZAV.
@@ -146,8 +146,8 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
     hd.nOperationMode = hd_abf.nOperationMode;
     hd.lActualEpisodes = hd_abf.lActualEpisodes;
     hd.nADCNumChannels = numChannels;
-    hd.recChNames = hd_abf.recChNames;
-    hd.recChUnits = hd_abf.recChUnits;
+    hd.recChNames = selectedChannels;
+    hd.recChUnits = hd_abf.recChUnits(selectedChannelIndices);
     hd.ch_si = repmat(1e6 / actual_lfp_Fs, 1, numChannels); % Интервал сэмплирования в микросекундах.
     hd.dataPtsPerChan = lfp_length;
     if collectSweeps
@@ -158,21 +158,28 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
     hd.si = 1e6 / actual_lfp_Fs; % Обновляем si в микросекундах.
     hd.fADCSampleInterval = hd_abf.fADCSampleInterval;
     hd.recTime = hd_abf.recTime;
-    hd.sweepStartInPts = hd_abf.sweepStartInPts;
+    %hd.sweepStartInPts = hd_abf.sweepStartInPts;
 
     % Создание структуры zavp.
     zavp = struct();
     zavp.file = abfFilePath;
-    zavp.siS = 1 / actual_lfp_Fs; % Интервал сэмплирования в секундах.
+    zavp.siS = 1 / orig_Fs; % Интервал сэмплирования в секундах.
     zavp.dwnSmplFrq = actual_lfp_Fs; % Частота дискретизации LFP.
     zavp.stimCh = []; % Предположим, что нет стимуляционных каналов.
-    zavp.realStim = struct('r', []); % Добавляем поле 'r' в realStim.
-
+    
+    % Добавляем поле 'r' в realStim.
+    if isfield(hd_abf, 'sweepStartInPts')
+        if collectSweeps && sweepStartAsStim
+            zavp.realStim = struct('r', zeros(size(hd_abf.sweepStartInPts))');
+        end
+    else
+        zavp.realStim = struct('r', []); 
+    end
+    
     % Инициализация chnlGrp.
     chnlGrp = []; % Если у вас есть информация о группах каналов, можно заполнить.
 
     % Сохранение данных в ZAV-файл.
-    save(zavFilePath, 'lfp', 'spks', 'hd', 'lfpVar', 'zavp', 'chnlGrp');
+    save(zavFilePath, 'lfp', 'spks', 'hd', 'lfpVar', 'zavp', 'chnlGrp', '-v7.3');
 
-    disp('Конвертация завершена.');
 end

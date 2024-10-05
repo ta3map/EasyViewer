@@ -17,11 +17,11 @@ function convertAbf2zavGUI
     persistent abfFilePath detectMua lfp_Fs mua_std_coef doResample collectSweeps selectedChannels availableChannels active_folder
 
     % Значения по умолчанию
-    mua_std_coef = 5;
+    mua_std_coef = 1;
     lfp_Fs = 1000;
     detectMua = false;
     doResample = true;
-    collectSweeps = false;
+    collectSweeps = true;
     selectedChannels = {}; % Пустой означает все каналы
     availableChannels = {};
     abfFilePath = '';
@@ -80,7 +80,7 @@ function convertAbf2zavGUI
         'Position', [leftMargin, topMargin - 3*(btnHeight + spacing), btnWidth, btnHeight], 'Value', collectSweeps, 'Callback', @collectSweepsCallback);
 
     % Панель для выбора каналов
-    channelPanel = uipanel('Parent', fig, 'Title', 'Select Channels', 'Position', [0.05, 0.05, 0.9, 0.5]);
+    channelPanel = uipanel('Parent', fig, 'Title', 'Select Channels', 'Position', [0.05, 0.1, 0.9, 0.5]);
 
     % Таблица для отображения списка каналов с галочками
     channelTable = uitable('Parent', channelPanel, 'Data', {}, 'ColumnName', {'Use', 'Channel Name'}, ...
@@ -205,12 +205,12 @@ function convertAbf2zavGUI
         hWaitBar = waitbar(0, 'Converting...', 'Name', 'ABF to ZAV Conversion');
 
         % Обновление окна прогресса
-        waitbar(0.1, hWaitBar, 'Starting conversion...');
+        waitbar(0, hWaitBar, 'Starting conversion...');
 
         try
             % Запускаем конвертацию с учетом выбранных каналов и параметров
-            %abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, collectSweeps, selectedChannels, mua_std_coef);
-            abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, collectSweeps)
+            abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, collectSweeps, selectedChannels, mua_std_coef, hWaitBar);
+            %abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, collectSweeps)
             % Обновление окна прогресса
             waitbar(1, hWaitBar, 'Conversion completed!');
             pause(1); % Пауза для отображения завершения
