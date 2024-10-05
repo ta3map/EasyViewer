@@ -45,3 +45,13 @@ doResample = false; % ресемплинг
 collectSweeps = false; % установить в true, если нужно сохранить данные по свипам
 
 abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, collectSweeps);
+
+%% сравниваем результаты
+
+norm_zav = load("C:\Users\ta3ma\Dropbox\GDP CSD paper\GDP_CSD  2024\070624_P4\070624_P4_slc2_0001.mat")
+my_zav = load("C:\Users\ta3ma\Dropbox\GDP CSD paper\GDP_CSD  2024\070624_P4\070624_P4_slc2_0001_converted.mat")
+
+norm_zav = load("D:\normspks.mat")
+my_zav = load("D:\myspks.mat")
+
+

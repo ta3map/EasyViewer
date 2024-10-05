@@ -51,20 +51,23 @@ params.mean_group_ch = mean_group_ch;
 
 
 % Убираем артефакт стимуляции
-if art_rem_window_ms > 0
-    win_r = art_rem_window_ms  * (Fs/1000);
-    params.lfp = removeStimArtifact(params.lfp, stims, time, win_r);
-    
-    stim_inxs = ClosestIndex(stims, time); % Индекс стимулов
-    for ch = 1:size(spks, 1)        
-        for i = 1:length(stim_inxs) 
-            start_inx = stim_inxs(i) - win_r;
-            end_inx = stim_inxs(i) + win_r;
-            cond5 = params.spks(ch).tStamp/1000 >= time(start_inx) & params.spks(ch).tStamp/1000 < time(end_inx);
-            params.spks(ch).tStamp = params.spks(ch).tStamp(~cond5);
-            params.spks(ch).ampl = params.spks(ch).ampl(~cond5);
-        end
-    end        
+if params.show_spikes
+    if art_rem_window_ms > 0
+        win_r = art_rem_window_ms  * (Fs/1000);
+        params.lfp = removeStimArtifact(params.lfp, stims, time, win_r);
+
+        stim_inxs = ClosestIndex(stims, time); % Индекс стимулов
+        for ch = 1:size(spks, 1)        
+            for i = 1:length(stim_inxs) 
+                start_inx = stim_inxs(i) - win_r;
+                start_inx(start_inx<1) = 1;
+                end_inx = stim_inxs(i) + win_r;
+                cond5 = params.spks(ch).tStamp/1000 >= time(start_inx) & params.spks(ch).tStamp/1000 < time(end_inx);
+                params.spks(ch).tStamp = params.spks(ch).tStamp(~cond5);
+                params.spks(ch).ampl = params.spks(ch).ampl(~cond5);
+            end
+        end        
+    end
 end
 
 % Фильтруем

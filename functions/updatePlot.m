@@ -134,6 +134,7 @@ function updatePlot()
             win_r = art_rem_window_ms;
             for i = 1:length(stim_inxs) 
                 start_inx = stim_inxs(i) - win_r;
+                start_inx(start_inx<1) = 1;
                 end_inx = stim_inxs(i) + win_r;
                 cond5 = x_coord >= time_in(start_inx) & x_coord < time_in(end_inx);
                 x_coord = x_coord(~cond5);
