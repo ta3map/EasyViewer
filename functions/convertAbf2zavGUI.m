@@ -14,14 +14,13 @@ function convertAbf2zavGUI
     global SettingsFilepath
 
     % Инициализация переменных
-    persistent abfFilePath detectMua lfp_Fs mua_std_coef doResample collectSweeps selectedChannels availableChannels active_folder
+    persistent abfFilePath detectMua lfp_Fs mua_std_coef doResample selectedChannels availableChannels active_folder
 
     % Значения по умолчанию
     mua_std_coef = 1;
     lfp_Fs = 1000;
     detectMua = false;
     doResample = true;
-    collectSweeps = true;
     selectedChannels = {}; % Пустой означает все каналы
     availableChannels = {};
     abfFilePath = '';
@@ -48,7 +47,7 @@ function convertAbf2zavGUI
     btnWidth = 150;
     btnHeight = 25;
     spacing = 10;
-
+    secondcolumnshift =  150;
     % Кнопка для выбора ABF-файла
     uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Select ABF File', ...
         'Position', [leftMargin, topMargin, btnWidth, btnHeight], 'Callback', @selectAbfFile);
@@ -56,28 +55,35 @@ function convertAbf2zavGUI
     % Метка для отображения выбранного файла
     abfFileLabel = uicontrol('Parent', fig, 'Style', 'text', 'String', 'No file selected', ...
         'Position', [leftMargin + btnWidth + spacing, topMargin, 400, btnHeight], 'HorizontalAlignment', 'left');
-
+    
+    % Метка для отображения оригинальной частоты дискретизации
+    shiftdown = btnHeight+10;
+    FsOrigLabel = uicontrol('Parent', fig, 'Style', 'text', 'String', '...', ...
+        'Position', [leftMargin + btnWidth + spacing, topMargin-shiftdown, 400, btnHeight], 'HorizontalAlignment', 'left');
+    
     % Checkbox для обнаружения MUA
+    shiftdown = 50;
     detectMuaToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Detect MUA', ...
-        'Position', [leftMargin, topMargin - (btnHeight + spacing), btnWidth, btnHeight], 'Value', detectMua, 'Callback', @detectMuaCallback);
-
-    % Поле для ввода коэффициента порога MUA
-    uicontrol('Parent', fig, 'Style', 'text', 'String', 'MUA Threshold (n*STD):', 'Position', [leftMargin + btnWidth + spacing, topMargin - (btnHeight + spacing), 150, btnHeight], 'HorizontalAlignment', 'left');
+        'Position', [leftMargin, topMargin - (btnHeight + spacing)+30-shiftdown, btnWidth, btnHeight], 'Value', detectMua, 'Callback', @detectMuaCallback);
+    
+    % Поле для ввода коэффициента порога MUA    
+    uicontrol('Parent', fig, 'Style', 'text', 'String', 'MUA Threshold (n*STD):', ...
+        'Position', [leftMargin, topMargin - (btnHeight + spacing)-shiftdown, 150, btnHeight], 'HorizontalAlignment', 'right');    
+    
     muaCoefUI = uicontrol('Parent', fig, 'Style', 'edit', 'String', num2str(mua_std_coef), ...
-        'Position', [leftMargin + btnWidth + spacing + 160, topMargin - (btnHeight + spacing), 50, btnHeight], 'Callback', @muaCoefUICallback);
-
+        'Position', [leftMargin + secondcolumnshift, topMargin - (btnHeight + spacing)-shiftdown, 50, btnHeight], 'Callback', @muaCoefUICallback);
+    
+    shiftdown = 70;
     % Поле для ввода частоты дискретизации LFP
-    uicontrol('Parent', fig, 'Style', 'text', 'String', 'LFP Fs (Hz):', 'Position', [leftMargin, topMargin - 2*(btnHeight + spacing), 100, btnHeight], 'HorizontalAlignment', 'left');
+    uicontrol('Parent', fig, 'Style', 'text', 'String', 'New Fs (Hz):', ...
+        'Position', [leftMargin, topMargin - 2*(btnHeight + spacing)-shiftdown, 150, btnHeight], 'HorizontalAlignment', 'right');
+    
     lfpFsUI = uicontrol('Parent', fig, 'Style', 'edit', 'String', num2str(lfp_Fs), ...
-        'Position', [leftMargin + 110, topMargin - 2*(btnHeight + spacing), 50, btnHeight], 'Callback', @lfpFsUICallback);
-
+        'Position', [leftMargin + secondcolumnshift, topMargin - 2*(btnHeight + spacing)-shiftdown, 50, btnHeight], 'Callback', @lfpFsUICallback);
+   
     % Checkbox для ресемплинга
     doResampleToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Resample LFP', ...
-        'Position', [leftMargin + 180, topMargin - 2*(btnHeight + spacing), 100, btnHeight], 'Value', doResample, 'Callback', @doResampleCallback);
-
-    % Checkbox для сбора свипов
-    collectSweepsToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Collect Sweeps', ...
-        'Position', [leftMargin, topMargin - 3*(btnHeight + spacing), btnWidth, btnHeight], 'Value', collectSweeps, 'Callback', @collectSweepsCallback);
+        'Position', [leftMargin, topMargin - 2*(btnHeight + spacing)+30-shiftdown, 100, btnHeight], 'Value', doResample, 'Callback', @doResampleCallback);
 
     % Панель для выбора каналов
     channelPanel = uipanel('Parent', fig, 'Title', 'Select Channels', 'Position', [0.05, 0.1, 0.9, 0.5]);
@@ -114,7 +120,7 @@ function convertAbf2zavGUI
 
     function extractChannels()
         % Чтение заголовка для получения имен каналов
-        [~, ~, hd_abf] = abfload(abfFilePath, 'stop', 1);
+        [~, ~, hd_abf] = abfload(abfFilePath, 'stop', 1, 'doDispInfo', false);
         availableChannels = hd_abf.recChNames;
         numChannels = numel(availableChannels);
         % Подготавливаем данные для таблицы
@@ -127,6 +133,10 @@ function convertAbf2zavGUI
         set(channelTable, 'Data', channelData);
         % Инициализируем выбранные каналы
         selectedChannels = availableChannels; % Все каналы выбраны
+        
+        % Оригинальная частота дискретизации.
+        orig_Fs = 1e6 / hd_abf.si; % hd_abf.si в микросекундах на сэмпл.
+        set(FsOrigLabel, 'String', ['Fs (Hz):', num2str(orig_Fs)]);
     end
 
     function channelSelectionCallback(src, event)
@@ -160,10 +170,6 @@ function convertAbf2zavGUI
 
     function doResampleCallback(source, ~)
         doResample = get(source, 'Value');
-    end
-
-    function collectSweepsCallback(source, ~)
-        collectSweeps = get(source, 'Value');
     end
 
     function startConversion(~, ~)
@@ -208,6 +214,7 @@ function convertAbf2zavGUI
         waitbar(0, hWaitBar, 'Starting conversion...');
 
         try
+            collectSweeps = true;
             % Запускаем конвертацию с учетом выбранных каналов и параметров
             abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, collectSweeps, selectedChannels, mua_std_coef, hWaitBar);
             %abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, collectSweeps)

@@ -126,10 +126,9 @@ function [f, calculation_result] = plotMeanEvents(params)
     pl_widths_in = widths_in(ch_enabled);
     pl_colors_in = colors_in(ch_enabled);     
     
-
+    numChannels = size(pl_meanData, 2);
     
-    if show_CSD
-        numChannels = size(pl_meanData, 2);
+    if show_CSD        
         % Initialize offsets array
         offsets = zeros(1, numChannels);
         % Plot each column with specified parameters

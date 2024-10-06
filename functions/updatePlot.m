@@ -3,7 +3,7 @@ function updatePlot()
     global ch_labels_l shiftCoeff widths_in_l colors_in_l show_spikes spks std_coef selectedUnit matFilePath stims events timeSlider
     global data time_in show_CSD filterSettings filter_avaliable csd_smooth_coef
     global csd_contrast_coef csd_avaliable show_power power_window lfpVar
-    global csd_image csd_t_range csd_ch_range offsets wb
+    global csd_image csd_t_range csd_ch_range offsets
     global art_rem_window_ms stimShowFlag lines_and_styles
     
     csd_active = csd_avaliable(ch_inxs);
@@ -57,7 +57,8 @@ function updatePlot()
         time_res = linspace(time_in(1),time_in(end),size(data_res, 1));
     end
 
-
+    numChannels = size(data_res, 2);
+    
     % Отображение времени на графике с учетом выбранной единицы времени
     time_in_transformed = time_res * timeUnitFactor;
 
@@ -65,9 +66,10 @@ function updatePlot()
     axes(multiax);
     cla(multiax);        
     hold on;
+    %yyaxis left
     
     if show_CSD
-        numChannels = size(data_res, 2);
+        
         offsets = zeros(1, numChannels);
         % Plot each column with specified parameters
         for p = 1:numChannels
@@ -94,13 +96,35 @@ function updatePlot()
         end
     end
     
+    % Сначала вызываем multiplot и получаем необходимые данные
     offsets = multiplot(time_in_transformed, data_res, ...
         'ChannelLabels', ch_labels_l, ...
         'shiftCoeff',shiftCoeff, ...
         'linewidth', widths_in_l, ...
         'color', colors_in_l);
+    
+    y_pixel_size = 750;             % Размер по Y в пикселях
+    y_tick_min_pixel_size = 25;     % Минимальный размер тиков по Y в пикселях
+
+    [chRanges, chRangesOffsets, chRangeIndexes] = calculateChRanges(offsets, shiftCoeff, data_res, numChannels, m_coef, y_pixel_size, y_tick_min_pixel_size);
+    rangesTimeTicks = time_in_transformed(1)+zeros(size(chRangesOffsets)) + 0.02*(time_in_transformed(end) - time_in_transformed(1));    
+    rangesTimeLabels = time_in_transformed(1)+zeros(size(chRangesOffsets)) + 0.005*(time_in_transformed(end) - time_in_transformed(1)); 
+    ch_inx = 0;
+    for color = colors_in_l
+        ch_inx = ch_inx+1;
+        group_index = ch_inx == chRangeIndexes;
+        text(rangesTimeTicks(group_index), chRangesOffsets(group_index), num2str(chRanges(group_index)', '%.2f'), 'color', color{:}, 'backgroundcolor', 'w')
+        scatter(rangesTimeLabels(group_index), chRangesOffsets(group_index), '_', color{:})
+    end
+
+    
+    % Обновляем отображение осей
     xlabel('Time, s');
     ylabel('Channels');
+
+    % Устанавливаем новые тики по оси Y
+    %yticks(allOffsets);  % Устанавливаем уникальные тики
+    %yticklabels(allLabels); % Обновляем метки: каналы, максимумы и минимумы (без текста)
 
     % show spikes
     if show_spikes && not(isempty(spks))
@@ -171,7 +195,7 @@ function updatePlot()
     % Установка меток оси X в соответствии с выбранными единицами времени
     xlabel('Time, ' + string(selectedUnit) + '');
     
-    Ylims = [offsets(end)-shiftCoeff, offsets(1)+shiftCoeff];
+    Ylims = [min(chRangesOffsets)-shiftCoeff*0.2, max(chRangesOffsets)+shiftCoeff*0.2];
     ylim(Ylims)
     hold off;
 

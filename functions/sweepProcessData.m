@@ -1,6 +1,9 @@
 function [lfp, spks, stims, lfpVar] = sweepProcessData(p, spks, n, m, lfp, Fs, zavp, lfpVar)
 
-    sps_exist = not(isempty(spks))
+    % Показываем окно прогресса
+    hWaitBar = waitbar(0, 'Opening...', 'Name', 'Opening file with sweeps');
+        
+    sps_exist = not(isempty(spks));
     
     if sps_exist
         spks_new = repmat(struct('tStamp', [], 'ampl', [], 'shape', []), n, 1);
@@ -12,7 +15,7 @@ function [lfp, spks, stims, lfpVar] = sweepProcessData(p, spks, n, m, lfp, Fs, z
     else
         spks_new = [];
     end
-
+    
     lfp_new = zeros(m * p, n);
     index = 1;
     for i = 1:p
@@ -29,10 +32,13 @@ function [lfp, spks, stims, lfpVar] = sweepProcessData(p, spks, n, m, lfp, Fs, z
                 spks_new(ch).shape = [spks_new(ch).shape; spks(ch, i).shape];
             end
         end
-        
-        disp([num2str(i) ' sweep of ' num2str(p)])
+        current_message = [num2str(i) ' sweep of ' num2str(p)];
+        disp(current_message)
+        waitbar([i/p], hWaitBar, current_message);
     end
-
+    
+    close(hWaitBar);
+    
     lfp = lfp_new;
     spks = spks_new;
     clear lfp_new spks_new
