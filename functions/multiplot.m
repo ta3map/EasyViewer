@@ -156,8 +156,8 @@ function offsets = multiplot(varargin)
     text_y = coord_y_line(1) + diff(coord_y_line)/2;
     
     
-    plot(coord_x_line, coord_y_line, AmplitudeMarkerColor, 'LineWidth',2)
-    text(text_x,text_y, text_in, 'Color', AmplitudeMarkerColor)
+    %plot(coord_x_line, coord_y_line, AmplitudeMarkerColor, 'LineWidth',2)
+    %text(text_x,text_y, text_in, 'Color', AmplitudeMarkerColor)
 
     yticks(flip(offsets));
     yticklabels(flip(ch_labels)); % Use ch_labels for y-axis labels
