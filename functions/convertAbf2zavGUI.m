@@ -11,7 +11,7 @@ function convertAbf2zavGUI
     end
 
     % Глобальная переменная для хранения пути к настройкам
-    global SettingsFilepath
+    global SettingsFilepath zav_calling
 
     % Инициализация переменных
     persistent abfFilePath detectMua lfp_Fs mua_std_coef doResample selectedChannels availableChannels active_folder
@@ -24,7 +24,8 @@ function convertAbf2zavGUI
     selectedChannels = {}; % Пустой означает все каналы
     availableChannels = {};
     abfFilePath = '';
-
+    openAfter = true;
+    
     % Используем SettingsFilepath для определения последней используемой папки
     try
         d = load(SettingsFilepath);
@@ -48,6 +49,7 @@ function convertAbf2zavGUI
     btnHeight = 25;
     spacing = 10;
     secondcolumnshift =  150;
+    thirdcolumnshift =  400;
     % Кнопка для выбора ABF-файла
     uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Select ABF File', ...
         'Position', [leftMargin, topMargin, btnWidth, btnHeight], 'Callback', @selectAbfFile);
@@ -60,6 +62,7 @@ function convertAbf2zavGUI
     shiftdown = btnHeight+10;
     FsOrigLabel = uicontrol('Parent', fig, 'Style', 'text', 'String', '...', ...
         'Position', [leftMargin + btnWidth + spacing, topMargin-shiftdown, 400, btnHeight], 'HorizontalAlignment', 'left');
+   
     
     % Checkbox для обнаружения MUA
     shiftdown = 50;
@@ -92,9 +95,13 @@ function convertAbf2zavGUI
     channelTable = uitable('Parent', channelPanel, 'Data', {}, 'ColumnName', {'Use', 'Channel Name'}, ...
         'ColumnEditable', [true, false], 'Units', 'normalized', 'Position', [0, 0, 1, 1], 'CellEditCallback', @channelSelectionCallback);
 
+    % Checkbox для открытия файла    
+    openafterConvToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Open after conversion', ...
+        'Position', [leftMargin, 20, btnWidth, btnHeight], 'Value', openAfter, 'Callback', @openafterConvCallback);
+    
     % Кнопка для запуска конвертации
     uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Start Conversion', ...
-        'Position', [leftMargin, 20, btnWidth, btnHeight], 'Callback', @startConversion);
+        'Position', [leftMargin+secondcolumnshift, 20, btnWidth, btnHeight], 'Callback', @startConversion);
 
     % Функции обратного вызова
     function selectAbfFile(~, ~)
@@ -148,6 +155,10 @@ function convertAbf2zavGUI
 
     function detectMuaCallback(source, ~)
         detectMua = get(source, 'Value');
+    end
+
+    function openafterConvCallback(source, ~)
+        openAfter = get(source, 'Value');
     end
 
     function muaCoefUICallback(source, ~)
@@ -230,10 +241,15 @@ function convertAbf2zavGUI
 
             % Закрываем окно прогресса
             close(hWaitBar);
-
+            
             % Закрываем окно GUI после успешной конвертации
             close(fig);
-
+            
+            % Открываем если хотели
+            if openAfter
+                zav_calling(zavFilePath)
+            end
+            
         catch ME
             disp(['Error during conversion: ', ME.message]);
             warndlg(['An error occurred during conversion: ', ME.message], 'Conversion Error');

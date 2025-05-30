@@ -119,53 +119,90 @@ function importLFP()
         
         mode = get(importMode, 'Value');
         if mode == 1 % Clean Import
-            lfp = new_lfp;
-            lfpVar = new_lfpVar;
-            channelNames = new_channelNames(selectedChannels)';
-            spks = new_spks;
+            if ~isempty(new_lfp)
+                lfp = new_lfp;
+            end
+            if ~isempty(new_lfpVar)
+                lfpVar = new_lfpVar;
+            end
+            if ~isempty(new_channelNames) && ~isempty(selectedChannels)
+                channelNames = new_channelNames(selectedChannels)';
+            end
+            if ~isempty(new_spks)
+                spks = new_spks;
+            end
         else % Append Data
             append_start_time = str2double(inputdlg('Enter the start (in seconds) time for appending data:', 'Append Data', 1, {'0'}));
             append_start_index = round(append_start_time * Fs) + 1;
             if append_start_index < 1
                 % Shift existing data to the right
                 shift_amount = abs(append_start_index) + 1;
-                lfp = [nan(shift_amount, size(lfp, 2)); lfp];
+                if ~isempty(lfp)
+                    lfp = [nan(shift_amount, size(lfp, 2)); lfp];
+                end
                 append_start_index = 1;
             end
-            if size(new_lfp, 1) + append_start_index - 1 > size(lfp, 1)
+            if ~isempty(new_lfp) && size(new_lfp, 1) + append_start_index - 1 > size(lfp, 1)
                 lfp(size(new_lfp, 1) + append_start_index - 1, end) = nan; % Expand lfp to new data length
             end
-            lfp(append_start_index:append_start_index + size(new_lfp, 1) - 1, end + 1:end + length(selectedChannels)) = new_lfp;
-            lfpVar = [lfpVar; new_lfpVar];
-            channelNames = [channelNames, new_channelNames(selectedChannels)'];
-            lfp(lfp == 0) = nan;
-            
-            if append_start_time <0
-                for ch_inx = selectedChannels
-                    time_cond = new_spks(ch_inx).tStamp/1000 >= time_start & new_spks(ch_inx).tStamp/1000 <= time_end;
-                    new_spks(ch_inx).tStamp = new_spks(ch_inx).tStamp(time_cond);% ms
-                    new_spks(ch_inx).ampl = new_spks(ch_inx).ampl(time_cond);
+            if ~isempty(new_lfp)
+                lfp(append_start_index:append_start_index + size(new_lfp, 1) - 1, end + 1:end + length(selectedChannels)) = new_lfp;
+            end
+            if ~isempty(new_lfpVar)
+                lfpVar = [lfpVar; new_lfpVar];
+            end
+            if ~isempty(channelNames) && ~isempty(new_channelNames) && ~isempty(selectedChannels)
+                channelNames = [np_flatten(channelNames)'; np_flatten(new_channelNames(selectedChannels))'];
+            end
+            if ~isempty(lfp)
+                lfp(lfp == 0) = nan;
+            end
+
+            if append_start_time < 0
+                if ~isempty(new_spks)
+                    for ch_inx = selectedChannels
+                        if ~isempty(new_spks(ch_inx).tStamp)
+                            time_cond = new_spks(ch_inx).tStamp / 1000 >= time_start & new_spks(ch_inx).tStamp / 1000 <= time_end;
+                            new_spks(ch_inx).tStamp = new_spks(ch_inx).tStamp(time_cond); % ms
+                            new_spks(ch_inx).ampl = new_spks(ch_inx).ampl(time_cond);
+                        end
+                    end
                 end
 
-                for ch_inx = 1:numel(spks)
-                    spks(ch_inx).tStamp = spks(ch_inx).tStamp - append_start_time*1000;
+                if ~isempty(spks)
+                    for ch_inx = 1:numel(spks)
+                        if ~isempty(spks(ch_inx).tStamp)
+                            spks(ch_inx).tStamp = spks(ch_inx).tStamp - append_start_time * 1000;
+                        end
+                    end
                 end
-                
-                stims = stims - append_start_time;
+
+                if ~isempty(stims)
+                    stims = stims - append_start_time;
+                end
                 % Обратное помещение измененных значений в структуру zavp
-                for i = 1:length(zavp.realStim)
-                    zavp.realStim(i).r(:) = stims((i-1)*length(zavp.realStim(i).r)+1:i*length(zavp.realStim(i).r)) / zavp.siS;
+                if ~isempty(zavp) && ~isempty(stims)
+                    for i = 1:length(zavp.realStim)
+                        zavp.realStim(i).r(:) = stims((i-1)*length(zavp.realStim(i).r)+1:i*length(zavp.realStim(i).r)) / zavp.siS;
+                    end
                 end
             else
-                for ch_inx = selectedChannels
-                    time_cond = new_spks(ch_inx).tStamp/1000 >= time_start & new_spks(ch_inx).tStamp/1000 <= time_end;
-                    new_spks(ch_inx).tStamp = new_spks(ch_inx).tStamp(time_cond) + append_start_time*1000;% ms
-                    new_spks(ch_inx).ampl = new_spks(ch_inx).ampl(time_cond);
+                if ~isempty(new_spks)
+                    for ch_inx = selectedChannels
+                        if ~isempty(new_spks(ch_inx).tStamp)
+                            time_cond = new_spks(ch_inx).tStamp / 1000 >= time_start & new_spks(ch_inx).tStamp / 1000 <= time_end;
+                            new_spks(ch_inx).tStamp = new_spks(ch_inx).tStamp(time_cond) + append_start_time * 1000; % ms
+                            new_spks(ch_inx).ampl = new_spks(ch_inx).ampl(time_cond);
+                        end
+                    end
                 end
             end
-            
-            spks = [spks; new_spks(selectedChannels)];
+
+            if ~isempty(new_spks) && ~isempty(selectedChannels)
+                spks = [spks; new_spks(selectedChannels)];
+            end
         end
+
         
         hd.recChNames = channelNames';
         

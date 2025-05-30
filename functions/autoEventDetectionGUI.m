@@ -1,12 +1,12 @@
 function autoEventDetectionGUI()
     % Загрузка настроек
     global autodetection_settings events_exist event_inx
-    global timeUnitFactor table_calling event_title_string
+    global table_calling event_title_string
     
     settings = autodetection_settings;
     
-    global events event_comments hd events_detected eventTable matFilePath evfilename eventDeleteEdit
-    global hd hMinPeakProminence hDetectionType hChPos hChNeg hMaxPeakWidth
+    global events event_comments hd events_detected matFilePath evfilename eventDeleteEdit
+    global hMinPeakProminence hDetectionType hChPos hChNeg hMaxPeakWidth
     global hMinPeakDistance hSmoothCoefWindow hDetectionMode hOnsetThreshold hOnsetSearchWindow
     global hSourceType selectedCenter timeCenterPopup windowSize chosen_time_interval
     
@@ -76,13 +76,24 @@ function autoEventDetectionGUI()
     
     % Инициализация значений из настроек, если они существуют
     if ~isempty(settings)
+        
+                safeSetPopupValue(hChPos, settings.ChPos, numel(hd.recChNames), 'Positive Channel');
+        safeSetPopupValue(hChNeg, settings.ChNeg, numel(hd.recChNames), 'Negative Channel');
+        
+        safeSetPopupValue(hSourceType, settings.SourceTypeIndex, ...
+                          numel(get(hSourceType,'String')), 'SourceType');
+
+        safeSetPopupValue(hDetectionType, settings.DetectionTypeIndex, ...
+                          numel(get(hDetectionType,'String')), 'DetectionType');
+
+        safeSetPopupValue(hDetectionMode, settings.DetectionModeIndex, ...
+                          numel(get(hDetectionMode,'String')), 'DetectionMode');
+                      
         set(hMinPeakProminence, 'String', num2str(settings.MinPeakProminence));
-        set(hDetectionType, 'Value', settings.DetectionTypeIndex);
-        set(hChPos, 'Value', settings.ChPos);
-        set(hChNeg, 'Value', settings.ChNeg);
+
         set(hMinPeakDistance, 'String', num2str(settings.MinPeakDistance));
         set(hSmoothCoefWindow, 'String', num2str(settings.SmoothCoef));
-        set(hDetectionMode, 'Value', settings.DetectionModeIndex);
+
         set(hOnsetThreshold, 'String', num2str(settings.OnsetThreshold));
         set(hOnsetSearchWindow, 'String', num2str(settings.OnsetSearchWindow));
         
@@ -302,7 +313,6 @@ function autoEventDetectionGUI()
         if not(isempty(events))
             [events, ev_inxs] = sort(events);
             event_comments = event_comments(ev_inxs);
-%             eventTable.Data = [num2cell(events*timeUnitFactor), event_comments];
         end
         
         [~, filename, ~] = fileparts(matFilePath);
@@ -471,4 +481,27 @@ function [events_detected, Trace_out, time_res] = autoEventDetection(params)
         events_detected = [];
     end
     close(wb)
+end
+
+function safeSetPopupValue(hPopup, requestedValue, maxItems, popupLabel)
+    % Если popupLabel не передали, сделаем его пустым
+    if nargin < 4
+        popupLabel = '';
+    end
+
+    if isempty(requestedValue) || ~isnumeric(requestedValue) || isnan(requestedValue)
+        requestedValue = 1;
+        warning("%s: value restored to default (was empty or invalid) ", popupLabel)
+    end
+    
+    requestedValue = round(requestedValue);
+    if requestedValue < 1
+        requestedValue = 1;
+        warning("%s: value < 1, restored to default ", popupLabel)
+    elseif requestedValue > maxItems
+        requestedValue = maxItems;
+        warning("%s: value too big, restored to default ", popupLabel)
+    end
+    
+    set(hPopup, 'Value', requestedValue);
 end

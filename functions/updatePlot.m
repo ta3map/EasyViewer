@@ -64,7 +64,8 @@ function updatePlot()
 
     % Очистка и обновление графика
     axes(multiax);
-    cla(multiax);        
+    cla(multiax); 
+    
     hold on;
     %yyaxis left
     
@@ -110,7 +111,7 @@ function updatePlot()
     rangesTimeTicks = time_in_transformed(1)+zeros(size(chRangesOffsets)) + 0.02*(time_in_transformed(end) - time_in_transformed(1));    
     rangesTimeLabels = time_in_transformed(1)+zeros(size(chRangesOffsets)) + 0.005*(time_in_transformed(end) - time_in_transformed(1)); 
     ch_inx = 0;
-    for color = colors_in_l
+    for color = np_flatten(colors_in_l)
         ch_inx = ch_inx+1;
         group_index = ch_inx == chRangeIndexes;
         text(rangesTimeTicks(group_index), chRangesOffsets(group_index), num2str(chRanges(group_index)', '%.2f'), 'color', color{:}, 'backgroundcolor', 'w')
