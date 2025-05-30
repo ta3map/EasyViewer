@@ -116,28 +116,27 @@ function offsets = multiplot(varargin)
 
     % Initialize offsets array
     offsets = zeros(1, size(data, 2));
-
+    numChannels = size(data, 2);
     % Plot each column with specified parameters
-    for p = 1:size(data, 2)
+    for chIdx = 1:numChannels
         % Determine the offset
-        offsets(p) = -(p-1) * shiftCoeff;
+        offsets(chIdx) = -(chIdx-1) * shiftCoeff;
 
         % Plotting the line with an offset
-        plotArgs = {'LineWidth', getOptionalParam(lineWidths, p),...
-                    'Color', getOptionalParam(colors, p),...
-                    'DisplayName', getOptionalParam(displayNames, p),...
-                    'LineStyle', getOptionalParam(lineStyles, p)};
+        plotArgs = {'LineWidth', getOptionalParam(lineWidths, chIdx),...
+                    'Color', getOptionalParam(colors, chIdx),...
+                    'DisplayName', getOptionalParam(displayNames, chIdx),...
+                    'LineStyle', getOptionalParam(lineStyles, chIdx)};
                 
         % Add marker-related properties if a marker is specified
-        marker = getOptionalParam(markers, p);
+        marker = getOptionalParam(markers, chIdx);
         if ~isempty(marker)
             plotArgs = [plotArgs, {'Marker', marker,...
-                                    'MarkerSize', getOptionalParam(markerSizes, p),...
-                                    'MarkerEdgeColor', getOptionalParam(markerEdgeColors, p), ...
-                                    'MarkerFaceColor', getOptionalParam(markerFaceColors, p)}];
+                                    'MarkerSize', getOptionalParam(markerSizes, chIdx),...
+                                    'MarkerEdgeColor', getOptionalParam(markerEdgeColors, chIdx), ...
+                                    'MarkerFaceColor', getOptionalParam(markerFaceColors, chIdx)}];
         end
-        
-        plot(time, data(:, p) + offsets(p), plotArgs{:});
+        plot(time, data(:, chIdx) + offsets(chIdx), plotArgs{:});
     end
     
     if size(data, 2)>1

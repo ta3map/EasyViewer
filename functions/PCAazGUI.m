@@ -110,7 +110,7 @@ end
             hd.recChNames = channelNames;            
             
             chnlGrp = {};
-            lfpVar = std(lfp);
+            lfpVar = std(lfp)';
         
             % Form properties table              
             numChannels = r; % Number of channels equals number of sources

@@ -18,6 +18,7 @@ global app_path evfilename offsets
 global calculation_result
 global art_rem_window_ms
 global stims
+global t_mean_profile
 
 local_evfilename = evfilename;
 
@@ -46,10 +47,10 @@ params.show_CSD = show_CSD;
 params.csd_smooth_coef = csd_smooth_coef;
 params.csd_contrast_coef = csd_contrast_coef;
 params.csd_active = csd_avaliable(ch_inxs);
-params.timeUnitFactor = timeUnitFactor;% экспериментальный не проверенный параметр
+params.timeUnitFactor = timeUnitFactor;
 params.lfpVar = lfpVar;
 params.mean_group_ch = mean_group_ch;
-
+params.t_profile = t_mean_profile;
 
 % Убираем артефакт стимуляции
 if params.show_spikes

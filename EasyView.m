@@ -6,9 +6,9 @@ function EasyView()
     % Author:       Azat Gainutdinov
     %               ta3map@gmail.com
     %               
-    % Date:         12.04.2024
+    % Date:         25.02.2025
     
-    EV_version = '1.10.01';
+    EV_version = '1.10.05';
     
     clc
     disp(['Easy Viewer version: ' EV_version])
@@ -58,7 +58,7 @@ function EasyView()
     global autodetection_settings
     global show_power power_window % для мощности
     global lfpVar windowSize
-    global timeCenterPopup wb
+    global timeCenterPopup
     global event_title_string evfilename eventDeleteEdit
     global art_rem_window_ms
     global stimShowFlag 
@@ -79,7 +79,10 @@ function EasyView()
     global mean_group_ch % каналы учавствующие в усреднении
     global csd_avaliable % каналы которые показывают CSD
     global filter_avaliable % каналы к которым применяется фильтрация
-     
+    
+    global t_mean_profile
+    
+    t_mean_profile = 0;
     
     ica_flag = false;
     pca_flag = false;
@@ -323,6 +326,7 @@ function EasyView()
     multiax_position_a = [0.07    0.2    0.63    0.74];
     multiax_position_b = [0.07    0.2    0.9    0.74];
     multiax = axes('Position', multiax_position_a);
+    set(multiax,'TickLabelInterpreter','none')
     
     sidePanel = uipanel('Parent', f, 'Position', [.72 .33 .27 .63]);
     
@@ -431,8 +435,8 @@ function EasyView()
         'Cross-Correlation Between Events', ...
         '', ...
         'ICA', ...
-        '', ...
-        'PCA'};
+        'PCA', ...
+        'Data operations'};
     
     % Создание выпадающего списка
     analysis_menu = uicontrol('Style', 'listbox',...
@@ -454,6 +458,7 @@ function EasyView()
         'open figure', ...
         'convert ABF', ...
         'convert NLX', ...
+        'convert Open Ephys', ...
         'save figure snapshot', ...
         'compare average data', ...
         'import events from stimulus',...
@@ -502,7 +507,11 @@ function EasyView()
         '', ...
         'Average subtraction', ...
         '', ...
-        'Filtering'};    
+        'Filtering', ...
+        '',...
+        'Edit stimulus times', ...
+        '', ...
+        'Mean Events'};    
    
     % Создание выпадающего списка
     opt_menu = uicontrol('Style', 'listbox',...
@@ -665,8 +674,10 @@ function EasyView()
                 eventCrossCorrelationGUI();
             case analysis_functions{11}% ICA анализ  
                 ICAazGUI();
-            case analysis_functions{13}% PCA analysis
+            case analysis_functions{12}% PCA analysis
                 PCAazGUI();
+            case analysis_functions{13}
+                performChannelOperations();
             case ''
                 dont_close_menu = true;
         end    
@@ -700,15 +711,17 @@ function EasyView()
             case file_functions{7}
                 % конвертация в ZAV формат
                 convertNlx2zavGUI();
-            case file_functions{8}
+            case file_functions{8}    
+                convertOEP2zavGUI();
+            case file_functions{9}
                 % save figure snapshot
                 saveMainAxisAs();
-            case file_functions{9}
+            case file_functions{10}
                 % сравнение средних данных
                 dataComparerApp();
-            case file_functions{10}
-                importEventsFromSimulus();
             case file_functions{11}
+                importEventsFromSimulus();
+            case file_functions{12}
                 importLFP();
             case ''
                 dont_close_menu = true;
@@ -815,7 +828,11 @@ function EasyView()
                 updateTable();
             case options{7}%'Filtering ...'
                 setupSignalFilteringGUI(); 
-                updateTable();
+                updateTable();            
+            case options{9}
+                editStimTimes();
+            case options{11}%'Mean Events'    
+                setupMeanEventsGUI();
             case ''
             dont_close_menu = true;
         end
@@ -1332,7 +1349,11 @@ function EasyView()
         % Extract the file name without extension
         [~, matFileName, ~] = fileparts(filepath);
         disp(['Saving mat file: ' matFileName]);
-
+        
+        % записываем отредактированные стимулы
+        zavp.realStim = struct('r', stims'/zavp.siS);
+        
+        
         % Save the variables to the specified file
         save(filepath, 'spks', 'lfp', 'hd', 'zavp', 'chnlGrp', 'lfpVar');
         
@@ -1343,7 +1364,7 @@ function EasyView()
 
 
     function loadMatFile(filepath)
-        disp('loading mat file')
+        disp('loading mat file:')
         ica_flag = false;
         pca_flag = false;
         
@@ -1355,6 +1376,11 @@ function EasyView()
             filepath = outside_calling_filepath;
             outside_calling_filepath = [];          
         end
+        
+         % Сохранение пути к загруженному .mat файлу
+        matFilePath = filepath;        
+        [~, matFileName, ~] = fileparts(matFilePath);
+        disp(matFileName)       
         
         d = load(filepath); % Загружаем данные в структуру
         spks = d.spks;
@@ -1397,14 +1423,9 @@ function EasyView()
         channelNames = hd.recChNames;
         numChannels = length(channelNames);
         
-        
-        
-
         resetMainWindowButtons()
         
-        % Сохранение пути к загруженному .mat файлу
-        matFilePath = filepath;        
-        [~, matFileName, ~] = fileparts(matFilePath);
+
         
         % Обновление и сохранение списка последних открытых файлов
         lastOpenedFiles{end + 1} = filepath;
@@ -1498,7 +1519,7 @@ function loadSettingsFile()
             csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
             filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
         else % неактуально с 1.10.00  
-            disp('WARNING - old settings!')
+            warning('Old settings')
             % Получение данных из таблицы
             updatedData = loadedSettings.channelSettings;
 
@@ -1575,7 +1596,7 @@ end
             loadSettingsFile()
             updateChannelSelection();
         else % если не было настроек создаем новый файл с настройками
-            disp('Warning: Could not find Settings (.stn) file')
+            warning('Could not find Settings (.stn) file')
             createNewSettingsFile()
         end
         
@@ -1798,41 +1819,7 @@ function loadEvents(~, ~)
     if ~isempty(firstMatFile)
             loadMatFile(firstMatFile); % Загрузка .mat файла
     end
-%     
-%     keepSearching = ~strcmp(matname, fileName); % Флаг продолжения поиска
-%     while keepSearching
-%         firstMatFile = findFirstMatFile(path, fileName);
-%         if ~isempty(firstMatFile)
-%             loadMatFile(firstMatFile); % Загрузка .mat файла
-%             keepSearching = false; % Останавливаем поиск, если файл найден
-%         else
-%             choice = questdlg('The .mat file was not found. What do you want to do?', ...
-%                 'File Not Found', ...
-%                 'Retry in Parent Directory', 'Select File Manually', 'Cancel', ...
-%                 'Retry in Parent Directory');
-%             
-%             switch choice
-%                 case 'Retry in Parent Directory'
-%                     [path, ~, ~] = fileparts(path); % Переход на уровень выше
-%                     if isempty(path)
-%                         warndlg('Reached the top directory. Please select the file manually.');
-%                         keepSearching = false; % Прекращаем поиск, если достигнута верхняя директория
-%                     end
-%                 case 'Select File Manually'
-%                     [file, path] = uigetfile('*.mat', 'Select the .mat file', path);
-%                     if isequal(file, 0)
-%                         disp('File selection canceled.');
-%                         return;
-%                     else
-%                         matFilePath = fullfile(path, file);
-%                         loadMatFile(matFilePath); % Загрузка выбранного .mat файла
-%                         keepSearching = false; % Останавливаем поиск, если файл выбран вручную
-%                     end
-%                 otherwise % В случае отмены
-%                     return;
-%             end
-%         end
-%     end
+
     
     if isfield(loadedData, 'manlDet')
         events = time(round([loadedData.manlDet.t]))'; % Обновляем таблицу событий
