@@ -1,273 +1,271 @@
 # Easy Viewer
-Программа для просмотра и анализа электрофизиологических сигналов
 
-- [Начало работы](#начало-работы)
-	- [Открытие файла ZAV](#открытие-файла-zav)
-	- [Открытие файла EV](#открытие-файла-ev)
-	- [Просмотр сигнала](#просмотр-сигнала)
-- [Управление событиями](#управление-событиями)
-	- [Добавление событий](#добавление-событий)
-		- [Настройки ручного добавления событий](#настройки-ручного-добавления-событий)
-	- [Автоматическое обнаружение событий](#автоматическое-обнаружение-событий)
-	- [Средний трейс по событиям](#средний-трейс-по-событиям)
-	- [Сохранение событий](#сохранение-событий)
-	- [Удаление событий](#удаление-событий)
-- [Обработка сигналов](#обработка-сигналов)
-	- [Фильтрация](#фильтрация)
-	- [Вычитание среднего](#вычитание-среднего)
-	- [Отображение CSD](#отображение-csd)
-- [Дополнительные возможности](#дополнительные-возможности)
-	- [Конвертация в ZAV формат](#конвертация-в-zav-формат)
-	- [Файловый менеджер](#файловый-менеджер)
-	- [Настройки каналов](#настройки-каналов)
-	- [Скрытие боковой панели](#скрытие-боковой-панели)
+[🇬🇧 English](README.md) | [🇷🇺 Русский](README_RU.md)
 
-## Основное окно просмотра сигналов
-Основное окно отображает многоканальные LFP сигналы. Пользователи могут наблюдать за активностью сигналов в разных каналах, и визуально анализировать сигналы.
+A program for viewing and analyzing electrophysiological signals
 
-![Основное окно просмотра](https://github.com/ta3map/EasyViewer/blob/main/images//MainWindow.PNG)
+- [Getting Started](#getting-started)
+	- [Opening a ZAV file](#opening-a-zav-file)
+	- [Opening an EV file](#opening-an-ev-file)
+	- [Viewing signals](#viewing-signals)
+- [Event Management](#event-management)
+	- [Adding events](#adding-events)
+		- [Manual event addition settings](#manual-event-addition-settings)
+	- [Automatic event detection](#automatic-event-detection)
+	- [Average trace by events](#average-trace-by-events)
+	- [Saving events](#saving-events)
+	- [Deleting events](#deleting-events)
+- [Signal Processing](#signal-processing)
+	- [Filtering](#filtering)
+	- [Average subtraction](#average-subtraction)
+	- [CSD display](#csd-display)
+- [Additional Features](#additional-features)
+	- [Converting to ZAV format](#converting-to-zav-format)
+	- [File manager](#file-manager)
+	- [Channel settings](#channel-settings)
+	- [Hiding the sidebar](#hiding-the-sidebar)
 
-## Начало работы
+## Main signal viewing window
+The main window displays multi-channel LFP signals. Users can observe signal activity in different channels and visually analyze the signals.
 
-### Открытие файла ZAV
-Для начала просмотра нужно нажать кнопку **Load .mat File (ZAV Format)** или выбрать **File/open ZAV (.mat) file**. Затем в появившемся окне выбора найдите интересующий вас mat-файл.
-Если файл до этого никем не открывался, то по-умолчанию будет отображен сигнал на всех каналах. При желании отображение можно поменять (см. пункт [Настройки каналов](#настройки-каналов))
+![Main viewing window](https://github.com/ta3map/EasyViewer/blob/main/images//MainWindow.PNG)
 
-См также: [Файловый менеджер](#файловый-менеджер), [Конвертация в ZAV формат](#конвертация-в-zav-формат)
+## Getting Started
 
-### Открытие файла EV
-Если для эксперимента обнаружены и сохранены события в формате .ev (см. [Сохранение событий](#save-events)), можно начать работу с открытия ev-файла. Для этого надо нажать кнопку **Load Events** или выбрать **File/open event (.ev) file**.
-Откроется окно для выбора ev-файлов. После выбора будут загружены LFP для соответствующих событий и сами события (см. [Управление событиями](#events-panel)).
+### Opening a ZAV file
+To start viewing, click the **Load .mat File (ZAV Format)** button or select **File/open ZAV (.mat) file**. Then in the selection window that appears, find the mat-file you're interested in.
+If the file has never been opened before, by default the signal will be displayed on all channels. If desired, the display can be changed (see [Channel settings](#channel-settings))
 
-### Просмотр сигнала
-Панель управления временем позволяет выбирать интересующий временной диапазон для детального просмотра, а также быстро перемещаться между различными сегментами данных.
+See also: [File manager](#file-manager), [Converting to ZAV format](#converting-to-zav-format)
 
-В меню имеется слайдер для перемотки времени, а также есть кнопки для пролистывания. 
+### Opening an EV file
+If events have been detected and saved in .ev format for the experiment (see [Saving events](#saving-events)), you can start working by opening the ev-file. To do this, click the **Load Events** button or select **File/open event (.ev) file**.
+A window will open for selecting ev-files. After selection, LFP data for the corresponding events and the events themselves will be loaded (see [Event Management](#event-management)).
 
-Меню развертки времени содержит единицы измерения: секунды (s), миллисекунды (ms) и минуты (min). Единицы, отображаемые на оси времени всегда таким образом, устанавливаются соответственно выбору. 
+### Viewing signals
+The time control panel allows you to select the time range of interest for detailed viewing, as well as quickly navigate between different data segments.
 
-![Пролистывание](https://github.com/ta3map/EasyViewer/blob/main/images/time1.PNG)
+The menu has a slider for scrolling through time, and there are also buttons for paging through.
 
-Окна времени до и после текущей временной точки устанавливают диапазон данного участка сигнала. 
+The time scale menu contains measurement units: seconds (s), milliseconds (ms) and minutes (min). The units displayed on the time axis are always set accordingly to the selection.
 
-![Диапазон отображения](https://github.com/ta3map/EasyViewer/blob/main/images/time2.PNG)
+![Scrolling](https://github.com/ta3map/EasyViewer/blob/main/images/time1.PNG)
 
-- `Fs` - частота дискретизации отображаемого сигнала;
+The time windows before and after the current time point set the range of the given signal section.
 
-- `Ch.Shift` - величина зазора между каналами в единицах соответствующих LFP сигналу;
+![Display range](https://github.com/ta3map/EasyViewer/blob/main/images/time2.PNG)
 
-- `CSD` - выбор отображения CSD;
+- `Fs` - sampling frequency of the displayed signal;
 
-- `MUA` - выбор отображения MUA;
+- `Ch.Shift` - the gap value between channels in units corresponding to the LFP signal;
 
-- `MUA coef` - устанавливает порог отображения MUA, в условных единицах.
+- `CSD` - selection of CSD display;
 
-![Дополнительные Функции](https://github.com/ta3map/EasyViewer/blob/main/images/time3.PNG)
+- `MUA` - selection of MUA display;
 
-## Управление событиями
-Внизу на панели слева находятся инструменты для добавления, удаления и автоматического обнаружения событий на LFP сигнале, а также для сохранения и загрузки этих событий.
+- `MUA coef` - sets the MUA display threshold in relative units.
 
-![Меню событий](https://github.com/ta3map/EasyViewer/blob/main/images/EventMenu.PNG)
+![Additional Functions](https://github.com/ta3map/EasyViewer/blob/main/images/time3.PNG)
 
-### Добавление событий
+## Event Management
+At the bottom of the left panel are tools for adding, deleting and automatically detecting events on the LFP signal, as well as for saving and loading these events.
 
-Для маркирования события используйте кнопку **Add Event** или зажав **Ctrl** кликните мышью на нужном участке графика.
+![Event menu](https://github.com/ta3map/EasyViewer/blob/main/images/EventMenu.PNG)
 
-#### Настройки ручного добавления событий
+### Adding events
 
-![Настройки ручного добавления событий](https://github.com/ta3map/EasyViewer/blob/main/images/manualevent.PNG)
+To mark an event, use the **Add Event** button or hold **Ctrl** and click on the desired section of the graph.
 
-Ручное добавление событий позволяет пользователям с определять точки интереса, используя следующие параметры:
+#### Manual event addition settings
 
-- **Режим Детекции (`Detection Mode`)**: Выберите `manual` для прямого добавления событий в указанный момент времени или `locked` для коррекции положения события относительно локального экстремума в заданном временном окне.
+![Manual event addition settings](https://github.com/ta3map/EasyViewer/blob/main/images/manualevent.PNG)
 
-- **Номер Канала (`Channel Number`)**: Укажите канал, в котором необходимо добавить событие. В примере выбран `Ch 35`.
+Manual event addition allows users to define points of interest using the following parameters:
 
-- **Полярность (`Polarity`)**: Выбор полярности определяет, будет ли система искать максимум или минимум в сигнале канала в зависимости от того, установлено значение `positive` или `negative`.
+- **Detection Mode**: Choose `manual` for direct event addition at the specified time point or `locked` to correct the event position relative to a local extremum in the specified time window.
 
-- **Временное Окно (`Time Window`)**: Задайте временное окно в миллисекундах, в пределах которого программа будет искать локальный экстремум при выбранном режиме `locked`.
+- **Channel Number**: Specify the channel in which the event needs to be added. In the example, `Ch 35` is selected.
 
-После настройки параметров нажмите `Save` для их применения. В режиме `manual` метка будет добавлена непосредственно в выбранную точку, в то время как в режиме `locked` программа сначала определит наиболее значимую точку (максимум или минимум) в выбранном диапазоне, прежде чем разместить метку события.
+- **Polarity**: The polarity choice determines whether the system will look for a maximum or minimum in the channel signal depending on whether the value is set to `positive` or `negative`.
 
-#### Автоматическое обнаружение событий
+- **Time Window**: Set the time window in milliseconds within which the program will search for a local extremum when the `locked` mode is selected.
 
-С помощью этого инструмента можно автоматически обнаруживать значимые события, например, пики или спады, в электрофизиологических сигналах. Доступ к этому функционалу можно получить через кнопку `Auto Event Detection` в главном окне программы или через меню `Options/Auto Event Detection`.
+After setting the parameters, click `Save` to apply them. In `manual` mode, the marker will be added directly at the selected point, while in `locked` mode, the program will first identify the most significant point (maximum or minimum) in the selected range before placing the event marker.
 
-![Автоматическое обнаружение событий](https://github.com/ta3map/EasyViewer/blob/main/images/autodetector.PNG)
+#### Automatic event detection
 
-##### Основные параметры детектора событий:
+This tool allows automatic detection of significant events, such as peaks or troughs, in electrophysiological signals. Access to this functionality is available through the `Auto Event Detection` button in the main program window or through the menu `Options/Auto Event Detection`.
 
-- **Тип Детекции (`Detection Type`)**: Вы можете выбрать тип детекции событий в зависимости от вашего анализа. Для анализа отдельных каналов используются параметры 'one channel positive' и 'one channel negative'. 
-Если нужно основываться на активности на двух каналах, нужно выбрать режимы 'two channels'.
+![Automatic event detection](https://github.com/ta3map/EasyViewer/blob/main/images/autodetector.PNG)
 
-- **Минимальная Амплитуда Пика (`Minimal Peak Amplitude`)**: Задает минимальный порог амплитуды для обнаружения пиков. Только события с амплитудой выше этого значения будут обнаружены.
+##### Main event detector parameters:
 
-- **Положительный Канал (`Positive Channel`)** и **Отрицательный Канал (`Negative Channel`)**: Выбор каналов для сравнения, если выбран режим 'two channels difference'. Это позволяет обнаруживать события, основанные на разнице активности между двумя каналами.
+- **Detection Type**: You can choose the type of event detection depending on your analysis. For single channel analysis, use the 'one channel positive' and 'one channel negative' parameters.
+If you need to base detection on activity on two channels, you should choose 'two channels' modes.
 
-- **Минимальное Время Между Пиками (`Minimal Time Between Peaks`)**: Устанавливает минимальное время между обнаруженными пиками для исключения ложных срабатываний, связанных с близко расположенными событиями.
+- **Minimal Peak Amplitude**: Sets the minimum amplitude threshold for peak detection. Only events with amplitude above this value will be detected.
 
-- **Коэффициент Сглаживания (`Smooth Coefficient`)**: Параметр для сглаживания сигнала перед обнаружением пиков, что помогает уменьшить влияние шума.
+- **Positive Channel** and **Negative Channel**: Channel selection for comparison if 'two channels difference' mode is selected. This allows detecting events based on the difference in activity between two channels.
 
-- **Режим Обнаружения (`Detection Mode`)**: Позволяет выбрать, будут ли обнаруживаться пики/спады (peaks) или же онсеты (onsets) сигнала.
+- **Minimal Time Between Peaks**: Sets the minimum time between detected peaks to exclude false triggers related to closely spaced events.
 
-После настройки параметров нажатие кнопки `Check Detection` позволяет просмотреть потенциальные события на графике сигнала, что дает возможность визуально подтвердить правильность настроек перед применением.
+- **Smooth Coefficient**: Parameter for smoothing the signal before peak detection, which helps reduce the influence of noise.
 
-Кнопка `Apply` используется для запуска процесса обнаружения событий с выбранными настройками, после чего события будут добавлены в таблицу событий программы для дальнейшего анализа.
+- **Detection Mode**: Allows you to choose whether peaks/troughs (peaks) or signal onsets will be detected.
 
+After setting the parameters, pressing the `Check Detection` button allows you to preview potential events on the signal graph, which gives the opportunity to visually confirm the correctness of the settings before applying them.
 
-#### Средний трейс по событиям
-- Кнопка `Mean Events` позволяет построить трейс состоящий из LFP сигнала, усредненного вокруг события.
+The `Apply` button is used to start the event detection process with the selected settings, after which events will be added to the program's event table for further analysis.
 
-Пример ниже:
+#### Average trace by events
+- The `Mean Events` button allows you to build a trace consisting of LFP signal averaged around the event.
 
-![Результат усреднения вокруг событий](https://github.com/ta3map/EasyViewer/blob/main/images/meanevents.PNG)
+Example below:
 
-Такие параметры отображения для среднего трейса как CSD или MUA зависят от настроек и чекбоксов в основном окне. То есть если выбран определенный диапазон окна времени, выбран режим CSD или MUA, то в таком же виде будет усредненный результат.
+![Result of averaging around events](https://github.com/ta3map/EasyViewer/blob/main/images/meanevents.PNG)
 
-#### Сохранение событий
-- Кнопка `Save Events` позволяет сохранить весь текущий список событий. При сохранении пользователь может указать имя файла и выбрать путь сохранения.
+Display parameters for the average trace such as CSD or MUA depend on the settings and checkboxes in the main window. That is, if a certain time window range is selected, CSD or MUA mode is selected, then the averaged result will be in the same view.
 
-### Удаление событий
+#### Saving events
+- The `Save Events` button allows you to save the entire current list of events. When saving, the user can specify the file name and choose the save path.
 
-#### Удаление отдельно взятого события
-- Выбрав событие из списка, можно использовать кнопку `Delete Event` для удаления конкретного события.
-Это позволяет очистить список от ошибочно добавленных или неактуальных событий.
+### Deleting events
 
-#### Очистка таблицы событий
-- Кнопка `Clear Table` полностью очищает таблицу событий.
-Это может быть использовано для начала нового сеанса наблюдения без старых данных.
+#### Deleting an individual event
+- By selecting an event from the list, you can use the `Delete Event` button to delete a specific event.
+This allows you to clean the list of erroneously added or irrelevant events.
 
-### Работа со списком
-- Список событий отображает временные метки (`Time`) и комментарии (`Comment`), которые могут быть добавлены пользователем для каждого события.
-- Кнопки `Add Event`, `Delete Event` и `Clear Table` находятся под таблицей.
+#### Clearing the event table
+- The `Clear Table` button completely clears the event table.
+This can be used to start a new observation session without old data.
 
+### Working with the list
+- The event list displays timestamps (`Time`) and comments (`Comment`) that can be added by the user for each event.
+- The `Add Event`, `Delete Event` and `Clear Table` buttons are located under the table.
 
-## Обработка сигналов
+## Signal Processing
 
-### Фильтрация
+### Filtering
 
-Для открытия настроек фильтрации выберите **Options/Filtering**
+To open filtering settings, select **Options/Filtering**
 
-![Фильтрация](https://github.com/ta3map/EasyViewer/blob/main/images/filtration_bandpass.PNG)
+![Filtering](https://github.com/ta3map/EasyViewer/blob/main/images/filtration_bandpass.PNG)
 
-#### Выбор каналов
-Слева находится панель, где пользователь может активировать или деактивировать фильтрацию для каждого канала (Ch 1 - Ch ...). Флажки позволяют управлять тем какие каналы будут фильтроваться.
+#### Channel selection
+On the left is a panel where the user can activate or deactivate filtering for each channel (Ch 1 - Ch ...). Checkboxes allow you to control which channels will be filtered.
 
-#### Параметры фильтра
-Справа отображаются параметры фильтрации:
-- Тип фильтра (`bandpass` на скриншоте) можно выбрать из выпадающего списка, который может включать, например, полосовой (`bandpass`), низкочастотный (`lowpass`) и высокочастотный (`hightpass`) фильтры.
-- Частотные пороги фильтра задаются в полях ввода для нижней (`100 Hz`) и верхней (`200 Hz`) границ.
-- Порядок фильтра (`4` на скриншоте) определяет крутизну склона фильтра.
+#### Filter parameters
+Filter parameters are displayed on the right:
+- Filter type (`bandpass` in the screenshot) can be selected from a dropdown list, which may include, for example, bandpass, lowpass and highpass filters.
+- Filter frequency thresholds are set in the input fields for the lower (`100 Hz`) and upper (`200 Hz`) boundaries.
+- Filter order (`4` in the screenshot) determines the steepness of the filter slope.
 
-#### Управление фильтрацией
-- Кнопки `Select ALL` и `Deselect ALL` позволяют быстро выбрать все каналы или снять выбор со всех каналов соответственно.
-- Кнопка `Check Filtration` позволяет предпросмотреть эффект фильтрации на частотной характеристике сигнала.
-- Кнопки `Apply` и `Cancel` применяют настройки фильтрации к выбранным каналам или отменяют изменения.
+#### Filtering control
+- The `Select ALL` and `Deselect ALL` buttons allow you to quickly select all channels or deselect all channels respectively.
+- The `Check Filtration` button allows you to preview the filtering effect on the signal's frequency response.
+- The `Apply` and `Cancel` buttons apply the filtering settings to the selected channels or cancel the changes.
 
-#### График частотного отклика
-В нижней части окна расположен график, отображающий частотный отклик фильтра (`Frequency Response`). Этот график помогает визуализировать эффекты, которые фильтр оказывает на сигнал, демонстрируя усиление или подавление в различных частотных диапазонах.
+#### Frequency response graph
+At the bottom of the window is a graph showing the filter's frequency response (`Frequency Response`). This graph helps visualize the effects that the filter has on the signal, demonstrating amplification or suppression in different frequency ranges.
 
+### Average subtraction
 
-### Вычитание среднего
+To open average subtraction settings, select **Options/Average subtraction**
 
-Для отрытия настроек вычитания среднего выберите **Options/Average subtraction**
+![Average subtraction](https://github.com/ta3map/EasyViewer/blob/main/images/average_subtr.PNG)
 
-![Вычитание среднего](https://github.com/ta3map/EasyViewer/blob/main/images/average_subtr.PNG)
+#### Channel selection for processing
+- The left side of the window contains a list of available channels (Ch 1 - Ch ...), for each of which you can enable or disable the application of the average subtraction function.
+- Checkboxes (`Enabled`) allow you to select individual channels to which this processing will be applied.
 
-#### Выбор каналов для обработки
-- В левой части окна располагается список доступных каналов (Ch 1 - Ch ...), для каждого из которых можно включить или выключить применение функции вычитания среднего.
-- Флажки (`Enabled`) позволяют выбирать индивидуальные каналы, для которых будет применяться данная обработка.
+#### Channel selection control
+- Using the `Select ALL` and `Deselect ALL` buttons, the user can quickly select all channels or cancel the selection from all channels respectively for applying the function.
 
-#### Управление выбором каналов
-- С помощью кнопок `Select ALL` и `Deselect ALL` пользователь может быстро выбрать все каналы или отменить выбор со всех каналов соответственно для применения функции.
+#### Applying settings
+- After the necessary channels are selected, clicking the `Apply` button applies the average subtraction function to the selected channels.
+Average subtraction helps eliminate background noise common to all channels.
 
-#### Применение настроек
-- После того как необходимые каналы выбраны, нажатие на кнопку `Apply` применяет функцию вычитания среднего значения к выбранным каналам.
-Вычитание среднего значения помогает устранить общий для всех каналов фоновый шум.
+### CSD display
+To open CSD display settings, select **Options/CSD Displaying**
 
-### Отображение CSD
-Для отрытия настроек отображения CSD выберите **Options/CSD Displaying**
+![CSD display](https://github.com/ta3map/EasyViewer/blob/main/images/CSD_settings.PNG)
 
-![Отображение CSD](https://github.com/ta3map/EasyViewer/blob/main/images/CSD_settings.PNG)
+The CSD function is used to visualize the spatial distribution of current sources and sinks based on recorded LFP data.
 
-Функция CSD используется для визуализации пространственного распределения источников и стоков тока на основе записанных LFP данных.
+#### Channel selection
+- The left panel contains a list of channels (Ch 1 - Ch ...) with checkboxes that allow you to enable or disable CSD display for each individual channel.
+- Users can configure which channels will have CSD calculated and displayed, including or excluding them from the analysis.
 
-#### Выбор каналов
-- Панель слева содержит список каналов (Ch 1 - Ch ...) с чекбоксами, которые позволяют включать или выключать отображение CSD для каждого отдельного канала.
-- Пользователи могут настроить, для каких каналов будет рассчитываться и отображаться CSD, включая или исключая их из анализа.
+#### Quick channel management
+- The `Select ALL` and `Deselect ALL` buttons provide quick selection of all channels for inclusion in CSD analysis or exclusion of all channels respectively.
 
-#### Быстрое управление каналами
-- Кнопки `Select ALL` и `Deselect ALL` обеспечивают быстрый выбор всех каналов для включения в анализ CSD или исключения всех каналов соответственно.
+#### Visualization parameter adjustment
+- The `Contrast Coef.` field is intended for adjusting the contrast coefficient when displaying CSD data, allowing you to improve the distinction between areas of high and low activity.
+- The `Smooth Coef.` field provides the ability to adjust the smoothing coefficient, which can be used to reduce noise and improve the overall readability of CSD data.
 
-#### Регулировка параметров визуализации
-- Поле `Contrast Coef.` предназначено для регулировки коэффициента контрастности при отображении данных CSD, позволяя улучшить различимость между областями высокой и низкой активности.
-- Поле `Smooth Coef.` предоставляет возможность настроить коэффициент сглаживания, который может быть использован для уменьшения шума и улучшения общей читаемости данных CSD.
+#### Applying settings
+- After setting the necessary parameters, the `Apply` button is used to apply CSD settings to the selected channels and update the data visualization.
 
-#### Применение настроек
-- После установки необходимых параметров кнопка `Apply` используется для применения настроек CSD к выбранным каналам и обновления визуализации данных.
+# Additional Features
 
+## Converting to ZAV format
+This tool is designed to convert electrophysiological recording data from NeuraLynx format to ZAV mat-file format, which is compatible with the LFP signal viewing system.
+To open conversion settings, select **File/convert NLX to ZAV**
 
+![Converting to ZAV format](https://github.com/ta3map/EasyViewer/blob/main/images/zavconvert.PNG)
 
-# Дополнительные возможности
+### Record path selection
+- The `Select Record Path` button allows the user to select a folder containing NeuraLynx (.nlx) files that need to be converted.
 
-## Конвертация в ZAV формат
-Этот инструмент предназначен для преобразования данных электрофизиологических записей из формата NeuraLynx в формат мат-файлов ZAV, который совместим с системой просмотра LFP сигналов.
-Для отрытия настроек конвертации выберите **File/convert NLX to ZAV**
-
-![Конвертация в ZAV формат](https://github.com/ta3map/EasyViewer/blob/main/images/zavconvert.PNG)
-
-### Выбор пути записи
-- Кнопка `Select Record Path` позволяет пользователю выбрать папку, содержащую файлы NeuraLynx (.nlx), которые требуется конвертировать.
-
-### Опции конвертации
-- Флажок `Detect MUA` (multi-unit activity) активирует функцию обнаружения мультиюнит-активности во время конвертации.
-- Поле `threshold (n*STD)` позволяет установить порог в множествах стандартного отклонения для детекции MUA.
+### Conversion options
+- The `Detect MUA` (multi-unit activity) checkbox activates the multi-unit activity detection function during conversion.
+- The `threshold (n*STD)` field allows you to set the threshold in multiples of standard deviation for MUA detection.
   
-### Выбор каналов
-- Возможность выбрать `all channels` указывает на то, что конвертация будет применяться ко всем каналам в выбранной записи.
-- Пользователь может также указать конкретные каналы для конвертации, если требуется более целенаправленный подход.
+### Channel selection
+- The ability to select `all channels` indicates that conversion will be applied to all channels in the selected recording.
+- The user can also specify specific channels for conversion if a more targeted approach is required.
 
-### Настройка частоты дискретизации
-- Поле `Fs, Hz` (частота дискретизации) позволяет пользователю установить желаемую частоту дискретизации для выходных данных. По умолчанию установлено значение `1000 Гц`.
+### Sampling frequency setting
+- The `Fs, Hz` (sampling frequency) field allows the user to set the desired sampling frequency for the output data. The default value is set to `1000 Hz`.
 
-### Инициация процесса конвертации
-- Кнопка `Start Conversion` запускает процесс преобразования данных. После нажатия начнется конвертация, и прогресс будет отображаться для пользователя.
+### Initiating the conversion process
+- The `Start Conversion` button starts the data conversion process. After clicking, conversion will begin and progress will be displayed to the user.
 
-## Файловый менеджер 
-Файловый менеджер предназначен для навигации по файлам, помещённым в список.
-Для открытия нажмите на кнопку `File manager` или выберите **File/file manager**. 
+## File manager 
+The file manager is designed for navigating files placed in the list.
+To open, click the `File manager` button or select **File/file manager**. 
 
-### Загрузка списка файлов
-В открывшемся окне `File manager` выберите `Load list`, появится окно для выбора таблицы в формате **xlsx** в которой должны располагаться пути к файлам. 
+### Loading the file list
+In the opened `File manager` window, select `Load list`, a window will appear for selecting a table in **xlsx** format in which the file paths should be located. 
 
-Затем нужно выбрать в какой колонке находятся пути к интересуемым файлам. В примере ниже это пункт `event path`
+Then you need to select in which column the paths to the files of interest are located. In the example below, this is the `event path` item.
 
-![Файловый менеджер, выбор колонки](https://github.com/ta3map/EasyViewer/blob/main/images/FM_select_column.PNG)
+![File manager, column selection](https://github.com/ta3map/EasyViewer/blob/main/images/FM_select_column.PNG)
 
-После выбора колонки вы увидете загруженный список
+After selecting the column, you will see the loaded list
 
-![Файловый менеджер, загруженный список](https://github.com/ta3map/EasyViewer/blob/main/images/FM_ready.PNG)
+![File manager, loaded list](https://github.com/ta3map/EasyViewer/blob/main/images/FM_ready.PNG)
 
-Это может быть список с прямыми путями, как в примере. Но также можно указывать лишь названия ev-файлов. В таком случае поиск самого файла будет осуществляться внутри каталога в котором находится сам список.
+This can be a list with direct paths, as in the example. But you can also specify only the names of ev-files. In this case, the search for the file itself will be carried out inside the directory in which the list itself is located.
 
-### Открытие файла из файлового менеджера
+### Opening a file from the file manager
 
-Для открытия файла один раз кликните на строку с файлом и нажмите `Open file`.
+To open a file, click once on the line with the file and click `Open file`.
 
-### Дополнительные возможности файлового менеджера
+### Additional file manager features
 
-Можно сохранять список в **xlsx** формат, нажав на кнопку `Save list`. 
-Можно удалить ненужный файл из списка, нажав на кнопку `Delete file`.
-Можно добавить новый файл в список, нажав на кнопку `Add file`.
+You can save the list in **xlsx** format by clicking the `Save list` button.
+You can delete an unnecessary file from the list by clicking the `Delete file` button.
+You can add a new file to the list by clicking the `Add file` button.
 
-### Настройки каналов
-Боковая панель настроек каналов дает возможность выбора отображаемых каналов, масштабирования и изменения цветов для лучшего визуального различия сигналов.
+### Channel settings
+The channel settings sidebar provides the ability to select displayed channels, scaling and color changes for better visual distinction of signals.
 
-![Настройки каналов](https://github.com/ta3map/EasyViewer/blob/main/images/ChannelSettings.PNG)
+![Channel settings](https://github.com/ta3map/EasyViewer/blob/main/images/ChannelSettings.PNG)
 
-## Скрытие боковой панели
-Выбрав в Меню `View` пункт `hide Channel Settings` вы скроете боковую панель с информацией о каналах. Это увеличит размер окна просматриваемого LFP сигнала. 
+## Hiding the sidebar
+By selecting the `hide Channel Settings` item in the `View` menu, you will hide the sidebar with channel information. This will increase the size of the LFP signal viewing window.
 
-![Меню View](https://github.com/ta3map/EasyViewer/blob/main/images/hideMenu.png)
+![View menu](https://github.com/ta3map/EasyViewer/blob/main/images/hideMenu.png)
 
-Затем нажатие на `show Channel Settings` в меню `View` вернет боковую панель.
+Then clicking on `show Channel Settings` in the `View` menu will return the sidebar. 
