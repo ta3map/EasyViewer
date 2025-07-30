@@ -8,7 +8,7 @@ function EasyView()
     %               
     % Date:         25.02.2025
     
-    EV_version = '1.10.05';
+    EV_version = '1.11.00';
     
     clc
     disp(['Easy Viewer version: ' EV_version])
@@ -385,7 +385,7 @@ function EasyView()
     timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', {'time', 'stimulus', 'event'}, 'Position', timeCenterPopup_coords, 'Callback', @changeTimeCenter);
 
     % Кнопка для загрузки .mat файла
-    LoadMatFileBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Load .mat File (ZAV Format)', 'Position', LoadMatFileBtn_coords, 'Callback', @OpenZavLfpFile);
+    LoadMatFileBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Load .mat File (ZAV/Heka)', 'Position', LoadMatFileBtn_coords, 'Callback', @OpenZavLfpFile);
     btnIcon(LoadMatFileBtn, [icons_path, '\open-file.png'], false) % ставим иконку для кнопки
     
     % Кнопка для менеджера файлов
@@ -1302,7 +1302,7 @@ function EasyView()
             initialDir = fileparts(lastOpenedFiles{end});
         end
         
-        [file, path] = uigetfile('*.mat', 'Load .mat File', initialDir);
+        [file, path] = uigetfile('*.mat', 'Load .mat File (ZAV or Heka format)', initialDir);
         if isequal(file, 0)
             disp('File selection canceled.');
             return;
@@ -1382,7 +1382,20 @@ function EasyView()
         [~, matFileName, ~] = fileparts(matFilePath);
         disp(matFileName)       
         
-        d = load(filepath); % Загружаем данные в структуру
+        % Проверяем, является ли файл Heka форматом
+        if detectHekaFormat(filepath)
+            disp('Heka format detected, converting to ZAV...');
+            [lfp, spks, hd, zavp, lfpVar, chnlGrp] = hekaToZav(filepath);
+            % Создаем структуру d для совместимости с остальным кодом
+            d.lfp = lfp;
+            d.spks = spks;
+            d.hd = hd;
+            d.zavp = zavp;
+            d.lfpVar = lfpVar;
+            d.chnlGrp = chnlGrp;
+        else
+            d = load(filepath); % Загружаем данные в структуру как обычно
+        end
         spks = d.spks;
         lfp = d.lfp;
         hd = d.hd;
