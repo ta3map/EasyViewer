@@ -38,7 +38,7 @@ function [lfp, spks, stims, lfpVar] = sweepProcessData(p, spks, n, m, lfp, Fs, z
             end
         end
         current_message = sprintf('%d sweep of %d', i, p);
-        disp(current_message);
+        % disp(current_message);
         waitbar(i/p, hWaitBar, current_message);
     end
     
