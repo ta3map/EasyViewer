@@ -6,7 +6,7 @@ function EasyView()
     % Author:       Azat Gainutdinov
     %               ta3map@gmail.com
     %               
-    % Date:         25.02.2025
+    % Date:         31.07.2025
     
     EV_version = '1.11.00';
     
@@ -41,6 +41,7 @@ function EasyView()
     global timeUnitFactor selectedUnit
     global initialDir
     global events event_inx events_exist event_comments
+    global event_amplitudes event_channels event_widths event_prominences event_metadata
     global stims stim_inx stims_exist
     global lastOpenedFiles
     global updatedData
@@ -65,6 +66,13 @@ function EasyView()
     global lines_and_styles
     global keyboardpressed previousKey
     global ica_flag pca_flag
+    global autoSetNewFsFromFs % флаг автоматической установки newFs на основе Fs
+    global autoSetTimeWindowsFromSweeps % флаг автоматической установки time_back/time_forward на основе свипов
+    global slope_measurement_settings % настройки измерения slope
+    global stims_loaded_from_settings % флаг загрузки стимулов из настроек
+    
+    % Переменные для работы со свипами
+    global sweep_info sweep_inx % информация о свипах и индекс текущего свипа
     
     global numChannels % число каналов
     global tableData
@@ -88,6 +96,16 @@ function EasyView()
     pca_flag = false;
     previousKey = '';
     keyboardpressed = false;
+    
+    % Инициализация настроек slope measurement
+    slope_measurement_settings = struct();
+    slope_measurement_settings.channel = 1;
+    slope_measurement_settings.baseline_start = 0;
+    slope_measurement_settings.baseline_end = 0;
+    slope_measurement_settings.peak_start = 0;
+    slope_measurement_settings.peak_end = 0;
+    slope_measurement_settings.slope_percent = 20;
+    slope_measurement_settings.peak_polarity = 'positive';
 
     
     lines_and_styles = struct(...
@@ -132,6 +150,9 @@ function EasyView()
     power_window = 0.025;% 25 милисекунд   
     
     data_loaded = false;
+    autoSetNewFsFromFs = true; % по умолчанию включен автоматический расчет newFs
+    autoSetTimeWindowsFromSweeps = true; % по умолчанию включен автоматический расчет временных окон на основе свипов
+    stims_loaded_from_settings = false; % флаг загрузки стимулов из настроек
     menu_visible = false;
     file_menu_visible = false;
     view_menu_visible = false;
@@ -151,6 +172,13 @@ function EasyView()
     event_inx = 1;
     event_comments = {};
     
+    % Новые массивы метаданных событий для расширенной функциональности
+    event_amplitudes = [];      % Амплитуды событий
+    event_channels = [];        % Каналы событий (может быть массив для многоканальных)
+    event_widths = [];          % Ширина пиков (для автодетекции)
+    event_prominences = [];     % Выраженность пиков (для автодетекции)
+    event_metadata = [];        % Структура с полными метаданными каждого события
+    
     min_scale_coef = 0.8;
     base_figure_position = [20 60 1280 650]*min_scale_coef;
 
@@ -160,6 +188,7 @@ function EasyView()
     global call_mean_events call_csd call_closeall zav_saving 
     global call_resetMainWindowButtons call_updateTable
     global call_setStandardChannelSettings
+    global saveChannelSettingsFunc
     
     zav_calling = @loadMatFile;
     zav_saving = @saveMatFile;
@@ -172,6 +201,7 @@ function EasyView()
     call_resetMainWindowButtons = @resetMainWindowButtons;
     call_updateTable = @updateTable;
     call_setStandardChannelSettings = @setStandardChannelSettings;
+    saveChannelSettingsFunc = @saveChannelSettings;
     
     % Загрузка списка последних файлов
     SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
@@ -215,6 +245,12 @@ function EasyView()
             if isfield(d, 'lines_and_styles')
                 lines_and_styles = d.lines_and_styles;
             end
+            % настройки видимости боковой панели
+            if isfield(d, 'side_panel_visible')
+                side_panel_visible = d.side_panel_visible;
+            else
+                side_panel_visible = true; % fallback для старых настроек
+            end
         else
             % Инициализация всех переменных при первом запуске
             lastOpenedFiles = {};
@@ -226,9 +262,10 @@ function EasyView()
             timeUnitFactor = 1;    
             selectedUnit = 's';
             art_rem_window_ms = 0;
+            side_panel_visible = true;
             save(SettingsFilepath, 'lastOpenedFiles', 'figure_position', ...
                 'add_event_settings', 'timeUnitFactor', 'selectedUnit', ...
-                'art_rem_window_ms', 'lines_and_styles');
+                'art_rem_window_ms', 'lines_and_styles', 'side_panel_visible');
         end
         
     end
@@ -330,9 +367,16 @@ function EasyView()
     
     sidePanel = uipanel('Parent', f, 'Position', [.72 .33 .27 .63]);
     
-    % боковая панель видна по умолчанию
-    side_panel_visible = true;
-    set(sidePanel, 'Visible', 'on');
+    % боковая панель видна по умолчанию (или согласно сохраненным настройкам)
+    if ~exist('side_panel_visible', 'var') || isempty(side_panel_visible)
+        side_panel_visible = true; % fallback на случай если настройки старые
+    end
+    
+    if side_panel_visible
+        set(sidePanel, 'Visible', 'on');
+    else
+        set(sidePanel, 'Visible', 'off');
+    end
  
     % Подготовка данных для таблицы каналов
     channelNames = {'Ch1'};
@@ -382,7 +426,7 @@ function EasyView()
     set(timeUnitPopup, 'Value', index);
 
     % Добавление выпадающего списка для выбора режима просмотра
-    timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', {'time', 'stimulus', 'event'}, 'Position', timeCenterPopup_coords, 'Callback', @changeTimeCenter);
+    timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', {'time', 'stimulus', 'event', 'sweep'}, 'Position', timeCenterPopup_coords, 'Callback', @changeTimeCenter);
 
     % Кнопка для загрузки .mat файла
     LoadMatFileBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Load .mat File (ZAV/Heka)', 'Position', LoadMatFileBtn_coords, 'Callback', @OpenZavLfpFile);
@@ -429,6 +473,8 @@ function EasyView()
         'Z-score',...
         '',...
         'Spectral Density', ...
+        '', ...
+        'Slope Measurement', ...
         '', ...
         'Cross-Correlation Between Channels', ...
         '', ...
@@ -511,7 +557,9 @@ function EasyView()
         '',...
         'Edit stimulus times', ...
         '', ...
-        'Mean Events'};    
+        'Mean Events', ...
+        '', ...
+        'Reset record''s settings'};    
    
     % Создание выпадающего списка
     opt_menu = uicontrol('Style', 'listbox',...
@@ -527,14 +575,14 @@ function EasyView()
 
                 % Конец выпадающих меню
     %%
-    % Таблица для отображения событий
-    event_table_data = [num2cell([]), num2cell([])];    
+    % Таблица для отображения событий с расширенными колонками
+    event_table_data = [num2cell([]), num2cell([]), num2cell([]), num2cell([]), num2cell([])];    
     eventTable = uitable('Parent', eventPanel, ...
                      'Position', eventTable_coords, ...
-                     'ColumnName', {'Time', 'Comment'}, ...
-                     'ColumnFormat', {'bank', 'char'}, ... % Формат для отображения чисел
+                     'ColumnName', {'Time', 'Comment', 'Amplitude', 'Channel', 'Source'}, ...
+                     'ColumnFormat', {'bank', 'char', 'bank', 'numeric', 'char'}, ... % Формат для отображения чисел
                      'Data', event_table_data, ...
-                     'ColumnEditable', [false true]);
+                     'ColumnEditable', [false true false false false]);
                  
     % Автоматический детектор событий
     AutoEventDetectionBtn = uicontrol('Parent', eventPanel,'Style', 'pushbutton', 'String', 'Auto Event Detection',...
@@ -560,6 +608,20 @@ function EasyView()
     MeanEventsBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Mean Events', 'Position', MeanEventsBtn_coords, 'Callback', @meanEventsCallback);
     meanEventsWindowText = uicontrol('Parent', eventPanel, 'Style', 'text', 'String', 'Window(+/-, s):', 'Position', meanEventsWindowText_coords, 'visible', 'off');
     meanEventsWindowEdit = uicontrol('Parent', eventPanel, 'Style', 'edit', 'String', '1', 'Position', meanEventsWindowEdit_coords, 'visible', 'off'); % Окно ввода временного окна (скрыл)
+    
+    % Применяем полное состояние боковой панели после создания всех элементов
+    if ~side_panel_visible
+        set(multiax,'Position', multiax_position_b);
+        resizeUIControls(eventPanel, 1, 0.5);
+    end
+    
+    % Обновляем текст в меню View в соответствии с состоянием
+    if side_panel_visible
+        view_functions{3} = 'hide Channel Settings';
+    else
+        view_functions{3} = 'view Channel Settings';
+    end
+    set(view_menu, 'String', view_functions);
     
     % отключаем все элементы управления кроме начальных
     set(OptBtn, 'Enable', 'off');
@@ -668,15 +730,17 @@ function EasyView()
             case analysis_functions{5}
                 % отображение спектральной плотности текущего сигнала
                 spectralDensityGUI();  
-            case analysis_functions{7}
-                chCossCorrelationGUI();
+            case analysis_functions{7}% Slope Measurement
+                openSlopeMeasurementWindow();
             case analysis_functions{9}
+                chCossCorrelationGUI();
+            case analysis_functions{11}
                 eventCrossCorrelationGUI();
-            case analysis_functions{11}% ICA анализ  
+            case analysis_functions{13}% ICA анализ  
                 ICAazGUI();
-            case analysis_functions{12}% PCA analysis
+            case analysis_functions{14}% PCA analysis
                 PCAazGUI();
-            case analysis_functions{13}
+            case analysis_functions{15}
                 performChannelOperations();
             case ''
                 dont_close_menu = true;
@@ -830,9 +894,11 @@ function EasyView()
                 setupSignalFilteringGUI(); 
                 updateTable();            
             case options{9}
-                editStimTimes();
+                editStimulusTimesGUI();
             case options{11}%'Mean Events'    
                 setupMeanEventsGUI();
+            case options{13}%'Reset record''s settings'
+                resetRecordSettings();
             case ''
             dont_close_menu = true;
         end
@@ -867,6 +933,9 @@ function EasyView()
         set(view_menu, 'String', view_functions);
             
         side_panel_visible = ~side_panel_visible;
+        
+        % Сохраняем состояние в общие настройки
+        save(SettingsFilepath, 'side_panel_visible', '-append');
     end
 
     function showHideStimulus()
@@ -1038,6 +1107,10 @@ function EasyView()
     function openAutoEventDetectionWindow(~, ~)
         autoEventDetectionGUI();
     end
+    
+    function openSlopeMeasurementWindow(~, ~)
+        slopeMeasurementGUI();
+    end
         
     % Nested function to check key press
     function check_key_press(~, ~)
@@ -1153,6 +1226,12 @@ function EasyView()
                     chosen_time_interval(1) = stims(stim_inx);
                     chosen_time_interval(2) = stims(stim_inx)+windowSize;
                 end
+            case 'sweep'
+                if sweep_info.is_sweep_data && sweep_inx > 0 && sweep_inx <= sweep_info.sweep_count
+                    % Устанавливаем начало текущего свипа
+                    chosen_time_interval(1) = sweep_info.sweep_times(sweep_inx);
+                    chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
+                end
             case 'time'
                 % Обновляем интервал времени, сохраняя начальную точку интервала
                 chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
@@ -1205,9 +1284,55 @@ function EasyView()
                 stim_inx = 1;
             case 'event'
                 event_inx = 1;
+            case 'sweep'
+                sweep_inx = 1;
         end
+        
+        % Обновляем максимальное значение слайдера в зависимости от режима
+        updateSliderMaxValue();
+        
         timeForwardEditCallback(timeForwardEdit)
 %         updatePlot(); % Обновление графика с новыми единицами времени
+    end
+    
+    % Функция для обновления максимального значения слайдера в зависимости от режима
+    function updateSliderMaxValue()
+        switch selectedCenter
+            case 'stimulus'
+                if stims_exist
+                    % Максимальное значение - время последнего стимула
+                    set(timeSlider, 'Max', stims(end));
+                    set(timeSlider, 'Min', stims(1));
+                else
+                    % Если стимулов нет, используем обычное время
+                    set(timeSlider, 'Max', time(end));
+                    set(timeSlider, 'Min', time(1));
+                end
+            case 'event'
+                if events_exist
+                    % Максимальное значение - время последнего события
+                    set(timeSlider, 'Max', events(end));
+                    set(timeSlider, 'Min', events(1));
+                else
+                    % Если событий нет, используем обычное время
+                    set(timeSlider, 'Max', time(end));
+                    set(timeSlider, 'Min', time(1));
+                end
+            case 'sweep'
+                if sweep_info.is_sweep_data
+                    % Максимальное значение - время последнего свипа
+                    set(timeSlider, 'Max', sweep_info.sweep_times(end));
+                    set(timeSlider, 'Min', sweep_info.sweep_times(1));
+                else
+                    % Если свипов нет, используем обычное время
+                    set(timeSlider, 'Max', time(end));
+                    set(timeSlider, 'Min', time(1));
+                end
+            case 'time'
+                % Обычное время
+                set(timeSlider, 'Max', time(end));
+                set(timeSlider, 'Min', time(1));
+        end
     end
     % Функция сохранения настроек каналов
     function saveChannelSettings()
@@ -1236,6 +1361,7 @@ function EasyView()
                 'mean_group_ch', ...%(*)
                 'csd_avaliable', ...%(*)
                 'filter_avaliable', ...
+                'stims', ...% сохраняем смещенные стимулы
                 'EV_version');%(*)
         end
     end
@@ -1244,15 +1370,88 @@ function EasyView()
     function timeSliderCallback(src, ~)
         sliderValue = get(src, 'Value'); % Текущее значение слайдера
         windowSize = str2double(get(timeForwardEdit, 'String'))/timeUnitFactor;% должен быть в секундах;
-        % Проверка на выход за границы времени
-        if sliderValue + windowSize > time(end)
-            sliderValue = time(end) - windowSize;
-        end
-        chosen_time_interval = [sliderValue, sliderValue + windowSize];
         
-        if not(isempty(events))
-            event_inx = ClosestIndex(sliderValue, events);
-            set(eventDeleteEdit, 'String', num2str(event_inx));  
+        switch selectedCenter
+            case 'stimulus'
+                if stims_exist
+                    % Находим ближайший стимул к текущему значению слайдера
+                    stim_inx = ClosestIndex(sliderValue, stims);
+                    
+                    % Проверяем границы
+                    if stim_inx > numel(stims)
+                        stim_inx = numel(stims);
+                    elseif stim_inx < 1
+                        stim_inx = 1;
+                    end
+                    
+                    % Устанавливаем временной интервал относительно найденного стимула
+                    chosen_time_interval(1) = stims(stim_inx);
+                    chosen_time_interval(2) = stims(stim_inx) + windowSize;
+                else
+                    % Если стимулов нет, работаем как с обычным временем
+                    if sliderValue + windowSize > time(end)
+                        sliderValue = time(end) - windowSize;
+                    end
+                    chosen_time_interval = [sliderValue, sliderValue + windowSize];
+                end
+            case 'event'
+                if events_exist
+                    % Находим ближайшее событие к текущему значению слайдера
+                    event_inx = ClosestIndex(sliderValue, events);
+                    
+                    % Проверяем границы
+                    if event_inx > numel(events)
+                        event_inx = numel(events);
+                    elseif event_inx < 1
+                        event_inx = 1;
+                    end
+                    
+                    % Устанавливаем временной интервал относительно найденного события
+                    chosen_time_interval(1) = events(event_inx);
+                    chosen_time_interval(2) = events(event_inx) + windowSize;
+                    
+                    % Обновляем активное окно
+                    set(eventDeleteEdit, 'String', num2str(event_inx));
+                else
+                    % Если событий нет, работаем как с обычным временем
+                    if sliderValue + windowSize > time(end)
+                        sliderValue = time(end) - windowSize;
+                    end
+                    chosen_time_interval = [sliderValue, sliderValue + windowSize];
+                end
+            case 'sweep'
+                if sweep_info.is_sweep_data
+                    % Находим ближайший свип к текущему значению слайдера
+                    sweep_inx = ClosestIndex(sliderValue, sweep_info.sweep_times);
+                    
+                    % Проверяем границы
+                    if sweep_inx > sweep_info.sweep_count
+                        sweep_inx = sweep_info.sweep_count;
+                    elseif sweep_inx < 1
+                        sweep_inx = 1;
+                    end
+                    
+                    % Устанавливаем временной интервал относительно найденного свипа
+                    chosen_time_interval(1) = sweep_info.sweep_times(sweep_inx);
+                    chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
+                else
+                    % Если свипов нет, работаем как с обычным временем
+                    if sliderValue + windowSize > time(end)
+                        sliderValue = time(end) - windowSize;
+                    end
+                    chosen_time_interval = [sliderValue, sliderValue + windowSize];
+                end
+            case 'time'
+                % Проверка на выход за границы времени
+                if sliderValue + windowSize > time(end)
+                    sliderValue = time(end) - windowSize;
+                end
+                chosen_time_interval = [sliderValue, sliderValue + windowSize];
+                
+                if not(isempty(events))
+                    event_inx = ClosestIndex(sliderValue, events);
+                    set(eventDeleteEdit, 'String', num2str(event_inx));  
+                end
         end
         
         updatePlot(); % Обновление графика
@@ -1313,6 +1512,11 @@ function EasyView()
         
         % Очистка таблицы событий
         events = [];
+        event_amplitudes = [];
+        event_channels = [];
+        event_widths = [];
+        event_prominences = [];
+        event_metadata = [];
         event_title_string = 'Events';
         UpdateEventTable();
         event_inx = 1;
@@ -1367,6 +1571,7 @@ function EasyView()
         disp('loading mat file:')
         ica_flag = false;
         pca_flag = false;
+        stims_loaded_from_settings = false; % сбрасываем флаг при загрузке нового файла
         
         windowSize = str2double(get(timeForwardEdit, 'String'))/timeUnitFactor;% должен быть в секундах
         
@@ -1407,8 +1612,19 @@ function EasyView()
         [m, n, p] = size(lfp);  % получение размеров исходной матрицы
         
         if p > 1 % случай со свипами
-            [lfp, spks, stims, lfpVar] = sweepProcessData(p, spks, n, m, lfp, Fs, zavp, lfpVar);  
+            [lfp, spks, stims, lfpVar, sweep_info] = sweepProcessData(p, spks, n, m, lfp, Fs, zavp, lfpVar);  
             stims_exist = ~isempty(stims);
+            
+            % Сохраняем информацию о свипах
+            sweep_inx = 1; % по умолчанию показываем первый свип
+            
+            % Автоматически открываем окно редактирования времен стимулов для sweep'ов
+            % только если не загружены смещенные стимулы из настроек
+            if stims_exist
+                % Используем timer чтобы окно открылось после завершения загрузки
+                t = timer('StartDelay', 0.5, 'TimerFcn', @(~,~)checkAndOpenStimulusEditor(), 'ExecutionMode', 'singleShot');
+                start(t);
+            end
         else
             if isfield(zavp, 'realStim') 
                 stims = zavp.realStim(:).r(:) * zavp.siS;  
@@ -1417,6 +1633,11 @@ function EasyView()
                 stims = [];
                 stims_exist = false;
             end
+            
+            % Для данных без свипов создаем пустую структуру sweep_info
+            sweep_info = struct();
+            sweep_info.is_sweep_data = false;
+            sweep_inx = 1;
         end
                 
         N = size(lfp, 1);
@@ -1424,12 +1645,36 @@ function EasyView()
         
         
         time = (0:N-1) / Fs;% s
-        time_forward = 0.6;
-        time_back = 0.6;        
+        
+        % Установка time_back и time_forward на основе флага autoSetTimeWindowsFromSweeps
+        if autoSetTimeWindowsFromSweeps && p > 1
+            % Если есть свипы, показываем весь первый свип
+            time_back = 0;
+            % Используем исходную длину свипа m (до "распрямления" в sweepProcessData)
+            time_forward = m / Fs; % длительность одного свипа в секундах
+        else
+            % Используем значения по умолчанию
+            time_forward = 0.6;
+            time_back = 0.6;
+        end
+        
         chosen_time_interval = [0, time_forward];
         shiftCoeff = 200;
-        newFs = 1000;
-        selectedCenter = 'time';
+        
+        % Установка newFs на основе флага autoSetNewFsFromFs
+        if autoSetNewFsFromFs
+            newFs = Fs; % используем частоту даунсемплинга
+        else
+            newFs = 1000; % используем фиксированное значение
+        end
+        
+        % Автоматический выбор режима центра для файлов со свипами
+        switch true
+            case p > 1 && stims_exist
+                selectedCenter = 'stimulus';
+            otherwise
+                selectedCenter = 'time';
+        end
         stim_inx = 1;        
         show_spikes = false;
         show_CSD = false;
@@ -1446,6 +1691,14 @@ function EasyView()
         % Попытка загрузить настройки каналов
         loadChannelSettings();    
     end
+    
+    % Функция для проверки и открытия окна редактирования стимулов
+    function checkAndOpenStimulusEditor()
+        % Открываем окно редактирования только если не загружены смещенные стимулы из настроек
+        if stims_exist && ~stims_loaded_from_settings
+            editStimulusTimesGUI();
+        end
+    end
 
     function resetMainWindowButtons()
         
@@ -1456,14 +1709,35 @@ function EasyView()
         
         set(showSpikesButton, 'Value', show_spikes);
         set(showCSDbutton, 'Value', show_CSD);
-        set(timeCenterPopup, 'Value', 1);
+        
+        % Установка правильного значения в выпадающем списке в зависимости от selectedCenter
+        switch selectedCenter
+            case 'time'
+                set(timeCenterPopup, 'Value', 1);
+            case 'stimulus'
+                set(timeCenterPopup, 'Value', 2);
+            case 'event'
+                set(timeCenterPopup, 'Value', 3);
+            case 'sweep'
+                set(timeCenterPopup, 'Value', 4);
+        end
+        
         set(timeBackEdit, 'String', num2str(time_back*timeUnitFactor));% time window before
         set(timeForwardEdit, 'String', num2str(time_forward*timeUnitFactor));% time window after
         set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
         set(FsCoeffEdit, 'String', num2str(newFs));
         
+        % Управление доступностью режима sweep в зависимости от типа данных
+        if sweep_info.is_sweep_data
+            % Для данных со свипами показываем все режимы
+            set(timeCenterPopup, 'String', {'time', 'stimulus', 'event', 'sweep'});
+        else
+            % Для обычных данных скрываем режим sweep
+            set(timeCenterPopup, 'String', {'time', 'stimulus', 'event'});
+        end
+        
         % Обновление максимального значения слайдера
-        set(timeSlider, 'Max', time(end));
+        updateSliderMaxValue();
         
         % Включаем все элементы управления если файл загрузился в первый
         % раз
@@ -1589,6 +1863,14 @@ function loadSettingsFile()
             csd_contrast_coef = 99.99;
             disp('settings were without CSD contrast coef')
         end
+        
+        % Загружаем смещенные стимулы если они есть
+        if isfield(loadedSettings, 'stims')
+            stims = loadedSettings.stims;
+            stims_exist = ~isempty(stims);
+            stims_loaded_from_settings = true;
+            disp('Loaded shifted stimulus times from settings')
+        end
     catch
         createNewChoice = questdlg('An error occurred when loading channel settings. Do you want to create new channel settings file?', ...
             'Save Results', ...
@@ -1640,17 +1922,134 @@ end
             filterSettings.channelsToFilter = false(numChannels, 1);% Ни один канал не участвует в фильтрации
     end
 
+    function resetRecordSettings()
+        % Функция для сброса настроек записи к значениям по умолчанию
+        if ~data_loaded
+            uiwait(errordlg('No data loaded. Please load a MAT file first.'));
+            return;
+        end
+        
+        % Запрос подтверждения у пользователя
+        choice = questdlg('Are you sure you want to reset all channel settings to default values? This action cannot be undone.', ...
+                          'Reset Record Settings', ...
+                          'Yes', 'No', 'No');
+        switch choice
+            case 'Yes'
+                % Сброс настроек каналов к значениям по умолчанию
+                setStandardChannelSettings();
+                
+                % Специальные настройки для файлов со свипами
+                if sweep_info.is_sweep_data
+                    % Для данных со свипами устанавливаем временные окна на основе свипов
+                    time_back = 0;
+                    time_forward = sweep_info.sweep_duration; % длительность одного свипа в секундах
+                    chosen_time_interval = [0, time_forward];
+                    
+                    % Автоматически выбираем режим stimulus для свипов
+                    selectedCenter = 'stimulus';
+                    set(timeCenterPopup, 'Value', 2);
+                else
+                    % Для обычных данных используем стандартные значения
+                    time_back = 0.6;
+                    time_forward = 0.6;
+                    chosen_time_interval = [0, time_forward];
+                    
+                    % Выбираем режим time для обычных данных
+                    selectedCenter = 'time';
+                    set(timeCenterPopup, 'Value', 1);
+                end
+                
+                % Сброс других параметров к значениям по умолчанию
+                shiftCoeff = 200;
+                newFs = Fs; % используем исходную частоту дискретизации
+                
+                % Сброс настроек фильтрации
+                filterSettings.filterType = 'highpass';
+                filterSettings.freqLow = 10;
+                filterSettings.freqHigh = 50;
+                filterSettings.order = 4;
+                filterSettings.channelsToFilter = false(numChannels, 1);
+                
+                % Сброс настроек CSD
+                csd_smooth_coef = 5;
+                csd_contrast_coef = 99.9;
+                
+                % Обновление интерфейса
+                set(timeBackEdit, 'String', num2str(time_back*timeUnitFactor));
+                set(timeForwardEdit, 'String', num2str(time_forward*timeUnitFactor));
+                set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
+                set(FsCoeffEdit, 'String', num2str(newFs));
+                
+                % Обновление таблицы и графика
+                updateTable();
+                saveChannelSettings(); % Перезаписываем файл настроек
+                updatePlot();
+                
+                % Уведомление пользователя
+                msgbox('Channel settings have been reset to default values.', 'Settings Reset', 'help');
+                
+            case 'No'
+                % Пользователь отменил операцию
+                return;
+        end
+    end
+
     function UpdateEventTable()        
         [events, ev_inxs] = sort(events);
         event_comments = event_comments(ev_inxs);
-        eventTable.Data = [num2cell(events*timeUnitFactor), event_comments];
+        
+        % Сортируем все метаданные в том же порядке что и события
+        if ~isempty(event_amplitudes) && length(event_amplitudes) == length(events)
+            sorted_amplitudes = event_amplitudes(ev_inxs);
+        else
+            sorted_amplitudes = NaN(size(events));
+        end
+        
+        if ~isempty(event_channels) && size(event_channels, 1) == length(events)
+            sorted_channels = event_channels(ev_inxs, :);
+            % Для отображения берем первый канал или показываем все каналы
+            if size(sorted_channels, 2) == 1
+                display_channels = sorted_channels;
+            else
+                % Для многоканальных показываем первый канал
+                display_channels = sorted_channels(:, 1);
+            end
+        else
+            display_channels = ones(size(events));
+        end
+        
+        if ~isempty(event_metadata) && length(event_metadata) == length(events)
+            sorted_metadata = event_metadata(ev_inxs);
+            source_strings = cell(size(events));
+            for i = 1:length(sorted_metadata)
+                if isstruct(sorted_metadata(i)) && isfield(sorted_metadata(i), 'source')
+                    source_strings{i} = sorted_metadata(i).source;
+                else
+                    source_strings{i} = 'unknown';
+                end
+            end
+        else
+            source_strings = repmat({'unknown'}, size(events));
+        end
+        
+        % Обновляем данные таблицы с новыми колонками
+        eventTable.Data = [num2cell(events*timeUnitFactor), event_comments, ...
+                          num2cell(sorted_amplitudes), num2cell(display_channels), source_strings];
         set(EventsTableTitle, 'String', [event_title_string, ': ', num2str(numel(events))]);
     end
 
     function addEvent(~, ~)
-        event_x = addExtraEvent();% alvays in seconds!
+        [event_x, amplitude, channel, width, prominence, metadata] = addExtraEvent();% alvays in seconds!
         events = [events; event_x];
         event_comments{numel(events), 1} = '...';
+        
+        % Добавляем метаданные
+        event_amplitudes = [event_amplitudes; amplitude];
+        event_channels = [event_channels; channel];
+        event_widths = [event_widths; width];
+        event_prominences = [event_prominences; prominence];
+        event_metadata = [event_metadata; metadata];
+        
         UpdateEventTable();
         events_exist = true;
         updatePlot()
@@ -1664,6 +2063,11 @@ end
             case 'Yes'
                 events = [];
                 event_comments = {};
+                event_amplitudes = [];
+                event_channels = [];
+                event_widths = [];
+                event_prominences = [];
+                event_metadata = [];
                 event_title_string = 'Events';
                 UpdateEventTable();
                 events_exist = false;
@@ -1727,6 +2131,23 @@ end
                         stim_inx = 1;
                     end
                 end
+            case 'sweep'
+                if sweep_info.is_sweep_data
+                    if direction == 1% движение вперед  
+                        sweep_inx = sweep_inx+1;                    
+                    else% движение назад 
+                        sweep_inx = sweep_inx-1;                    
+                    end
+                    if sweep_inx > sweep_info.sweep_count
+                        sweep_inx = sweep_info.sweep_count;
+                    end
+                    if sweep_inx > 0
+                        chosen_time_interval(1) = sweep_info.sweep_times(sweep_inx);
+                        chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
+                    else
+                        sweep_inx = 1;
+                    end
+                end
             case 'time'            
             if direction == 1% движение вперед     
 %                 disp('time forward')
@@ -1760,9 +2181,27 @@ end
             showErrorDialog('Invalid event index.');
             return;
         end
-        % Удаление события
+        % Удаление события и всех связанных метаданных
         events(eventIndex) = [];
         event_comments(eventIndex) = [];
+        
+        % Удаляем метаданные если они существуют
+        if ~isempty(event_amplitudes) && eventIndex <= length(event_amplitudes)
+            event_amplitudes(eventIndex) = [];
+        end
+        if ~isempty(event_channels) && eventIndex <= size(event_channels, 1)
+            event_channels(eventIndex, :) = [];
+        end
+        if ~isempty(event_widths) && eventIndex <= length(event_widths)
+            event_widths(eventIndex) = [];
+        end
+        if ~isempty(event_prominences) && eventIndex <= length(event_prominences)
+            event_prominences(eventIndex) = [];
+        end
+        if ~isempty(event_metadata) && eventIndex <= length(event_metadata)
+            event_metadata(eventIndex) = [];
+        end
+        
         UpdateEventTable();% update event table
         if isempty(events)
             events_exist = false;
@@ -1843,6 +2282,57 @@ function loadEvents(~, ~)
             event_comments = loadedData.event_comments;
         end
         
+        % Загрузка новых полей с обратной совместимостью
+        if isfield(loadedData.manlDet, 'amplitude')
+            event_amplitudes = [loadedData.manlDet.amplitude]';
+        else
+            event_amplitudes = NaN(size(events)); % default для старых файлов
+            disp('Old format detected: amplitude data not available');
+        end
+        
+        if isfield(loadedData.manlDet, 'channels')
+            % Проверяем, одноканальные или многоканальные данные
+            first_channels = loadedData.manlDet(1).channels;
+            if isscalar(first_channels)
+                event_channels = [loadedData.manlDet.channels]';
+            else
+                % Многоканальные данные - собираем в матрицу
+                max_channels = max(cellfun(@length, {loadedData.manlDet.channels}));
+                event_channels = NaN(length(events), max_channels);
+                for i = 1:length(events)
+                    chs = loadedData.manlDet(i).channels;
+                    event_channels(i, 1:length(chs)) = chs;
+                end
+            end
+        elseif isfield(loadedData.manlDet, 'ch')
+            event_channels = [loadedData.manlDet.ch]'; % Используем старое поле ch
+        else
+            event_channels = ones(size(events)); % default
+            disp('Old format detected: channel data not available');
+        end
+        
+        if isfield(loadedData.manlDet, 'width')
+            event_widths = [loadedData.manlDet.width]';
+        else
+            event_widths = NaN(size(events)); % default для старых файлов
+            disp('Old format detected: width data not available');
+        end
+        
+        if isfield(loadedData.manlDet, 'prominence')
+            event_prominences = [loadedData.manlDet.prominence]';
+        else
+            event_prominences = NaN(size(events)); % default для старых файлов
+            disp('Old format detected: prominence data not available');
+        end
+        
+        if isfield(loadedData.manlDet, 'metadata')
+            event_metadata = [loadedData.manlDet.metadata]';
+        else
+            % Создаем default metadata для старых файлов
+            event_metadata = repmat(struct('source', 'loaded'), length(events), 1);
+            disp('Old format detected: metadata not available');
+        end
+        
         event_title_string = file;
         UpdateEventTable();
         events_exist = true;
@@ -1872,12 +2362,52 @@ end
         end
         filepath = fullfile(path, file);
         clear manlDet
-        % Преаллокация структуры
-        manlDet(numel(events)) = struct('t', [], 'ch', [], 'subT', [], 'subCh', [], 'sw', []);
+        % Преаллокация расширенной структуры с новыми полями
+        manlDet(numel(events)) = struct('t', [], 'ch', [], 'subT', [], 'subCh', [], 'sw', [], ...
+                                       'amplitude', [], 'channels', [], 'width', [], 'prominence', [], 'metadata', []);
 
         for i = 1:numel(events)
             manlDet(i).t = ClosestIndex(events(i), time);
-            manlDet(i).ch = 1;
+            
+            % Новые поля с проверкой существования данных
+            if ~isempty(event_channels) && i <= length(event_channels)
+                if size(event_channels, 2) == 1
+                    manlDet(i).ch = event_channels(i);
+                    manlDet(i).channels = event_channels(i);
+                else
+                    manlDet(i).ch = event_channels(i, 1); % Первый канал для совместимости
+                    manlDet(i).channels = event_channels(i, :); % Все каналы
+                end
+            else
+                manlDet(i).ch = 1;  % default для совместимости
+                manlDet(i).channels = 1;
+            end
+            
+            if ~isempty(event_amplitudes) && i <= length(event_amplitudes)
+                manlDet(i).amplitude = event_amplitudes(i);
+            else
+                manlDet(i).amplitude = NaN;
+            end
+            
+            if ~isempty(event_widths) && i <= length(event_widths)
+                manlDet(i).width = event_widths(i);
+            else
+                manlDet(i).width = NaN;
+            end
+            
+            if ~isempty(event_prominences) && i <= length(event_prominences)
+                manlDet(i).prominence = event_prominences(i);
+            else
+                manlDet(i).prominence = NaN;
+            end
+            
+            if ~isempty(event_metadata) && i <= length(event_metadata)
+                manlDet(i).metadata = event_metadata(i);
+            else
+                manlDet(i).metadata = struct('source', 'unknown');
+            end
+            
+            % Старые поля для совместимости
             manlDet(i).subT = [];
             manlDet(i).subCh = 2;
             manlDet(i).sw = 1;

@@ -1,10 +1,12 @@
 function updatePlot()
+    % disp('Plot is updated')
     global chosen_time_interval time_back cond time lfp mean_group_ch ch_inxs m_coef Fs newFs timeUnitFactor multiax
     global ch_labels_l shiftCoeff widths_in_l colors_in_l show_spikes spks std_coef selectedUnit matFilePath stims events timeSlider
     global data time_in show_CSD filterSettings filter_avaliable csd_smooth_coef
     global csd_contrast_coef csd_avaliable show_power power_window lfpVar
     global csd_image csd_t_range csd_ch_range offsets
     global art_rem_window_ms stimShowFlag lines_and_styles
+    global selectedCenter sweep_info sweep_inx % для работы со свипами
     
     csd_active = csd_avaliable(ch_inxs);
     
@@ -184,17 +186,31 @@ function updatePlot()
     xticks(xTicks)
     xlim(Xlims)
     
-    % Вычисление новых тиков, где первый тик остается без изменений, а остальные равны отступу от первого
-    newTicks = xTicks - xTicks(1) - time_back*timeUnitFactor;
-    newTicks(1) = xTicks(1); % Установка первого тика в исходное значение
-    newTicks(abs(newTicks)<1e-4) = 0;
-    newLabels = arrayfun(@num2str, newTicks, 'UniformOutput', false);
-    newLabels{1} = [newLabels{1}, ' ', selectedUnit];
+    % Вычисление новых тиков и меток в зависимости от режима отображения
+    if strcmp(selectedCenter, 'sweep') && sweep_info.is_sweep_data
+        % Режим свипа: показываем время относительно начала текущего свипа
+        sweep_start_time = sweep_info.sweep_times(sweep_inx);
+        newTicks = xTicks - sweep_start_time*timeUnitFactor - time_back*timeUnitFactor;
+        newTicks(abs(newTicks)<1e-4) = 0;
+        newLabels = arrayfun(@num2str, newTicks, 'UniformOutput', false);
+        newLabels{1} = [sprintf('Sweep %d, ', sweep_inx), newLabels{1}, ' ', selectedUnit];
+        
+        % Устанавливаем заголовок оси для режима свипа
+        xlabel(sprintf('Time, %s (Sweep %d/%d)', selectedUnit, sweep_inx, sweep_info.sweep_count));
+    else
+        % Обычный режим: первый тик остается без изменений, остальные равны отступу от первого
+        newTicks = xTicks - xTicks(1) - time_back*timeUnitFactor;
+        newTicks(1) = xTicks(1); % Установка первого тика в исходное значение
+        newTicks(abs(newTicks)<1e-4) = 0;
+        newLabels = arrayfun(@num2str, newTicks, 'UniformOutput', false);
+        newLabels{1} = [newLabels{1}, ' ', selectedUnit];
+        
+        % Обычный заголовок оси
+        xlabel('Time, ' + string(selectedUnit) + '');
+    end
+    
     % Применение новых меток тиков к текущему графику
     set(multiax, 'XTickLabel', newLabels);
-
-    % Установка меток оси X в соответствии с выбранными единицами времени
-    xlabel('Time, ' + string(selectedUnit) + '');
     
     Ylims = [min(chRangesOffsets)-shiftCoeff*0.2, max(chRangesOffsets)+shiftCoeff*0.2];
     ylim(Ylims)

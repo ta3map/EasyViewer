@@ -10,6 +10,12 @@ function autoEventDetectionGUI()
     global hMinPeakDistance hSmoothCoefWindow hDetectionMode hOnsetThreshold hOnsetSearchWindow
     global hSourceType selectedCenter timeCenterPopup windowSize chosen_time_interval
     
+    % Переменные для хранения результатов детекции в области видимости GUI
+    amplitudes_detected = [];
+    widths_detected = [];
+    channels_detected = [];
+    metadata_detected = [];
+    
     % Идентификатор (tag) для GUI фигуры
     figTag = 'EventDetection';
     
@@ -193,7 +199,7 @@ function autoEventDetectionGUI()
         params.detect = false;
         params.max_peak_width = str2double(get(hMaxPeakWidth, 'String'));
                
-        [events_detected, Trace_out, time_res] = autoEventDetection(params);
+        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected] = autoEventDetection(params);
         
         Trace_out(isnan(Trace_out)) = 0;
         Trace_out(isinf(Trace_out)) = 0;
@@ -221,7 +227,7 @@ function autoEventDetectionGUI()
         params.detect = true;
         params.max_peak_width = str2double(get(hMaxPeakWidth, 'String'));
         
-        [events_detected, Trace_out, time_res] = autoEventDetection(params);
+        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected] = autoEventDetection(params);
         
         Trace_out(isnan(Trace_out)) = 0;
         Trace_out(isinf(Trace_out)) = 0;
@@ -306,6 +312,15 @@ function autoEventDetectionGUI()
 
 
     function detectButtonCallback(~, ~)
+        global event_amplitudes event_channels event_widths event_prominences event_metadata
+        
+        % Проверяем что переменные с результатами детекции существуют
+        if ~exist('amplitudes_detected', 'var') || ~exist('channels_detected', 'var') || ...
+           ~exist('widths_detected', 'var') || ~exist('metadata_detected', 'var')
+            uiwait(errordlg('Please run "Check Detection" first before applying results.', 'Detection Required'));
+            return;
+        end
+        
         % Обновление таблицы событий
         events = events_detected;
         
@@ -313,6 +328,33 @@ function autoEventDetectionGUI()
         if not(isempty(events))
             [events, ev_inxs] = sort(events);
             event_comments = event_comments(ev_inxs);
+            
+            % Сортируем метаданные в том же порядке что и события
+            event_amplitudes = amplitudes_detected(ev_inxs);
+            
+            % Безопасная обработка channels_detected (может быть матрицей или вектором)
+            if size(channels_detected, 2) > 1
+                event_channels = channels_detected(ev_inxs, :);
+            else
+                event_channels = channels_detected(ev_inxs);
+            end
+            
+            event_widths = widths_detected(ev_inxs);
+            
+            % Извлекаем prominence из metadata для сортировки
+            temp_prominences = NaN(size(events));
+            for i = 1:length(metadata_detected)
+                temp_prominences(i) = metadata_detected(i).prominence;
+            end
+            event_prominences = temp_prominences(ev_inxs);
+            
+            event_metadata = metadata_detected(ev_inxs);
+        else
+            event_amplitudes = [];
+            event_channels = [];
+            event_widths = [];
+            event_prominences = [];
+            event_metadata = [];
         end
         
         [~, filename, ~] = fileparts(matFilePath);
@@ -365,7 +407,7 @@ function saveSettings()
     save(SettingsFilepath, 'autodetection_settings', '-append');
 end
 
-function [events_detected, Trace_out, time_res] = autoEventDetection(params)
+function [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected] = autoEventDetection(params)
     global Fs time newFs lfp wb ch_inxs csd_avaliable filterSettings filter_avaliable mean_group_ch 
     global stims_exist stims time
     
@@ -444,22 +486,32 @@ function [events_detected, Trace_out, time_res] = autoEventDetection(params)
     time_res = linspace(time(1),time(end),numel(Trace_out));
     
     if detect         
-        [~,peak_times,widths,~] = findpeaks(Trace_out, time_res, 'MinPeakHeight',MinPeakProminence, 'MinPeakDistance', MinPeakDistance,'WidthReference','halfheight');
+        [peaks,peak_times,widths,prominences] = findpeaks(Trace_out, time_res, 'MinPeakHeight',MinPeakProminence, 'MinPeakDistance', MinPeakDistance,'WidthReference','halfheight');
         
         % убираем слишком широкие пики
-        peak_times(widths > max_peak_width/lfp_frq) = [];
+        wide_peaks_mask = widths > max_peak_width/lfp_frq;
+        peak_times(wide_peaks_mask) = [];
+        peaks(wide_peaks_mask) = [];
+        widths(wide_peaks_mask) = [];
+        prominences(wide_peaks_mask) = [];
         
         peak_locs_inx = ClosestIndex(peak_times, time_res);
 
         switch DetectionMode
             case 'peaks'
                 events_detected = peak_times';
+                amplitudes_detected = peaks';
+                widths_detected = widths';
+                
             case 'onsets'
                 % onset of peaks by Khazipov method
                 onset_locs_inx = zeros(size(peak_locs_inx));
                 sig_part_window_inx = ClosestIndex(OnsetSearchWindow, time_res);
                 o_i = 0;
-                for peak_loc_inx = peak_locs_inx
+                valid_onsets = false(size(peak_locs_inx));
+                
+                for i = 1:length(peak_locs_inx)
+                    peak_loc_inx = peak_locs_inx(i);
                     o_i = o_i + 1;
 
                     start_inx = peak_loc_inx - sig_part_window_inx;
@@ -470,15 +522,64 @@ function [events_detected, Trace_out, time_res] = autoEventDetection(params)
                         onset_l = find(diff(signal_part) > onset_threshold);
                         if not(isempty(onset_l))
                             onset_locs_inx(o_i) = start_inx + onset_l(1);
+                            valid_onsets(i) = true;
                         end
                     end                    
                 end
                 onset_locs_inx(onset_locs_inx == 0) = [];
                 onset_times = time_res(onset_locs_inx)';
                 events_detected = onset_times;
+                
+                % Для onsets используем амплитуды соответствующих пиков
+                amplitudes_detected = peaks(valid_onsets)';
+                widths_detected = widths(valid_onsets)';
         end
+        
+        % Формируем каналы и метаданные
+        channels_detected = [];
+        if strcmp(DetectionType, 'two channels difference') || strcmp(DetectionType, 'two channels multiplied')
+            % Для двухканальных методов сохраняем оба канала
+            channels_detected = repmat([ChPos, ChNeg], length(events_detected), 1);
+        elseif strcmp(DetectionType, 'one channel positive')
+            channels_detected = repmat(ChPos, length(events_detected), 1);
+        elseif strcmp(DetectionType, 'one channel negative')
+            channels_detected = repmat(ChNeg, length(events_detected), 1);
+        end
+        
+        % Создаем метаданные для каждого события
+        metadata_detected = repmat(struct(...
+            'source', 'auto', ...
+            'method', DetectionMode, ...
+            'data_type', SourceType, ...
+            'polarity', DetectionType, ...
+            'prominence', NaN, ...
+            'detection_params', struct(...
+                'MinPeakProminence', MinPeakProminence, ...
+                'MinPeakDistance', MinPeakDistance, ...
+                'OnsetThreshold', onset_threshold, ...
+                'OnsetSearchWindow', OnsetSearchWindow, ...
+                'MaxPeakWidth', max_peak_width ...
+            ) ...
+        ), length(events_detected), 1);
+        
+        % Добавляем prominence для каждого события
+        for i = 1:length(events_detected)
+            if strcmp(DetectionMode, 'peaks')
+                metadata_detected(i).prominence = prominences(i);
+            elseif strcmp(DetectionMode, 'onsets') && i <= length(prominences)
+                valid_idx = find(valid_onsets);
+                if i <= length(valid_idx)
+                    metadata_detected(i).prominence = prominences(valid_idx(i));
+                end
+            end
+        end
+        
     else
         events_detected = [];
+        amplitudes_detected = [];
+        widths_detected = [];
+        channels_detected = [];
+        metadata_detected = [];
     end
     close(wb)
 end

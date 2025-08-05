@@ -1,4 +1,4 @@
-function [lfp, spks, stims, lfpVar] = sweepProcessData(p, spks, n, m, lfp, Fs, zavp, lfpVar)
+function [lfp, spks, stims, lfpVar, sweep_info] = sweepProcessData(p, spks, n, m, lfp, Fs, zavp, lfpVar)
 
     % Показываем окно прогресса
     hWaitBar = waitbar(0, 'Opening...', 'Name', 'Opening file with sweeps');
@@ -133,5 +133,13 @@ function [lfp, spks, stims, lfpVar] = sweepProcessData(p, spks, n, m, lfp, Fs, z
 
     % Окончание: lfpVar
     lfpVar = np_flatten(mean(lfpVar, 2))'; % случай со свипами
+    
+    % Создаем структуру с информацией о свипах
+    sweep_info = struct();
+    sweep_info.sweep_times = (0:p-1) * (m/Fs);  % времена начала каждого свипа в секундах
+    sweep_info.sweep_duration = m/Fs;            % длительность одного свипа в секундах
+    sweep_info.sweep_count = p;                  % количество свипов
+    sweep_info.is_sweep_data = true;             % флаг, что это данные со свипами
+    sweep_info.samples_per_sweep = m;            % количество сэмплов в одном свипе
     
 end
