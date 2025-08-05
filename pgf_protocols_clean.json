@@ -1,0 +1,3100 @@
+{
+  "filename": "Heka/EC_FS_PYR.pgf",
+  "total_protocols": 234,
+  "protocols": [
+    {
+      "name": "eerT",
+      "type": "Unknown",
+      "position": 0,
+      "parameters": [
+        0.9549999833106995,
+        0.4784599840641022,
+        2.25,
+        -0.6023999452590942,
+        2.125
+      ],
+      "description": "Unknown: eerT"
+    },
+    {
+      "name": "v2x80",
+      "type": "Unknown",
+      "position": 32,
+      "parameters": [
+        0.9549999833106995,
+        0.4784599840641022,
+        2.25,
+        -0.6023999452590942,
+        2.125
+      ],
+      "description": "Unknown: v2x80"
+    },
+    {
+      "name": "19-Jan-2015",
+      "type": "Unknown",
+      "position": 38,
+      "parameters": [
+        0.9549999833106995,
+        0.4784599840641022,
+        2.25,
+        -0.6023999452590942,
+        2.125
+      ],
+      "description": "Unknown: 19-Jan-2015"
+    },
+    {
+      "name": "p10",
+      "type": "Unknown",
+      "position": 440,
+      "parameters": [
+        0.9549999833106995,
+        0.4784599840641022,
+        2.25,
+        -0.6023999452590942,
+        2.125
+      ],
+      "description": "Unknown: p10"
+    },
+    {
+      "name": "new",
+      "type": "Unknown",
+      "position": 4400,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        -1.3249999284744263,
+        1.875
+      ],
+      "description": "Unknown: new"
+    },
+    {
+      "name": "new_VC",
+      "type": "Unknown",
+      "position": 7276,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: new_VC"
+    },
+    {
+      "name": "EC_FS_PYR",
+      "type": "Unknown",
+      "position": 9496,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: EC_FS_PYR"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 11752,
+      "parameters": [
+        -1.409999966621399,
+        1.875,
+        1.3899999856948853,
+        1.875,
+        -1.409999966621399
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "FS_pyr_amp2",
+      "type": "Unknown",
+      "position": 11968,
+      "parameters": [
+        -1.409999966621399,
+        1.875,
+        1.034999966621399,
+        1.875,
+        -1.409999966621399
+      ],
+      "description": "Unknown: FS_pyr_amp2"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 12744,
+      "parameters": [
+        0.8139999508857727,
+        1.875,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 12912,
+      "parameters": [
+        1.875,
+        0.9549999833106995,
+        0.4784599840641022,
+        2.5625,
+        -0.6023999452590942
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 13080,
+      "parameters": [
+        2.5625,
+        -0.6023999452590942,
+        2.125,
+        -1.4899998903274536,
+        1.625
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 13164,
+      "parameters": [
+        -1.4899998903274536,
+        1.625,
+        1.875,
+        1.5749999284744263,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 13248,
+      "parameters": [
+        -1.4899998903274536,
+        1.625,
+        1.875,
+        1.5749999284744263,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 13416,
+      "parameters": [
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 14492,
+      "parameters": [
+        1.5749999284744263,
+        1.875,
+        1.875,
+        1.6649999618530273,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 14660,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.6649999618530273,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 14828,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        1.4499999284744263
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 14912,
+      "parameters": [
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.875,
+        0.4159599840641022
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 14996,
+      "parameters": [
+        1.875,
+        0.4159599840641022,
+        1.875,
+        1.5749999284744263,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 15164,
+      "parameters": [
+        0.4159599840641022,
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 16240,
+      "parameters": [
+        1.5749999284744263,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 16408,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 16576,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        1.4499999284744263
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 16660,
+      "parameters": [
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.875,
+        0.4159599840641022
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 16744,
+      "parameters": [
+        1.875,
+        0.4159599840641022,
+        1.875,
+        1.5749999284744263,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 16912,
+      "parameters": [
+        0.4159599840641022,
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 17988,
+      "parameters": [
+        1.5749999284744263,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 18156,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 18324,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        1.4499999284744263
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 18408,
+      "parameters": [
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.875,
+        0.4472099840641022
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 18492,
+      "parameters": [
+        1.875,
+        0.4472099840641022,
+        1.875,
+        1.5749999284744263,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 18660,
+      "parameters": [
+        0.4472099840641022,
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "FS_pyr_time",
+      "type": "Unknown",
+      "position": 19212,
+      "parameters": [
+        1.875,
+        1.75,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: FS_pyr_time"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 19988,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 20156,
+      "parameters": [
+        1.4499999284744263,
+        1.875,
+        1.875,
+        0.9549999833106995,
+        0.4784599840641022
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 20324,
+      "parameters": [
+        2.5625,
+        -0.6023999452590942,
+        2.125,
+        -0.87636399269104,
+        -1.4899998903274536
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 20408,
+      "parameters": [
+        -0.87636399269104,
+        -1.4899998903274536,
+        1.625,
+        1.875,
+        1.5749999284744263
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 20492,
+      "parameters": [
+        -0.87636399269104,
+        -1.4899998903274536,
+        1.625,
+        1.875,
+        1.5749999284744263
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 20660,
+      "parameters": [
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 21736,
+      "parameters": [
+        1.5749999284744263,
+        1.875,
+        1.875,
+        1.6649999618530273,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 21904,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.6649999618530273,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 22072,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        1.4499999284744263
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 22156,
+      "parameters": [
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.875,
+        0.4159599840641022
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 22240,
+      "parameters": [
+        1.875,
+        0.4159599840641022,
+        1.875,
+        1.5749999284744263,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 22408,
+      "parameters": [
+        0.4159599840641022,
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 23484,
+      "parameters": [
+        1.5749999284744263,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 23652,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 23820,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        1.4499999284744263
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 23904,
+      "parameters": [
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.875,
+        0.4159599840641022
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 23988,
+      "parameters": [
+        1.875,
+        0.4159599840641022,
+        1.875,
+        1.5749999284744263,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 24156,
+      "parameters": [
+        0.4159599840641022,
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 25232,
+      "parameters": [
+        1.5749999284744263,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 25400,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 25568,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        1.4499999284744263
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 25652,
+      "parameters": [
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.875,
+        0.4472099840641022
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 25736,
+      "parameters": [
+        1.875,
+        0.4472099840641022,
+        1.875,
+        1.5749999284744263,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 25904,
+      "parameters": [
+        0.4472099840641022,
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "pyr",
+      "type": "Unknown",
+      "position": 26459,
+      "parameters": [
+        1.875,
+        1.75,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: pyr"
+    },
+    {
+      "name": "nter",
+      "type": "Unknown",
+      "position": 26464,
+      "parameters": [
+        1.875,
+        1.75,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: nter"
+    },
+    {
+      "name": "Pyr",
+      "type": "Unknown",
+      "position": 29532,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.3249999284744263
+      ],
+      "description": "Unknown: Pyr"
+    },
+    {
+      "name": "nter",
+      "type": "Unknown",
+      "position": 29540,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.3249999284744263
+      ],
+      "description": "Unknown: nter"
+    },
+    {
+      "name": "CCK2",
+      "type": "Unknown",
+      "position": 32608,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.3249999284744263
+      ],
+      "description": "Unknown: CCK2"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 33384,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.4499999284744263,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 34040,
+      "parameters": [
+        1.875,
+        1.875,
+        1.875,
+        1.875,
+        0.8139999508857727
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "2AP",
+      "type": "Unknown",
+      "position": 34172,
+      "parameters": [
+        1.875,
+        1.875,
+        1.875,
+        1.875,
+        0.8139999508857727
+      ],
+      "description": "Unknown: 2AP"
+    },
+    {
+      "name": "9mD",
+      "type": "Unknown",
+      "position": 34469,
+      "parameters": [
+        1.875,
+        1.875,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: 9mD"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 34948,
+      "parameters": [
+        1.875,
+        1.875,
+        1.875,
+        1.875,
+        0.8139999508857727
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 35604,
+      "parameters": [
+        1.875,
+        1.75,
+        1.875,
+        1.875,
+        0.8139999508857727
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "CCK3",
+      "type": "Unknown",
+      "position": 35736,
+      "parameters": [
+        1.875,
+        1.75,
+        1.875,
+        1.875,
+        0.8139999508857727
+      ],
+      "description": "Unknown: CCK3"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 36512,
+      "parameters": [
+        1.75,
+        1.875,
+        1.875,
+        1.875,
+        0.8139999508857727
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 37168,
+      "parameters": [
+        1.875,
+        1.875,
+        1.875,
+        1.875,
+        0.8139999508857727
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "sin",
+      "type": "Unknown",
+      "position": 37300,
+      "parameters": [
+        1.875,
+        1.875,
+        1.875,
+        1.875,
+        0.8139999508857727
+      ],
+      "description": "Unknown: sin"
+    },
+    {
+      "name": "ng Inter",
+      "type": "Unknown",
+      "position": 37304,
+      "parameters": [
+        1.875,
+        1.875,
+        1.875,
+        1.875,
+        0.8139999508857727
+      ],
+      "description": "Unknown: ng Inter"
+    },
+    {
+      "name": "stim_pyrR",
+      "type": "Unknown",
+      "position": 40428,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        -1.3249999284744263,
+        1.875
+      ],
+      "description": "Unknown: stim_pyrR"
+    },
+    {
+      "name": "stim3_pyrR",
+      "type": "Unknown",
+      "position": 41992,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.8249999284744263,
+        1.875
+      ],
+      "description": "Unknown: stim3_pyrR"
+    },
+    {
+      "name": "RadPyr2",
+      "type": "Unknown",
+      "position": 44228,
+      "parameters": [
+        1.625,
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: RadPyr2"
+    },
+    {
+      "name": "nter",
+      "type": "Unknown",
+      "position": 44236,
+      "parameters": [
+        1.625,
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: nter"
+    },
+    {
+      "name": "RadPyr1",
+      "type": "Unknown",
+      "position": 56880,
+      "parameters": [
+        1.875,
+        1.3249999284744263,
+        1.3249999284744263,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: RadPyr1"
+    },
+    {
+      "name": "nter",
+      "type": "Unknown",
+      "position": 56888,
+      "parameters": [
+        1.875,
+        1.3249999284744263,
+        1.3249999284744263,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: nter"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 59220,
+      "parameters": [
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.3249999284744263,
+        2.3125
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "cc2",
+      "type": "Unknown",
+      "position": 60176,
+      "parameters": [
+        1.875,
+        0.8139999508857727,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: cc2"
+    },
+    {
+      "name": "cont",
+      "type": "Unknown",
+      "position": 61740,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.034999966621399
+      ],
+      "description": "Unknown: cont"
+    },
+    {
+      "name": "tbs",
+      "type": "Unknown",
+      "position": 63472,
+      "parameters": [
+        -1.399999976158142,
+        1.875,
+        1.034999966621399,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: tbs"
+    },
+    {
+      "name": "DSI",
+      "type": "Unknown",
+      "position": 65708,
+      "parameters": [
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: DSI"
+    },
+    {
+      "name": "DSId",
+      "type": "Unknown",
+      "position": 67272,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: DSId"
+    },
+    {
+      "name": "Ramp",
+      "type": "Ramp protocol",
+      "position": 69172,
+      "parameters": [
+        1.875,
+        1.034999966621399,
+        1.875,
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875,
+        0.4159599840641022,
+        1.875,
+        1.4499999284744263
+      ],
+      "description": "Ramp protocol: Ramp"
+    },
+    {
+      "name": "Ramp",
+      "type": "Ramp protocol",
+      "position": 69236,
+      "parameters": [
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875,
+        0.4159599840641022,
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        2.3125
+      ],
+      "description": "Ramp protocol: Ramp"
+    },
+    {
+      "name": "Continuous",
+      "type": "Unknown",
+      "position": 72048,
+      "parameters": [
+        1.875,
+        1.3249999284744263,
+        1.875,
+        1.875,
+        1.8249999284744263
+      ],
+      "description": "Unknown: Continuous"
+    },
+    {
+      "name": "TestSeries",
+      "type": "Test protocol",
+      "position": 73444,
+      "parameters": [
+        1.875,
+        2.3125,
+        1.875,
+        1.875,
+        5.1103515625
+      ],
+      "description": "Test protocol: TestSeries"
+    },
+    {
+      "name": "IV-ramp",
+      "type": "Ramp protocol",
+      "position": 75092,
+      "parameters": [
+        1.4499999284744263,
+        1.875,
+        1.034679889678955,
+        1.875,
+        1.034999966621399,
+        1.875,
+        1.034679889678955,
+        1.875,
+        -1.034999966621399,
+        1.875
+      ],
+      "description": "Ramp protocol: IV-ramp"
+    },
+    {
+      "name": "ramp",
+      "type": "Ramp protocol",
+      "position": 75156,
+      "parameters": [
+        1.034999966621399,
+        1.875,
+        1.034679889678955,
+        1.875,
+        -1.034999966621399,
+        1.875,
+        1.034679889678955,
+        1.875,
+        1.4499999284744263,
+        1.875
+      ],
+      "description": "Ramp protocol: ramp"
+    },
+    {
+      "name": "CalibSine",
+      "type": "Unknown",
+      "position": 76656,
+      "parameters": [
+        1.875,
+        1.032439947128296,
+        1.875,
+        1.875,
+        1.284999966621399
+      ],
+      "description": "Unknown: CalibSine"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 77004,
+      "parameters": [
+        1.625,
+        1.875,
+        0.9543599486351013,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "Template",
+      "type": "Unknown",
+      "position": 77884,
+      "parameters": [
+        -1.284999966621399,
+        -1.4899998903274536,
+        1.5749999284744263,
+        0.8139999508857727,
+        1.034999966621399
+      ],
+      "description": "Unknown: Template"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 77996,
+      "parameters": [
+        0.8139999508857727,
+        1.034999966621399,
+        1.034999966621399,
+        1.034999966621399,
+        1.034999966621399
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "Chart",
+      "type": "Unknown",
+      "position": 78624,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        0.8139999508857727,
+        1.034999966621399
+      ],
+      "description": "Unknown: Chart"
+    },
+    {
+      "name": "base",
+      "type": "Unknown",
+      "position": 78630,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        0.8139999508857727,
+        1.034999966621399
+      ],
+      "description": "Unknown: base"
+    },
+    {
+      "name": "Chart",
+      "type": "Unknown",
+      "position": 78688,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        0.8139999508857727,
+        1.034999966621399
+      ],
+      "description": "Unknown: Chart"
+    },
+    {
+      "name": "LockIn",
+      "type": "Unknown",
+      "position": 79852,
+      "parameters": [
+        -1.4899998903274536,
+        1.625,
+        1.875,
+        1.3249999284744263,
+        1.875
+      ],
+      "description": "Unknown: LockIn"
+    },
+    {
+      "name": "LockIn",
+      "type": "Unknown",
+      "position": 79916,
+      "parameters": [
+        -1.4899998903274536,
+        1.625,
+        1.875,
+        1.3249999284744263,
+        1.875
+      ],
+      "description": "Unknown: LockIn"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 80200,
+      "parameters": [
+        1.875,
+        1.3249999284744263,
+        1.875,
+        1.625,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "NonStored",
+      "type": "Unknown",
+      "position": 82056,
+      "parameters": [
+        1.625,
+        0.8299999833106995,
+        1.159999966621399,
+        1.159999966621399,
+        1.159999966621399
+      ],
+      "description": "Unknown: NonStored"
+    },
+    {
+      "name": "Recover",
+      "type": "Unknown",
+      "position": 82120,
+      "parameters": [
+        1.625,
+        0.8299999833106995,
+        1.159999966621399,
+        1.159999966621399,
+        1.159999966621399
+      ],
+      "description": "Unknown: Recover"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 82916,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        0.6023999452590942,
+        1.034999966621399
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 83084,
+      "parameters": [
+        0.6023999452590942,
+        1.034999966621399,
+        1.159999966621399,
+        -1.4899998903274536,
+        1.625
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "iTEV_IV",
+      "type": "IV curve",
+      "position": 83216,
+      "parameters": [
+        1.159999966621399,
+        -1.4899998903274536,
+        1.625,
+        -1.4499999284744263,
+        1.875
+      ],
+      "description": "IV curve: iTEV_IV"
+    },
+    {
+      "name": "iTEV_IV_PN",
+      "type": "IV curve",
+      "position": 84780,
+      "parameters": [
+        -1.3899999856948853,
+        1.875,
+        1.2399998903274536,
+        1.875,
+        1.034999966621399
+      ],
+      "description": "IV curve: iTEV_IV_PN"
+    },
+    {
+      "name": "iTEV_IV_HW",
+      "type": "IV curve",
+      "position": 86344,
+      "parameters": [
+        -1.3899999856948853,
+        1.875,
+        1.2399998903274536,
+        1.875,
+        1.034999966621399
+      ],
+      "description": "IV curve: iTEV_IV_HW"
+    },
+    {
+      "name": "max",
+      "type": "Unknown",
+      "position": 87290,
+      "parameters": [
+        1.159999966621399,
+        1.875,
+        1.034999966621399,
+        0.4159599840641022,
+        -1.3249999284744263
+      ],
+      "description": "Unknown: max"
+    },
+    {
+      "name": "iTEV_Cap",
+      "type": "Capacitance measurement",
+      "position": 87908,
+      "parameters": [
+        -1.3899999856948853,
+        1.875,
+        1.2399998903274536,
+        1.875,
+        1.034999966621399
+      ],
+      "description": "Capacitance measurement: iTEV_Cap"
+    },
+    {
+      "name": "Cap",
+      "type": "Capacitance measurement",
+      "position": 87972,
+      "parameters": [
+        -1.3899999856948853,
+        1.875,
+        1.2399998903274536,
+        1.875,
+        1.034999966621399
+      ],
+      "description": "Capacitance measurement: Cap"
+    },
+    {
+      "name": "pOpti_II",
+      "type": "Unknown",
+      "position": 87976,
+      "parameters": [
+        -1.3899999856948853,
+        1.875,
+        1.2399998903274536,
+        1.875,
+        1.034999966621399
+      ],
+      "description": "Unknown: pOpti_II"
+    },
+    {
+      "name": "max",
+      "type": "Unknown",
+      "position": 88198,
+      "parameters": [
+        1.159999966621399,
+        1.875,
+        1.625,
+        1.875,
+        1.2399998903274536
+      ],
+      "description": "Unknown: max"
+    },
+    {
+      "name": "max",
+      "type": "Unknown",
+      "position": 89078,
+      "parameters": [
+        -1.3980283737182617,
+        -1.4899998903274536,
+        1.625,
+        1.875,
+        1.284999966621399
+      ],
+      "description": "Unknown: max"
+    },
+    {
+      "name": "max",
+      "type": "Unknown",
+      "position": 89106,
+      "parameters": [
+        -1.3980283737182617,
+        -1.4899998903274536,
+        1.625,
+        1.875,
+        1.284999966621399
+      ],
+      "description": "Unknown: max"
+    },
+    {
+      "name": "K_NA",
+      "type": "Unknown",
+      "position": 89976,
+      "parameters": [
+        1.034999966621399,
+        1.875,
+        1.159999966621399,
+        1.875,
+        1.625
+      ],
+      "description": "Unknown: K_NA"
+    },
+    {
+      "name": "g Pyr",
+      "type": "Unknown",
+      "position": 89981,
+      "parameters": [
+        1.034999966621399,
+        1.875,
+        1.159999966621399,
+        1.875,
+        1.625
+      ],
+      "description": "Unknown: g Pyr"
+    },
+    {
+      "name": "tgot",
+      "type": "Unknown",
+      "position": 91540,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.159999966621399
+      ],
+      "description": "Unknown: tgot"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 93140,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        -1.399999976158142,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 93308,
+      "parameters": [
+        1.034999966621399,
+        1.875,
+        1.875,
+        1.4499999284744263,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 93476,
+      "parameters": [
+        1.034999966621399,
+        1.875,
+        1.875,
+        1.9375,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 93644,
+      "parameters": [
+        1.875,
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 93812,
+      "parameters": [
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 94148,
+      "parameters": [
+        1.875,
+        1.875,
+        1.159999966621399,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 94316,
+      "parameters": [
+        1.875,
+        1.875,
+        1.159999966621399,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 94484,
+      "parameters": [
+        1.875,
+        1.875,
+        1.159999966621399,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 94652,
+      "parameters": [
+        1.875,
+        1.875,
+        1.159999966621399,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "ltp",
+      "type": "Unknown",
+      "position": 94784,
+      "parameters": [
+        1.875,
+        0.8139999508857727,
+        1.875,
+        1.875,
+        1.159999966621399
+      ],
+      "description": "Unknown: ltp"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 95448,
+      "parameters": [
+        1.875,
+        1.875,
+        0.8139999508857727,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 96300,
+      "parameters": [
+        0.8139999508857727,
+        1.875,
+        1.3899999856948853,
+        1.875,
+        -1.399999976158142
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 96956,
+      "parameters": [
+        1.875,
+        1.649999976158142,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "ind",
+      "type": "Unknown",
+      "position": 97172,
+      "parameters": [
+        1.875,
+        1.649999976158142,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: ind"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 98688,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        -1.399999976158142,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 99344,
+      "parameters": [
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "Continuous1",
+      "type": "Unknown",
+      "position": 99476,
+      "parameters": [
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: Continuous1"
+    },
+    {
+      "name": "step",
+      "type": "Step protocol",
+      "position": 102016,
+      "parameters": [
+        0.4159599840641022,
+        1.875,
+        2.3125,
+        1.875,
+        1.875,
+        5.1103515625,
+        1.875,
+        1.4499999284744263,
+        0.4472099840641022,
+        1.875
+      ],
+      "description": "Step protocol: step"
+    },
+    {
+      "name": "g Inter",
+      "type": "Unknown",
+      "position": 102021,
+      "parameters": [
+        0.4159599840641022,
+        1.875,
+        2.3125,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: g Inter"
+    },
+    {
+      "name": "test Rs",
+      "type": "Test protocol",
+      "position": 104892,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.3249999284744263
+      ],
+      "description": "Test protocol: test Rs"
+    },
+    {
+      "name": "Steps -5mV",
+      "type": "Step protocol",
+      "position": 107312,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        -1.3649998903274536,
+        1.875,
+        1.75,
+        1.875,
+        -1.3799999952316284,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Step protocol: Steps -5mV"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 107976,
+      "parameters": [
+        -1.3799999952316284,
+        1.875,
+        1.3249999284744263,
+        1.875,
+        -1.3649998903274536
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 108828,
+      "parameters": [
+        0.8139999508857727,
+        1.875,
+        1.4499999284744263,
+        1.875,
+        -1.399999976158142
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 109484,
+      "parameters": [
+        1.875,
+        1.649999976158142,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 110140,
+      "parameters": [
+        0.4159599840641022,
+        1.875,
+        1.649999976158142,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "Steps +5mV",
+      "type": "Step protocol",
+      "position": 110272,
+      "parameters": [
+        1.875,
+        1.649999976158142,
+        1.875,
+        1.875,
+        0.8139999508857727,
+        1.875,
+        1.875,
+        1.75,
+        1.875,
+        1.875
+      ],
+      "description": "Step protocol: Steps +5mV"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 110936,
+      "parameters": [
+        1.875,
+        1.649999976158142,
+        1.875,
+        1.875,
+        0.8139999508857727
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 111788,
+      "parameters": [
+        0.8139999508857727,
+        1.875,
+        1.4499999284744263,
+        1.875,
+        -1.3799999952316284
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 112444,
+      "parameters": [
+        1.875,
+        1.649999976158142,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 113100,
+      "parameters": [
+        0.4159599840641022,
+        1.875,
+        1.649999976158142,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 114000,
+      "parameters": [
+        1.649999976158142,
+        1.875,
+        1.875,
+        0.8139999508857727,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "amp",
+      "type": "Unknown",
+      "position": 116108,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.3249999284744263
+      ],
+      "description": "Unknown: amp"
+    },
+    {
+      "name": "yr_amp",
+      "type": "Unknown",
+      "position": 116112,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.3249999284744263
+      ],
+      "description": "Unknown: yr_amp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 116884,
+      "parameters": [
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.3249999284744263,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "ffffff",
+      "type": "Unknown",
+      "position": 117020,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        0.9549999833106995,
+        0.4784599840641022
+      ],
+      "description": "Unknown: ffffff"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 117052,
+      "parameters": [
+        1.4499999284744263,
+        1.875,
+        0.9549999833106995,
+        0.4784599840641022,
+        2.5625
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 117136,
+      "parameters": [
+        0.9549999833106995,
+        0.4784599840641022,
+        2.5625,
+        -0.6023999452590942,
+        2.125
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 117220,
+      "parameters": [
+        2.5625,
+        -0.6023999452590942,
+        2.125,
+        -1.7872766256332397,
+        -1.4899998903274536
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "ffffff",
+      "type": "Unknown",
+      "position": 117356,
+      "parameters": [
+        -1.7872766256332397,
+        -1.4899998903274536,
+        1.625,
+        1.875,
+        1.4499999284744263
+      ],
+      "description": "Unknown: ffffff"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 117388,
+      "parameters": [
+        -1.7872766256332397,
+        -1.4899998903274536,
+        1.625,
+        1.875,
+        1.4499999284744263
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 118632,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.6649999618530273,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 118800,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.6649999618530273,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 118884,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.6649999618530273,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 118968,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        1.4499999284744263
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 119136,
+      "parameters": [
+        1.875,
+        0.4159599840641022,
+        1.875,
+        1.4499999284744263,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 120380,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 120548,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 120632,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 120716,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        1.4499999284744263
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 120884,
+      "parameters": [
+        1.875,
+        0.4159599840641022,
+        1.875,
+        1.4499999284744263,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 122128,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 122296,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 122380,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 122464,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        1.4499999284744263
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 122632,
+      "parameters": [
+        1.875,
+        0.4472099840641022,
+        1.875,
+        1.4499999284744263,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "GABA",
+      "type": "Unknown",
+      "position": 123352,
+      "parameters": [
+        1.875,
+        0.9389999508857727,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: GABA"
+    },
+    {
+      "name": "AMPA",
+      "type": "Unknown",
+      "position": 123357,
+      "parameters": [
+        1.875,
+        0.9389999508857727,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: AMPA"
+    },
+    {
+      "name": "Inter 1",
+      "type": "Unknown",
+      "position": 124916,
+      "parameters": [
+        1.875,
+        1.9375,
+        1.875,
+        1.875,
+        1.034999966621399
+      ],
+      "description": "Unknown: Inter 1"
+    },
+    {
+      "name": "Inter 2",
+      "type": "Unknown",
+      "position": 127792,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.3249999284744263
+      ],
+      "description": "Unknown: Inter 2"
+    },
+    {
+      "name": "firing -20pA",
+      "type": "Firing protocol",
+      "position": 130668,
+      "parameters": [
+        15.01176643371582
+      ],
+      "description": "Firing protocol: firing -20pA"
+    },
+    {
+      "name": "stim1",
+      "type": "Unknown",
+      "position": 133544,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.3249999284744263
+      ],
+      "description": "Unknown: stim1"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 134208,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.3249999284744263
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 135060,
+      "parameters": [
+        0.8139999508857727,
+        1.875,
+        1.4499999284744263,
+        1.875,
+        -1.399999976158142
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "ramp",
+      "type": "Ramp protocol",
+      "position": 135192,
+      "parameters": [
+        0.8139999508857727,
+        1.875,
+        1.4499999284744263,
+        1.875,
+        -1.399999976158142,
+        1.875,
+        1.034999966621399,
+        1.875,
+        1.875,
+        1.4499999284744263
+      ],
+      "description": "Ramp protocol: ramp"
+    },
+    {
+      "name": "g Inter",
+      "type": "Unknown",
+      "position": 135197,
+      "parameters": [
+        0.8139999508857727,
+        1.875,
+        1.4499999284744263,
+        1.875,
+        -1.399999976158142
+      ],
+      "description": "Unknown: g Inter"
+    },
+    {
+      "name": "lact",
+      "type": "Unknown",
+      "position": 139632,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        -1.034999966621399,
+        1.875
+      ],
+      "description": "Unknown: lact"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 140296,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.3249999284744263
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 141148,
+      "parameters": [
+        0.8139999508857727,
+        1.875,
+        1.4499999284744263,
+        1.875,
+        -1.399999976158142
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "const",
+      "type": "Unknown",
+      "position": 141280,
+      "parameters": [
+        0.8139999508857727,
+        1.875,
+        1.4499999284744263,
+        1.875,
+        -1.399999976158142
+      ],
+      "description": "Unknown: const"
+    },
+    {
+      "name": "curnt",
+      "type": "Unknown",
+      "position": 141286,
+      "parameters": [
+        0.8139999508857727,
+        1.875,
+        1.4499999284744263,
+        1.875,
+        -1.399999976158142
+      ],
+      "description": "Unknown: curnt"
+    },
+    {
+      "name": "step",
+      "type": "Step protocol",
+      "position": 141293,
+      "parameters": [
+        0.8139999508857727,
+        1.875,
+        1.4499999284744263,
+        1.875,
+        -1.399999976158142,
+        1.875,
+        1.034999966621399,
+        1.875,
+        1.875,
+        1.4499999284744263
+      ],
+      "description": "Step protocol: step"
+    },
+    {
+      "name": "Ramp",
+      "type": "Ramp protocol",
+      "position": 141344,
+      "parameters": [
+        -1.399999976158142,
+        1.875,
+        1.034999966621399,
+        1.875,
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.774999976158142,
+        1.875
+      ],
+      "description": "Ramp protocol: Ramp"
+    },
+    {
+      "name": "RecTemplate",
+      "type": "Unknown",
+      "position": 144156,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.8249999284744263
+      ],
+      "description": "Unknown: RecTemplate"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 144268,
+      "parameters": [
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.8249999284744263,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "ApplyTemplate",
+      "type": "Unknown",
+      "position": 147032,
+      "parameters": [
+        1.875,
+        1.75,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: ApplyTemplate"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 147144,
+      "parameters": [
+        1.75,
+        1.875,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "current",
+      "type": "Unknown",
+      "position": 149908,
+      "parameters": [
+        1.875,
+        1.75,
+        1.875,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: current"
+    },
+    {
+      "name": "Cell2",
+      "type": "Unknown",
+      "position": 152784,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.8249999284744263
+      ],
+      "description": "Unknown: Cell2"
+    },
+    {
+      "name": "nter",
+      "type": "Unknown",
+      "position": 152792,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.8249999284744263
+      ],
+      "description": "Unknown: nter"
+    },
+    {
+      "name": "Cell1",
+      "type": "Unknown",
+      "position": 155692,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.3249999284744263
+      ],
+      "description": "Unknown: Cell1"
+    },
+    {
+      "name": "2 DSI",
+      "type": "Unknown",
+      "position": 155698,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.3249999284744263
+      ],
+      "description": "Unknown: 2 DSI"
+    },
+    {
+      "name": "2 DSI",
+      "type": "Unknown",
+      "position": 157928,
+      "parameters": [
+        1.625,
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: 2 DSI"
+    },
+    {
+      "name": "2 DSI",
+      "type": "Unknown",
+      "position": 157934,
+      "parameters": [
+        1.625,
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: 2 DSI"
+    },
+    {
+      "name": "CCK4",
+      "type": "Unknown",
+      "position": 159492,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        1.3899999856948853,
+        1.875
+      ],
+      "description": "Unknown: CCK4"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 160268,
+      "parameters": [
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.3249999284744263,
+        2.0
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 160924,
+      "parameters": [
+        1.875,
+        1.75,
+        1.875,
+        1.875,
+        0.8139999508857727
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "MbP",
+      "type": "Unknown",
+      "position": 162572,
+      "parameters": [
+        1.875,
+        1.3899999856948853,
+        1.875,
+        -1.399999976158142,
+        1.875
+      ],
+      "description": "Unknown: MbP"
+    },
+    {
+      "name": "FS_pyr_amp3",
+      "type": "Unknown",
+      "position": 164352,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        -1.3249999284744263,
+        1.875
+      ],
+      "description": "Unknown: FS_pyr_amp3"
+    },
+    {
+      "name": "ffffff",
+      "type": "Unknown",
+      "position": 165096,
+      "parameters": [
+        1.875,
+        1.4499999284744263,
+        1.875,
+        -1.3249999284744263,
+        1.875
+      ],
+      "description": "Unknown: ffffff"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 165128,
+      "parameters": [
+        1.4499999284744263,
+        1.875,
+        -1.3249999284744263,
+        1.875,
+        1.3249999284744263
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 165296,
+      "parameters": [
+        1.4499999284744263,
+        1.875,
+        0.9549999833106995,
+        0.4784599840641022,
+        2.5625
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "ffffff",
+      "type": "Unknown",
+      "position": 165432,
+      "parameters": [
+        0.9549999833106995,
+        0.4784599840641022,
+        2.5625,
+        -0.6023999452590942,
+        2.125
+      ],
+      "description": "Unknown: ffffff"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 165464,
+      "parameters": [
+        2.5625,
+        -0.6023999452590942,
+        2.125,
+        -1.4899998903274536,
+        1.625
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 165548,
+      "parameters": [
+        -1.4899998903274536,
+        1.625,
+        1.875,
+        1.5749999284744263,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 165632,
+      "parameters": [
+        -1.4899998903274536,
+        1.625,
+        1.875,
+        1.5749999284744263,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "ffffff",
+      "type": "Unknown",
+      "position": 165768,
+      "parameters": [
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875,
+        1.7999999523162842
+      ],
+      "description": "Unknown: ffffff"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 165800,
+      "parameters": [
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875,
+        1.7999999523162842
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 166876,
+      "parameters": [
+        1.5749999284744263,
+        1.875,
+        1.875,
+        1.6649999618530273,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 167044,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.6649999618530273,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 167212,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        1.4499999284744263
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 167296,
+      "parameters": [
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.875,
+        0.4159599840641022
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 167380,
+      "parameters": [
+        1.875,
+        0.4159599840641022,
+        1.875,
+        1.5749999284744263,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 167548,
+      "parameters": [
+        0.4159599840641022,
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 168624,
+      "parameters": [
+        1.5749999284744263,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 168792,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 168960,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        1.4499999284744263
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 169044,
+      "parameters": [
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.875,
+        0.4159599840641022
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 169128,
+      "parameters": [
+        1.875,
+        0.4159599840641022,
+        1.875,
+        1.5749999284744263,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 169296,
+      "parameters": [
+        0.4159599840641022,
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 170372,
+      "parameters": [
+        1.5749999284744263,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 170540,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        0.9549999833106995
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 170708,
+      "parameters": [
+        0.9549999833106995,
+        1.875,
+        1.875,
+        1.875,
+        1.4499999284744263
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 170792,
+      "parameters": [
+        1.4499999284744263,
+        1.875,
+        1.875,
+        1.875,
+        0.4472099840641022
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 170876,
+      "parameters": [
+        1.875,
+        0.4472099840641022,
+        1.875,
+        1.5749999284744263,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    },
+    {
+      "name": "Mbp",
+      "type": "Unknown",
+      "position": 171044,
+      "parameters": [
+        0.4472099840641022,
+        1.875,
+        1.5749999284744263,
+        1.875,
+        1.875
+      ],
+      "description": "Unknown: Mbp"
+    }
+  ],
+  "summary": {
+    "ramp_protocols": 6,
+    "step_protocols": 4,
+    "firing_protocols": 1,
+    "measurement_protocols": 8
+  }
+}

@@ -108,7 +108,7 @@ function importLFP()
         [m, n, p] = size(new_lfp);  % получение размеров исходной матрицы
         if p > 1 % случай со свипами 
             disp('sweep case')
-            [new_lfp, new_spks, ~, new_lfpVar] = sweepProcessData(p, new_spks, n, m, new_lfp, Fs, d.zavp, d.lfpVar);
+            [new_lfp, new_spks, ~, new_lfpVar, ~] = sweepProcessData(p, new_spks, n, m, new_lfp, Fs, d.zavp, d.lfpVar);
             
         else            
             new_lfpVar = d.lfpVar(selectedChannels);

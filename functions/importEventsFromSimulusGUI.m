@@ -1,6 +1,7 @@
 function importEventsFromSimulusGUI()
     % Global variables
     global events stims time lfp channelNames ch_inxs
+    global event_amplitudes event_channels event_widths event_prominences event_metadata
 
     % Идентификатор (tag) для GUI фигуры
     figTag = 'importEventsFromSimulusGUI';
@@ -49,6 +50,10 @@ function importEventsFromSimulusGUI()
         ampCriterion = ampCriteriaPopup.Value;
 
         analyzedStims = [];
+        analyzedAmplitudes = [];
+        analyzedChannels = [];
+        analyzedMetadata = [];
+        
         i = 1;
         while i <= length(stims)
             stimCluster = stims(i);
@@ -59,26 +64,73 @@ function importEventsFromSimulusGUI()
             end
 
             stimClusterInxs = ClosestIndex(stimCluster, time);
+            clusterData = mean(lfp(stimClusterInxs, selectedChannels), 2);
+            
             if ampCriterion == 1
                 % Select maximum amplitude
-                [~, maxIdx] = max(mean(lfp(stimClusterInxs, selectedChannels), 2));
+                [amplitude, maxIdx] = max(clusterData);
                 analyzedStims = [analyzedStims; stimCluster(maxIdx)];
+                analyzedAmplitudes = [analyzedAmplitudes; amplitude];
+                criterion_str = 'Maximum';
             else
                 % Select minimum amplitude
-                [~, minIdx] = min(mean(lfp(stimClusterInxs, selectedChannels), 2));
+                [amplitude, minIdx] = min(clusterData);
                 analyzedStims = [analyzedStims; stimCluster(minIdx)];
+                analyzedAmplitudes = [analyzedAmplitudes; amplitude];
+                criterion_str = 'Minimum';
             end
+            
+            % Сохраняем каналы
+            analyzedChannels = [analyzedChannels; selectedChannels(:)'];
+            
+            % Создаем метаданные
+            metadata = struct(...
+                'source', 'stimulus', ...
+                'method', criterion_str, ...
+                'data_type', 'LFP', ...
+                'polarity', criterion_str, ...
+                'prominence', NaN, ...
+                'detection_params', struct(...
+                    'selectedChannels', selectedChannels, ...
+                    'minDistance', minDist, ...
+                    'ampCriterion', criterion_str ...
+                ) ...
+            );
+            analyzedMetadata = [analyzedMetadata; metadata];
 
             i = j; % Move to the next cluster
         end
 
         events = analyzedStims;
+        event_amplitudes = analyzedAmplitudes;
+        event_channels = analyzedChannels;
+        event_widths = NaN(size(analyzedStims));
+        event_prominences = NaN(size(analyzedStims));
+        event_metadata = analyzedMetadata;
         uiresume(hFig);
         close(hFig)
     end
 
     function importAllData(~, ~)
         events = stims;
+        
+        % Создаем простые метаданные для всех стимулов
+        event_amplitudes = NaN(size(stims));  % Амплитуда неизвестна для простого импорта
+        event_channels = ones(length(stims), 1);  % Default канал
+        event_widths = NaN(size(stims));
+        event_prominences = NaN(size(stims));
+        
+        % Создаем метаданные для всех событий
+        metadata_template = struct(...
+            'source', 'stimulus', ...
+            'method', 'import_all', ...
+            'data_type', 'LFP', ...
+            'polarity', 'unknown', ...
+            'prominence', NaN, ...
+            'detection_params', struct() ...
+        );
+        event_metadata = repmat(metadata_template, length(stims), 1);
+        
         uiresume(hFig);
         close(hFig)
     end
