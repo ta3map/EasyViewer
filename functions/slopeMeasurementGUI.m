@@ -21,15 +21,33 @@ function slopeMeasurementGUI()
         slope_measurement_settings.peak_end = 0;
         slope_measurement_settings.slope_percent = 20; % процент для slope расчета
         slope_measurement_settings.peak_polarity = 'positive'; % 'positive' или 'negative'
-        slope_measurement_settings.onset_method = 'threshold_crossing'; % метод расчета онсета
+        slope_measurement_settings.onset_method = 'derivative'; % метод расчета онсета
         slope_measurement_settings.onset_threshold = 3; % порог в единицах std
+        % Настройки видимости
+        slope_measurement_settings.show_baseline = true;
+        slope_measurement_settings.show_onset = true;
+        slope_measurement_settings.show_slope = true;
+        slope_measurement_settings.show_peak = true;
     else
         % Проверяем и добавляем недостающие поля для онсета
         if ~isfield(slope_measurement_settings, 'onset_method')
-            slope_measurement_settings.onset_method = 'threshold_crossing';
+            slope_measurement_settings.onset_method = 'derivative';
         end
         if ~isfield(slope_measurement_settings, 'onset_threshold')
             slope_measurement_settings.onset_threshold = 3;
+        end
+        % Проверяем и добавляем недостающие поля для видимости
+        if ~isfield(slope_measurement_settings, 'show_baseline')
+            slope_measurement_settings.show_baseline = true;
+        end
+        if ~isfield(slope_measurement_settings, 'show_onset')
+            slope_measurement_settings.show_onset = true;
+        end
+        if ~isfield(slope_measurement_settings, 'show_slope')
+            slope_measurement_settings.show_slope = true;
+        end
+        if ~isfield(slope_measurement_settings, 'show_peak')
+            slope_measurement_settings.show_peak = true;
         end
     end
     
@@ -104,17 +122,17 @@ function slopeMeasurementGUI()
         'String', 'Onset Method:', 'HorizontalAlignment', 'left');
     hOnsetMethodPopup = uicontrol(slopeFig, 'Style', 'popupmenu', ...
         'Position', [120, 470, 120, 25], ...
-        'String', {'Threshold Crossing', 'Derivative', 'Inflection Point', 'Statistical'}, ...
+        'String', {'First Derivative', 'Second Derivative', 'Threshold Crossing', 'Inverted Peak'}, ...
         'Value', getOnsetMethodIndex(slope_measurement_settings.onset_method), ...
         'Callback', @onsetMethodCallback);
     
-    uicontrol(slopeFig, 'Style', 'text', 'Position', [20, 440, 100, 20], ...
+    hOnsetThresholdLabel = uicontrol(slopeFig, 'Style', 'text', 'Position', [20, 440, 100, 20], ...
         'String', 'Onset Threshold:', 'HorizontalAlignment', 'left');
     hOnsetThresholdEdit = uicontrol(slopeFig, 'Style', 'edit', ...
         'Position', [120, 440, 60, 25], ...
         'String', num2str(slope_measurement_settings.onset_threshold), ...
         'Callback', @onsetThresholdCallback);
-    uicontrol(slopeFig, 'Style', 'text', 'Position', [185, 440, 20, 20], ...
+    hOnsetThresholdUnit = uicontrol(slopeFig, 'Style', 'text', 'Position', [185, 440, 20, 20], ...
         'String', 'std', 'HorizontalAlignment', 'left');
     
     % Разделитель baseline
@@ -169,16 +187,28 @@ function slopeMeasurementGUI()
         'HorizontalAlignment', 'center', 'FontWeight', 'bold');
     
     % Результаты
-    hBaselineText = uicontrol(slopeFig, 'Style', 'text', 'Position', [20, 205, 250, 20], ...
+    hBaselineText = uicontrol(slopeFig, 'Style', 'text', 'Position', [20, 205, 200, 20], ...
         'String', 'Baseline: -', 'HorizontalAlignment', 'left');
-    hPeakText = uicontrol(slopeFig, 'Style', 'text', 'Position', [20, 185, 250, 20], ...
+    hBaselineCheckbox = uicontrol(slopeFig, 'Style', 'checkbox', 'Position', [225, 205, 20, 20], ...
+        'Value', slope_measurement_settings.show_baseline, 'Callback', @baselineVisibilityCallback);
+    
+    hPeakText = uicontrol(slopeFig, 'Style', 'text', 'Position', [20, 185, 200, 20], ...
         'String', 'Peak: (-, -)', 'HorizontalAlignment', 'left');
-    hSlopeText = uicontrol(slopeFig, 'Style', 'text', 'Position', [20, 165, 250, 20], ...
+    hPeakCheckbox = uicontrol(slopeFig, 'Style', 'checkbox', 'Position', [225, 185, 20, 20], ...
+        'Value', slope_measurement_settings.show_peak, 'Callback', @peakVisibilityCallback);
+    
+    hSlopeText = uicontrol(slopeFig, 'Style', 'text', 'Position', [20, 165, 200, 20], ...
         'String', 'Slope: -', 'HorizontalAlignment', 'left');
-    hAngleText = uicontrol(slopeFig, 'Style', 'text', 'Position', [20, 145, 250, 20], ...
+    hSlopeCheckbox = uicontrol(slopeFig, 'Style', 'checkbox', 'Position', [225, 165, 20, 20], ...
+        'Value', slope_measurement_settings.show_slope, 'Callback', @slopeVisibilityCallback);
+    
+    hAngleText = uicontrol(slopeFig, 'Style', 'text', 'Position', [20, 145, 200, 20], ...
         'String', 'Angle: -', 'HorizontalAlignment', 'left');
-    hOnsetText = uicontrol(slopeFig, 'Style', 'text', 'Position', [20, 125, 250, 20], ...
+    
+    hOnsetText = uicontrol(slopeFig, 'Style', 'text', 'Position', [20, 125, 200, 20], ...
         'String', 'Onset: -', 'HorizontalAlignment', 'left');
+    hOnsetCheckbox = uicontrol(slopeFig, 'Style', 'checkbox', 'Position', [225, 125, 20, 20], ...
+        'Value', slope_measurement_settings.show_onset, 'Callback', @onsetVisibilityCallback);
     
     % Разделитель навигации
     uicontrol(slopeFig, 'Style', 'text', 'Position', [20, 105, 250, 20], ...
@@ -258,8 +288,14 @@ function slopeMeasurementGUI()
     mean_signal_data = [];
     mean_signal_time = [];
     
+    % Флаг для восстановления состояния из метаданных
+    restoring_from_metadata = false;
+    
     % Инициализация
     initializeTimes();
+    
+    % Устанавливаем видимость поля порога в зависимости от выбранного метода
+    % updateOnsetThresholdVisibility();
     
     updateNavigationStatus();
     updatePlotAndCalculation();
@@ -353,8 +389,24 @@ function slopeMeasurementGUI()
     
     function onsetMethodCallback(src, ~)
         methods = get(src, 'String');
-        selected_method = lower(strrep(methods{get(src, 'Value')}, ' ', '_'));
+        selected_method_name = methods{get(src, 'Value')};
+        
+        % Преобразуем названия методов в внутренние имена
+        switch selected_method_name
+            case 'First Derivative'
+                selected_method = 'derivative';
+            case 'Second Derivative'
+                selected_method = 'second_derivative';
+            case 'Threshold Crossing'
+                selected_method = 'threshold_crossing';
+            case 'Inverted Peak'
+                selected_method = 'inverted_peak';
+            otherwise
+                selected_method = 'derivative'; % по умолчанию
+        end
+        
         slope_measurement_settings.onset_method = selected_method;
+        % updateOnsetThresholdVisibility();
         updatePlotAndCalculation();
     end
     
@@ -366,15 +418,50 @@ function slopeMeasurementGUI()
         end
     end
     
+    function baselineVisibilityCallback(src, ~)
+        slope_measurement_settings.show_baseline = get(src, 'Value');
+        updatePlotAndCalculation();
+    end
+    
+    function slopeVisibilityCallback(src, ~)
+        slope_measurement_settings.show_slope = get(src, 'Value');
+        updatePlotAndCalculation();
+    end
+    
+    function onsetVisibilityCallback(src, ~)
+        slope_measurement_settings.show_onset = get(src, 'Value');
+        updatePlotAndCalculation();
+    end
+    
+    function peakVisibilityCallback(src, ~)
+        slope_measurement_settings.show_peak = get(src, 'Value');
+        updatePlotAndCalculation();
+    end
+    
     function method_index = getOnsetMethodIndex(method_name)
         % Вспомогательная функция для определения индекса метода в popupmenu
-        method_map = containers.Map({'threshold_crossing', 'derivative', 'inflection_point', 'statistical'}, {1, 2, 3, 4});
+        method_map = containers.Map({'derivative', 'second_derivative', 'threshold_crossing', 'inverted_peak'}, {1, 2, 3, 4});
         if method_map.isKey(method_name)
             method_index = method_map(method_name);
         else
             method_index = 1; % по умолчанию
         end
     end
+    
+%     function updateOnsetThresholdVisibility()
+%         % Обновляет видимость поля порога в зависимости от выбранного метода
+%         if strcmp(slope_measurement_settings.onset_method, 'threshold_crossing') || strcmp(slope_measurement_settings.onset_method, 'inverted_peak')
+%             % Показываем поле порога для методов Threshold Crossing и Inverted Peak
+%             set(hOnsetThresholdLabel, 'Visible', 'on');
+%             set(hOnsetThresholdEdit, 'Visible', 'on');
+%             set(hOnsetThresholdUnit, 'Visible', 'on');
+%         else
+%             % Скрываем поле порога для методов First Derivative и Second Derivative
+%             set(hOnsetThresholdLabel, 'Visible', 'off');
+%             set(hOnsetThresholdEdit, 'Visible', 'off');
+%             set(hOnsetThresholdUnit, 'Visible', 'off');
+%         end
+%     end
     
 
     
@@ -493,14 +580,25 @@ function slopeMeasurementGUI()
             fprintf('  peak: [%.3f, %.3f]\n', peak_start, peak_end);
         end
         
-        % Новый продвинутый расчет slope
-        [baseline_value, peak_time, peak_value, slope_value, slope_angle, regression_points] = ...
-            calculateAdvancedSlope(channel_data, time_in, baseline_start, baseline_end, ...
-                                 peak_start, peak_end, slope_percent, peak_polarity);
+        % Расчет baseline один раз
+        [baseline_value, baseline_indices] = calculateBaseline(channel_data, time_in, baseline_start, baseline_end);
+        
+        % Вычисляем стандартное отклонение baseline для онсета
+        if ~isempty(baseline_indices)
+            baseline_data = channel_data(baseline_indices);
+            baseline_std = std(baseline_data);
+        else
+            baseline_std = NaN;
+        end
+        
+        % Расчет slope
+        [slope_value, slope_angle, regression_points, peak_time, peak_value] = ...
+            calculateSlope(channel_data, time_in, baseline_value, ...
+                         peak_start, peak_end, slope_percent, peak_polarity);
         
         % Расчет онсета
         [onset_time, onset_value, onset_method] = calculateOnset(channel_data, time_in, ...
-            baseline_start, baseline_end, peak_start, peak_end, ...
+            baseline_value, baseline_std, peak_start, peak_end, ...
             slope_measurement_settings.onset_method, slope_measurement_settings.onset_threshold);
         
         % Применяем зум если активен
@@ -566,17 +664,46 @@ function slopeMeasurementGUI()
                 full_end = max(time_display);
                 xlim([full_start, full_end]);
                 
-                % Автоматически устанавливаем границы амплитуды
-                ylim('auto');
+                % Вычисляем границы амплитуды с небольшим запасом
+                y_min = min(channel_data);
+                y_max = max(channel_data);
+                y_range = y_max - y_min;
+                if y_range == 0
+                    y_range = abs(y_min) * 0.1; % если данные постоянные, добавляем 10% от значения
+                end
+                y_padding = y_range * 0.05; % 5% запас сверху и снизу
+                ylim([y_min - y_padding, y_max + y_padding]);
+                
+                fprintf('DEBUG: [Средний сигнал] Вычислены границы амплитуды - данные: [%.3f, %.3f], границы: [%.3f, %.3f]\n', ...
+                    y_min, y_max, y_min - y_padding, y_max + y_padding);
             else
-                % В обычном режиме используем стандартные границы
+                % В обычном режиме используем стандартные границы времени
                 full_start = (chosen_time_interval(1) - time_back - rel_shift) * timeUnitFactor;
                 full_end = (chosen_time_interval(2) - rel_shift) * timeUnitFactor;
                 xlim([full_start, full_end]);
                 
-                % Восстанавливаем исходные границы амплитуды
-                if ~isempty(original_ylim)
+                % Проверяем, есть ли уже сохраненные границы амплитуды (при восстановлении из метаданных)
+                if restoring_from_metadata && ~isempty(original_ylim) && length(original_ylim) == 2
+                    % Используем сохраненные границы вместо вычисления новых
                     ylim(original_ylim);
+                    fprintf('DEBUG: [Обычный режим] Использованы сохраненные границы амплитуды: [%.3f, %.3f]\n', ...
+                        original_ylim(1), original_ylim(2));
+                else
+                    % Вычисляем границы амплитуды с небольшим запасом
+                    y_min = min(channel_data);
+                    y_max = max(channel_data);
+                    y_range = y_max - y_min;
+                    if y_range == 0
+                        y_range = abs(y_min) * 0.1; % если данные постоянные, добавляем 10% от значения
+                    end
+                    y_padding = y_range * 0.05; % 5% запас сверху и снизу
+                    ylim([y_min - y_padding, y_max + y_padding]);
+                    
+                    % Сохраняем вычисленные границы как исходные для будущих сбросов зума
+                    original_ylim = [y_min - y_padding, y_max + y_padding];
+                    
+                    fprintf('DEBUG: [Обычный режим] Вычислены границы амплитуды - данные: [%.3f, %.3f], границы: [%.3f, %.3f]\n', ...
+                        y_min, y_max, y_min - y_padding, y_max + y_padding);
                 end
             end
         end
@@ -608,38 +735,67 @@ function slopeMeasurementGUI()
         
         grid on;
         
+        % Отображение времени стимула вертикальной серой линией
+        if stims_exist && ~isempty(stims)
+            % Находим стимул, ближайший к центру текущего временного интервала
+            interval_center = (chosen_time_interval(1) + chosen_time_interval(2)) / 2;
+            [~, closest_stim_idx] = min(abs(stims - interval_center));
+            stim_time = stims(closest_stim_idx);
+            stim_time_display = (stim_time - rel_shift) * timeUnitFactor;
+            line([stim_time_display, stim_time_display], ylims, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 1, 'LineStyle', ':');
+        end
+        
         % Рисуем линии лимитов в самом конце, после установки всех лимитов
         ylims = ylim;
         
-        % Отображение baseline диапазона (синие линии)
-        if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
-            % В режиме среднего сигнала времена уже нормализованы
-            t_bl_start = baseline_start * timeUnitFactor;
-            t_bl_end = baseline_end * timeUnitFactor;
+        % Отображение baseline диапазона (синие линии) - только если включено
+        if slope_measurement_settings.show_baseline
+            if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
+                % В режиме среднего сигнала времена уже нормализованы
+                t_bl_start = baseline_start * timeUnitFactor;
+                t_bl_end = baseline_end * timeUnitFactor;
+            else
+                % В обычном режиме нормализуем относительно rel_shift
+                t_bl_start = (baseline_start - rel_shift) * timeUnitFactor;
+                t_bl_end = (baseline_end - rel_shift) * timeUnitFactor;
+            end
+            hBaselineLines(1) = line([t_bl_start, t_bl_start], ylims, 'Color', 'b', 'LineWidth', 2, 'LineStyle', ':');
+            hBaselineLines(2) = line([t_bl_end, t_bl_end], ylims, 'Color', 'b', 'LineWidth', 2, 'LineStyle', ':');
+            % Горизонтальная линия baseline через весь график (точечный пунктир)
+            xlims = xlim;
+            hBaselineLines(3) = line([xlims(1), xlims(2)], [baseline_value, baseline_value], 'Color', 'b', 'LineWidth', 1, 'LineStyle', ':');
+            
+            % Подписи диапазонов
+            text(t_bl_start, ylims(1) + (ylims(2) - ylims(1)) * 0.05, 'BL', 'HorizontalAlignment', 'center', 'Color', 'b', 'FontWeight', 'bold');
         else
-            % В обычном режиме нормализуем относительно rel_shift
-            t_bl_start = (baseline_start - rel_shift) * timeUnitFactor;
-            t_bl_end = (baseline_end - rel_shift) * timeUnitFactor;
+            hBaselineLines = [];
         end
-        hBaselineLines(1) = line([t_bl_start, t_bl_start], ylims, 'Color', 'b', 'LineWidth', 2, 'LineStyle', ':');
-        hBaselineLines(2) = line([t_bl_end, t_bl_end], ylims, 'Color', 'b', 'LineWidth', 2, 'LineStyle', ':');
-        hBaselineLines(3) = line([t_bl_start, t_bl_end], [baseline_value, baseline_value], 'Color', 'b', 'LineWidth', 2);
         
-        % Отображение peak диапазона (зеленые линии)
-        if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
-            % В режиме среднего сигнала времена уже нормализованы
-            t_pk_start = peak_start * timeUnitFactor;
-            t_pk_end = peak_end * timeUnitFactor;
+        % Отображение peak диапазона (зеленые линии) - отображаются если включен хотя бы один элемент,
+        % который вычисляется внутри этих границ (peak, onset, slope)
+        show_peak_range = slope_measurement_settings.show_peak || slope_measurement_settings.show_onset || slope_measurement_settings.show_slope;
+        
+        if show_peak_range
+            if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
+                % В режиме среднего сигнала времена уже нормализованы
+                t_pk_start = peak_start * timeUnitFactor;
+                t_pk_end = peak_end * timeUnitFactor;
+            else
+                % В обычном режиме нормализуем относительно rel_shift
+                t_pk_start = (peak_start - rel_shift) * timeUnitFactor;
+                t_pk_end = (peak_end - rel_shift) * timeUnitFactor;
+            end
+            hPeakLines(1) = line([t_pk_start, t_pk_start], ylims, 'Color', 'g', 'LineWidth', 2, 'LineStyle', ':');
+            hPeakLines(2) = line([t_pk_end, t_pk_end], ylims, 'Color', 'g', 'LineWidth', 2, 'LineStyle', ':');
+            
+            % Подписи диапазонов
+            text(t_pk_start, ylims(1) + (ylims(2) - ylims(1)) * 0.05, 'PK', 'HorizontalAlignment', 'center', 'Color', 'g', 'FontWeight', 'bold');
         else
-            % В обычном режиме нормализуем относительно rel_shift
-            t_pk_start = (peak_start - rel_shift) * timeUnitFactor;
-            t_pk_end = (peak_end - rel_shift) * timeUnitFactor;
+            hPeakLines = [];
         end
-        hPeakLines(1) = line([t_pk_start, t_pk_start], ylims, 'Color', 'g', 'LineWidth', 2, 'LineStyle', ':');
-        hPeakLines(2) = line([t_pk_end, t_pk_end], ylims, 'Color', 'g', 'LineWidth', 2, 'LineStyle', ':');
         
-        % Отображение пика (красный маркер)
-        if ~isnan(peak_time)
+        % Отображение пика (красный маркер) - только если включено
+        if slope_measurement_settings.show_peak && ~isnan(peak_time)
             if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
                 % В режиме среднего сигнала время пика уже нормализовано
                 peak_time_display = peak_time * timeUnitFactor;
@@ -651,10 +807,12 @@ function slopeMeasurementGUI()
             text(peak_time_display, peak_value + (ylims(2) - ylims(1)) * 0.05, ...
                 sprintf('Peak: %.3f', peak_time_display), ...
                 'HorizontalAlignment', 'center', 'Color', 'r', 'FontWeight', 'bold');
+        else
+            hPeakMarker = [];
         end
         
-        % Отображение онсета (фиолетовый маркер)
-        if ~isnan(onset_time)
+        % Отображение онсета (фиолетовый маркер) - только если включено
+        if slope_measurement_settings.show_onset && ~isnan(onset_time)
             if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
                 % В режиме среднего сигнала время онсета уже нормализовано
                 onset_time_display = onset_time * timeUnitFactor;
@@ -666,10 +824,12 @@ function slopeMeasurementGUI()
             text(onset_time_display, onset_value - (ylims(2) - ylims(1)) * 0.05, ...
                 sprintf('Onset: %.3f', onset_time_display), ...
                 'HorizontalAlignment', 'center', 'Color', 'm', 'FontWeight', 'bold');
+        else
+            hOnsetMarker = [];
         end
         
-        % Отображение slope линии (черная линия)
-        if ~isnan(regression_points.time1) && ~isnan(regression_points.time2)
+        % Отображение slope линии (черная линия) - только если включено
+        if slope_measurement_settings.show_slope && ~isnan(regression_points.time1) && ~isnan(regression_points.time2)
             if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
                 % В режиме среднего сигнала времена уже нормализованы
                 t_reg1 = regression_points.time1 * timeUnitFactor;
@@ -685,21 +845,11 @@ function slopeMeasurementGUI()
             % Маркеры slope точек
             plot(t_reg1, regression_points.value1, 'ko', 'MarkerSize', 6, 'MarkerFaceColor', 'k');
             plot(t_reg2, regression_points.value2, 'ko', 'MarkerSize', 6, 'MarkerFaceColor', 'k');
+        else
+            hSlopeLine = [];
         end
         
-        % Подписи диапазонов
-        text(t_bl_start, ylims(1) + (ylims(2) - ylims(1)) * 0.05, 'BL', 'HorizontalAlignment', 'center', 'Color', 'b', 'FontWeight', 'bold');
-        text(t_pk_start, ylims(1) + (ylims(2) - ylims(1)) * 0.05, 'PK', 'HorizontalAlignment', 'center', 'Color', 'g', 'FontWeight', 'bold');
-        
-        % Отображение времени стимула вертикальной серой линией
-        if stims_exist && ~isempty(stims)
-            % Находим стимул, ближайший к центру текущего временного интервала
-            interval_center = (chosen_time_interval(1) + chosen_time_interval(2)) / 2;
-            [~, closest_stim_idx] = min(abs(stims - interval_center));
-            stim_time = stims(closest_stim_idx);
-            stim_time_display = (stim_time - rel_shift) * timeUnitFactor;
-            line([stim_time_display, stim_time_display], ylims, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 1, 'LineStyle', ':');
-        end
+
         
         hold off;
         
@@ -734,13 +884,98 @@ function slopeMeasurementGUI()
             set(hOnsetText, 'String', 'Onset: (-, -)');
         end
         
+        % Обновляем видимость текстовых полей в зависимости от настроек
+        if slope_measurement_settings.show_baseline
+            set(hBaselineText, 'Visible', 'on');
+        else
+            set(hBaselineText, 'Visible', 'off');
+        end
+        
+        if slope_measurement_settings.show_slope
+            set(hSlopeText, 'Visible', 'on');
+            set(hAngleText, 'Visible', 'on');
+        else
+            set(hSlopeText, 'Visible', 'off');
+            set(hAngleText, 'Visible', 'off');
+        end
+        
+        if slope_measurement_settings.show_onset
+            set(hOnsetText, 'Visible', 'on');
+        else
+            set(hOnsetText, 'Visible', 'off');
+        end
+        
+        if slope_measurement_settings.show_peak
+            set(hPeakText, 'Visible', 'on');
+        else
+            set(hPeakText, 'Visible', 'off');
+        end
+        
         % Добавляем возможность перетаскивания для диапазонов
         makeDraggable();
     end
     
+    function updateLinePositions()
+        % Обновляет только позиции линий без пересчета параметров
+        % Получаем текущие границы осей
+        ylims = ylim(hPlotAxes);
+        
+        % Получаем параметры для отображения линий
+        baseline_start = slope_measurement_settings.baseline_start;
+        baseline_end = slope_measurement_settings.baseline_end;
+        peak_start = slope_measurement_settings.peak_start;
+        peak_end = slope_measurement_settings.peak_end;
+        
+        % Обновляем позиции baseline линий
+        if slope_measurement_settings.show_baseline && ~isempty(hBaselineLines) && length(hBaselineLines) >= 3
+            if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
+                % В режиме среднего сигнала времена уже нормализованы
+                t_bl_start = baseline_start * timeUnitFactor;
+                t_bl_end = baseline_end * timeUnitFactor;
+            else
+                % В обычном режиме нормализуем относительно rel_shift
+                t_bl_start = (baseline_start - rel_shift) * timeUnitFactor;
+                t_bl_end = (baseline_end - rel_shift) * timeUnitFactor;
+            end
+            
+            % Обновляем позиции линий
+            if ishandle(hBaselineLines(1))
+                set(hBaselineLines(1), 'XData', [t_bl_start, t_bl_start], 'YData', ylims);
+            end
+            if ishandle(hBaselineLines(2))
+                set(hBaselineLines(2), 'XData', [t_bl_end, t_bl_end], 'YData', ylims);
+            end
+            % Не обновляем горизонтальную линию baseline во время перетаскивания
+            % Она будет обновлена только после завершения перетаскивания в updatePlotAndCalculation()
+        end
+        
+        % Обновляем позиции peak линий - отображаются если включен хотя бы один элемент,
+        % который вычисляется внутри этих границ (peak, onset, slope)
+        show_peak_range = slope_measurement_settings.show_peak || slope_measurement_settings.show_onset || slope_measurement_settings.show_slope;
+        if show_peak_range && ~isempty(hPeakLines) && length(hPeakLines) >= 2
+            if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
+                % В режиме среднего сигнала времена уже нормализованы
+                t_pk_start = peak_start * timeUnitFactor;
+                t_pk_end = peak_end * timeUnitFactor;
+            else
+                % В обычном режиме нормализуем относительно rel_shift
+                t_pk_start = (peak_start - rel_shift) * timeUnitFactor;
+                t_pk_end = (peak_end - rel_shift) * timeUnitFactor;
+            end
+            
+            % Обновляем позиции линий
+            if ishandle(hPeakLines(1))
+                set(hPeakLines(1), 'XData', [t_pk_start, t_pk_start], 'YData', ylims);
+            end
+            if ishandle(hPeakLines(2))
+                set(hPeakLines(2), 'XData', [t_pk_end, t_pk_end], 'YData', ylims);
+            end
+        end
+    end
+    
     function makeDraggable()
         % Делаем линии диапазонов перетаскиваемыми
-        if ~isempty(hBaselineLines)
+        if slope_measurement_settings.show_baseline && ~isempty(hBaselineLines)
             for i = 1:2 % первые две линии - границы baseline
                 if ishandle(hBaselineLines(i))
                     set(hBaselineLines(i), 'ButtonDownFcn', @(src,evt)startDrag(src,evt,'baseline',i));
@@ -748,7 +983,10 @@ function slopeMeasurementGUI()
             end
         end
         
-        if ~isempty(hPeakLines)
+        % Перетаскивание peak линий - доступно если включен хотя бы один элемент,
+        % который вычисляется внутри этих границ (peak, onset, slope)
+        show_peak_range = slope_measurement_settings.show_peak || slope_measurement_settings.show_onset || slope_measurement_settings.show_slope;
+        if show_peak_range && ~isempty(hPeakLines)
             for i = 1:2 % первые две линии - границы peak
                 if ishandle(hPeakLines(i))
                     set(hPeakLines(i), 'ButtonDownFcn', @(src,evt)startDrag(src,evt,'peak',i));
@@ -789,12 +1027,16 @@ function slopeMeasurementGUI()
             end
         end
         
-        updatePlotAndCalculation();
+        % Обновляем только позиции линий без пересчета параметров
+        updateLinePositions();
     end
     
     function stopDrag(~, ~)
         set(slopeFig, 'WindowButtonMotionFcn', '');
         set(slopeFig, 'WindowButtonUpFcn', '');
+        
+        % Пересчитываем параметры только после того как пользователь отжал мышь
+        updatePlotAndCalculation();
     end
     
     function updateNavigationStatus()
@@ -1116,7 +1358,9 @@ function slopeMeasurementGUI()
         zoom_y_min = [];
         zoom_y_max = [];
         
-        % НЕ сбрасываем original_ylim - сохраняем для будущих сбросов
+        % Сбрасываем original_ylim чтобы при следующем updatePlotAndCalculation()
+        % были вычислены новые оптимальные границы
+        original_ylim = [];
         
         % Находим кнопку зума в фигуре
         zoomBtn = findobj(slopeFig, 'Style', 'pushbutton', 'Callback', @toggleZoom);
@@ -1127,7 +1371,7 @@ function slopeMeasurementGUI()
             fprintf('ERROR: Кнопка зума не найдена в resetZoom!\n');
         end
         
-        fprintf('✓ Зум сброшен (восстанавливаем исходные границы амплитуды)\n');
+        fprintf('✓ Зум сброшен (будут вычислены новые оптимальные границы)\n');
         updateNavigationStatus();
         updatePlotAndCalculation();
     end
@@ -1238,17 +1482,27 @@ function slopeMeasurementGUI()
             time_in = linspace(time_in(1), time_in(end), length(channel_data));
         end
         
+        % Расчет baseline один раз
+        [baseline_value, baseline_indices] = calculateBaseline(channel_data, time_in, ...
+            slope_measurement_settings.baseline_start, slope_measurement_settings.baseline_end);
+        
+        % Вычисляем стандартное отклонение baseline для онсета
+        if ~isempty(baseline_indices)
+            baseline_data = channel_data(baseline_indices);
+            baseline_std = std(baseline_data);
+        else
+            baseline_std = NaN;
+        end
+        
         % Получаем текущие результаты из расчета
-        [baseline_value, peak_time, peak_value, slope_value, slope_angle, regression_points] = ...
-            calculateAdvancedSlope(channel_data, time_in, slope_measurement_settings.baseline_start, ...
-                                 slope_measurement_settings.baseline_end, slope_measurement_settings.peak_start, ...
-                                 slope_measurement_settings.peak_end, slope_measurement_settings.slope_percent, ...
-                                 slope_measurement_settings.peak_polarity);
+        [slope_value, slope_angle, regression_points, peak_time, peak_value] = ...
+            calculateSlope(channel_data, time_in, baseline_value, ...
+                         slope_measurement_settings.peak_start, slope_measurement_settings.peak_end, ...
+                         slope_measurement_settings.slope_percent, slope_measurement_settings.peak_polarity);
         
         % Получаем результаты онсета
         [onset_time, onset_value, onset_method] = calculateOnset(channel_data, time_in, ...
-            slope_measurement_settings.baseline_start, slope_measurement_settings.baseline_end, ...
-            slope_measurement_settings.peak_start, slope_measurement_settings.peak_end, ...
+            baseline_value, baseline_std, slope_measurement_settings.peak_start, slope_measurement_settings.peak_end, ...
             slope_measurement_settings.onset_method, slope_measurement_settings.onset_threshold);
         
         % Создаем метаданные для сохранения состояния
@@ -1281,6 +1535,10 @@ function slopeMeasurementGUI()
         metadata.sweep_inx = sweep_inx;
         metadata.onset_method = slope_measurement_settings.onset_method;
         metadata.onset_threshold = slope_measurement_settings.onset_threshold;
+        metadata.show_baseline = slope_measurement_settings.show_baseline;
+        metadata.show_onset = slope_measurement_settings.show_onset;
+        metadata.show_slope = slope_measurement_settings.show_slope;
+        metadata.show_peak = slope_measurement_settings.show_peak;
         
         % Добавляем результат в структуру
         new_result = struct('baseline_value', baseline_value, 'slope_value', slope_value, ...
@@ -1466,6 +1724,9 @@ function slopeMeasurementGUI()
             return;
         end
         
+        % Устанавливаем флаг восстановления
+        restoring_from_metadata = true;
+        
         metadata = slope_measurement_results(row_index).metadata;
         
         % Восстанавливаем настройки slope measurement
@@ -1476,6 +1737,20 @@ function slopeMeasurementGUI()
         slope_measurement_settings.peak_end = metadata.peak_end;
         slope_measurement_settings.slope_percent = metadata.slope_percent;
         slope_measurement_settings.peak_polarity = metadata.peak_polarity;
+        
+        % Восстанавливаем настройки видимости если они есть
+        if isfield(metadata, 'show_baseline')
+            slope_measurement_settings.show_baseline = metadata.show_baseline;
+        end
+        if isfield(metadata, 'show_onset')
+            slope_measurement_settings.show_onset = metadata.show_onset;
+        end
+        if isfield(metadata, 'show_slope')
+            slope_measurement_settings.show_slope = metadata.show_slope;
+        end
+        if isfield(metadata, 'show_peak')
+            slope_measurement_settings.show_peak = metadata.show_peak;
+        end
         
         % Восстанавливаем временной интервал
         chosen_time_interval = metadata.chosen_time_interval;
@@ -1488,8 +1763,8 @@ function slopeMeasurementGUI()
         zoom_y_max = metadata.zoom_y_max;
         original_ylim = metadata.original_ylim;
         
-        % Восстанавливаем границы амплитуды если они были сохранены
-        if ~isempty(original_ylim) && length(original_ylim) == 2
+        % Восстанавливаем границы амплитуды если они были сохранены и зум не был применен
+        if ~isempty(original_ylim) && length(original_ylim) == 2 && ~zoom_active
             axes(hPlotAxes);
             ylim(original_ylim);
         end
@@ -1517,6 +1792,15 @@ function slopeMeasurementGUI()
         % Обновляем настройки онсета
         set(hOnsetMethodPopup, 'Value', getOnsetMethodIndex(slope_measurement_settings.onset_method));
         set(hOnsetThresholdEdit, 'String', num2str(slope_measurement_settings.onset_threshold));
+        
+        % Обновляем настройки видимости
+        set(hBaselineCheckbox, 'Value', slope_measurement_settings.show_baseline);
+        set(hSlopeCheckbox, 'Value', slope_measurement_settings.show_slope);
+        set(hOnsetCheckbox, 'Value', slope_measurement_settings.show_onset);
+        set(hPeakCheckbox, 'Value', slope_measurement_settings.show_peak);
+        
+        % Обновляем видимость поля порога
+        % updateOnsetThresholdVisibility();
         
         % Обновляем edit fields с относительным временем
         if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
@@ -1548,6 +1832,9 @@ function slopeMeasurementGUI()
         % Обновляем график и статус
         updateNavigationStatus();
         updatePlotAndCalculation();
+        
+        % Сбрасываем флаг восстановления
+        restoring_from_metadata = false;
         
         fprintf('✓ Состояние восстановлено из результата #%d\n', row_index);
     end
