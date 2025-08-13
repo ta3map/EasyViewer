@@ -16,8 +16,17 @@ function slopeMeasurementGUI()
     global multiple_measurements
     global measurement_cursors
     global selected_measurement_row % для отслеживания выделенной строки в таблице измерений
-global slope_value slope_angle peak_time peak_value baseline_value baseline_std onset_time onset_value onset_method measurement_metadata
+    global slope_value slope_angle peak_time peak_value baseline_value onset_time onset_value onset_method measurement_metadata
+
+    % Глобальные переменные для сохранения результатов
+    global matFilePath matFileName
     
+    % Глобальные переменные для среднего сигнала
+    global mean_signal_data mean_signal_time mean_results_active
+    
+    % Глобальная переменная для метаданных измерений
+    global current_measurement_metadata
+
     % Инициализация настроек если их нет
     if isempty(slope_measurement_settings)
         slope_measurement_settings.channel = 1;
@@ -100,6 +109,9 @@ global slope_value slope_angle peak_time peak_value baseline_value baseline_std 
     % Инициализация переменной для выделенной строки измерений
     selected_measurement_row = [];
     
+    % Инициализация глобальной переменной для метаданных
+    current_measurement_metadata = [];
+    
     % Идентификатор (tag) для GUI фигуры
     figTag = 'SlopeMeasurement';
     
@@ -112,11 +124,11 @@ global slope_value slope_angle peak_time peak_value baseline_value baseline_std 
         return
     end
     
-    % Создание главного окна (увеличиваем размер для таблицы)
+    % Создание главного окна (увеличиваем размер для расширенной таблицы)
     slopeFig = figure('Name', 'Slope Measurement', 'Tag', figTag, ...
         'Resize', 'off', ...
         'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', ...
-        'Position', [100, 100, 1270, 600]);
+        'Position', [100, 100, 1470, 600]);
 
     % === Левая панель управления ===
     
@@ -265,15 +277,23 @@ global slope_value slope_angle peak_time peak_value baseline_value baseline_std 
     
     % Кнопка удаления результата
     hRemoveBtn = uicontrol(slopeFig, 'Style', 'pushbutton', 'String', 'Remove', ...
-        'Position', [1120, 530, 70, 25], 'Callback', @removeResult);
-    
-    % Кнопка сохранения результатов
-    uicontrol(slopeFig, 'Style', 'pushbutton', 'String', 'Save', ...
-        'Position', [1200, 530, 70, 25], 'Callback', @saveResults);
+        'Position', [1040, 500, 70, 25], 'Callback', @removeResult);
     
     % Кнопка просмотра среднего сигнала
     hMeanResultsBtn = uicontrol(slopeFig, 'Style', 'pushbutton', 'String', 'Mean Results', ...
-        'Position', [1275, 530, 70, 25], 'Callback', @toggleMeanResults, 'Enable', 'off');
+        'Position', [1040, 470, 70, 25], 'Callback', @toggleMeanResults, 'Enable', 'off');
+    
+    % Кнопка загрузки результатов
+    uicontrol(slopeFig, 'Style', 'pushbutton', 'String', 'Load', ...
+        'Position', [1040, 340, 70, 25], 'Callback', @loadResults);
+    
+    % Кнопка очистки всех результатов
+    uicontrol(slopeFig, 'Style', 'pushbutton', 'String', 'Clear All', ...
+        'Position', [1380, 530, 70, 25], 'Callback', @clearAllResults);
+    
+    % Кнопка сохранения результатов
+    uicontrol(slopeFig, 'Style', 'pushbutton', 'String', 'Save', ...
+        'Position', [1040, 310, 70, 25], 'Callback', @saveResults);
     
     % === Панель множественных измерений ===
     % Заголовок панели измерений
@@ -301,22 +321,22 @@ global slope_value slope_angle peak_time peak_value baseline_value baseline_std 
         
     
     % === График ===
-    hPlotAxes = axes('Position', [0.45, 0.15, 0.35, 0.75]);
+    hPlotAxes = axes('Position', [0.37, 0.15, 0.322, 0.75]);
     
     % Кнопка зума в левом углу графика
     hZoomButton = uicontrol(slopeFig, 'Style', 'pushbutton', 'String', 'Zoom', ...
-        'Position', [520, 550, 100, 30], 'Callback', @toggleZoom);
+        'Position', [520, 530, 70, 25], 'Callback', @toggleZoom);
     
     % === Таблица результатов ===
     % Заголовок таблицы
-    uicontrol(slopeFig, 'Style', 'text', 'Position', [1040, 560, 200, 25], ...
+    uicontrol(slopeFig, 'Style', 'text', 'Position', [1120, 560, 330, 25], ...
         'String', 'Results Table', 'HorizontalAlignment', 'center', 'FontWeight', 'bold');
     
     % Таблица результатов
-    hResultsTable = uitable(slopeFig, 'Position', [1040, 50, 200, 470], ...
-        'ColumnName', {'Slope', 'Peak time', 'Onset time', 'Baseline', 'Info'}, ...
-        'ColumnWidth', {70, 70, 70, 70, 120}, ...
-        'ColumnFormat', {'numeric', 'numeric', 'numeric', 'numeric', 'char'}, ...
+    hResultsTable = uitable(slopeFig, 'Position', [1120, 50, 330, 470], ...
+        'ColumnName', {'Slope', 'Peak rel', 'Peak abs', 'Onset rel', 'Onset abs', 'Baseline', 'Info'}, ...
+        'ColumnWidth', {50, 50, 50, 65, 65, 50, 80}, ...
+        'ColumnFormat', {'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'char'}, ...
         'Data', {}, ...
         'CellSelectionCallback', @tableSelectionChanged);
     
@@ -368,120 +388,7 @@ global slope_value slope_angle peak_time peak_value baseline_value baseline_std 
     set(slopeFig, 'WindowScrollWheelFcn', @mouseWheelZoom);
     
     % === Callback функции ===
-    
-    % Универсальная функция для отрисовки объектов визуализации
-    function renderVisualizationObject(obj, axes_handle, timeUnitFactor)
-        % renderVisualizationObject - универсальная функция для отрисовки объектов визуализации
-        % 
-        % Входные параметры:
-        %   obj - объект визуализации из метаданных
-        %   axes_handle - handle к осям для отрисовки
-        %   timeUnitFactor - коэффициент для единиц времени
         
-        fprintf('DEBUG: renderVisualizationObject вызвана\n');
-        fprintf('DEBUG: Тип объекта: %s\n', obj.type);
-        fprintf('DEBUG: Поля объекта: %s\n', strjoin(fieldnames(obj), ', '));
-        fprintf('DEBUG: timeUnitFactor=%.3f\n', timeUnitFactor);
-        fprintf('DEBUG: Координаты объекта: %s\n', strjoin(fieldnames(obj.coordinates), ', '));
-        
-        if ~isfield(obj, 'type') || ~isfield(obj, 'coordinates') || ~isfield(obj, 'style')
-            fprintf('DEBUG: Неполный объект, пропускаем\n');
-            return; % Неполный объект, пропускаем
-        end
-        
-        % Устанавливаем текущие оси
-        axes(axes_handle);
-        
-        switch obj.type
-            case 'point'
-                fprintf('DEBUG: Обрабатываем тип point\n');
-                % Отрисовка одиночной точки
-                if isfield(obj.coordinates, 'x') && isfield(obj.coordinates, 'y') && ~isnan(obj.coordinates.x)
-                    % Координаты уже в относительном времени, применяем только timeUnitFactor
-                    x_display = obj.coordinates.x * timeUnitFactor;
-                    
-                    % Отрисовываем точку
-                    plot(x_display, obj.coordinates.y, ...
-                        'Color', obj.style.color, 'Marker', obj.style.marker, ...
-                        'MarkerSize', obj.style.markersize, 'MarkerFaceColor', obj.style.markerfacecolor);
-                end
-                
-            case 'line'
-                fprintf('DEBUG: Обрабатываем тип line\n');
-                fprintf('DEBUG: Координаты: x1=%.3f, y1=%.3f, x2=%.3f, y2=%.3f\n', ...
-                    obj.coordinates.x1, obj.coordinates.y1, obj.coordinates.x2, obj.coordinates.y2);
-                fprintf('DEBUG: Проверка isfield: x1=%d, x2=%d, y1=%d, y2=%d\n', ...
-                    isfield(obj.coordinates, 'x1'), isfield(obj.coordinates, 'x2'), ...
-                    isfield(obj.coordinates, 'y1'), isfield(obj.coordinates, 'y2'));
-                fprintf('DEBUG: Проверка isnan: x1=%d, x2=%d\n', ...
-                    isnan(obj.coordinates.x1), isnan(obj.coordinates.x2));
-                % Отрисовка линии между двумя точками
-                if isfield(obj.coordinates, 'x1') && isfield(obj.coordinates, 'x2') && ...
-                   isfield(obj.coordinates, 'y1') && isfield(obj.coordinates, 'y2') && ...
-                   ~isnan(obj.coordinates.x1) && ~isnan(obj.coordinates.x2)
-                    
-                                    % Нормализуем времена для отображения
-                % Координаты уже в относительном времени к текущему интервалу
-                x1_display = obj.coordinates.x1 * timeUnitFactor;
-                x2_display = obj.coordinates.x2 * timeUnitFactor;
-                    
-                    % Отрисовываем линию
-                    line([x1_display, x2_display], [obj.coordinates.y1, obj.coordinates.y2], ...
-                        'Color', obj.style.color, 'LineWidth', obj.style.linewidth, ...
-                        'LineStyle', obj.style.linestyle);
-                end
-                
-            case 'points'
-                fprintf('DEBUG: Обрабатываем тип points\n');
-                % Отрисовка массива точек
-                if isfield(obj.coordinates, 'x') && isfield(obj.coordinates, 'y') && ...
-                   ~isempty(obj.coordinates.x) && ~isempty(obj.coordinates.y)
-                    
-                    % Координаты уже в относительном времени, применяем только timeUnitFactor
-                    x_display = obj.coordinates.x * timeUnitFactor;
-                    
-                    % Отрисовываем точки
-                    plot(x_display, obj.coordinates.y, ...
-                        'Color', obj.style.color, 'Marker', obj.style.marker, ...
-                        'MarkerSize', obj.style.markersize, 'MarkerFaceColor', obj.style.markerfacecolor);
-                end
-                
-            case 'text'
-                % Отрисовка текста
-                if isfield(obj.coordinates, 'x') && isfield(obj.coordinates, 'y') && ...
-                   isfield(obj, 'text') && ~isnan(obj.coordinates.x)
-                    
-                    % Координаты уже в относительном времени, применяем только timeUnitFactor
-                    x_display = obj.coordinates.x * timeUnitFactor;
-                    
-                    % Отрисовываем текст
-                    text(x_display, obj.coordinates.y, obj.text, ...
-                        'HorizontalAlignment', obj.style.horizontalalignment, ...
-                        'Color', obj.style.color, 'FontWeight', obj.style.fontweight, ...
-                        'FontSize', obj.style.fontsize);
-                end
-                
-            case 'area'
-                % Отрисовка закрашенной области
-                if isfield(obj.coordinates, 'x') && isfield(obj.coordinates, 'y') && ...
-                   ~isempty(obj.coordinates.x) && ~isempty(obj.coordinates.y)
-                    
-                    % Координаты уже в относительном времени, применяем только timeUnitFactor
-                    x_display = obj.coordinates.x * timeUnitFactor;
-                    
-                    % Отрисовываем закрашенную область
-                    fill(x_display, obj.coordinates.y, obj.style.color, ...
-                        'FaceAlpha', obj.style.facealpha, 'EdgeColor', obj.style.edgecolor);
-                end
-                
-            otherwise
-                % Неизвестный тип объекта
-                warning('Unknown visualization object type: %s', obj.type);
-        end
-        
-        fprintf('DEBUG: renderVisualizationObject завершена для типа %s\n', obj.type);
-    end
-    
     function initializeTimes()
         % Вычисляем начальные времена для baseline и peak диапазонов
         time_range = chosen_time_interval(2) - chosen_time_interval(1);
@@ -687,17 +594,35 @@ global slope_value slope_angle peak_time peak_value baseline_value baseline_std 
         
         % Создаем структуру baseline_data для calculateMeasurementByType
         baseline_data_struct = struct();
-        baseline_data_struct.baseline_start = baseline_start - rel_shift;
-        baseline_data_struct.baseline_end = baseline_end - rel_shift;
-        baseline_data_struct.peak_start = peak_start - rel_shift;
-        baseline_data_struct.peak_end = peak_end - rel_shift;
+        
+        if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
+            % В режиме среднего сигнала используем относительные координаты
+            [baseline_rel, peak_rel] = getRelativePositions();
+            baseline_data_struct.baseline_start = baseline_rel.start;
+            baseline_data_struct.baseline_end = baseline_rel.end;
+            baseline_data_struct.peak_start = peak_rel.start;
+            baseline_data_struct.peak_end = peak_rel.end;
+        else
+            % В обычном режиме используем абсолютные координаты с вычитанием rel_shift
+            baseline_data_struct.baseline_start = baseline_start - rel_shift;
+            baseline_data_struct.baseline_end = baseline_end - rel_shift;
+            baseline_data_struct.peak_start = peak_start - rel_shift;
+            baseline_data_struct.peak_end = peak_end - rel_shift;
+        end
+        
         baseline_data_struct.slope_percent = slope_percent;
         baseline_data_struct.peak_polarity = peak_polarity;
         
         % Расчет slope с использованием calculateMeasurementByType
         time_in_rel = time_in - rel_shift;
         [slope_value, measurement_metadata] = calculateMeasurementByType(channel_data, time_in_rel, ...
-            peak_start - rel_shift, peak_end - rel_shift, 'Slope', baseline_data_struct);
+            baseline_data_struct.peak_start, baseline_data_struct.peak_end, 'Slope', baseline_data_struct);
+        
+        % Добавляем rel_shift в метаданные для возможности получения абсолютного времени
+        measurement_metadata.rel_shift = rel_shift;
+        
+        % Сохраняем метаданные в глобальную переменную для использования в addResult
+        current_measurement_metadata = measurement_metadata;
         
         % Извлекаем все необходимые значения из метаданных
         if isfield(measurement_metadata, 'slope_angle')
@@ -750,7 +675,7 @@ global slope_value slope_angle peak_time peak_value baseline_value baseline_std 
         if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
             % Используем средний сигнал
             channel_data = mean_signal_data;
-            time_in = mean_signal_data;
+            time_in = mean_signal_time;
             rel_shift = 0;
             time_display = time_in * timeUnitFactor;
         else
@@ -1055,14 +980,14 @@ global slope_value slope_angle peak_time peak_value baseline_value baseline_std 
         
         grid on;
         
-        % Обновляем таблицу измерений
-        updateMeasurementsTable();
-        
-        % Обновляем таблицу результатов
-        updateResultsTable();
-        
-        % Добавляем возможность перетаскивания для диапазонов
-        makeDraggable();
+            % Обновляем таблицу измерений
+    updateMeasurementsTable();
+    
+    % Обновляем таблицу результатов
+    % updateResultsTable(); % Закомментировано чтобы не терять выделение при восстановлении состояния
+    
+    % Добавляем возможность перетаскивания для диапазонов
+    makeDraggable();
     end
     
     function makeDraggable()
@@ -1627,8 +1552,16 @@ global slope_value slope_angle peak_time peak_value baseline_value baseline_std 
         
 
         
-        % Создаем метаданные для сохранения состояния
-        metadata = struct();
+        % Используем глобальные метаданные если они есть, иначе создаем новые
+        if ~isempty(current_measurement_metadata)
+            % Используем существующие метаданные с rel_shift
+            metadata = current_measurement_metadata;
+        else
+            % Создаем новые метаданные
+            metadata = struct();
+        end
+        
+        % Добавляем недостающие поля в метаданные
         metadata.channel = slope_measurement_settings.channel;
         metadata.baseline_start = slope_measurement_settings.baseline_start;
         metadata.baseline_end = slope_measurement_settings.baseline_end;
@@ -1661,6 +1594,15 @@ global slope_value slope_angle peak_time peak_value baseline_value baseline_std 
         metadata.show_onset = slope_measurement_settings.show_onset;
         metadata.show_slope = slope_measurement_settings.show_slope;
         metadata.show_peak = slope_measurement_settings.show_peak;
+        
+        % Добавляем rel_shift только если его нет в переданных метаданных
+        if ~isfield(metadata, 'rel_shift')
+            if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
+                metadata.rel_shift = stims(stim_inx);
+            else
+                metadata.rel_shift = chosen_time_interval(1);
+            end
+        end
         
         % Добавляем результат в структуру
         new_result = struct('baseline_value', baseline_value, 'slope_value', slope_value, ...
@@ -1723,10 +1665,7 @@ global slope_value slope_angle peak_time peak_value baseline_value baseline_std 
             fprintf('❌ Нет результатов для сохранения\n');
             return;
         end
-        
-                % Получаем путь и имя исходного файла из глобальных переменных
-        global matFilePath matFileName
-        
+
         % Создаем имя файла по умолчанию на основе исходного файла
         if ~isempty(matFilePath) && ~isempty(matFileName)
             [path, name, ~] = fileparts(matFilePath);
@@ -1752,52 +1691,47 @@ global slope_value slope_angle peak_time peak_value baseline_value baseline_std 
         
         try
             % Подготавливаем данные для Excel
-            excel_data = cell(length(slope_measurement_results) + 1, 5);
+            excel_data = cell(length(slope_measurement_results) + 1, 7);
             
             % Заголовки
             excel_data{1, 1} = 'Slope';
-            excel_data{1, 2} = 'Peak time';
-            excel_data{1, 3} = 'Onset time';
-            excel_data{1, 4} = 'Baseline';
-            excel_data{1, 5} = 'Info';
+            excel_data{1, 2} = 'Peak time (relative)';
+            excel_data{1, 3} = 'Peak time (absolute)';
+            excel_data{1, 4} = 'Onset time (relative)';
+            excel_data{1, 5} = 'Onset time (absolute)';
+            excel_data{1, 6} = 'Baseline';
+            excel_data{1, 7} = 'Info';
             
             % Данные
             for i = 1:length(slope_measurement_results)
                 metadata = slope_measurement_results(i).metadata;
                 
-                % Вычисляем относительное время пика
-                if strcmp(metadata.selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
-                    rel_shift_for_peak = stims(metadata.stim_inx);
-                else
-                    rel_shift_for_peak = metadata.chosen_time_interval(1);
-                end
+                % Относительное время пика
+                peak_time_rel = slope_measurement_results(i).peak_time * timeUnitFactor;
                 
-                % Получаем время пика из результатов
-                if isfield(slope_measurement_results(i), 'peak_time') && ~isnan(slope_measurement_results(i).peak_time)
-                    peak_time_rel = (slope_measurement_results(i).peak_time - rel_shift_for_peak) * timeUnitFactor;
-                else
-                    peak_time_rel = NaN;
-                end
+                % Абсолютное время пика
+                peak_time_abs = (slope_measurement_results(i).peak_time + metadata.rel_shift) * timeUnitFactor;
                 
-                % Вычисляем относительное время онсета
-                if ~isnan(slope_measurement_results(i).onset_time)
-                    onset_time_rel = (slope_measurement_results(i).onset_time - rel_shift_for_peak) * timeUnitFactor;
-                else
-                    onset_time_rel = NaN;
-                end
+                % Относительное время онсета
+                onset_time_rel = slope_measurement_results(i).onset_time * timeUnitFactor;
+                
+                % Абсолютное время онсета
+                onset_time_abs = (slope_measurement_results(i).onset_time + metadata.rel_shift) * timeUnitFactor;
                 
                 excel_data{i+1, 1} = slope_measurement_results(i).slope_value;
                 excel_data{i+1, 2} = peak_time_rel;
-                excel_data{i+1, 3} = onset_time_rel;
-                excel_data{i+1, 4} = slope_measurement_results(i).baseline_value;
-                excel_data{i+1, 5} = getNavigationStatusText(metadata);
+                excel_data{i+1, 3} = peak_time_abs;
+                excel_data{i+1, 4} = onset_time_rel;
+                excel_data{i+1, 5} = onset_time_abs;
+                excel_data{i+1, 6} = slope_measurement_results(i).baseline_value;
+                excel_data{i+1, 7} = getNavigationStatusText(metadata);
             end
             
             % Сохраняем Excel файл
             writecell(excel_data, excel_path);
             
             % Сохраняем метаданные в .meta файл (фактически .mat формат)
-            save(meta_path, 'slope_measurement_results', '-v7.3');
+            save(meta_path, 'slope_measurement_results', 'multiple_measurements', '-v7.3');
             
             fprintf('✓ Результаты сохранены:\n');
             fprintf('  Excel: %s\n', excel_path);
@@ -1820,29 +1754,29 @@ global slope_value slope_angle peak_time peak_value baseline_value baseline_std 
         end
         
         % Подготавливаем данные для таблицы
-        table_data = cell(length(slope_measurement_results), 5);
+        table_data = cell(length(slope_measurement_results), 7);
         for i = 1:length(slope_measurement_results)
             metadata = slope_measurement_results(i).metadata;
             
-            % Время пика уже в относительных координатах, просто умножаем на timeUnitFactor
-            if isfield(slope_measurement_results(i), 'peak_time') && ~isnan(slope_measurement_results(i).peak_time)
-                peak_time_rel = slope_measurement_results(i).peak_time * timeUnitFactor;
-            else
-                peak_time_rel = NaN;
-            end
+            % Относительное время пика
+            peak_time_rel = slope_measurement_results(i).peak_time * timeUnitFactor;
             
-            % Время онсета уже в относительных координатах, просто умножаем на timeUnitFactor
-            if ~isnan(slope_measurement_results(i).onset_time)
-                onset_time_rel = slope_measurement_results(i).onset_time * timeUnitFactor;
-            else
-                onset_time_rel = NaN;
-            end
+            % Абсолютное время пика
+            peak_time_abs = (slope_measurement_results(i).peak_time + metadata.rel_shift) * timeUnitFactor;
+            
+            % Относительное время онсета
+            onset_time_rel = slope_measurement_results(i).onset_time * timeUnitFactor;
+            
+            % Абсолютное время онсета
+            onset_time_abs = (slope_measurement_results(i).onset_time + metadata.rel_shift) * timeUnitFactor;
             
             table_data{i, 1} = slope_measurement_results(i).slope_value; % slope
-            table_data{i, 2} = peak_time_rel; % peak time (относительное)
-            table_data{i, 3} = onset_time_rel; % onset time (относительное)
-            table_data{i, 4} = slope_measurement_results(i).baseline_value; % baseline
-            table_data{i, 5} = getNavigationStatusText(metadata); % info (бывший mode)
+            table_data{i, 2} = peak_time_rel; % peak time relative
+            table_data{i, 3} = peak_time_abs; % peak time absolute
+            table_data{i, 4} = onset_time_rel; % onset time relative
+            table_data{i, 5} = onset_time_abs; % onset time absolute
+            table_data{i, 6} = slope_measurement_results(i).baseline_value; % baseline
+            table_data{i, 7} = getNavigationStatusText(metadata); % info
         end
         
         set(hResultsTable, 'Data', table_data);
@@ -2085,229 +2019,6 @@ global slope_value slope_angle peak_time peak_value baseline_value baseline_std 
         end
     end
     
-    function [mean_data, mean_time] = calculateMeanSignal()
-        % Вычисляет средний сигнал из всех добавленных результатов
-        
-        if isempty(slope_measurement_results)
-            mean_data = [];
-            mean_time = [];
-            return;
-        end
-        
-        fprintf('DEBUG: Начинаем вычисление среднего сигнала из %d результатов\n', length(slope_measurement_results));
-        
-        % СОХРАНЯЕМ исходное состояние
-        original_chosen_time_interval = chosen_time_interval;
-        
-        % Первый проход - находим точку t=0 для каждого сигнала
-        zero_indices = zeros(1, length(slope_measurement_results));
-        before_zero_signals = {};
-        after_zero_signals = {};
-        
-        valid_results = 0;
-        for i = 1:length(slope_measurement_results)
-            metadata = slope_measurement_results(i).metadata;
-            [signal_data, time_data] = getSignalDataForResult(metadata);
-            
-            if ~isempty(signal_data) && ~isempty(time_data)
-                % Транспонируем данные если нужно
-                if size(signal_data, 1) > size(signal_data, 2)
-                    signal_data = signal_data';
-                end
-                if size(time_data, 1) > size(time_data, 2)
-                    time_data = time_data';
-                end
-                
-                % Находим ближайшую точку к t=0
-                zero_idx_array = ClosestIndex(0, time_data);
-                zero_idx = zero_idx_array(1); % Берем первый (и единственный) элемент
-                valid_results = valid_results + 1;
-                zero_indices(valid_results) = zero_idx;
-                
-                % Разделяем сигнал на части до и после t=0
-                before_zero_signals{valid_results} = signal_data(1:zero_idx);
-                after_zero_signals{valid_results} = signal_data(zero_idx+1:end);
-                
-                fprintf('DEBUG: Результат #%d - t=0 индекс: %d, до: %d, после: %d\n', ...
-                    i, zero_idx, length(before_zero_signals{valid_results}), length(after_zero_signals{valid_results}));
-            else
-                fprintf('DEBUG: Результат #%d пропущен (пустые данные)\n', i);
-            end
-        end
-        
-        % Обрезаем массивы до реального количества валидных результатов
-        zero_indices = zero_indices(1:valid_results);
-        
-        if isempty(before_zero_signals)
-            mean_data = [];
-            mean_time = [];
-            % ВОССТАНАВЛИВАЕМ исходное состояние
-            chosen_time_interval = original_chosen_time_interval;
-            return;
-        end
-        
-        % Находим минимальные длины для обеих частей
-        min_before_length = min(cellfun(@length, before_zero_signals));
-        min_after_length = min(cellfun(@length, after_zero_signals));
-        
-        fprintf('DEBUG: Минимальные длины - до t=0: %d, после t=0: %d\n', min_before_length, min_after_length);
-        
-        % Обрезаем все сигналы до одинаковой длины
-        normalized_before_signals = {};
-        normalized_after_signals = {};
-        
-        for i = 1:length(before_zero_signals)
-            % Обрезаем часть до t=0 - убираем из начала
-            signal = before_zero_signals{i};
-            current_length = length(signal);
-            
-            if current_length > min_before_length
-                % Убираем лишние точки из начала
-                start_idx = current_length - min_before_length + 1;
-                normalized_before_signals{i} = signal(start_idx:end);
-            else
-                normalized_before_signals{i} = signal;
-            end
-            
-            % Обрезаем часть после t=0 - убираем из конца
-            signal = after_zero_signals{i};
-            current_length = length(signal);
-            
-            if current_length > min_after_length
-                % Убираем лишние точки из конца
-                normalized_after_signals{i} = signal(1:min_after_length);
-            else
-                normalized_after_signals{i} = signal;
-            end
-            
-            fprintf('DEBUG: Результат #%d - нормализовано до: %d, после: %d\n', ...
-                i, length(normalized_before_signals{i}), length(normalized_after_signals{i}));
-        end
-        
-        % Собираем полные сигналы
-        all_normalized_signals = {};
-        for i = 1:length(normalized_before_signals)
-            % Объединяем часть до t=0 и после t=0
-            full_signal = [normalized_before_signals{i}, normalized_after_signals{i}];
-            all_normalized_signals{i} = full_signal;
-        end
-        
-        % Преобразуем в матрицу для усреднения
-        signal_matrix = cell2mat(all_normalized_signals');
-        
-        % Вычисляем среднее
-        mean_data = mean(signal_matrix, 1);
-        
-        % Создаем нормализованное время
-        total_length = min_before_length + min_after_length;
-        
-        % Получаем средний шаг времени из первого результата
-        metadata = slope_measurement_results(1).metadata;
-        [~, time_data] = getSignalDataForResult(metadata);
-        if size(time_data, 1) > size(time_data, 2)
-            time_data = time_data';
-        end
-        time_step = mean(diff(time_data));
-        
-        % Время от -min_before_length до +min_after_length
-        mean_time = (-min_before_length+1:min_after_length) * time_step;
-        
-        fprintf('DEBUG: Финальный размер mean_data: %s, mean_time: %s\n', ...
-            mat2str(size(mean_data)), mat2str(size(mean_time)));
-        
-        % Выводим значения в начале и конце векторов
-        if ~isempty(mean_data) && ~isempty(mean_time)
-            fprintf('DEBUG: Начало mean_time: [%.3f, %.3f, %.3f, %.3f, %.3f]\n', ...
-                mean_time(1:min(5, length(mean_time))));
-            fprintf('DEBUG: Конец mean_time: [%.3f, %.3f, %.3f, %.3f, %.3f]\n', ...
-                mean_time(max(1, end-4):end));
-            fprintf('DEBUG: Начало mean_data: [%.6f, %.6f, %.6f, %.6f, %.6f]\n', ...
-                mean_data(1:min(5, length(mean_data))));
-            fprintf('DEBUG: Конец mean_data: [%.6f, %.6f, %.6f, %.6f, %.6f]\n', ...
-                mean_data(max(1, end-4):end));
-        end
-        
-        % ВОССТАНАВЛИВАЕМ исходное состояние
-        chosen_time_interval = original_chosen_time_interval;
-        
-        fprintf('✓ Средний сигнал вычислен из %d результатов\n', size(signal_matrix, 1));
-    end
-    
-    function [signal_data, time_data] = getSignalDataForResult(metadata)
-        % Получает данные сигнала для конкретного результата
-        try
-            fprintf('DEBUG: getSignalDataForResult - начало обработки\n');
-            
-            % СОХРАНЯЕМ исходное состояние
-            original_interval = chosen_time_interval;
-            
-            % Используем ЛОКАЛЬНУЮ копию, НЕ изменяем глобальную переменную
-            local_chosen_time_interval = metadata.chosen_time_interval;
-            
-            fprintf('DEBUG: Временной интервал: [%.3f, %.3f]\n', local_chosen_time_interval(1), local_chosen_time_interval(2));
-            
-            % Получаем данные для этого временного интервала
-            plot_time_interval = local_chosen_time_interval;
-            plot_time_interval(1) = plot_time_interval(1) - time_back;
-            
-            fprintf('DEBUG: Расширенный интервал: [%.3f, %.3f]\n', plot_time_interval(1), plot_time_interval(2));
-            
-            cond = time >= plot_time_interval(1) & time < plot_time_interval(2);
-            local_lfp = lfp(cond, :);
-            
-            fprintf('DEBUG: Размер local_lfp: %s\n', mat2str(size(local_lfp)));
-            
-            % Вычитание средних каналов если нужно
-            if ~isempty(mean_group_ch) && any(mean_group_ch)
-                local_lfp(:, mean_group_ch) = local_lfp(:, mean_group_ch) - mean(local_lfp(:, mean_group_ch), 2);
-            end
-            
-            selected_channel = metadata.channel;
-            signal_data = local_lfp(:, selected_channel);
-            time_data = time(cond);
-            
-            fprintf('DEBUG: Исходный размер signal_data: %s, time_data: %s\n', ...
-                mat2str(size(signal_data)), mat2str(size(time_data)));
-            
-            % Нормализуем время относительно rel_shift
-            if strcmp(metadata.selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
-                local_rel_shift = stims(metadata.stim_inx);
-            else
-                local_rel_shift = local_chosen_time_interval(1);
-            end
-            
-            fprintf('DEBUG: rel_shift для нормализации = %.3f\n', local_rel_shift);
-            fprintf('DEBUG: Время до нормализации: [%.3f, %.3f, %.3f, %.3f, %.3f]\n', ...
-                time_data(1:min(5, length(time_data))));
-            
-            time_data = time_data - local_rel_shift;
-            
-            fprintf('DEBUG: Время после нормализации: [%.3f, %.3f, %.3f, %.3f, %.3f]\n', ...
-                time_data(1:min(5, length(time_data))));
-            
-            % Фильтрация если включена
-            if sum(filter_avaliable) > 0 && filter_avaliable(selected_channel)
-                signal_data = applyFilter(signal_data, filterSettings, newFs);
-                fprintf('DEBUG: После фильтрации - размер signal_data: %s\n', mat2str(size(signal_data)));
-            end
-            
-            % Ресэмплинг убран - используем исходные данные
-            fprintf('DEBUG: Ресэмплинг пропущен - используем исходные данные\n');
-            
-            % ВОССТАНАВЛИВАЕМ исходное состояние
-            chosen_time_interval = original_interval;
-            
-            fprintf('DEBUG: getSignalDataForResult - финальный размер signal_data: %s, time_data: %s\n', ...
-                mat2str(size(signal_data)), mat2str(size(time_data)));
-            
-        catch ME
-            fprintf('❌ Ошибка при получении данных для результата: %s\n', ME.message);
-            signal_data = [];
-            time_data = [];
-            % ВОССТАНАВЛИВАЕМ исходное состояние даже при ошибке
-            chosen_time_interval = original_interval;
-        end
-    end
 
     % === Функции для множественных измерений ===
     
@@ -2824,6 +2535,124 @@ global slope_value slope_angle peak_time peak_value baseline_value baseline_std 
         updatePlotAndCalculation();
         
         fprintf('SUCCESS: Автоматическое измерение завершено! Добавлено %d результатов\n', total_ranges);
+    end
+    
+    function loadResults(~, ~)
+        % Загружает результаты и измерения из .meta файла
+        
+        % Определяем начальный путь для загрузки (тот же, что и для сохранения)
+        if ~isempty(matFilePath) && ~isempty(matFileName)
+            [path, ~, ~] = fileparts(matFilePath);
+            defaultPath = path;
+        else
+            defaultPath = pwd; % текущая директория если нет исходного файла
+        end
+        
+        % Запрашиваем файл для загрузки
+        [filename, pathname] = uigetfile('*.meta', 'Load Results From', defaultPath);
+        
+        if isequal(filename, 0) || isequal(pathname, 0)
+            fprintf('❌ Загрузка отменена\n');
+            return;
+        end
+        
+        filepath = fullfile(pathname, filename);
+        
+        try
+            % Загружаем данные из файла (фактически .mat файл с расширением .meta)
+            loaded_data = load(filepath, '-mat');
+            
+            % Загружаем основные результаты
+            slope_measurement_results = loaded_data.slope_measurement_results;
+            
+            % Загружаем множественные измерения
+            multiple_measurements = loaded_data.multiple_measurements;
+            
+            % Очищаем курсоры измерений
+            if ~isempty(measurement_cursors)
+                for i = 1:length(measurement_cursors)
+                    if ishandle(measurement_cursors(i))
+                        delete(measurement_cursors(i));
+                    end
+                end
+                measurement_cursors = [];
+            end
+            
+            % Сбрасываем выделения
+            selected_row_slope = [];
+            selected_measurement_row = [];
+            
+            % Обновляем отображение
+            updateResultsTable();
+            updateMeasurementsTable();
+            updateMeasurementCursors();
+            
+            fprintf('✓ Результаты загружены из файла:\n');
+            fprintf('  Файл: %s\n', filepath);
+            fprintf('  Результатов: %d\n', length(slope_measurement_results));
+            fprintf('  Измерений: %d\n', length(multiple_measurements));
+            
+            % Восстанавливаем состояние первого результата если есть
+            if ~isempty(slope_measurement_results)
+                restoreStateFromMetadata(1);
+            end
+            
+        catch ME
+            fprintf('❌ Ошибка при загрузке: %s\n', ME.message);
+        end
+    end
+    
+    function clearAllResults(~, ~)
+        % Очищает все результаты и измерения разом
+        
+        % Запрос подтверждения у пользователя
+        choice = questdlg('Are you sure you want to clear all results and measurements? This action cannot be undone.', ...
+                          'Clear All Results', ...
+                          'Yes', 'No', 'No');
+        switch choice
+            case 'Yes'
+                % Очищаем все результаты slope measurement
+                slope_measurement_results = [];
+                
+                % Очищаем все множественные измерения
+                multiple_measurements = [];
+                
+                % Очищаем курсоры измерений
+                if ~isempty(measurement_cursors)
+                    for i = 1:length(measurement_cursors)
+                        if ishandle(measurement_cursors(i))
+                            delete(measurement_cursors(i));
+                        end
+                    end
+                    measurement_cursors = [];
+                end
+                
+                % Сбрасываем выделения
+                selected_row_slope = [];
+                selected_measurement_row = [];
+                
+                % Сбрасываем средний сигнал
+                mean_results_active = false;
+                mean_signal_data = [];
+                mean_signal_time = [];
+                
+                % Обновляем отображение
+                updateResultsTable();
+                updateMeasurementsTable();
+                updateMeasurementCursors();
+                
+                % Обновляем состояние кнопок
+                updateButtonStates();
+                
+                % Обновляем график
+                updatePlotAndCalculation();
+                
+                fprintf('✓ Все результаты и измерения очищены\n');
+                
+            case 'No'
+                % Пользователь отменил операцию
+                return;
+        end
     end
 
 end 
