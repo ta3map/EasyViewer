@@ -27,6 +27,8 @@ function slopeMeasurementGUI()
     % Глобальная переменная для метаданных измерений
     global current_measurement_metadata
 
+    global rel_shift
+
     % Инициализация настроек если их нет
     if isempty(slope_measurement_settings)
         slope_measurement_settings.channel = 1;
@@ -114,6 +116,11 @@ function slopeMeasurementGUI()
     
     % Идентификатор (tag) для GUI фигуры
     figTag = 'SlopeMeasurement';
+    
+    % Определяем названия колонок как единый источник (доступны во всех функциях)
+    table_column_names = {'Slope', 'Peak Time (rel)', 'Peak Time (abs)', 'Peak Amplitude', 'Onset Time (rel)', 'Onset Time (abs)', 'Baseline', 'Channel', 'Info'};
+    table_column_widths = {50, 50, 50, 60, 65, 65, 50, 50, 80};
+    table_column_formats = {'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'char'};
     
     % Поиск открытой фигуры с заданным идентификатором
     guiFig = findobj('Type', 'figure', 'Tag', figTag);
@@ -334,9 +341,9 @@ function slopeMeasurementGUI()
     
     % Таблица результатов
     hResultsTable = uitable(slopeFig, 'Position', [1120, 50, 330, 470], ...
-        'ColumnName', {'Slope', 'Peak rel', 'Peak abs', 'Onset rel', 'Onset abs', 'Baseline', 'Info'}, ...
-        'ColumnWidth', {50, 50, 50, 65, 65, 50, 80}, ...
-        'ColumnFormat', {'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'char'}, ...
+        'ColumnName', table_column_names, ...
+        'ColumnWidth', table_column_widths, ...
+        'ColumnFormat', table_column_formats, ...
         'Data', {}, ...
         'CellSelectionCallback', @tableSelectionChanged);
     
@@ -923,9 +930,10 @@ function slopeMeasurementGUI()
         % Отображение baseline диапазона (синие линии) - только если включено
         if slope_measurement_settings.show_baseline
             if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
+                rel_shift = stims(stim_inx);
                 % В режиме среднего сигнала времена уже нормализованы
-                t_bl_start = baseline_start * timeUnitFactor;
-                t_bl_end = baseline_end * timeUnitFactor;
+                t_bl_start = (baseline_start - rel_shift) * timeUnitFactor;
+                t_bl_end = (baseline_end - rel_shift) * timeUnitFactor;
             else
                 % В обычном режиме нормализуем относительно rel_shift
                 t_bl_start = (baseline_start - rel_shift) * timeUnitFactor;
@@ -949,9 +957,10 @@ function slopeMeasurementGUI()
         
         if show_peak_range
             if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
+                rel_shift = stims(stim_inx);
                 % В режиме среднего сигнала времена уже нормализованы
-                t_pk_start = peak_start * timeUnitFactor;
-                t_pk_end = peak_end * timeUnitFactor;
+                t_pk_start = (peak_start - rel_shift) * timeUnitFactor;
+                t_pk_end = (peak_end - rel_shift) * timeUnitFactor;
             else
                 % В обычном режиме нормализуем относительно rel_shift
                 t_pk_start = (peak_start - rel_shift) * timeUnitFactor;
@@ -1691,16 +1700,10 @@ function slopeMeasurementGUI()
         
         try
             % Подготавливаем данные для Excel
-            excel_data = cell(length(slope_measurement_results) + 1, 7);
+            excel_data = cell(length(slope_measurement_results) + 1, 9);
             
-            % Заголовки
-            excel_data{1, 1} = 'Slope';
-            excel_data{1, 2} = 'Peak time (relative)';
-            excel_data{1, 3} = 'Peak time (absolute)';
-            excel_data{1, 4} = 'Onset time (relative)';
-            excel_data{1, 5} = 'Onset time (absolute)';
-            excel_data{1, 6} = 'Baseline';
-            excel_data{1, 7} = 'Info';
+            % Используем те же названия колонок что и в таблице
+            excel_data(1, :) = table_column_names;
             
             % Данные
             for i = 1:length(slope_measurement_results)
@@ -1721,10 +1724,12 @@ function slopeMeasurementGUI()
                 excel_data{i+1, 1} = slope_measurement_results(i).slope_value;
                 excel_data{i+1, 2} = peak_time_rel;
                 excel_data{i+1, 3} = peak_time_abs;
-                excel_data{i+1, 4} = onset_time_rel;
-                excel_data{i+1, 5} = onset_time_abs;
-                excel_data{i+1, 6} = slope_measurement_results(i).baseline_value;
-                excel_data{i+1, 7} = getNavigationStatusText(metadata);
+                excel_data{i+1, 4} = slope_measurement_results(i).peak_value;
+                excel_data{i+1, 5} = onset_time_rel;
+                excel_data{i+1, 6} = onset_time_abs;
+                excel_data{i+1, 7} = slope_measurement_results(i).baseline_value;
+                excel_data{i+1, 8} = metadata.channel;
+                excel_data{i+1, 9} = getNavigationStatusText(metadata);
             end
             
             % Сохраняем Excel файл
@@ -1754,7 +1759,7 @@ function slopeMeasurementGUI()
         end
         
         % Подготавливаем данные для таблицы
-        table_data = cell(length(slope_measurement_results), 7);
+        table_data = cell(length(slope_measurement_results), 9);
         for i = 1:length(slope_measurement_results)
             metadata = slope_measurement_results(i).metadata;
             
@@ -1773,10 +1778,12 @@ function slopeMeasurementGUI()
             table_data{i, 1} = slope_measurement_results(i).slope_value; % slope
             table_data{i, 2} = peak_time_rel; % peak time relative
             table_data{i, 3} = peak_time_abs; % peak time absolute
-            table_data{i, 4} = onset_time_rel; % onset time relative
-            table_data{i, 5} = onset_time_abs; % onset time absolute
-            table_data{i, 6} = slope_measurement_results(i).baseline_value; % baseline
-            table_data{i, 7} = getNavigationStatusText(metadata); % info
+            table_data{i, 4} = slope_measurement_results(i).peak_value; % peak amplitude
+            table_data{i, 5} = onset_time_rel; % onset time relative
+            table_data{i, 6} = onset_time_abs; % onset time absolute
+            table_data{i, 7} = slope_measurement_results(i).baseline_value; % baseline
+            table_data{i, 8} = metadata.channel; % channel number
+            table_data{i, 9} = getNavigationStatusText(metadata); % info
         end
         
         set(hResultsTable, 'Data', table_data);
