@@ -8,7 +8,7 @@ function EasyView()
     %               
     % Date:         31.07.2025
     
-    EV_version = '1.11.00';
+    EV_version = '1.11.02';
     
     clc
     disp(['Easy Viewer version: ' EV_version])
@@ -190,6 +190,9 @@ function EasyView()
     global call_setStandardChannelSettings
     global saveChannelSettingsFunc
     
+    % Глобальные переменные для функций обновления
+    global updateTableFunc updateLocalCoefsFunc updatePlotFunc
+    
     zav_calling = @loadMatFile;
     zav_saving = @saveMatFile;
     table_calling = @UpdateEventTable;
@@ -202,6 +205,11 @@ function EasyView()
     call_updateTable = @updateTable;
     call_setStandardChannelSettings = @setStandardChannelSettings;
     saveChannelSettingsFunc = @saveChannelSettings;
+    
+    % Присваиваем функции глобальным переменным для доступа из внешних файлов
+    updateTableFunc = @updateTable;
+    updateLocalCoefsFunc = @updateLocalCoefs;
+    updatePlotFunc = @updatePlot;
     
     % Загрузка списка последних файлов
     SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
@@ -559,7 +567,9 @@ function EasyView()
         '', ...
         'Mean Events', ...
         '', ...
-        'Reset record''s settings'};    
+        'Reset record''s settings', ...
+        '', ...
+        'Edit Group Settings'};
    
     % Создание выпадающего списка
     opt_menu = uicontrol('Style', 'listbox',...
@@ -899,6 +909,8 @@ function EasyView()
                 setupMeanEventsGUI();
             case options{13}%'Reset record''s settings'
                 resetRecordSettings();
+            case options{15}
+                groupSettingsEditor();
             case ''
             dont_close_menu = true;
         end
@@ -1618,13 +1630,8 @@ function EasyView()
             % Сохраняем информацию о свипах
             sweep_inx = 1; % по умолчанию показываем первый свип
             
-            % Автоматически открываем окно редактирования времен стимулов для sweep'ов
-            % только если не загружены смещенные стимулы из настроек
-            if stims_exist
-                % Используем timer чтобы окно открылось после завершения загрузки
-                t = timer('StartDelay', 0.5, 'TimerFcn', @(~,~)checkAndOpenStimulusEditor(), 'ExecutionMode', 'singleShot');
-                start(t);
-            end
+                    % Автоматическое открытие редактора времен стимулов отключено
+        % Пользователь может открыть его вручную через Options → "Edit stimulus times"
         else
             if isfield(zavp, 'realStim') 
                 stims = zavp.realStim(:).r(:) * zavp.siS;  
@@ -1688,17 +1695,12 @@ function EasyView()
         % Обновление и сохранение списка последних открытых файлов
         lastOpenedFiles{end + 1} = filepath;
         
-        % Попытка загрузить настройки каналов
-        loadChannelSettings();    
+            % Попытка загрузить настройки каналов
+    % Сначала проверяются индивидуальные настройки, затем групповые
+    loadChannelSettings();    
     end
     
-    % Функция для проверки и открытия окна редактирования стимулов
-    function checkAndOpenStimulusEditor()
-        % Открываем окно редактирования только если не загружены смещенные стимулы из настроек
-        if stims_exist && ~stims_loaded_from_settings
-            editStimulusTimesGUI();
-        end
-    end
+
 
     function resetMainWindowButtons()
         
@@ -1886,24 +1888,21 @@ end
     function loadChannelSettings()
         [path, name, ~] = fileparts(matFilePath);
         channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
+        
         if isfile(channelSettingsFilePath)
-            disp('loading Channel settings ..')
+            % Индивидуальные настройки существуют - загружаем их полностью
+            disp('Loading individual channel settings...')
             loadSettingsFile()
             updateChannelSelection();
-        else % если не было настроек создаем новый файл с настройками
-            warning('Could not find Settings (.stn) file')
-            createNewSettingsFile()
+        else
+            % Индивидуальных настроек нет - загружаем групповые + создаем индивидуальные
+            disp('No individual settings found, loading group settings...')
+            loadGroupSettingsAndCreateIndividual(matFilePath, numChannels, Fs, EV_version)
         end
         
     end
     
-    function createNewSettingsFile()
-            % Подготовка данных для таблицы каналов            
-            setStandardChannelSettings()
-            updateTable();
-            saveChannelSettings();
-            updatePlot(); % Обновление графика
-    end
+
     
     function setStandardChannelSettings()
             channelNames = np_flatten(channelNames);
