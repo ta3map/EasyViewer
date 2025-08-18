@@ -482,7 +482,7 @@ function EasyView()
         '',...
         'Spectral Density', ...
         '', ...
-        'Slope Measurement', ...
+        'Signal Analysis', ...
         '', ...
         'Cross-Correlation Between Channels', ...
         '', ...
@@ -740,8 +740,8 @@ function EasyView()
             case analysis_functions{5}
                 % отображение спектральной плотности текущего сигнала
                 spectralDensityGUI();  
-            case analysis_functions{7}% Slope Measurement
-                openSlopeMeasurementWindow();
+            case analysis_functions{7}% Signal Analysis
+                openSignalAnalysisWindow();
             case analysis_functions{9}
                 chCossCorrelationGUI();
             case analysis_functions{11}
@@ -1120,8 +1120,8 @@ function EasyView()
         autoEventDetectionGUI();
     end
     
-    function openSlopeMeasurementWindow(~, ~)
-        slopeMeasurementGUI();
+    function openSignalAnalysisWindow(~, ~)
+        signalAnalysisGUI();
     end
         
     % Nested function to check key press
