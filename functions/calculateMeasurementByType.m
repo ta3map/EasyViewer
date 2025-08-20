@@ -100,16 +100,11 @@ function [measurement_value, measurement_metadata] = calculateMeasurementByType(
                 baseline_std = NaN;
             end
             
-            % Расчет slope с использованием calculateSlope
-            [slope_value, slope_angle, regression_points, peak_time, peak_value] = ...
+            % Расчет slope с использованием calculateSlope (теперь возвращает и онсет)
+            [slope_value, slope_angle, regression_points, peak_time, peak_value, onset_time, onset_value] = ...
                 calculateSlope(channel_data, time_vector, baseline_value, ...
                              range_start, range_end, ...
                              baseline_data.slope_percent, baseline_data.peak_polarity);
-            
-            % Расчет онсета с использованием calculateOnset
-            [onset_time, onset_value, onset_method] = calculateOnset(channel_data, time_vector, ...
-                baseline_value, baseline_std, range_start, range_end, ...
-                'derivative', 3); % Используем метод derivative с порогом 3 std по умолчанию
             
             % Возвращаем slope_value как основное значение измерения
             measurement_value = slope_value;
@@ -124,7 +119,7 @@ function [measurement_value, measurement_metadata] = calculateMeasurementByType(
             measurement_metadata.peak_value = peak_value;
             measurement_metadata.onset_time = onset_time;
             measurement_metadata.onset_value = onset_value;
-            measurement_metadata.onset_method = onset_method;
+            measurement_metadata.onset_method = 'calculated_by_slope'; % Обновляем метод онсета
             measurement_metadata.baseline_data = baseline_data;
             
             % Добавляем объекты для визуализации

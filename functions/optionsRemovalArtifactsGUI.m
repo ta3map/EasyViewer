@@ -20,8 +20,9 @@ function optionsRemovalArtifactsGUI()
     fig = figure('Name', 'Removal of Artifacts', 'Tag', figTag, ...
         'NumberTitle', 'off', ...
         'MenuBar', 'none', 'ToolBar', 'none', 'Position', [100, 100, 450, 150], ...
-        'Resize', 'off');
-    
+        'Resize', 'off', ...
+        'WindowStyle', 'modal');  % Делаем окно модальным
+
     % Determine initial checkbox state
     isArtifactRemovalEnabled = window_ms ~= 0;
     
@@ -62,9 +63,6 @@ function optionsRemovalArtifactsGUI()
         
         % сохраняем фактор в глобальные настройки              
         save(SettingsFilepath, 'art_rem_window_ms', '-append');
-        
-        % обновляем график
-        updatePlot()
         
         % Close the GUI window
         close(fig);

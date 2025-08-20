@@ -5,7 +5,7 @@ function groupSettingsEditor()
     % ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
     global matFilePath newFs shiftCoeff time_back time_forward stim_offset
     global updateTableFunc updateLocalCoefsFunc updatePlotFunc saveChannelSettingsFunc
-    global EV_version numChannels Fs timeUnitFactor selectedUnit
+    global EV_version numChannels Fs timeUnitFactor selectedUnit updateAnalysisPlotFunc_global
     
     % Проверяем, не открыто ли уже окно
     existingFig = findobj('Tag', 'GroupSettingsEditor');
@@ -173,6 +173,9 @@ function groupSettingsEditor()
                              'String', 'Apply & Save', ...
                              'Position', [10, 40, 150, 30], ...
                              'Callback', @applyAndSave);
+    
+    % Устанавливаем фокус на кнопку Apply & Save для быстрого доступа по Enter
+    uicontrol(applySaveBtn);
     
     % Reset to Defaults
     resetBtn = uicontrol('Parent', buttonPanel, 'Style', 'pushbutton', ...
@@ -349,6 +352,18 @@ function groupSettingsEditor()
             % Обновляем интерфейс
             updateMainInterface();
             
+            % === ДОБАВЛЕНО: Обновляем график анализа сигнала ===
+            try
+                if ~isempty(updateAnalysisPlotFunc_global)
+                    updateAnalysisPlotFunc_global();
+                    disp('Analysis plot updated with new group settings');
+                else
+                    warning('updateAnalysisPlotFunc_global not available');
+                end
+            catch ME
+                warning('Could not update analysis plot: %s', ME.message);
+            end
+            
             % ВАЖНО: Пересохраняем индивидуальные настройки с новыми значениями
             % чтобы при следующем открытии файла загружались обновленные настройки
             try
@@ -362,6 +377,9 @@ function groupSettingsEditor()
             catch ME
                 warning('Could not update individual settings: %s', ME.message);
             end
+            
+            % Закрываем окно редактора
+            delete(fig);
             
             % Показываем сообщение об успехе
             msgbox('Settings applied and saved to current project successfully!', 'Success', 'help');
@@ -425,6 +443,18 @@ function groupSettingsEditor()
             
             % Обновляем основной интерфейс
             updateMainInterface();
+            
+            % === ДОБАВЛЕНО: Обновляем график анализа сигнала ===
+            try
+                if ~isempty(updateAnalysisPlotFunc_global)
+                    updateAnalysisPlotFunc_global();
+                    disp('Analysis plot updated with reset group settings');
+                else
+                    warning('updateAnalysisPlotFunc_global not available');
+                end
+            catch ME
+                warning('Could not update analysis plot: %s', ME.message);
+            end
             
             msgbox('Settings reset to default values', 'Reset Complete', 'help');
         end
