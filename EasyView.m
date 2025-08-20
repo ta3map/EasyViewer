@@ -8,12 +8,12 @@ function EasyView()
     %               
     % Date:         31.07.2025
     
-    EV_version = '1.11.02';
+    EV_version = '1.11.03';
     
     clc
     disp(['Easy Viewer version: ' EV_version])
     
-    global app_path
+    global app_path EV_version
     
     EV_path = pwd;
     disp('working directory:')

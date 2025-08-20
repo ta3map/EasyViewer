@@ -6,6 +6,7 @@ function [signal_data, time_data] = getSignalDataForResult(metadata)
     global newFs Fs timeUnitFactor selectedUnit
     global filterSettings filter_avaliable mean_group_ch
     global selectedCenter events stims sweep_info event_inx stim_inx sweep_inx events_exist stims_exist
+    global stimShowFlag art_rem_window_ms
     
     try
         fprintf('DEBUG: getSignalDataForResult - начало обработки\n');
@@ -43,6 +44,41 @@ function [signal_data, time_data] = getSignalDataForResult(metadata)
             local_rel_shift = stims(metadata.stim_inx);
         else
             local_rel_shift = local_chosen_time_interval(1);
+        end
+
+        % Убираем артефакт стимуляции если есть стимулы
+        if not(isempty(stims)) && stimShowFlag
+            % Используем локальный стимул для каждого результата
+            Fs_fascor = Fs/1000;
+            local_stim = stims(metadata.stim_inx);
+            fprintf('DEBUG: Удаление артефакта - параметры:\n');
+            fprintf('  - Размер signal_data: %s\n', mat2str(size(signal_data)));
+            fprintf('  - Размер time_data: %s\n', mat2str(size(time_data)));
+            fprintf('  - Время стимула (абс.): %.3f\n', local_stim);
+            fprintf('  - Диапазон времени (абс.): [%.3f, %.3f]\n', time_data(1), time_data(end));
+            fprintf('  - Fs_fascor: %.3f\n', Fs_fascor);
+            fprintf('  - art_rem_window_ms: %.3f\n', art_rem_window_ms);
+            
+            % Нормализуем время стимула относительно текущего временного окна
+            local_stim_rel = local_stim - time_data(1);
+            fprintf('  - Время стимула (отн.): %.3f\n', local_stim_rel);
+            
+            % Нормализуем временную ось
+            time_data_rel = time_data - time_data(1);
+            fprintf('  - Диапазон времени (отн.): [%.3f, %.3f]\n', time_data_rel(1), time_data_rel(end));
+            
+            % Транспонируем signal_data обратно в столбец для removeStimArtifact
+            if size(signal_data, 1) == 1
+                signal_data = signal_data';
+            end
+            
+            signal_data = removeStimArtifact(signal_data, local_stim_rel, time_data_rel, art_rem_window_ms*Fs_fascor*0.5);
+            fprintf('DEBUG: Артефакт стимула удален\n');
+            
+            % Возвращаем в строку для совместимости с остальным кодом
+            if size(signal_data, 2) == 1
+                signal_data = signal_data';
+            end
         end
         
         fprintf('DEBUG: rel_shift для нормализации = %.3f\n', local_rel_shift);

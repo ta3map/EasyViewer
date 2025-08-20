@@ -6,6 +6,26 @@ function signalAnalysisGUI()
     global newFs Fs timeUnitFactor selectedUnit
     global filterSettings filter_avaliable mean_group_ch
     global selectedCenter events stims sweep_info event_inx stim_inx sweep_inx events_exist stims_exist
+    global stimShowFlag art_rem_window_ms
+    global SettingsFilepath
+
+    % Принудительно загружаем настройки единиц времени из основного приложения
+    SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
+    if exist(SettingsFilepath, 'file')
+        try
+            d = load(SettingsFilepath);
+            if isfield(d, 'timeUnitFactor')
+                timeUnitFactor = d.timeUnitFactor;
+                fprintf('DEBUG: Принудительно загружен timeUnitFactor = %d\n', timeUnitFactor);
+            end
+            if isfield(d, 'selectedUnit')
+                selectedUnit = d.selectedUnit;
+                fprintf('DEBUG: Принудительно загружен selectedUnit = %s\n', selectedUnit);
+            end
+        catch ME
+            fprintf('DEBUG: Ошибка принудительной загрузки настроек: %s\n', ME.message);
+        end
+    end
     
     % Глобальные переменные для настроек каналов
     global channelNames channelEnabled scalingCoefficients colorsIn lineCoefficients
@@ -35,13 +55,61 @@ function signalAnalysisGUI()
     % Путь к файлу настроек (аналогично EasyView.m)
     SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
     
+    % Загрузка настроек единиц времени из основного приложения
+    % Сначала проверяем, есть ли уже глобальные переменные из EasyView
+    if ~exist('timeUnitFactor', 'var') || isempty(timeUnitFactor)
+        % Пытаемся загрузить из настроек основного приложения
+        if exist(SettingsFilepath, 'file')
+            try
+                d = load(SettingsFilepath);
+                if isfield(d, 'timeUnitFactor')
+                    timeUnitFactor = d.timeUnitFactor;
+                    fprintf('DEBUG: Загружен timeUnitFactor = %d из настроек\n', timeUnitFactor);
+                else
+                    timeUnitFactor = 1; % по умолчанию
+                    fprintf('DEBUG: timeUnitFactor не найден в настройках, используем %d\n', timeUnitFactor);
+                end
+                if isfield(d, 'selectedUnit')
+                    selectedUnit = d.selectedUnit;
+                    fprintf('DEBUG: Загружен selectedUnit = %s из настроек\n', selectedUnit);
+                else
+                    selectedUnit = 's'; % по умолчанию
+                    fprintf('DEBUG: selectedUnit не найден в настройках, используем %s\n', selectedUnit);
+                end
+            catch ME
+                timeUnitFactor = 1;
+                selectedUnit = 's';
+                fprintf('DEBUG: Ошибка загрузки настроек: %s, используем значения по умолчанию\n', ME.message);
+            end
+        else
+            timeUnitFactor = 1;
+            selectedUnit = 's';
+            fprintf('DEBUG: Файл настроек не найден, используем значения по умолчанию\n');
+        end
+    else
+        fprintf('DEBUG: timeUnitFactor уже установлен = %d\n', timeUnitFactor);
+    end
+    
+    if ~exist('selectedUnit', 'var') || isempty(selectedUnit)
+        selectedUnit = 's';
+        fprintf('DEBUG: selectedUnit не найден, используем %s\n', selectedUnit);
+    else
+        fprintf('DEBUG: selectedUnit уже установлен = %s\n', selectedUnit);
+    end
+    
     % Глобальная переменная для метаданных измерений
     global current_measurement_metadata
 
     global rel_shift
 
     % Глобальные переменные для groupSettingsEditor
-    global EV_version numChannels
+    global EV_version numChannels updateAnalysisPlotFunc_global
+    
+    % Инициализация флага показа стимулов
+    stimShowFlag = true;
+    
+    % Инициализация размера окна удаления артефакта (в мс)
+    art_rem_window_ms = 10;
 
     % Инициализация настроек если их нет
     if isempty(slope_measurement_settings)
@@ -126,58 +194,12 @@ function signalAnalysisGUI()
         lastOpenedFiles = {};
     end
     
-    % Инициализация базовых данных если GUI запущен автономно
+        % Инициализация базовых данных если GUI запущен автономно
     if isempty(hd) || isempty(lfp) || isempty(time)
-        % Создаем минимальные заглушки для автономного запуска
-        hd = struct('recChNames', {'Ch1'});
-        lfp = zeros(100, 1); % минимальные данные: 100 точек, 1 канал
-        time = (0:99) / 1000; % 0.1 секунды
-        chosen_time_interval = [0, 0.1];
-        time_back = 0.1;
-        Fs = 1000;
-        newFs = 1000;
-        timeUnitFactor = 1;
-        selectedUnit = 's';
-        selectedCenter = 'time';
-        stims_exist = false;
-        events_exist = false;
-        filter_avaliable = false(1, 1);
-        mean_group_ch = false(1, 1);
-        filterSettings = struct('filterType', 'highpass', 'freqLow', 10, 'freqHigh', 50, 'order', 4);
-        
-        % Инициализация дополнительных переменных
-        stims = [];
-        sweep_info = struct('is_sweep_data', false);
-        stim_inx = 1;
-        event_inx = 1;
-        sweep_inx = 1;
-        
-        % Инициализация переменных для настроек каналов
-        channelNames = hd.recChNames;
-        channelEnabled = true(1, 1);
-        scalingCoefficients = ones(1, 1);
-        colorsIn = {'black'};
-        lineCoefficients = ones(1, 1) * 0.5;
-        csd_avaliable = true(1, 1);
-        stims_loaded_from_settings = false;
-        shiftCoeff = 200;
-        time_forward = 0.6;
-        stim_offset = 0;
-        
-        % Инициализация переменных для groupSettingsEditor
-        EV_version = '1.10.00';
-        numChannels = 1;
-        
-        % Инициализация путей к файлам
-        if ~exist('matFilePath', 'var') || isempty(matFilePath)
-            matFilePath = '';
-        end
-        if ~exist('matFileName', 'var') || isempty(matFileName)
-            matFileName = '';
-        end
-        
-        fprintf('⚠️  GUI запущен автономно. Загрузите файл для работы с реальными данными.\n');
+        % Пытаемся автоматически открыть последний файл
+        autoOpenLastFile();
     end
+
     
     % Инициализация множественных измерений если их нет
     if isempty(multiple_measurements)
@@ -197,13 +219,16 @@ function signalAnalysisGUI()
     % Инициализация глобальной переменной для метаданных
     current_measurement_metadata = [];
     
+    % Инициализация глобальной функции обновления графика
+    updateAnalysisPlotFunc_global = @updateAnalysisPlotFunc;
+    
     % Идентификатор (tag) для GUI фигуры
     figTag = 'SlopeMeasurement';
     
     % Определяем названия колонок как единый источник (доступны во всех функциях)
-    table_column_names = {'Slope', 'Peak Time (rel)', 'Peak Time (abs)', 'Peak Amplitude', 'Onset Time (rel)', 'Onset Time (abs)', 'Baseline', 'Channel', 'Info'};
-    table_column_widths = {50, 50, 50, 60, 65, 65, 50, 50, 80};
-    table_column_formats = {'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'char'};
+    table_column_names = {'Slope', 'Peak Time (rel)', 'Peak Time (abs)', 'Peak Amplitude', 'Peak Value (rel)', 'Onset Time (rel)', 'Onset Time (abs)', 'Baseline', 'Channel', 'Stim Time', 'Info'};
+    table_column_widths = {50, 50, 50, 60, 60, 65, 65, 50, 50, 60, 80};
+    table_column_formats = {'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'char'};
     
     % Поиск открытой фигуры с заданным идентификатором
     guiFig = findobj('Type', 'figure', 'Tag', figTag);
@@ -225,10 +250,18 @@ function signalAnalysisGUI()
         % Выбор канала
     uicontrol(signalFig, 'Style', 'text', 'Position', [20, 510, 100, 20], ...
         'String', 'Channel:', 'HorizontalAlignment', 'left');
+    
+    % Проверяем корректность hd.recChNames для popup
+    if isfield(hd, 'recChNames') && iscell(hd.recChNames) && ~isempty(hd.recChNames)
+        channel_names_for_popup = hd.recChNames;
+    else
+        channel_names_for_popup = {'Ch1'};
+    end
+    
     hChannelPopup = uicontrol(signalFig, 'Style', 'popupmenu', ...
         'Position', [120, 510, 150, 25], ...
-        'String', hd.recChNames, ...
-        'Value', slope_measurement_settings.channel, ...
+        'String', channel_names_for_popup, ...
+        'Value', min(slope_measurement_settings.channel, length(channel_names_for_popup)), ...
         'Callback', @channelCallback);
     
     % Настройки slope
@@ -378,6 +411,10 @@ function signalAnalysisGUI()
     uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Group Settings', ...
         'Position', [100, 570, 100, 25], 'Callback', @openGroupSettingsEditor);
     
+    % Кнопка настроек удаления артефакта
+    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Artifact Options', ...
+        'Position', [210, 570, 100, 25], 'Callback', @openArtifactOptions);
+    
     % Кнопка загрузки результатов
     uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Load', ...
         'Position', [1040, 270, 70, 25], 'Callback', @loadResults);
@@ -385,8 +422,12 @@ function signalAnalysisGUI()
 
     
     % Кнопка сохранения результатов
-    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save', ...
-        'Position', [1040, 240, 70, 25], 'Callback', @saveResults);
+uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save', ...
+    'Position', [1040, 240, 70, 25], 'Callback', @saveResults);
+
+% Кнопка сохранения изображения
+uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
+    'Position', [1040, 210, 70, 25], 'Callback', @saveImage);
     
     % === Панель множественных измерений ===
     % ФУНКЦИЯ В РАЗРАБОТКЕ - все элементы скрыты и неактивны
@@ -498,7 +539,9 @@ function signalAnalysisGUI()
     restoring_from_metadata = false;
     
     % Инициализация
+    fprintf('DEBUG: Перед initializeTimes: timeUnitFactor = %d, selectedUnit = %s\n', timeUnitFactor, selectedUnit);
     initializeTimes();
+    fprintf('DEBUG: После initializeTimes: timeUnitFactor = %d, selectedUnit = %s\n', timeUnitFactor, selectedUnit);
     
     % Устанавливаем видимость поля порога в зависимости от выбранного метода
     % updateOnsetThresholdVisibility();
@@ -509,16 +552,80 @@ function signalAnalysisGUI()
     updateMeasurementsTable();
     updateButtonStates();
     
+    % Пытаемся автоматически открыть последний файл при запуске
+    autoOpenLastFile();
+    
     % Добавляем обработку клавиш для навигации
     set(signalFig, 'KeyPressFcn', @keyPressFunction);
     
     % Добавляем обработку колеса мыши для зума
     set(signalFig, 'WindowScrollWheelFcn', @mouseWheelZoom);
     
+    % Загружаем позиции курсоров из настроек при первом запуске
+    loadCursorPositionsFromSettings();
+    
     % === Callback функции ===
         
     function initializeTimes()
-        % Вычисляем начальные времена для baseline и peak диапазонов
+        % Проверяем, есть ли сохраненные позиции курсоров
+        if ~isempty(slope_measurement_results) && length(slope_measurement_results) > 0
+            % Восстанавливаем позиции из последнего результата
+            last_result = slope_measurement_results(end);
+            if isfield(last_result.metadata, 'cursor_positions')
+                slope_measurement_settings.baseline_start = last_result.metadata.cursor_positions.baseline_start;
+                slope_measurement_settings.baseline_end = last_result.metadata.cursor_positions.baseline_end;
+                slope_measurement_settings.peak_start = last_result.metadata.cursor_positions.peak_start;
+                slope_measurement_settings.peak_end = last_result.metadata.cursor_positions.peak_end;
+                fprintf('DEBUG: initializeTimes: Позиции загружены из результатов\n');
+            else
+                % Используем стандартные позиции
+                setDefaultCursorPositions();
+                fprintf('DEBUG: initializeTimes: Используются стандартные позиции (нет в результатах)\n');
+            end
+        else
+            % Пытаемся загрузить позиции из главного файла настроек
+            try
+                SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
+                if exist(SettingsFilepath, 'file')
+                    loadedSettings = load(SettingsFilepath, '-mat');
+                    if isfield(loadedSettings, 'cursor_positions')
+                        % Восстанавливаем абсолютные позиции из относительных используя глобальную переменную rel_shift
+                        slope_measurement_settings.baseline_start = loadedSettings.cursor_positions.baseline_start + rel_shift;
+                        slope_measurement_settings.baseline_end = loadedSettings.cursor_positions.baseline_end + rel_shift;
+                        slope_measurement_settings.peak_start = loadedSettings.cursor_positions.peak_start + rel_shift;
+                        slope_measurement_settings.peak_end = loadedSettings.cursor_positions.peak_end + rel_shift;
+                        
+                        fprintf('DEBUG: Загружены относительные позиции: baseline_start=%.3f, baseline_end=%.3f, peak_start=%.3f, peak_end=%.3f (rel_shift=%.3f)\n', ...
+                            loadedSettings.cursor_positions.baseline_start, loadedSettings.cursor_positions.baseline_end, ...
+                            loadedSettings.cursor_positions.peak_start, loadedSettings.cursor_positions.peak_end, rel_shift);
+                        fprintf('DEBUG: Восстановлены абсолютные позиции: baseline_start=%.3f, baseline_end=%.3f, peak_start=%.3f, peak_end=%.3f\n', ...
+                            slope_measurement_settings.baseline_start, slope_measurement_settings.baseline_end, ...
+                            slope_measurement_settings.peak_start, slope_measurement_settings.peak_end);
+                        fprintf('DEBUG: initializeTimes: Относительные позиции восстановлены из главного файла настроек\n');
+                    else
+                        % Используем стандартные позиции
+                        setDefaultCursorPositions();
+                        fprintf('DEBUG: initializeTimes: Используются стандартные позиции (нет в главном файле настроек)\n');
+                    end
+                else
+                    % Используем стандартные позиции
+                    setDefaultCursorPositions();
+                    fprintf('DEBUG: initializeTimes: Используются стандартные позиции (главный файл настроек не найден)\n');
+                end
+            catch ME
+                fprintf('DEBUG: initializeTimes: Ошибка загрузки позиций из главного файла настроек: %s\n', ME.message);
+                % Используем стандартные позиции
+                setDefaultCursorPositions();
+            end
+        end
+        
+        % Обновляем edit fields с учетом единиц времени
+        fprintf('DEBUG: initializeTimes: timeUnitFactor = %d, selectedUnit = %s\n', timeUnitFactor, selectedUnit);
+        updateCursorEditFields();
+    end
+    
+    function setDefaultCursorPositions()
+        % Вычисляем стандартные времена для baseline и peak диапазонов
         time_range = chosen_time_interval(2) - chosen_time_interval(1);
         
         % Baseline: первые 20% временного интервала
@@ -534,12 +641,26 @@ function signalAnalysisGUI()
         slope_measurement_settings.baseline_end = baseline_end;
         slope_measurement_settings.peak_start = peak_start;
         slope_measurement_settings.peak_end = peak_end;
+    end
+    
+    function updateCursorEditFields()
+        % Обновляет edit fields с учетом единиц времени и относительного сдвига
+        fprintf('DEBUG: updateCursorEditFields: timeUnitFactor = %d, selectedUnit = %s\n', timeUnitFactor, selectedUnit);
         
-        % Обновляем edit fields
-        set(hBaselineStartEdit, 'String', sprintf('%.3f', (baseline_start - rel_shift) * timeUnitFactor));
-        set(hBaselineEndEdit, 'String', sprintf('%.3f', (baseline_end - rel_shift) * timeUnitFactor));
-        set(hPeakStartEdit, 'String', sprintf('%.3f', (peak_start - rel_shift) * timeUnitFactor));
-        set(hPeakEndEdit, 'String', sprintf('%.3f', (peak_end - rel_shift) * timeUnitFactor));
+        if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
+            rel_shift = stims(stim_inx);
+        else
+            rel_shift = chosen_time_interval(1);
+        end
+        
+        fprintf('DEBUG: baseline_start = %.3f, rel_shift = %.3f, результат = %.3f\n', ...
+            slope_measurement_settings.baseline_start, rel_shift, ...
+            (slope_measurement_settings.baseline_start - rel_shift) * timeUnitFactor);
+        
+        set(hBaselineStartEdit, 'String', sprintf('%.3f', (slope_measurement_settings.baseline_start - rel_shift) * timeUnitFactor));
+        set(hBaselineEndEdit, 'String', sprintf('%.3f', (slope_measurement_settings.baseline_end - rel_shift) * timeUnitFactor));
+        set(hPeakStartEdit, 'String', sprintf('%.3f', (slope_measurement_settings.peak_start - rel_shift) * timeUnitFactor));
+        set(hPeakEndEdit, 'String', sprintf('%.3f', (slope_measurement_settings.peak_end - rel_shift) * timeUnitFactor));
     end
     
     function channelCallback(src, ~)
@@ -566,6 +687,9 @@ function signalAnalysisGUI()
         if ~isnan(new_time)
             slope_measurement_settings.baseline_start = rel_shift + new_time;
             updatePlotAndCalculation();
+            
+            % Сохраняем позиции курсоров в настройки
+            saveCurrentMarkerPositions();
         end
     end
     
@@ -574,6 +698,9 @@ function signalAnalysisGUI()
         if ~isnan(new_time)
             slope_measurement_settings.baseline_end = rel_shift + new_time;
             updatePlotAndCalculation();
+            
+            % Сохраняем позиции курсоров в настройки
+            saveCurrentMarkerPositions();
         end
     end
     
@@ -582,6 +709,9 @@ function signalAnalysisGUI()
         if ~isnan(new_time)
             slope_measurement_settings.peak_start = rel_shift + new_time;
             updatePlotAndCalculation();
+            
+            % Сохраняем позиции курсоров в настройки
+            saveCurrentMarkerPositions();
         end
     end
     
@@ -591,6 +721,9 @@ function signalAnalysisGUI()
             slope_measurement_settings.peak_end = rel_shift + new_time;
             updateNavigationStatus(); % Синхронизируем с основным приложением
             updatePlotAndCalculation();
+            
+            % Сохраняем позиции курсоров в настройки
+            saveCurrentMarkerPositions();
         end
     end
     
@@ -659,6 +792,20 @@ function signalAnalysisGUI()
     function updatePlotAndCalculation()
         % Координирует вычисление результатов и обновление графика
         
+        % Обновляем временной интервал на основе режима и временных окон
+        if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
+            % В режиме стимула центрируем интервал по текущему стимулу
+            chosen_time_interval(1) = stims(stim_inx);
+            chosen_time_interval(2) = chosen_time_interval(1) + time_forward;
+        elseif strcmp(selectedCenter, 'sweep') && isstruct(sweep_info) && sweep_info.is_sweep_data
+            % В режиме sweep используем времена свипов
+            chosen_time_interval(1) = sweep_info.sweep_times(sweep_inx);
+            chosen_time_interval(2) = chosen_time_interval(1) + time_forward;
+        elseif strcmp(selectedCenter, 'time')
+            % В режиме time обновляем только правую границу
+            chosen_time_interval(2) = chosen_time_interval(1) + time_forward;
+        end
+        
         % Сначала вычисляем все результаты
         [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = calculateResults();
         
@@ -668,6 +815,16 @@ function signalAnalysisGUI()
     
     function [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = calculateResults()
         % Вычисляет все результаты измерений без отрисовки
+        
+        % Инициализируем все выходные переменные
+        slope_value = NaN;
+        slope_angle = NaN;
+        peak_time = NaN;
+        peak_value = NaN;
+        baseline_value = NaN;
+        onset_time = NaN;
+        onset_value = NaN;
+        measurement_metadata = struct();
         
         % Проверяем, нужно ли использовать средний сигнал
         if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
@@ -807,9 +964,10 @@ function signalAnalysisGUI()
             rel_shift = 0;
             time_display = time_in * timeUnitFactor;
         else
-            % Получаем данные текущего временного интервала
+            % Получаем данные текущего временного интервала с учетом обоих окон
             plot_time_interval = chosen_time_interval;
             plot_time_interval(1) = plot_time_interval(1) - time_back;
+            plot_time_interval(2) = chosen_time_interval(1) + time_forward;
             
             cond = time >= plot_time_interval(1) & time < plot_time_interval(2);
             local_lfp = lfp(cond, :);
@@ -830,6 +988,12 @@ function signalAnalysisGUI()
                 rel_shift = chosen_time_interval(1);
             end
             
+            % Убираем артефакт стимуляции если есть стимулы
+            if not(isempty(stims)) && stimShowFlag
+                Fs_fascor = Fs/1000;
+                channel_data = removeStimArtifact(channel_data, stims, time_in, art_rem_window_ms*Fs_fascor*0.5);
+            end
+            
             % Фильтрация если включена
             if sum(filter_avaliable) > 0 && filter_avaliable(selected_channel)
                 channel_data = applyFilter(channel_data, filterSettings, newFs);
@@ -843,7 +1007,13 @@ function signalAnalysisGUI()
             end
             
             % Преобразование времени с учетом единиц
-            time_display = (time_in - rel_shift) * timeUnitFactor;
+            if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
+                % В режиме среднего сигнала время уже нормализовано
+                time_display = time_in * timeUnitFactor;
+            else
+                % В обычном режиме нормализуем относительно rel_shift
+                time_display = (time_in - rel_shift) * timeUnitFactor;
+            end
         end
         
         % Отображение графика
@@ -856,6 +1026,12 @@ function signalAnalysisGUI()
         % Проверяем границы осей
         xlims = xlim;
         ylims = ylim;
+        
+        % Проверяем корректность данных
+        if isempty(channel_data) || all(isnan(channel_data)) || all(isinf(channel_data))
+            fprintf('DEBUG: Некорректные данные для отображения\n');
+            return;
+        end
         
         % Применяем зум если активен
         if zoom_active && ~isnan(zoom_start_rel) && ~isnan(zoom_end_rel)
@@ -875,14 +1051,17 @@ function signalAnalysisGUI()
             full_range = full_end - full_start;
             
             if full_range > 0
-                zoom_start_abs = full_start + zoom_start_rel * full_range;
-                zoom_end_abs = full_start + zoom_end_rel * full_range;
                 
-                if zoom_end_abs > zoom_start_abs
+                
+                if zoom_end_rel > zoom_start_rel
                     if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
                         % В режиме среднего сигнала время уже нормализовано
+                        zoom_start_abs = zoom_start_rel;
+                        zoom_end_abs = zoom_end_rel;
                         xlim([zoom_start_abs * timeUnitFactor, zoom_end_abs * timeUnitFactor]);
                     else
+                        zoom_start_abs = full_start + zoom_start_rel * full_range;
+                        zoom_end_abs = full_start + zoom_end_rel * full_range;
                         % В обычном режиме нормализуем относительно rel_shift
                         xlim([(zoom_start_abs - rel_shift) * timeUnitFactor, (zoom_end_abs - rel_shift) * timeUnitFactor]);
                     end
@@ -896,14 +1075,14 @@ function signalAnalysisGUI()
                     
                     if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
                         % В режиме среднего сигнала используем границы из данных
-                        full_start = min(time_display);
-                        full_end = max(time_display);
+                        full_start = (chosen_time_interval(1) - time_back) * timeUnitFactor;
+                        full_end = chosen_time_interval(2) * timeUnitFactor;
                         xlim([full_start, full_end]);
                     else
                         % В обычном режиме используем стандартные границы времени
                         full_start = (chosen_time_interval(1) - time_back - rel_shift) * timeUnitFactor;
                         full_end = (chosen_time_interval(2) - rel_shift) * timeUnitFactor;
-                        xlim([full_start, full_end]);
+                        % xlim([full_start, full_end]);
                     end
                     
                     zoomBtn = findobj(signalFig, 'Style', 'pushbutton', 'Callback', @toggleZoom);
@@ -923,12 +1102,12 @@ function signalAnalysisGUI()
                     % В режиме среднего сигнала используем границы из данных
                     full_start = min(time_display);
                     full_end = max(time_display);
-                    xlim([full_start, full_end]);
+                    % xlim([full_start, full_end]);
                 else
                     % В обычном режиме используем стандартные границы времени
                     full_start = (chosen_time_interval(1) - time_back - rel_shift) * timeUnitFactor;
                     full_end = (chosen_time_interval(2) - rel_shift) * timeUnitFactor;
-                    xlim([full_start, full_end]);
+                    % xlim([full_start, full_end]);
                 end
                 
                 zoomBtn = findobj(signalFig, 'Style', 'pushbutton', 'Callback', @toggleZoom);
@@ -947,7 +1126,7 @@ function signalAnalysisGUI()
                 % В режиме среднего сигнала используем границы из данных
                 full_start = min(time_display);
                 full_end = max(time_display);
-                xlim([full_start, full_end]);
+                % xlim([full_start, full_end]);
                 
                 % Вычисляем границы амплитуды с небольшим запасом
                 y_min = min(channel_data);
@@ -956,8 +1135,13 @@ function signalAnalysisGUI()
                 if y_range == 0
                     y_range = abs(y_min) * 0.1;
                 end
-                y_padding = y_range * 0.05;
-                ylim([y_min - y_padding, y_max + y_padding]);
+                if y_range <= 0 || isnan(y_range) || isinf(y_range)
+                    % Если данные некорректные, используем стандартные границы
+                    ylim([-1, 1]);
+                else
+                    y_padding = y_range * 0.05;
+                    ylim([y_min - y_padding, y_max + y_padding]);
+                end
             else
                 % В обычном режиме используем стандартные границы времени
                 full_start = (chosen_time_interval(1) - time_back - rel_shift) * timeUnitFactor;
@@ -975,8 +1159,13 @@ function signalAnalysisGUI()
                     if y_range == 0
                         y_range = abs(y_min) * 0.1;
                     end
-                    y_padding = y_range * 0.05;
-                    ylim([y_min - y_padding, y_max + y_padding]);
+                    if y_range <= 0 || isnan(y_range) || isinf(y_range)
+                        % Если данные некорректные, используем стандартные границы
+                        ylim([-1, 1]);
+                    else
+                        y_padding = y_range * 0.05;
+                        ylim([y_min - y_padding, y_max + y_padding]);
+                    end
                 end
             end
         end
@@ -1114,12 +1303,12 @@ function signalAnalysisGUI()
         ylabel('Amplitude');
         
         % Заголовок с указанием режима
-        if mean_results_active
-            title('Mean Signal (Average of All Results)');
-        else
-            selected_channel = slope_measurement_settings.channel;
-            title(['Channel: ' hd.recChNames{selected_channel}]);
-        end
+            if mean_results_active
+                title({['File: ' matFileName], 'Mean Signal (Average of All Results)'});
+            else
+                selected_channel = slope_measurement_settings.channel;
+                title({['File: ' matFileName], ['Channel: ' hd.recChNames{selected_channel}]}, 'Interpreter', 'none');
+            end
         
         grid on;
         
@@ -1179,20 +1368,19 @@ function signalAnalysisGUI()
         if strcmp(range_type, 'baseline')
             if line_num == 1 % начало baseline
                 slope_measurement_settings.baseline_start = new_time;
-                set(hBaselineStartEdit, 'String', sprintf('%.3f', (new_time - rel_shift) * timeUnitFactor));
             else % конец baseline
                 slope_measurement_settings.baseline_end = new_time;
-                set(hBaselineEndEdit, 'String', sprintf('%.3f', (new_time - rel_shift) * timeUnitFactor));
             end
         elseif strcmp(range_type, 'peak')
             if line_num == 1 % начало peak
                 slope_measurement_settings.peak_start = new_time;
-                set(hPeakStartEdit, 'String', sprintf('%.3f', (new_time - rel_shift) * timeUnitFactor));
             else % конец peak
                 slope_measurement_settings.peak_end = new_time;
-                set(hPeakEndEdit, 'String', sprintf('%.3f', (new_time - rel_shift) * timeUnitFactor));
             end
         end
+        
+        % Обновляем edit fields после изменения позиций
+        updateCursorEditFields();
         
         % Обновляем только позиции линий без пересчета параметров
         updateLinePositions();
@@ -1202,8 +1390,53 @@ function signalAnalysisGUI()
         set(signalFig, 'WindowButtonMotionFcn', '');
         set(signalFig, 'WindowButtonUpFcn', '');
         
+        % Сохраняем текущие позиции маркеров в настройки
+        saveCurrentMarkerPositions();
+        
         % Пересчитываем параметры только после того как пользователь отжал мышь
         updatePlotAndCalculation();
+    end
+    
+    function saveCurrentMarkerPositions()
+        % Сохраняет текущие позиции маркеров в главный файл настроек
+        % Эта функция вызывается при завершении перетаскивания маркеров
+        
+        try
+            % Путь к главному файлу настроек
+            SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
+            
+            % Загружаем существующие настройки если файл есть
+            if exist(SettingsFilepath, 'file')
+                loadedSettings = load(SettingsFilepath, '-mat');
+            else
+                % Создаем базовую структуру настроек
+                loadedSettings = struct();
+            end
+            
+            % Сохраняем относительные позиции курсоров используя глобальную переменную rel_shift
+            loadedSettings.cursor_positions = struct();
+            loadedSettings.cursor_positions.baseline_start = slope_measurement_settings.baseline_start - rel_shift;
+            loadedSettings.cursor_positions.baseline_end = slope_measurement_settings.baseline_end - rel_shift;
+            loadedSettings.cursor_positions.peak_start = slope_measurement_settings.peak_start - rel_shift;
+            loadedSettings.cursor_positions.peak_end = slope_measurement_settings.peak_end - rel_shift;
+            
+            fprintf('DEBUG: Сохраняем относительные позиции: baseline_start=%.3f, baseline_end=%.3f, peak_start=%.3f, peak_end=%.3f (rel_shift=%.3f)\n', ...
+                loadedSettings.cursor_positions.baseline_start, loadedSettings.cursor_positions.baseline_end, ...
+                loadedSettings.cursor_positions.peak_start, loadedSettings.cursor_positions.peak_end, rel_shift);
+            
+            % Сохраняем обновленные настройки
+            % Используем -append чтобы не перезаписывать существующие настройки
+            if exist(SettingsFilepath, 'file')
+                save(SettingsFilepath, '-struct', 'loadedSettings', 'cursor_positions', '-append');
+            else
+                save(SettingsFilepath, '-struct', 'loadedSettings', 'cursor_positions');
+            end
+            
+            fprintf('DEBUG: Позиции маркеров сохранены в главный файл настроек %s\n', SettingsFilepath);
+            
+        catch ME
+            fprintf('DEBUG: Ошибка при сохранении позиций маркеров: %s\n', ME.message);
+        end
     end
     
     function updateLinePositions()
@@ -1269,6 +1502,9 @@ function signalAnalysisGUI()
                 set(hPeakLines(2), 'XData', [t_pk_end, t_pk_end], 'YData', ylims);
             end
         end
+        
+        % Обновляем edit fields после изменения позиций линий
+        updateCursorEditFields();
     end
 
     function updateNavigationStatus()
@@ -1369,6 +1605,9 @@ function signalAnalysisGUI()
         % Применяем сохраненные относительные позиции к новому интервалу
         setRelativePositions(baseline_rel, peak_rel);
         
+        % Обновляем edit fields после изменения позиций
+        updateCursorEditFields();
+        
         % Обновляем статус и график
         updateNavigationStatus();
         updatePlotAndCalculation();
@@ -1412,10 +1651,7 @@ function signalAnalysisGUI()
         slope_measurement_settings.peak_end = new_rel_shift + peak_rel.end;
         
         % Обновляем edit fields с относительным временем
-        set(hBaselineStartEdit, 'String', sprintf('%.3f', baseline_rel.start * timeUnitFactor));
-        set(hBaselineEndEdit, 'String', sprintf('%.3f', baseline_rel.end * timeUnitFactor));
-        set(hPeakStartEdit, 'String', sprintf('%.3f', peak_rel.start * timeUnitFactor));
-        set(hPeakEndEdit, 'String', sprintf('%.3f', peak_rel.end * timeUnitFactor));
+        updateCursorEditFields();
     end
     
     function keyPressFunction(~, event)
@@ -1500,106 +1736,28 @@ function signalAnalysisGUI()
         
         fprintf('DEBUG: applyZoom входные данные: время [%.3f, %.3f], амплитуда [%.3f, %.3f]\n', ...
             zoom_start_time, zoom_end_time, zoom_start_y, zoom_end_y);
-        
-        % Определяем полный временной диапазон данных в зависимости от режима
-        if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
-            % В режиме среднего сигнала используем границы самого среднего сигнала
-            full_start = 0; % Время уже нормализовано от 0
-            full_end = max(mean_signal_time) - min(mean_signal_time); % Диапазон времени среднего сигнала
-            rel_shift = 0; % В режиме среднего сигнала время уже нормализовано
-            fprintf('DEBUG: Режим среднего сигнала - используем границы среднего сигнала\n');
-        else
-            % В обычном режиме используем chosen_time_interval
-            full_start = chosen_time_interval(1) - time_back;
-            full_end = chosen_time_interval(2);
-            % Устанавливаем rel_shift для обычного режима
-            if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
-                rel_shift = stims(stim_inx);
-            else
-                rel_shift = chosen_time_interval(1);
-            end
-            fprintf('DEBUG: Обычный режим - используем chosen_time_interval\n');
-        end
-        
-        full_range = full_end - full_start;
-        fprintf('DEBUG: полный диапазон данных: [%.3f, %.3f], range=%.3f\n', full_start, full_end, full_range);
-        
-        % Конвертируем времена из отображаемых единиц в абсолютные секунды
-        % Учитываем что отображаемое время = (абсолютное_время - rel_shift) * timeUnitFactor
-        % Поэтому абсолютное_время = отображаемое_время / timeUnitFactor + rel_shift
-        zoom_start_sec = zoom_start_time / timeUnitFactor + rel_shift;
-        zoom_end_sec = zoom_end_time / timeUnitFactor + rel_shift;
-        
-        fprintf('DEBUG: конвертированные времена в абсолютных секундах: [%.3f, %.3f]\n', zoom_start_sec, zoom_end_sec);
-        
-        % Ограничиваем зум область границами данных
-        zoom_start_sec = max(zoom_start_sec, full_start);
-        zoom_end_sec = min(zoom_end_sec, full_end);
-        
-        fprintf('DEBUG: ограниченные времена: [%.3f, %.3f]\n', zoom_start_sec, zoom_end_sec);
-        
-        % Вычисляем относительные позиции по времени (0-1)
-        if full_range > 0
-            zoom_start_rel = (zoom_start_sec - full_start) / full_range;
-            zoom_end_rel = (zoom_end_sec - full_start) / full_range;
-            
-            % Ограничиваем значения от 0 до 1
-            zoom_start_rel = max(0, min(1, zoom_start_rel));
-            zoom_end_rel = max(0, min(1, zoom_end_rel));
-            
-            fprintf('DEBUG: относительные позиции: [%.3f, %.3f]\n', zoom_start_rel, zoom_end_rel);
-        else
-            % Если full_range некорректный - используем значения по умолчанию
-            zoom_start_rel = 0;
-            zoom_end_rel = 1;
-            fprintf('DEBUG: full_range некорректный, используем значения по умолчанию\n');
-        end
-        
-        % Сохраняем зум по амплитуде - порядок не важен, min/max автоматически сортируют
+                
+        % Сохраняем зум по амплитуде
         zoom_y_min = min(zoom_start_y, zoom_end_y);
         zoom_y_max = max(zoom_start_y, zoom_end_y);
         
-        fprintf('DEBUG: зум по амплитуде: [%.3f, %.3f]\n', zoom_y_min, zoom_y_max);
-        
-        % Проверяем что зум область корректна
-        fprintf('DEBUG: проверки: full_range>0=%d, zoom_end_rel>zoom_start_rel=%d, zoom_y_max>zoom_y_min=%d\n', ...
-            full_range > 0, zoom_end_rel > zoom_start_rel, zoom_y_max > zoom_y_min);
-        
-        if full_range > 0 && zoom_end_rel > zoom_start_rel && zoom_y_max > zoom_y_min
+        if zoom_y_max > zoom_y_min
             zoom_active = true;
             
             % Сохраняем исходные границы амплитуды при первом зуме
             if isempty(original_ylim)
                 original_ylim = ylim(hPlotAxes);
-                fprintf('DEBUG: Сохранены исходные границы амплитуды: [%.2f, %.2f]\n', original_ylim(1), original_ylim(2));
             end
             
-            fprintf('DEBUG: Меняем кнопку на Reset, zoom_active = %d\n', zoom_active);
-            
-            % Находим кнопку зума в фигуре
+            % Обновляем кнопку зума
             zoomBtn = findobj(signalFig, 'Style', 'pushbutton', 'Callback', @toggleZoom);
             if ~isempty(zoomBtn)
                 set(zoomBtn, 'String', 'Reset Zoom');
-                fprintf('DEBUG: Текст кнопки изменен на: %s\n', get(zoomBtn, 'String'));
-            else
-                fprintf('ERROR: Кнопка зума не найдена!\n');
             end
             
-            fprintf('✓ Зум применен: время %.1f%%-%.1f%%, амплитуда %.2f-%.2f\n', ...
-                zoom_start_rel*100, zoom_end_rel*100, zoom_y_min, zoom_y_max);
             updateNavigationStatus();
-            updatePlotAndCalculation();
-        else
-            fprintf('❌ Некорректная область зума\n');
-            if full_range <= 0
-                fprintf('  - full_range <= 0: %.3f\n', full_range);
-            end
-            if zoom_end_rel <= zoom_start_rel
-                fprintf('  - zoom_end_rel <= zoom_start_rel: %.3f <= %.3f\n', zoom_end_rel, zoom_start_rel);
-            end
-            if zoom_y_max <= zoom_y_min
-                fprintf('  - zoom_y_max <= zoom_y_min: %.3f <= %.3f\n', zoom_y_max, zoom_y_min);
-            end
+            xlim([zoom_start_time, zoom_end_time]);
+            ylim([zoom_y_min, zoom_y_max]);
         end
     end
     
@@ -1631,93 +1789,53 @@ function signalAnalysisGUI()
     end
     
     function mouseWheelZoom(~, eventdata)
-        % Зум колесом мыши
         if ~zoom_active
-            return; % Колесо работает только когда уже есть зум
+            return;
         end
         
-        % Получаем позицию курсора
         cp = get(hPlotAxes, 'CurrentPoint');
         if isempty(cp)
             return;
         end
         
-        cursor_time = cp(1,1) / timeUnitFactor; % Конвертируем в секунды
+        cursor_time = cp(1,1) / timeUnitFactor;
         
         % Определяем полный временной диапазон в зависимости от режима
         if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
-            % В режиме среднего сигнала используем границы самого среднего сигнала
-            full_start = 0; % Время уже нормализовано от 0
-            full_end = max(mean_signal_time) - min(mean_signal_time); % Диапазон времени среднего сигнала
-            fprintf('DEBUG: mouseWheelZoom - режим среднего сигнала\n');
+            % В режиме среднего сигнала время уже нормализовано
+            full_start = min(mean_signal_time);
+            full_end = max(mean_signal_time);
         else
-            % В обычном режиме используем chosen_time_interval
             full_start = chosen_time_interval(1) - time_back;
             full_end = chosen_time_interval(2);
-            fprintf('DEBUG: mouseWheelZoom - обычный режим\n');
         end
         
         full_range = full_end - full_start;
-        
-        % Текущий зум диапазон
         current_zoom_range = (zoom_end_rel - zoom_start_rel) * full_range;
         
         % Коэффициент зума
-        zoom_factor = 0.1; % 10% за один шаг колеса
+        zoom_factor = 0.1;
         
         if eventdata.VerticalScrollCount > 0
-            % Скролл вниз - уменьшаем зум (увеличиваем область)
             new_zoom_range = current_zoom_range * (1 + zoom_factor);
         else
-            % Скролл вверх - увеличиваем зум (уменьшаем область)
             new_zoom_range = current_zoom_range * (1 - zoom_factor);
         end
         
-        % Ограничиваем только максимальный зум (убираем минимальный)
-        max_range = full_range; % максимум = полный диапазон
-        new_zoom_range = min(max_range, new_zoom_range);
-        
-        % Если достигли максимума - сбрасываем зум
-        if new_zoom_range >= max_range
+        if new_zoom_range >= full_range
             resetZoom();
             return;
         end
         
-        % НОВАЯ ЛОГИКА: Зум от центра текущей зазумленной области
-        % Вычисляем центр текущей зазумленной области в абсолютных координатах
+        % Зум от центра текущей области
         current_zoom_center = full_start + (zoom_start_rel + zoom_end_rel) / 2 * full_range;
         
-        fprintf('DEBUG: Зум колесом мыши:\n');
-        fprintf('  Позиция курсора (относительно): %.3f\n', cursor_time);
-        fprintf('  Центр текущей зазумленной области: %.3f (абсолютная)\n', current_zoom_center);
-        fprintf('  Текущий диапазон зума: [%.3f, %.3f] (%.3f)\n', ...
-            full_start + zoom_start_rel * full_range, full_start + zoom_end_rel * full_range, current_zoom_range);
-        
-        % Вычисляем новые границы зума с центром в центре текущей зазумленной области
         new_zoom_start = current_zoom_center - new_zoom_range / 2;
         new_zoom_end = current_zoom_center + new_zoom_range / 2;
         
-        fprintf('  Новый диапазон зума: [%.3f, %.3f] (%.3f)\n', new_zoom_start, new_zoom_end, new_zoom_range);
-        
-        % Ограничиваем границами данных
-        if new_zoom_start < full_start
-            new_zoom_start = full_start;
-            new_zoom_end = new_zoom_start + new_zoom_range;
-            fprintf('  Ограничили левую границу: %.3f\n', new_zoom_start);
-        end
-        if new_zoom_end > full_end
-            new_zoom_end = full_end;
-            new_zoom_start = new_zoom_end - new_zoom_range;
-            fprintf('  Ограничили правую границу: %.3f\n', new_zoom_end);
-        end
-        
-        % Конвертируем в относительные координаты
         zoom_start_rel = (new_zoom_start - full_start) / full_range;
         zoom_end_rel = (new_zoom_end - full_start) / full_range;
         
-        fprintf('  Новые относительные координаты: [%.3f, %.3f]\n', zoom_start_rel, zoom_end_rel);
-        
-        % Обновляем график
         updateNavigationStatus();
         updatePlotAndCalculation();
     end
@@ -1782,11 +1900,26 @@ function signalAnalysisGUI()
             end
         end
         
+        % Добавляем позиции курсоров в метаданные
+        metadata.cursor_positions = struct();
+        metadata.cursor_positions.baseline_start = slope_measurement_settings.baseline_start;
+        metadata.cursor_positions.baseline_end = slope_measurement_settings.baseline_end;
+        metadata.cursor_positions.peak_start = slope_measurement_settings.peak_start;
+        metadata.cursor_positions.peak_end = slope_measurement_settings.peak_end;
+        
         % Добавляем результат в структуру
         new_result = struct('baseline_value', baseline_value, 'slope_value', slope_value, ...
                            'peak_time', peak_time, 'peak_value', peak_value, ...
                            'onset_time', onset_time, 'onset_value', onset_value, 'onset_method', onset_method, ...
                            'metadata', metadata);
+
+        % Добавляем время стимула в метаданные если оно есть
+        if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
+            new_result.metadata.stim_time = stims(stim_inx);
+        else
+            new_result.metadata.stim_time = NaN;
+        end
+
         slope_measurement_results = [slope_measurement_results, new_result];
         
         % Обновляем таблицу
@@ -1901,11 +2034,67 @@ function signalAnalysisGUI()
                 excel_data{i+1, 9} = getNavigationStatusText(metadata);
             end
             
+            % Добавляем пустую строку после основных данных
+            excel_data{end+1, 1} = '';
+            
+            % Добавляем заголовок для средних значений
+            excel_data{end+1, 1} = 'Average Values';
+            
+            % Добавляем названия колонок для средних значений
+            excel_data{end+1, 1} = 'Slope';
+            excel_data{end, 2} = 'Peak Time (rel)';
+            excel_data{end, 4} = 'Peak Amplitude';
+            excel_data{end, 5} = 'Peak Value (rel)';
+            excel_data{end, 6} = 'Onset Time (rel)';
+            excel_data{end, 8} = 'Baseline';
+            
+            % Вычисляем средние значения
+            slope_values = [slope_measurement_results.slope_value];
+            peak_time_rel_values = [slope_measurement_results.peak_time] * timeUnitFactor;
+            peak_amplitude_values = [slope_measurement_results.peak_value];
+            peak_value_rel_values = peak_amplitude_values - [slope_measurement_results.baseline_value];
+            onset_time_rel_values = [slope_measurement_results.onset_time] * timeUnitFactor;
+            baseline_values = [slope_measurement_results.baseline_value];
+            
+            % Добавляем средние значения
+            excel_data{end+1, 1} = mean(slope_values, 'omitnan');
+            excel_data{end, 2} = mean(peak_time_rel_values, 'omitnan');
+            excel_data{end, 4} = mean(peak_amplitude_values, 'omitnan');
+            excel_data{end, 5} = mean(peak_value_rel_values, 'omitnan');
+            excel_data{end, 6} = mean(onset_time_rel_values, 'omitnan');
+            excel_data{end, 8} = mean(baseline_values, 'omitnan');
+            
+            % Добавляем стандартные отклонения
+            excel_data{end+1, 1} = 'Standard Deviation';
+            excel_data{end+1, 1} = std(slope_values, 'omitnan');
+            excel_data{end, 2} = std(peak_time_rel_values, 'omitnan');
+            excel_data{end, 4} = std(peak_amplitude_values, 'omitnan');
+            excel_data{end, 5} = std(peak_value_rel_values, 'omitnan');
+            excel_data{end, 6} = std(onset_time_rel_values, 'omitnan');
+            excel_data{end, 8} = std(baseline_values, 'omitnan');
+            
             % Сохраняем Excel файл
             writecell(excel_data, excel_path);
             
+            % Создаем структуру с средними значениями для сохранения в .meta файл
+            average_values = struct();
+            average_values.slope = mean(slope_values, 'omitnan');
+            average_values.peak_time_rel = mean(peak_time_rel_values, 'omitnan');
+            average_values.peak_amplitude = mean(peak_amplitude_values, 'omitnan');
+            average_values.peak_value_rel = mean(peak_value_rel_values, 'omitnan');
+            average_values.onset_time_rel = mean(onset_time_rel_values, 'omitnan');
+            average_values.baseline = mean(baseline_values, 'omitnan');
+            
+            % Добавляем стандартные отклонения
+            average_values.std_slope = std(slope_values, 'omitnan');
+            average_values.std_peak_time_rel = std(peak_time_rel_values, 'omitnan');
+            average_values.std_peak_amplitude = std(peak_amplitude_values, 'omitnan');
+            average_values.std_peak_value_rel = std(peak_value_rel_values, 'omitnan');
+            average_values.std_onset_time_rel = std(onset_time_rel_values, 'omitnan');
+            average_values.std_baseline = std(baseline_values, 'omitnan');
+            
             % Сохраняем метаданные в .meta файл (фактически .mat формат)
-            save(meta_path, 'slope_measurement_results', 'multiple_measurements', '-v7.3');
+            save(meta_path, 'slope_measurement_results', 'multiple_measurements', 'average_values', '-v7.3');
             
             fprintf('✓ Результаты сохранены:\n');
             fprintf('  Excel: %s\n', excel_path);
@@ -1928,7 +2117,7 @@ function signalAnalysisGUI()
         end
         
         % Подготавливаем данные для таблицы
-        table_data = cell(length(slope_measurement_results), 9);
+        table_data = cell(length(slope_measurement_results), 11);
         for i = 1:length(slope_measurement_results)
             metadata = slope_measurement_results(i).metadata;
             
@@ -1944,15 +2133,20 @@ function signalAnalysisGUI()
             % Абсолютное время онсета
             onset_time_abs = (slope_measurement_results(i).onset_time + metadata.rel_shift) * timeUnitFactor;
             
-            table_data{i, 1} = slope_measurement_results(i).slope_value; % slope
-            table_data{i, 2} = peak_time_rel; % peak time relative
-            table_data{i, 3} = peak_time_abs; % peak time absolute
-            table_data{i, 4} = slope_measurement_results(i).peak_value; % peak amplitude
-            table_data{i, 5} = onset_time_rel; % onset time relative
-            table_data{i, 6} = onset_time_abs; % onset time absolute
-            table_data{i, 7} = slope_measurement_results(i).baseline_value; % baseline
-            table_data{i, 8} = metadata.channel; % channel number
-            table_data{i, 9} = getNavigationStatusText(metadata); % info
+            % Относительное значение пика (относительно базовой линии)
+            peak_value_rel = slope_measurement_results(i).peak_value - slope_measurement_results(i).baseline_value;
+            
+            table_data{i, 1} = slope_measurement_results(i).slope_value;
+            table_data{i, 2} = peak_time_rel;
+            table_data{i, 3} = peak_time_abs;
+            table_data{i, 4} = slope_measurement_results(i).peak_value;
+            table_data{i, 5} = peak_value_rel;
+            table_data{i, 6} = onset_time_rel;
+            table_data{i, 7} = onset_time_abs;
+            table_data{i, 8} = slope_measurement_results(i).baseline_value;
+            table_data{i, 9} = metadata.channel;
+            table_data{i, 10} = metadata.stim_time;
+            table_data{i, 11} = getNavigationStatusText(metadata);
         end
         
         set(hResultsTable, 'Data', table_data);
@@ -2076,6 +2270,14 @@ function signalAnalysisGUI()
             slope_measurement_settings.show_peak = metadata.show_peak;
         end
         
+        % Восстанавливаем позиции курсоров если они есть
+        if isfield(metadata, 'cursor_positions')
+            slope_measurement_settings.baseline_start = metadata.cursor_positions.baseline_start;
+            slope_measurement_settings.baseline_end = metadata.cursor_positions.baseline_end;
+            slope_measurement_settings.peak_start = metadata.cursor_positions.peak_start;
+            slope_measurement_settings.peak_end = metadata.cursor_positions.peak_end;
+        end
+        
         % Восстанавливаем временной интервал
         chosen_time_interval = metadata.chosen_time_interval;
         
@@ -2127,16 +2329,7 @@ function signalAnalysisGUI()
         % updateOnsetThresholdVisibility();
         
         % Обновляем edit fields с относительным временем
-        if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
-            rel_shift = stims(stim_inx);
-        else
-            rel_shift = chosen_time_interval(1);
-        end
-        
-        set(hBaselineStartEdit, 'String', sprintf('%.3f', (slope_measurement_settings.baseline_start - rel_shift) * timeUnitFactor));
-        set(hBaselineEndEdit, 'String', sprintf('%.3f', (slope_measurement_settings.baseline_end - rel_shift) * timeUnitFactor));
-        set(hPeakStartEdit, 'String', sprintf('%.3f', (slope_measurement_settings.peak_start - rel_shift) * timeUnitFactor));
-        set(hPeakEndEdit, 'String', sprintf('%.3f', (slope_measurement_settings.peak_end - rel_shift) * timeUnitFactor));
+        updateCursorEditFields();
         
         % Обновляем кнопку зума
         zoomBtn = findobj(signalFig, 'Style', 'pushbutton', 'Callback', @toggleZoom);
@@ -2596,6 +2789,11 @@ function signalAnalysisGUI()
             channel_data = local_lfp(:, selected_channel);
             time_in = time(cond);
             
+            % Убираем артефакт стимуляции если есть стимулы
+            if not(isempty(stims)) && stimShowFlag
+                channel_data = removeStimArtifact(channel_data, stims, time_in, art_rem_window_ms);
+            end
+            
             % Фильтрация если включена
             if sum(filter_avaliable) > 0 && filter_avaliable(selected_channel)
                 channel_data = applyFilter(channel_data, filterSettings, newFs);
@@ -2754,6 +2952,9 @@ function signalAnalysisGUI()
             
             % Применяем сохраненные относительные позиции к новому интервалу
             setRelativePositions(baseline_rel, peak_rel);
+            
+            % Обновляем edit fields после изменения позиций
+            updateCursorEditFields();
             
             % Вычисляем результаты для текущего участка
             [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = calculateResults();
@@ -2979,14 +3180,16 @@ function signalAnalysisGUI()
             
             % === ДОБАВЛЕНО: Загрузка групповых настроек ===
             % Инициализируем переменные для настроек
-            channelNames = hd.recChNames;
+            if isfield(hd, 'recChNames') && iscell(hd.recChNames)
+                channelNames = hd.recChNames;
+            else
+                channelNames = {'Ch1'};
+            end
             numChannels = length(channelNames);
             
-            % Устанавливаем версию EasyViewer
-            EV_version = '1.10.00';
-            
-            % Загружаем настройки каналов (индивидуальные или групповые)
-            loadChannelSettings();
+            fprintf('DEBUG: openFile: channelNames = ');
+            disp(channelNames);
+            fprintf('DEBUG: openFile: numChannels = %d\n', numChannels);
             
             % === КОНЕЦ ДОБАВЛЕННОГО КОДА ===
             
@@ -3005,13 +3208,22 @@ function signalAnalysisGUI()
             matFilePath = filepath;
             [~, matFileName, ~] = fileparts(matFilePath);
             
+            % Загружаем настройки каналов (индивидуальные или групповые)
+            fprintf('DEBUG: openFile: Вызываем loadChannelSettings() ПОСЛЕ установки matFilePath\n');
+            loadChannelSettings();
+            fprintf('DEBUG: openFile: После loadChannelSettings: numChannels = %d\n', numChannels);
+            
             % Обновляем popup каналов
             if exist('hChannelPopup', 'var') && ishandle(hChannelPopup)
-                set(hChannelPopup, 'String', hd.recChNames, 'Value', 1);
+                if isfield(hd, 'recChNames') && iscell(hd.recChNames) && ~isempty(hd.recChNames)
+                    set(hChannelPopup, 'String', hd.recChNames, 'Value', 1);
+                else
+                    set(hChannelPopup, 'String', {'Ch1'}, 'Value', 1);
+                end
             end
             
-            % Инициализируем времена для нового файла
-            initializeTimes();
+            % Обновляем edit fields для нового файла
+            updateCursorEditFields();
             
             % Обновляем отображение
             updateNavigationStatus();
@@ -3019,6 +3231,9 @@ function signalAnalysisGUI()
             updateResultsTable();
             updateMeasurementsTable();
             updateButtonStates();
+            
+            % Загружаем позиции курсоров из настроек ПОСЛЕ загрузки файла
+            loadCursorPositionsFromSettings();
             
             fprintf('✓ Файл успешно загружен: %s\n', matFileName);
             fprintf('  Размер данных: %dx%dx%d\n', size(lfp));
@@ -3084,31 +3299,69 @@ function signalAnalysisGUI()
                 return;
         end
     end
+    
+    function updateAnalysisPlotFunc()
+        % Глобальная функция для обновления графика анализа сигнала
+        % Вызывается из groupSettingsEditor.m
+        try
+            updatePlotAndCalculation();
+            fprintf('✓ График анализа сигнала обновлен из групповых настроек\n');
+        catch ME
+            warning('Ошибка при обновлении графика анализа: %s', ME.message);
+        end
+    end
 
     % === ДОБАВЛЕНО: Функции для загрузки настроек каналов ===
     
+    function updateTable()
+        % Простая версия функции updateTable для signalAnalysisGUI
+        fprintf('DEBUG: updateTable: Функция вызвана\n');
+        fprintf('DEBUG: updateTable: channelNames = ');
+        disp(channelNames);
+        fprintf('DEBUG: updateTable: numChannels = %d\n', numChannels);
+        
+        % Здесь можно добавить логику обновления таблицы если нужно
+        fprintf('DEBUG: updateTable: Таблица обновлена\n');
+    end
+    
     function loadChannelSettings()
         % Загружает настройки каналов (индивидуальные или групповые)
+        fprintf('DEBUG: loadChannelSettings: Начало функции\n');
+        fprintf('DEBUG: loadChannelSettings: matFilePath = %s\n', matFilePath);
+        fprintf('DEBUG: loadChannelSettings: numChannels = %d\n', numChannels);
+        fprintf('DEBUG: loadChannelSettings: Fs = %.1f\n', Fs);
+        fprintf('DEBUG: loadChannelSettings: EV_version = %s\n', EV_version);
+        
         [path, name, ~] = fileparts(matFilePath);
         channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
+        fprintf('DEBUG: loadChannelSettings: channelSettingsFilePath = %s\n', channelSettingsFilePath);
         
         if isfile(channelSettingsFilePath)
             % Индивидуальные настройки существуют - загружаем их полностью
+            fprintf('DEBUG: loadChannelSettings: Индивидуальные настройки найдены\n');
             disp('Loading individual channel settings...')
             loadSettingsFile(channelSettingsFilePath);
         else
             % Индивидуальных настроек нет - загружаем групповые + создаем индивидуальные
+            fprintf('DEBUG: loadChannelSettings: Индивидуальные настройки НЕ найдены, загружаем групповые\n');
             disp('No individual settings found, loading group settings...')
             % Загружаем групповые настройки и создаем индивидуальные
             loadGroupSettingsAndCreateIndividual(matFilePath, numChannels, Fs, EV_version);
         end
+        
+        fprintf('DEBUG: loadChannelSettings: Конец функции\n');
     end
     
     function loadSettingsFile(channelSettingsFilePath)
         % Загружает настройки из файла настроек каналов
+        fprintf('DEBUG: loadSettingsFile: Начало загрузки из %s\n', channelSettingsFilePath);
+        
         try
             loadedSettings = load(channelSettingsFilePath, '-mat');
+            fprintf('DEBUG: loadSettingsFile: Файл загружен, поля: ');
+            disp(fieldnames(loadedSettings));
             if isfield(loadedSettings, 'EV_version') % работает с 1.10.00  
+                fprintf('DEBUG: loadSettingsFile: Новый формат настроек (EV_version = %s)\n', loadedSettings.EV_version);
                 channelNames = np_flatten(loadedSettings.channelNames);
                 channelEnabled = np_flatten(loadedSettings.channelEnabled);
                 scalingCoefficients = np_flatten(loadedSettings.scalingCoefficients);
@@ -3117,7 +3370,10 @@ function signalAnalysisGUI()
                 mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
                 csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
                 filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
+                
+                fprintf('DEBUG: loadSettingsFile: Загружено каналов: %d\n', length(channelNames));
             else % неактуально с 1.10.00  
+                fprintf('DEBUG: loadSettingsFile: Старый формат настроек\n');
                 warning('Old settings format detected')
                 % Получение данных из таблицы
                 updatedData = loadedSettings.channelSettings;
@@ -3131,7 +3387,13 @@ function signalAnalysisGUI()
                 mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
                 csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
                 filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
+                
+                fprintf('DEBUG: loadSettingsFile: Загружено каналов (старый формат): %d\n', length(channelNames));
             end
+            
+            fprintf('DEBUG: loadSettingsFile: Вызываем updateTable()\n');
+            updateTable();
+            fprintf('DEBUG: loadSettingsFile: После updateTable(): numChannels = %d\n', numChannels);
 
             if isfield(loadedSettings, 'filterSettings') && ~(isempty(loadedSettings.filterSettings))
                 filterSettings = loadedSettings.filterSettings;
@@ -3166,9 +3428,13 @@ function signalAnalysisGUI()
                 disp('Loaded shifted stimulus times from settings')
             end
             
+
+            
+            fprintf('DEBUG: loadSettingsFile: Настройки каналов загружены успешно\n');
             disp('Channel settings loaded successfully')
             
         catch ME
+            fprintf('DEBUG: loadSettingsFile: ОШИБКА: %s\n', ME.message);
             warning('Error loading channel settings: %s', ME.message)
             % В случае ошибки создаем настройки по умолчанию
             setDefaultChannelSettings();
@@ -3246,6 +3512,262 @@ function signalAnalysisGUI()
             disp('Group Settings Editor opened successfully');
         catch ME
             errordlg(['Error opening Group Settings Editor: ' ME.message], 'Error');
+        end
+    end
+
+    % === ДОБАВЛЕНО: Функция для сохранения изображения ===
+    
+    function saveImage(~, ~)
+        % Сохраняет только график анализа сигнала в различных графических форматах
+        
+        % Создаем имя файла по умолчанию на основе исходного файла
+        if ~isempty(matFilePath) && ~isempty(matFileName)
+            [path, name, ~] = fileparts(matFilePath);
+            defaultFileName = fullfile(path, [name, '_signal_analysis']);
+        else
+            defaultFileName = 'signal_analysis';
+        end
+        
+        % Запрашиваем имя файла для сохранения
+        [file, path, filterindex] = uiputfile(...
+            {'*.pdf', 'PDF files (*.pdf)';...
+             '*.eps', 'EPS files (*.eps)';...
+             '*.png', 'PNG files (*.png)';...
+             '*.*', 'All Files (*.*)'},...
+             'Save Image As', defaultFileName);
+        
+        if isequal(file, 0) || isequal(path, 0)
+            fprintf('❌ Сохранение изображения отменено\n');
+            return;
+        end
+        
+        filename = fullfile(path, file);
+        
+        try
+            % Создаем временную фигуру только с графиком
+            tempFig = figure('Visible', 'off', 'Position', [100, 100, 800, 600]);
+            tempAxes = copyobj(hPlotAxes, tempFig);
+            
+            % Устанавливаем размеры временной фигуры
+            set(tempAxes, 'Position', [0.1, 0.1, 0.8, 0.8]);
+            
+            % Сохраняем временную фигуру в выбранном формате
+            switch filterindex
+                case 1
+                    print(tempFig, filename, '-dpdf', '-bestfit');
+                    fprintf('✓ График сохранен в PDF: %s\n', filename);
+                case 2
+                    print(tempFig, filename, '-depsc');
+                    fprintf('✓ График сохранен в EPS: %s\n', filename);
+                case 3
+                    saveas(tempFig, filename, 'png');
+                    fprintf('✓ График сохранен в PNG: %s\n', filename);
+                otherwise
+                    saveas(tempFig, filename);
+                    fprintf('✓ График сохранен: %s\n', filename);
+            end
+            
+            % Удаляем временную фигуру
+            delete(tempFig);
+            
+        catch ME
+            fprintf('❌ Ошибка при сохранении графика: %s\n', ME.message);
+            errordlg(['Error saving image: ' ME.message], 'Save Error');
+            
+            % Убеждаемся что временная фигура удалена даже при ошибке
+            if exist('tempFig', 'var') && ishandle(tempFig)
+                delete(tempFig);
+            end
+        end
+    end
+
+    % === ДОБАВЛЕНО: Функция для загрузки позиций курсоров ===
+    
+    function loadCursorPositionsFromSettings()
+        % Загружает позиции курсоров из настроек ПОСЛЕ загрузки файла
+        
+        try
+            SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
+            if exist(SettingsFilepath, 'file')
+                loadedSettings = load(SettingsFilepath, '-mat');
+                if isfield(loadedSettings, 'cursor_positions')
+                    % Восстанавливаем абсолютные позиции курсоров из относительных
+                    slope_measurement_settings.baseline_start = loadedSettings.cursor_positions.baseline_start + rel_shift;
+                    slope_measurement_settings.baseline_end = loadedSettings.cursor_positions.baseline_end + rel_shift;
+                    slope_measurement_settings.peak_start = loadedSettings.cursor_positions.peak_start + rel_shift;
+                    slope_measurement_settings.peak_end = loadedSettings.cursor_positions.peak_end + rel_shift;
+                    
+                    fprintf('✓ Позиции курсоров загружены из настроек (rel_shift=%.3f)\n', rel_shift);
+                    
+                    % Обновляем edit fields с новыми позициями
+                    updateCursorEditFields();
+                    
+                    % Обновляем график с новыми позициями курсоров
+                    updatePlotAndCalculation();
+                else
+                    fprintf('ℹ️ Позиции курсоров не найдены в настройках\n');
+                end
+            else
+                fprintf('ℹ️ Файл настроек не найден\n');
+            end
+        catch ME
+            fprintf('❌ Ошибка при загрузке позиций курсоров: %s\n', ME.message);
+        end
+    end
+
+
+    function autoOpenLastFile()
+        % Автоматически открывает последний открытый файл при запуске GUI
+        
+        try
+            % Проверяем, есть ли список последних файлов
+            if isempty(lastOpenedFiles)
+                fprintf('ℹ️ Нет последних файлов для автоматического открытия\n');
+                return;
+            end
+            
+            % Берем последний файл из списка
+            lastFile = lastOpenedFiles{end};
+            
+            % Проверяем, существует ли файл
+            if ~exist(lastFile, 'file')
+                fprintf('⚠️ Последний файл не найден: %s\n', lastFile);
+                % Удаляем несуществующий файл из списка
+                lastOpenedFiles(end) = [];
+                return;
+            end
+            
+            % Проверяем, не открыт ли уже этот файл
+            if exist('matFilePath', 'var') && ~isempty(matFilePath) && strcmp(matFilePath, lastFile)
+                fprintf('ℹ️ Файл уже открыт: %s\n', lastFile);
+                return;
+            end
+            
+            fprintf('🔄 Автоматически открываю последний файл: %s\n', lastFile);
+            
+            % Очищаем все предыдущие результаты и измерения
+            slope_measurement_results = [];
+            multiple_measurements = [];
+            
+            % Очищаем курсоры измерений
+            if ~isempty(measurement_cursors)
+                for i = 1:length(measurement_cursors)
+                    if ishandle(measurement_cursors(i))
+                        delete(measurement_cursors(i));
+                    end
+                end
+                measurement_cursors = [];
+            end
+            
+            % Сбрасываем выделения
+            selected_row_slope = [];
+            selected_measurement_row = [];
+            
+            % Сбрасываем средний сигнал
+            mean_results_active = false;
+            mean_signal_data = [];
+            mean_signal_time = [];
+            
+            % Загружаем файл
+            [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info] = load_zav_file(lastFile);
+            
+            % Устанавливаем флаги
+            stims_exist = ~isempty(stims);
+            events_exist = false; % пока не загружаем события
+            
+            % Устанавливаем индексы
+            stim_inx = 1;
+            event_inx = 1;
+            sweep_inx = 1;
+            
+            % Устанавливаем временные параметры
+            time_back = 0.6;
+            time_forward = 0.6;
+            chosen_time_interval = [0, time_forward];
+            
+            % Устанавливаем частоту дискретизации
+            Fs = zavp.dwnSmplFrq;
+            newFs = Fs;
+            
+            % Устанавливаем режим центра
+            if sweep_info.is_sweep_data && stims_exist
+                selectedCenter = 'stimulus';
+            else
+                selectedCenter = 'time';
+            end
+            
+            % Инициализируем переменные для настроек
+            if isfield(hd, 'recChNames') && iscell(hd.recChNames)
+                channelNames = hd.recChNames;
+            else
+                channelNames = {'Ch1'};
+            end
+            numChannels = length(channelNames);
+            
+            % Устанавливаем версию EasyViewer
+            EV_version = '1.10.00';
+            
+            % Обновляем глобальные переменные
+            matFilePath = lastFile;
+            [~, matFileName, ~] = fileparts(matFilePath);
+            
+            % Загружаем настройки каналов (индивидуальные или групповые)
+            loadChannelSettings();
+            
+            % Обновляем popup каналов
+            if exist('hChannelPopup', 'var') && ishandle(hChannelPopup)
+                if isfield(hd, 'recChNames') && iscell(hd.recChNames) && ~isempty(hd.recChNames)
+                    set(hChannelPopup, 'String', hd.recChNames, 'Value', 1);
+                else
+                    set(hChannelPopup, 'String', {'Ch1'}, 'Value', 1);
+                end
+            end
+            
+            % Обновляем edit fields для нового файла
+            updateCursorEditFields();
+            
+            % Обновляем отображение
+            updateNavigationStatus();
+            updatePlotAndCalculation();
+            updateResultsTable();
+            updateMeasurementsTable();
+            updateButtonStates();
+            
+            % Загружаем позиции курсоров из настроек ПОСЛЕ загрузки файла
+            loadCursorPositionsFromSettings();
+            
+            fprintf('✓ Последний файл успешно загружен: %s\n', matFileName);
+            fprintf('  Размер данных: %dx%dx%d\n', size(lfp));
+            fprintf('  Частота дискретизации: %.1f Гц\n', Fs);
+            fprintf('  Длительность: %.3f с\n', time(end));
+            
+        catch ME
+            fprintf('❌ Ошибка при автоматическом открытии последнего файла: %s\n', ME.message);
+            fprintf('ℹ️ Продолжаем с чистой инициализацией\n');
+        end
+    end
+
+    % === ДОБАВЛЕНО: Функция для открытия настроек удаления артефакта ===
+    
+    function openArtifactOptions(~, ~)
+        % Открывает окно настроек удаления артефакта
+        try
+            % Запоминаем текущее значение
+            old_window_ms = art_rem_window_ms;
+            
+            % Вызываем GUI настроек удаления артефакта (модальное окно)
+            optionsRemovalArtifactsGUI();
+            
+            % После закрытия окна проверяем, изменились ли настройки
+            if old_window_ms ~= art_rem_window_ms
+                % Обновляем график только если значение изменилось
+                updatePlotAndCalculation();
+                fprintf('✓ Настройки удаления артефакта обновлены (window_ms: %.1f)\n', art_rem_window_ms);
+            end
+            
+        catch ME
+            fprintf('❌ Ошибка при открытии настроек удаления артефакта: %s\n', ME.message);
+            errordlg(['Error opening Artifact Removal Options: ' ME.message], 'Error');
         end
     end
 
