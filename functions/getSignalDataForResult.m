@@ -9,23 +9,23 @@ function [signal_data, time_data] = getSignalDataForResult(metadata)
     global stimShowFlag art_rem_window_ms
     
     try
-        fprintf('DEBUG: getSignalDataForResult - начало обработки\n');
+        % fprintf('DEBUG: getSignalDataForResult - начало обработки\n');
         
         % Используем ЛОКАЛЬНУЮ копию, НЕ изменяем глобальную переменную
         local_chosen_time_interval = metadata.chosen_time_interval;
         
-        fprintf('DEBUG: Временной интервал: [%.3f, %.3f]\n', local_chosen_time_interval(1), local_chosen_time_interval(2));
+        % fprintf('DEBUG: Временной интервал: [%.3f, %.3f]\n', local_chosen_time_interval(1), local_chosen_time_interval(2));
         
         % Получаем данные для этого временного интервала
         plot_time_interval = local_chosen_time_interval;
         plot_time_interval(1) = plot_time_interval(1) - time_back;
         
-        fprintf('DEBUG: Расширенный интервал: [%.3f, %.3f]\n', plot_time_interval(1), plot_time_interval(2));
+        % fprintf('DEBUG: Расширенный интервал: [%.3f, %.3f]\n', plot_time_interval(1), plot_time_interval(2));
         
         cond = time >= plot_time_interval(1) & time < plot_time_interval(2);
         local_lfp = lfp(cond, :);
         
-        fprintf('DEBUG: Размер local_lfp: %s\n', mat2str(size(local_lfp)));
+        % fprintf('DEBUG: Размер local_lfp: %s\n', mat2str(size(local_lfp)));
         
         % Вычитание средних каналов если нужно
         if ~isempty(mean_group_ch) && any(mean_group_ch)
@@ -36,7 +36,7 @@ function [signal_data, time_data] = getSignalDataForResult(metadata)
         signal_data = local_lfp(:, selected_channel)';
         time_data = time(cond);
         
-        fprintf('DEBUG: Исходный размер signal_data: %s, time_data: %s\n', ...
+        % fprintf('DEBUG: Исходный размер signal_data: %s, time_data: %s\n', ...
             mat2str(size(signal_data)), mat2str(size(time_data)));
         
         % Нормализуем время относительно rel_shift
@@ -51,7 +51,7 @@ function [signal_data, time_data] = getSignalDataForResult(metadata)
             % Используем локальный стимул для каждого результата
             Fs_fascor = Fs/1000;
             local_stim = stims(metadata.stim_inx);
-            fprintf('DEBUG: Удаление артефакта - параметры:\n');
+            % fprintf('DEBUG: Удаление артефакта - параметры:\n');
             fprintf('  - Размер signal_data: %s\n', mat2str(size(signal_data)));
             fprintf('  - Размер time_data: %s\n', mat2str(size(time_data)));
             fprintf('  - Время стимула (абс.): %.3f\n', local_stim);
@@ -73,7 +73,7 @@ function [signal_data, time_data] = getSignalDataForResult(metadata)
             end
             
             signal_data = removeStimArtifact(signal_data, local_stim_rel, time_data_rel, art_rem_window_ms*Fs_fascor*0.5);
-            fprintf('DEBUG: Артефакт стимула удален\n');
+            % fprintf('DEBUG: Артефакт стимула удален\n');
             
             % Возвращаем в строку для совместимости с остальным кодом
             if size(signal_data, 2) == 1
@@ -81,25 +81,25 @@ function [signal_data, time_data] = getSignalDataForResult(metadata)
             end
         end
         
-        fprintf('DEBUG: rel_shift для нормализации = %.3f\n', local_rel_shift);
-        fprintf('DEBUG: Время до нормализации: [%.3f, %.3f, %.3f, %.3f, %.3f]\n', ...
+        % fprintf('DEBUG: rel_shift для нормализации = %.3f\n', local_rel_shift);
+        % fprintf('DEBUG: Время до нормализации: [%.3f, %.3f, %.3f, %.3f, %.3f]\n', ...
             time_data(1:min(5, length(time_data))));
         
         time_data = time_data - local_rel_shift;
         
-        fprintf('DEBUG: Время после нормализации: [%.3f, %.3f, %.3f, %.3f, %.3f]\n', ...
+        % fprintf('DEBUG: Время после нормализации: [%.3f, %.3f, %.3f, %.3f, %.3f]\n', ...
             time_data(1:min(5, length(time_data))));
         
         % Фильтрация если включена
         if sum(filter_avaliable) > 0 && filter_avaliable(selected_channel)
             signal_data = applyFilter(signal_data, filterSettings, newFs);
-            fprintf('DEBUG: После фильтрации - размер signal_data: %s\n', mat2str(size(signal_data)));
+            % fprintf('DEBUG: После фильтрации - размер signal_data: %s\n', mat2str(size(signal_data)));
         end
         
         % Ресэмплинг убран - используем исходные данные
-        fprintf('DEBUG: Ресэмплинг пропущен - используем исходные данные\n');
+        % fprintf('DEBUG: Ресэмплинг пропущен - используем исходные данные\n');
         
-        fprintf('DEBUG: getSignalDataForResult - финальный размер signal_data: %s, time_data: %s\n', ...
+        % fprintf('DEBUG: getSignalDataForResult - финальный размер signal_data: %s, time_data: %s\n', ...
             mat2str(size(signal_data)), mat2str(size(time_data)));
         
     catch ME

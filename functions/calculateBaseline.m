@@ -16,6 +16,14 @@ function [baseline_value, baseline_indices] = calculateBaseline(channel_data, ti
     baseline_indices = [];
     
     % Проверка входных данных
+
+    if baseline_start > baseline_end
+        % swap baseline_start and baseline_end
+        tmp = baseline_start;
+        baseline_start = baseline_end;
+        baseline_end = tmp;
+    end
+    
     if length(channel_data) ~= length(time_vector)
         error('Channel data and time vector must have the same length');
     end

@@ -134,27 +134,27 @@ function [onset_time, onset_value] = secondDerivativeMethod(peak_data, peak_time
     % 2. Поиск точки перегиба как экстремума второй производной
     % 3. Более устойчиво к шуму, чем первая производная
     
-    fprintf('DEBUG: peak_data size: %s\n', mat2str(size(peak_data)));
-    fprintf('DEBUG: peak_time size: %s\n', mat2str(size(peak_time)));
+    % fprintf('DEBUG: peak_data size: %s\n', mat2str(size(peak_data)));
+    % fprintf('DEBUG: peak_time size: %s\n', mat2str(size(peak_time)));
     
     % Вычисляем первую производную
     first_derivative = diff(peak_data) ./ diff(peak_time);
     first_derivative_time = peak_time(1:end-1);
     
-    fprintf('DEBUG: first_derivative size: %s\n', mat2str(size(first_derivative)));
-    fprintf('DEBUG: first_derivative_time size: %s\n', mat2str(size(first_derivative_time)));
+    % fprintf('DEBUG: first_derivative size: %s\n', mat2str(size(first_derivative)));
+    % fprintf('DEBUG: first_derivative_time size: %s\n', mat2str(size(first_derivative_time)));
     
     % Вычисляем вторую производную
     diff_first_derivative = diff(first_derivative);
     diff_first_derivative_time = diff(first_derivative_time);
     
-    fprintf('DEBUG: diff_first_derivative size: %s\n', mat2str(size(diff_first_derivative)));
-    fprintf('DEBUG: diff_first_derivative_time size: %s\n', mat2str(size(diff_first_derivative_time)));
+    % fprintf('DEBUG: diff_first_derivative size: %s\n', mat2str(size(diff_first_derivative)));
+    % fprintf('DEBUG: diff_first_derivative_time size: %s\n', mat2str(size(diff_first_derivative_time)));
     
     % Транспонируем diff_first_derivative_time чтобы размеры совпали
     diff_first_derivative_time = diff_first_derivative_time';
     
-    fprintf('DEBUG: After transpose - diff_first_derivative_time size: %s\n', mat2str(size(diff_first_derivative_time)));
+    % fprintf('DEBUG: After transpose - diff_first_derivative_time size: %s\n', mat2str(size(diff_first_derivative_time)));
     
     second_derivative = diff_first_derivative ./ diff_first_derivative_time;
     second_derivative_time = first_derivative_time(1:end-1);

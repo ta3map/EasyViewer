@@ -6,14 +6,14 @@ function renderVisualizationObject(obj, axes_handle, timeUnitFactor)
     %   axes_handle - handle к осям для отрисовки
     %   timeUnitFactor - коэффициент для единиц времени
     
-    fprintf('DEBUG: renderVisualizationObject вызвана\n');
-    fprintf('DEBUG: Тип объекта: %s\n', obj.type);
-    fprintf('DEBUG: Поля объекта: %s\n', strjoin(fieldnames(obj), ', '));
-    fprintf('DEBUG: timeUnitFactor=%.3f\n', timeUnitFactor);
-    fprintf('DEBUG: Координаты объекта: %s\n', strjoin(fieldnames(obj.coordinates), ', '));
+    % fprintf('DEBUG: renderVisualizationObject вызвана\n');
+    % fprintf('DEBUG: Тип объекта: %s\n', obj.type);
+    % fprintf('DEBUG: Поля объекта: %s\n', strjoin(fieldnames(obj), ', '));
+    % fprintf('DEBUG: timeUnitFactor=%.3f\n', timeUnitFactor);
+    % fprintf('DEBUG: Координаты объекта: %s\n', strjoin(fieldnames(obj.coordinates), ', '));
     
     if ~isfield(obj, 'type') || ~isfield(obj, 'coordinates') || ~isfield(obj, 'style')
-        fprintf('DEBUG: Неполный объект, пропускаем\n');
+        % fprintf('DEBUG: Неполный объект, пропускаем\n');
         return; % Неполный объект, пропускаем
     end
     
@@ -22,7 +22,7 @@ function renderVisualizationObject(obj, axes_handle, timeUnitFactor)
     
     switch obj.type
         case 'point'
-            fprintf('DEBUG: Обрабатываем тип point\n');
+            % fprintf('DEBUG: Обрабатываем тип point\n');
             % Отрисовка одиночной точки
             if isfield(obj.coordinates, 'x') && isfield(obj.coordinates, 'y') && ~isnan(obj.coordinates.x)
                 % Координаты уже в относительном времени, применяем только timeUnitFactor
@@ -35,14 +35,14 @@ function renderVisualizationObject(obj, axes_handle, timeUnitFactor)
             end
             
         case 'line'
-            fprintf('DEBUG: Обрабатываем тип line\n');
-            fprintf('DEBUG: Координаты: x1=%.3f, y1=%.3f, x2=%.3f, y2=%.3f\n', ...
-                obj.coordinates.x1, obj.coordinates.y1, obj.coordinates.x2, obj.coordinates.y2);
-            fprintf('DEBUG: Проверка isfield: x1=%d, x2=%d, y1=%d, y2=%d\n', ...
-                isfield(obj.coordinates, 'x1'), isfield(obj.coordinates, 'x2'), ...
-                isfield(obj.coordinates, 'y1'), isfield(obj.coordinates, 'y2'));
-            fprintf('DEBUG: Проверка isnan: x1=%d, x2=%d\n', ...
-                isnan(obj.coordinates.x1), isnan(obj.coordinates.x2));
+            % fprintf('DEBUG: Обрабатываем тип line\n');
+            % fprintf('DEBUG: Координаты: x1=%.3f, y1=%.3f, x2=%.3f, y2=%.3f\n', ...
+            %    obj.coordinates.x1, obj.coordinates.y1, obj.coordinates.x2, obj.coordinates.y2);
+            % fprintf('DEBUG: Проверка isfield: x1=%d, x2=%d, y1=%d, y2=%d\n', ...
+            %    isfield(obj.coordinates, 'x1'), isfield(obj.coordinates, 'x2'), ...
+            %    isfield(obj.coordinates, 'y1'), isfield(obj.coordinates, 'y2'));
+            % fprintf('DEBUG: Проверка isnan: x1=%d, x2=%d\n', ...
+            %    isnan(obj.coordinates.x1), isnan(obj.coordinates.x2));
             % Отрисовка линии между двумя точками
             if isfield(obj.coordinates, 'x1') && isfield(obj.coordinates, 'x2') && ...
                isfield(obj.coordinates, 'y1') && isfield(obj.coordinates, 'y2') && ...
@@ -60,7 +60,7 @@ function renderVisualizationObject(obj, axes_handle, timeUnitFactor)
             end
             
         case 'points'
-            fprintf('DEBUG: Обрабатываем тип points\n');
+            % fprintf('DEBUG: Обрабатываем тип points\n');
             % Отрисовка массива точек
             if isfield(obj.coordinates, 'x') && isfield(obj.coordinates, 'y') && ...
                ~isempty(obj.coordinates.x) && ~isempty(obj.coordinates.y)
@@ -107,5 +107,5 @@ function renderVisualizationObject(obj, axes_handle, timeUnitFactor)
             warning('Unknown visualization object type: %s', obj.type);
     end
     
-    fprintf('DEBUG: renderVisualizationObject завершена для типа %s\n', obj.type);
+    % fprintf('DEBUG: renderVisualizationObject завершена для типа %s\n', obj.type);
 end 

@@ -20,6 +20,14 @@ function [measurement_value, measurement_metadata] = calculateMeasurementByType(
     %   measurement_value    - значение измерения
     %   measurement_metadata - структура с метаданными измерения
     
+
+    if range_start > range_end
+        % swap range_start and range_end
+        tmp = range_start;
+        range_start = range_end;
+        range_end = tmp;
+    end
+    
     % Инициализация выходных значений
     measurement_value = NaN;
     measurement_metadata = struct('type', function_type, 'range_start', range_start, 'range_end', range_end);
@@ -86,25 +94,35 @@ function [measurement_value, measurement_metadata] = calculateMeasurementByType(
             end
             
             baseline_data = varargin{1};
-
             
-            % Расчет baseline как в slopeMeasurementGUI.m
-            [baseline_value, baseline_indices] = calculateBaseline(channel_data, time_vector, ...
+            % Расчет baseline на исходных данных
+            [baseline_value, ~] = calculateBaseline(channel_data, time_vector, ...
                 baseline_data.baseline_start, baseline_data.baseline_end);
             
-            % Вычисляем стандартное отклонение baseline для онсета
-            if ~isempty(baseline_indices)
-                baseline_data_for_onset = channel_data(baseline_indices);
-                baseline_std = std(baseline_data_for_onset);
+            % Для отрицательного пика инвертируем сигнал и baseline
+            if strcmp(baseline_data.peak_polarity, 'negative')
+                channel_data_for_slope = -channel_data;
+                baseline_value_for_slope = -baseline_value;
             else
-                baseline_std = NaN;
+                channel_data_for_slope = channel_data;
+                baseline_value_for_slope = baseline_value;
             end
             
             % Расчет slope с использованием calculateSlope (теперь возвращает и онсет)
             [slope_value, slope_angle, regression_points, peak_time, peak_value, onset_time, onset_value] = ...
-                calculateSlope(channel_data, time_vector, baseline_value, ...
-                             range_start, range_end, ...
-                             baseline_data.slope_percent, baseline_data.peak_polarity);
+                calculateSlope(channel_data_for_slope, time_vector, baseline_value_for_slope, ...
+                             range_start, range_end, baseline_data.slope_percent);
+            
+            % Инвертируем результаты обратно если был отрицательный пик
+            if strcmp(baseline_data.peak_polarity, 'negative')
+                % Инвертируем значения, но не времена
+                peak_value = -peak_value;
+                onset_value = -onset_value;
+                regression_points.value1 = -regression_points.value1;
+                regression_points.value2 = -regression_points.value2;
+                % slope_value и slope_angle не меняем, так как они уже правильные
+                % baseline_value оставляем исходным, так как он уже правильный
+            end
             
             % Возвращаем slope_value как основное значение измерения
             measurement_value = slope_value;
@@ -113,13 +131,12 @@ function [measurement_value, measurement_metadata] = calculateMeasurementByType(
             measurement_metadata.slope_value = slope_value;
             measurement_metadata.slope_angle = slope_angle;
             measurement_metadata.regression_points = regression_points;
-            measurement_metadata.baseline_value = baseline_value;
-            measurement_metadata.baseline_std = baseline_std;
+            measurement_metadata.baseline_value = baseline_value; % Исходное значение baseline
             measurement_metadata.peak_time = peak_time;
             measurement_metadata.peak_value = peak_value;
             measurement_metadata.onset_time = onset_time;
             measurement_metadata.onset_value = onset_value;
-            measurement_metadata.onset_method = 'calculated_by_slope'; % Обновляем метод онсета
+            measurement_metadata.onset_method = 'calculated_by_slope';
             measurement_metadata.baseline_data = baseline_data;
             
             % Добавляем объекты для визуализации
@@ -135,14 +152,14 @@ function [measurement_value, measurement_metadata] = calculateMeasurementByType(
             measurement_metadata.visualization.slope_line = struct();
             measurement_metadata.visualization.slope_line.type = 'line';
             measurement_metadata.visualization.slope_line.coordinates = struct('x1', regression_points.time1, 'y1', regression_points.value1, ...
-                                                                           'x2', regression_points.time2, 'y2', regression_points.value2);
+                                                                       'x2', regression_points.time2, 'y2', regression_points.value2);
             measurement_metadata.visualization.slope_line.style = struct('color', 'k', 'linewidth', 4, 'linestyle', '-');
             
             % Точки регрессии
             measurement_metadata.visualization.regression_markers = struct();
             measurement_metadata.visualization.regression_markers.type = 'points';
             measurement_metadata.visualization.regression_markers.coordinates = struct('x', [regression_points.time1, regression_points.time2], ...
-                                                                                   'y', [regression_points.value1, regression_points.value2]);
+                                                                               'y', [regression_points.value1, regression_points.value2]);
             measurement_metadata.visualization.regression_markers.style = struct('color', 'k', 'marker', 'o', 'markersize', 6, 'markerfacecolor', 'k');
             
             % Подпись со значением пика около пика

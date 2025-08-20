@@ -16,14 +16,14 @@ function signalAnalysisGUI()
             d = load(SettingsFilepath);
             if isfield(d, 'timeUnitFactor')
                 timeUnitFactor = d.timeUnitFactor;
-                fprintf('DEBUG: Принудительно загружен timeUnitFactor = %d\n', timeUnitFactor);
+                % fprintf('DEBUG: Принудительно загружен timeUnitFactor = %d\n', timeUnitFactor);
             end
             if isfield(d, 'selectedUnit')
                 selectedUnit = d.selectedUnit;
-                fprintf('DEBUG: Принудительно загружен selectedUnit = %s\n', selectedUnit);
+                % fprintf('DEBUG: Принудительно загружен selectedUnit = %s\n', selectedUnit);
             end
         catch ME
-            fprintf('DEBUG: Ошибка принудительной загрузки настроек: %s\n', ME.message);
+            % fprintf('DEBUG: Ошибка принудительной загрузки настроек: %s\n', ME.message);
         end
     end
     
@@ -64,37 +64,37 @@ function signalAnalysisGUI()
                 d = load(SettingsFilepath);
                 if isfield(d, 'timeUnitFactor')
                     timeUnitFactor = d.timeUnitFactor;
-                    fprintf('DEBUG: Загружен timeUnitFactor = %d из настроек\n', timeUnitFactor);
+                    % fprintf('DEBUG: Загружен timeUnitFactor = %d из настроек\n', timeUnitFactor);
                 else
                     timeUnitFactor = 1; % по умолчанию
-                    fprintf('DEBUG: timeUnitFactor не найден в настройках, используем %d\n', timeUnitFactor);
+                    % fprintf('DEBUG: timeUnitFactor не найден в настройках, используем %d\n', timeUnitFactor);
                 end
                 if isfield(d, 'selectedUnit')
                     selectedUnit = d.selectedUnit;
-                    fprintf('DEBUG: Загружен selectedUnit = %s из настроек\n', selectedUnit);
+                    % fprintf('DEBUG: Загружен selectedUnit = %s из настроек\n', selectedUnit);
                 else
                     selectedUnit = 's'; % по умолчанию
-                    fprintf('DEBUG: selectedUnit не найден в настройках, используем %s\n', selectedUnit);
+                    % fprintf('DEBUG: selectedUnit не найден в настройках, используем %s\n', selectedUnit);
                 end
             catch ME
                 timeUnitFactor = 1;
                 selectedUnit = 's';
-                fprintf('DEBUG: Ошибка загрузки настроек: %s, используем значения по умолчанию\n', ME.message);
+                % fprintf('DEBUG: Ошибка загрузки настроек: %s, используем значения по умолчанию\n', ME.message);
             end
         else
             timeUnitFactor = 1;
             selectedUnit = 's';
-            fprintf('DEBUG: Файл настроек не найден, используем значения по умолчанию\n');
+            % fprintf('DEBUG: Файл настроек не найден, используем значения по умолчанию\n');
         end
     else
-        fprintf('DEBUG: timeUnitFactor уже установлен = %d\n', timeUnitFactor);
+        % fprintf('DEBUG: timeUnitFactor уже установлен = %d\n', timeUnitFactor);
     end
     
     if ~exist('selectedUnit', 'var') || isempty(selectedUnit)
         selectedUnit = 's';
-        fprintf('DEBUG: selectedUnit не найден, используем %s\n', selectedUnit);
+        % fprintf('DEBUG: selectedUnit не найден, используем %s\n', selectedUnit);
     else
-        fprintf('DEBUG: selectedUnit уже установлен = %s\n', selectedUnit);
+        % fprintf('DEBUG: selectedUnit уже установлен = %s\n', selectedUnit);
     end
     
     % Глобальная переменная для метаданных измерений
@@ -539,9 +539,9 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
     restoring_from_metadata = false;
     
     % Инициализация
-    fprintf('DEBUG: Перед initializeTimes: timeUnitFactor = %d, selectedUnit = %s\n', timeUnitFactor, selectedUnit);
+    % fprintf('DEBUG: Перед initializeTimes: timeUnitFactor = %d, selectedUnit = %s\n', timeUnitFactor, selectedUnit);
     initializeTimes();
-    fprintf('DEBUG: После initializeTimes: timeUnitFactor = %d, selectedUnit = %s\n', timeUnitFactor, selectedUnit);
+    % fprintf('DEBUG: После initializeTimes: timeUnitFactor = %d, selectedUnit = %s\n', timeUnitFactor, selectedUnit);
     
     % Устанавливаем видимость поля порога в зависимости от выбранного метода
     % updateOnsetThresholdVisibility();
@@ -576,11 +576,11 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
                 slope_measurement_settings.baseline_end = last_result.metadata.cursor_positions.baseline_end;
                 slope_measurement_settings.peak_start = last_result.metadata.cursor_positions.peak_start;
                 slope_measurement_settings.peak_end = last_result.metadata.cursor_positions.peak_end;
-                fprintf('DEBUG: initializeTimes: Позиции загружены из результатов\n');
+                % fprintf('DEBUG: initializeTimes: Позиции загружены из результатов\n');
             else
                 % Используем стандартные позиции
                 setDefaultCursorPositions();
-                fprintf('DEBUG: initializeTimes: Используются стандартные позиции (нет в результатах)\n');
+                % fprintf('DEBUG: initializeTimes: Используются стандартные позиции (нет в результатах)\n');
             end
         else
             % Пытаемся загрузить позиции из главного файла настроек
@@ -595,32 +595,32 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
                         slope_measurement_settings.peak_start = loadedSettings.cursor_positions.peak_start + rel_shift;
                         slope_measurement_settings.peak_end = loadedSettings.cursor_positions.peak_end + rel_shift;
                         
-                        fprintf('DEBUG: Загружены относительные позиции: baseline_start=%.3f, baseline_end=%.3f, peak_start=%.3f, peak_end=%.3f (rel_shift=%.3f)\n', ...
-                            loadedSettings.cursor_positions.baseline_start, loadedSettings.cursor_positions.baseline_end, ...
-                            loadedSettings.cursor_positions.peak_start, loadedSettings.cursor_positions.peak_end, rel_shift);
-                        fprintf('DEBUG: Восстановлены абсолютные позиции: baseline_start=%.3f, baseline_end=%.3f, peak_start=%.3f, peak_end=%.3f\n', ...
-                            slope_measurement_settings.baseline_start, slope_measurement_settings.baseline_end, ...
-                            slope_measurement_settings.peak_start, slope_measurement_settings.peak_end);
-                        fprintf('DEBUG: initializeTimes: Относительные позиции восстановлены из главного файла настроек\n');
+                        % fprintf('DEBUG: Загружены относительные позиции: baseline_start=%.3f, baseline_end=%.3f, peak_start=%.3f, peak_end=%.3f (rel_shift=%.3f)\n', ...
+                        %    loadedSettings.cursor_positions.baseline_start, loadedSettings.cursor_positions.baseline_end, ...
+                        %    loadedSettings.cursor_positions.peak_start, loadedSettings.cursor_positions.peak_end, rel_shift);
+                        % fprintf('DEBUG: Восстановлены абсолютные позиции: baseline_start=%.3f, baseline_end=%.3f, peak_start=%.3f, peak_end=%.3f\n', ...
+                        %    slope_measurement_settings.baseline_start, slope_measurement_settings.baseline_end, ...
+                        %    slope_measurement_settings.peak_start, slope_measurement_settings.peak_end);
+                        % fprintf('DEBUG: initializeTimes: Относительные позиции восстановлены из главного файла настроек\n');
                     else
                         % Используем стандартные позиции
                         setDefaultCursorPositions();
-                        fprintf('DEBUG: initializeTimes: Используются стандартные позиции (нет в главном файле настроек)\n');
+                        % fprintf('DEBUG: initializeTimes: Используются стандартные позиции (нет в главном файле настроек)\n');
                     end
                 else
                     % Используем стандартные позиции
                     setDefaultCursorPositions();
-                    fprintf('DEBUG: initializeTimes: Используются стандартные позиции (главный файл настроек не найден)\n');
+                    % fprintf('DEBUG: initializeTimes: Используются стандартные позиции (главный файл настроек не найден)\n');
                 end
             catch ME
-                fprintf('DEBUG: initializeTimes: Ошибка загрузки позиций из главного файла настроек: %s\n', ME.message);
+                % fprintf('DEBUG: initializeTimes: Ошибка загрузки позиций из главного файла настроек: %s\n', ME.message);
                 % Используем стандартные позиции
                 setDefaultCursorPositions();
             end
         end
         
         % Обновляем edit fields с учетом единиц времени
-        fprintf('DEBUG: initializeTimes: timeUnitFactor = %d, selectedUnit = %s\n', timeUnitFactor, selectedUnit);
+        % fprintf('DEBUG: initializeTimes: timeUnitFactor = %d, selectedUnit = %s\n', timeUnitFactor, selectedUnit);
         updateCursorEditFields();
     end
     
@@ -645,7 +645,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
     
     function updateCursorEditFields()
         % Обновляет edit fields с учетом единиц времени и относительного сдвига
-        fprintf('DEBUG: updateCursorEditFields: timeUnitFactor = %d, selectedUnit = %s\n', timeUnitFactor, selectedUnit);
+        % fprintf('DEBUG: updateCursorEditFields: timeUnitFactor = %d, selectedUnit = %s\n', timeUnitFactor, selectedUnit);
         
         if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
             rel_shift = stims(stim_inx);
@@ -653,9 +653,9 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             rel_shift = chosen_time_interval(1);
         end
         
-        fprintf('DEBUG: baseline_start = %.3f, rel_shift = %.3f, результат = %.3f\n', ...
-            slope_measurement_settings.baseline_start, rel_shift, ...
-            (slope_measurement_settings.baseline_start - rel_shift) * timeUnitFactor);
+        % fprintf('DEBUG: baseline_start = %.3f, rel_shift = %.3f, результат = %.3f\n', ...
+        %    slope_measurement_settings.baseline_start, rel_shift, ...
+        %    (slope_measurement_settings.baseline_start - rel_shift) * timeUnitFactor);
         
         set(hBaselineStartEdit, 'String', sprintf('%.3f', (slope_measurement_settings.baseline_start - rel_shift) * timeUnitFactor));
         set(hBaselineEndEdit, 'String', sprintf('%.3f', (slope_measurement_settings.baseline_end - rel_shift) * timeUnitFactor));
@@ -1029,7 +1029,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         
         % Проверяем корректность данных
         if isempty(channel_data) || all(isnan(channel_data)) || all(isinf(channel_data))
-            fprintf('DEBUG: Некорректные данные для отображения\n');
+            % fprintf('DEBUG: Некорректные данные для отображения\n');
             return;
         end
         
@@ -1420,9 +1420,9 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             loadedSettings.cursor_positions.peak_start = slope_measurement_settings.peak_start - rel_shift;
             loadedSettings.cursor_positions.peak_end = slope_measurement_settings.peak_end - rel_shift;
             
-            fprintf('DEBUG: Сохраняем относительные позиции: baseline_start=%.3f, baseline_end=%.3f, peak_start=%.3f, peak_end=%.3f (rel_shift=%.3f)\n', ...
-                loadedSettings.cursor_positions.baseline_start, loadedSettings.cursor_positions.baseline_end, ...
-                loadedSettings.cursor_positions.peak_start, loadedSettings.cursor_positions.peak_end, rel_shift);
+            % fprintf('DEBUG: Сохраняем относительные позиции: baseline_start=%.3f, baseline_end=%.3f, peak_start=%.3f, peak_end=%.3f (rel_shift=%.3f)\n', ...
+            %    loadedSettings.cursor_positions.baseline_start, loadedSettings.cursor_positions.baseline_end, ...
+            %    loadedSettings.cursor_positions.peak_start, loadedSettings.cursor_positions.peak_end, rel_shift);
             
             % Сохраняем обновленные настройки
             % Используем -append чтобы не перезаписывать существующие настройки
@@ -1432,10 +1432,10 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
                 save(SettingsFilepath, '-struct', 'loadedSettings', 'cursor_positions');
             end
             
-            fprintf('DEBUG: Позиции маркеров сохранены в главный файл настроек %s\n', SettingsFilepath);
+            % fprintf('DEBUG: Позиции маркеров сохранены в главный файл настроек %s\n', SettingsFilepath);
             
         catch ME
-            fprintf('DEBUG: Ошибка при сохранении позиций маркеров: %s\n', ME.message);
+            % fprintf('DEBUG: Ошибка при сохранении позиций маркеров: %s\n', ME.message);
         end
     end
     
@@ -1673,14 +1673,14 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         if ~isempty(zoomBtn)
             currentText = get(zoomBtn, 'String');
         end
-        fprintf('DEBUG: toggleZoom вызвана, zoom_active = %d, кнопка = "%s"\n', zoom_active, currentText);
+        % fprintf('DEBUG: toggleZoom вызвана, zoom_active = %d, кнопка = "%s"\n', zoom_active, currentText);
         if zoom_active
             % Если зум активен - сбрасываем
-            fprintf('DEBUG: Зум активен, вызываем resetZoom\n');
+            % fprintf('DEBUG: Зум активен, вызываем resetZoom\n');
             resetZoom();
         else
             % Если зум неактивен - начинаем выбор области
-            fprintf('DEBUG: Зум неактивен, вызываем startZoomSelection\n');
+            % fprintf('DEBUG: Зум неактивен, вызываем startZoomSelection\n');
             startZoomSelection();
         end
     end
@@ -1734,8 +1734,8 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
     function applyZoom(zoom_start_time, zoom_end_time, zoom_start_y, zoom_end_y)
         % Применяем зум к выбранной области (время + амплитуда)
         
-        fprintf('DEBUG: applyZoom входные данные: время [%.3f, %.3f], амплитуда [%.3f, %.3f]\n', ...
-            zoom_start_time, zoom_end_time, zoom_start_y, zoom_end_y);
+        % fprintf('DEBUG: applyZoom входные данные: время [%.3f, %.3f], амплитуда [%.3f, %.3f]\n', ...
+        %    zoom_start_time, zoom_end_time, zoom_start_y, zoom_end_y);
                 
         % Сохраняем зум по амплитуде
         zoom_y_min = min(zoom_start_y, zoom_end_y);
@@ -1763,7 +1763,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
     
     function resetZoom()
         % Сбрасываем зум
-        fprintf('DEBUG: resetZoom вызвана\n');
+        % fprintf('DEBUG: resetZoom вызвана\n');
         zoom_active = false;
         zoom_start_rel = 0;
         zoom_end_rel = 1;
@@ -1778,7 +1778,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         zoomBtn = findobj(signalFig, 'Style', 'pushbutton', 'Callback', @toggleZoom);
         if ~isempty(zoomBtn)
             set(zoomBtn, 'String', 'Zoom');
-            fprintf('DEBUG: Кнопка сброшена на: %s, zoom_active = %d\n', get(zoomBtn, 'String'), zoom_active);
+            % fprintf('DEBUG: Кнопка сброшена на: %s, zoom_active = %d\n', get(zoomBtn, 'String'), zoom_active);
         else
             fprintf('ERROR: Кнопка зума не найдена в resetZoom!\n');
         end
@@ -2154,7 +2154,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         % Активируем кнопку Mean Results если есть результаты
         set(hMeanResultsBtn, 'Enable', 'on');
         
-        fprintf('DEBUG: updateResultsTable: вызываю updateAverageTable()\n');
+        % fprintf('DEBUG: updateResultsTable: вызываю updateAverageTable()\n');
         % Обновляем таблицу средних значений
         updateAverageTable();
     end
@@ -2162,12 +2162,12 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
     function updateAverageTable()
         % Обновляет таблицу средних значений
         
-        fprintf('DEBUG: updateAverageTable вызвана\n');
-        fprintf('DEBUG: Количество результатов: %d\n', length(slope_measurement_results));
+        % fprintf('DEBUG: updateAverageTable вызвана\n');
+        % fprintf('DEBUG: Количество результатов: %d\n', length(slope_measurement_results));
         
         if isempty(slope_measurement_results)
             % Если нет результатов, показываем NaN
-            fprintf('DEBUG: Нет результатов, показываем NaN\n');
+            % fprintf('DEBUG: Нет результатов, показываем NaN\n');
             set(hAverageTable, 'Data', {NaN, NaN, NaN, NaN, NaN});
             return;
         end
@@ -2179,11 +2179,11 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         onset_time_rel_values = [slope_measurement_results.onset_time] * timeUnitFactor;
         baseline_values = [slope_measurement_results.baseline_value];
         
-        fprintf('DEBUG: Первые 3 значения slope: [%.3f, %.3f, %.3f]\n', slope_values(1:min(3,length(slope_values))));
-        fprintf('DEBUG: Первые 3 значения peak_time: [%.3f, %.3f, %.3f]\n', peak_time_rel_values(1:min(3,length(peak_time_rel_values))));
-        fprintf('DEBUG: Первые 3 значения peak_amplitude: [%.3f, %.3f, %.3f]\n', peak_amplitude_values(1:min(3,length(peak_amplitude_values))));
-        fprintf('DEBUG: Первые 3 значения onset_time: [%.3f, %.3f, %.3f]\n', onset_time_rel_values(1:min(3,length(onset_time_rel_values))));
-        fprintf('DEBUG: Первые 3 значения baseline: [%.3f, %.3f, %.3f]\n', baseline_values(1:min(3,length(baseline_values))));
+        % fprintf('DEBUG: Первые 3 значения slope: [%.3f, %.3f, %.3f]\n', slope_values(1:min(3,length(slope_values))));
+        % fprintf('DEBUG: Первые 3 значения peak_time: [%.3f, %.3f, %.3f]\n', peak_time_rel_values(1:min(3,length(peak_time_rel_values))));
+        % fprintf('DEBUG: Первые 3 значения peak_amplitude: [%.3f, %.3f, %.3f]\n', peak_amplitude_values(1:min(3,length(peak_amplitude_values))));
+        % fprintf('DEBUG: Первые 3 значения onset_time: [%.3f, %.3f, %.3f]\n', onset_time_rel_values(1:min(3,length(onset_time_rel_values))));
+        % fprintf('DEBUG: Первые 3 значения baseline: [%.3f, %.3f, %.3f]\n', baseline_values(1:min(3,length(baseline_values))));
         
         % Вычисляем средние значения
         avg_slope = mean(slope_values, 'omitnan');
@@ -2192,20 +2192,20 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         avg_onset_time_rel = mean(onset_time_rel_values, 'omitnan');
         avg_baseline = mean(baseline_values, 'omitnan');
         
-        fprintf('DEBUG: Средние значения: slope=%.3f, peak_time=%.3f, peak_amp=%.3f, onset_time=%.3f, baseline=%.3f\n', ...
-            avg_slope, avg_peak_time_rel, avg_peak_amplitude, avg_onset_time_rel, avg_baseline);
+        % fprintf('DEBUG: Средние значения: slope=%.3f, peak_time=%.3f, peak_amp=%.3f, onset_time=%.3f, baseline=%.3f\n', ...
+        %    avg_slope, avg_peak_time_rel, avg_peak_amplitude, avg_onset_time_rel, avg_baseline);
         
         % Обновляем таблицу средних значений
-        fprintf('DEBUG: Пытаюсь обновить таблицу hAverageTable\n');
-        fprintf('DEBUG: Тип hAverageTable: %s\n', class(hAverageTable));
-        fprintf('DEBUG: Значение hAverageTable: ');
+        % fprintf('DEBUG: Пытаюсь обновить таблицу hAverageTable\n');
+        % fprintf('DEBUG: Тип hAverageTable: %s\n', class(hAverageTable));
+        % fprintf('DEBUG: Значение hAverageTable: ');
         disp(hAverageTable);
         
         try
             set(hAverageTable, 'Data', {avg_slope, avg_peak_time_rel, avg_peak_amplitude, avg_onset_time_rel, avg_baseline});
-            fprintf('DEBUG: Таблица средних значений обновлена успешно\n');
+            % fprintf('DEBUG: Таблица средних значений обновлена успешно\n');
         catch ME
-            fprintf('DEBUG: Ошибка при обновлении таблицы: %s\n', ME.message);
+            % fprintf('DEBUG: Ошибка при обновлении таблицы: %s\n', ME.message);
         end
     end
     
@@ -3171,7 +3171,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             newFs = Fs; % используем частоту даунсемплинга
             
             % Автоматический выбор режима центра для файлов со свипами
-            if p > 1 && stims_exist
+            if stims_exist && ~isempty(stims)
                 selectedCenter = 'stimulus';
             else
                 selectedCenter = 'time';
@@ -3187,9 +3187,9 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             end
             numChannels = length(channelNames);
             
-            fprintf('DEBUG: openFile: channelNames = ');
+            % fprintf('DEBUG: openFile: channelNames = ');
             disp(channelNames);
-            fprintf('DEBUG: openFile: numChannels = %d\n', numChannels);
+            % fprintf('DEBUG: openFile: numChannels = %d\n', numChannels);
             
             % === КОНЕЦ ДОБАВЛЕННОГО КОДА ===
             
@@ -3209,9 +3209,9 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             [~, matFileName, ~] = fileparts(matFilePath);
             
             % Загружаем настройки каналов (индивидуальные или групповые)
-            fprintf('DEBUG: openFile: Вызываем loadChannelSettings() ПОСЛЕ установки matFilePath\n');
+            % fprintf('DEBUG: openFile: Вызываем loadChannelSettings() ПОСЛЕ установки matFilePath\n');
             loadChannelSettings();
-            fprintf('DEBUG: openFile: После loadChannelSettings: numChannels = %d\n', numChannels);
+            % fprintf('DEBUG: openFile: После loadChannelSettings: numChannels = %d\n', numChannels);
             
             % Обновляем popup каналов
             if exist('hChannelPopup', 'var') && ishandle(hChannelPopup)
@@ -3315,53 +3315,53 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
     
     function updateTable()
         % Простая версия функции updateTable для signalAnalysisGUI
-        fprintf('DEBUG: updateTable: Функция вызвана\n');
-        fprintf('DEBUG: updateTable: channelNames = ');
+        % fprintf('DEBUG: updateTable: Функция вызвана\n');
+        % fprintf('DEBUG: updateTable: channelNames = ');
         disp(channelNames);
-        fprintf('DEBUG: updateTable: numChannels = %d\n', numChannels);
+        % fprintf('DEBUG: updateTable: numChannels = %d\n', numChannels);
         
         % Здесь можно добавить логику обновления таблицы если нужно
-        fprintf('DEBUG: updateTable: Таблица обновлена\n');
+        % fprintf('DEBUG: updateTable: Таблица обновлена\n');
     end
     
     function loadChannelSettings()
         % Загружает настройки каналов (индивидуальные или групповые)
-        fprintf('DEBUG: loadChannelSettings: Начало функции\n');
-        fprintf('DEBUG: loadChannelSettings: matFilePath = %s\n', matFilePath);
-        fprintf('DEBUG: loadChannelSettings: numChannels = %d\n', numChannels);
-        fprintf('DEBUG: loadChannelSettings: Fs = %.1f\n', Fs);
-        fprintf('DEBUG: loadChannelSettings: EV_version = %s\n', EV_version);
+        % fprintf('DEBUG: loadChannelSettings: Начало функции\n');
+        % fprintf('DEBUG: loadChannelSettings: matFilePath = %s\n', matFilePath);
+        % fprintf('DEBUG: loadChannelSettings: numChannels = %d\n', numChannels);
+        % fprintf('DEBUG: loadChannelSettings: Fs = %.1f\n', Fs);
+        % fprintf('DEBUG: loadChannelSettings: EV_version = %s\n', EV_version);
         
         [path, name, ~] = fileparts(matFilePath);
         channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
-        fprintf('DEBUG: loadChannelSettings: channelSettingsFilePath = %s\n', channelSettingsFilePath);
+        % fprintf('DEBUG: loadChannelSettings: channelSettingsFilePath = %s\n', channelSettingsFilePath);
         
         if isfile(channelSettingsFilePath)
             % Индивидуальные настройки существуют - загружаем их полностью
-            fprintf('DEBUG: loadChannelSettings: Индивидуальные настройки найдены\n');
+            % fprintf('DEBUG: loadChannelSettings: Индивидуальные настройки найдены\n');
             disp('Loading individual channel settings...')
             loadSettingsFile(channelSettingsFilePath);
         else
             % Индивидуальных настроек нет - загружаем групповые + создаем индивидуальные
-            fprintf('DEBUG: loadChannelSettings: Индивидуальные настройки НЕ найдены, загружаем групповые\n');
+            % fprintf('DEBUG: loadChannelSettings: Индивидуальные настройки НЕ найдены, загружаем групповые\n');
             disp('No individual settings found, loading group settings...')
             % Загружаем групповые настройки и создаем индивидуальные
             loadGroupSettingsAndCreateIndividual(matFilePath, numChannels, Fs, EV_version);
         end
         
-        fprintf('DEBUG: loadChannelSettings: Конец функции\n');
+        % fprintf('DEBUG: loadChannelSettings: Конец функции\n');
     end
     
     function loadSettingsFile(channelSettingsFilePath)
         % Загружает настройки из файла настроек каналов
-        fprintf('DEBUG: loadSettingsFile: Начало загрузки из %s\n', channelSettingsFilePath);
+        % fprintf('DEBUG: loadSettingsFile: Начало загрузки из %s\n', channelSettingsFilePath);
         
         try
             loadedSettings = load(channelSettingsFilePath, '-mat');
-            fprintf('DEBUG: loadSettingsFile: Файл загружен, поля: ');
+            % fprintf('DEBUG: loadSettingsFile: Файл загружен, поля: ');
             disp(fieldnames(loadedSettings));
             if isfield(loadedSettings, 'EV_version') % работает с 1.10.00  
-                fprintf('DEBUG: loadSettingsFile: Новый формат настроек (EV_version = %s)\n', loadedSettings.EV_version);
+                % fprintf('DEBUG: loadSettingsFile: Новый формат настроек (EV_version = %s)\n', loadedSettings.EV_version);
                 channelNames = np_flatten(loadedSettings.channelNames);
                 channelEnabled = np_flatten(loadedSettings.channelEnabled);
                 scalingCoefficients = np_flatten(loadedSettings.scalingCoefficients);
@@ -3371,9 +3371,9 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
                 csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
                 filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
                 
-                fprintf('DEBUG: loadSettingsFile: Загружено каналов: %d\n', length(channelNames));
+                % fprintf('DEBUG: loadSettingsFile: Загружено каналов: %d\n', length(channelNames));
             else % неактуально с 1.10.00  
-                fprintf('DEBUG: loadSettingsFile: Старый формат настроек\n');
+                % fprintf('DEBUG: loadSettingsFile: Старый формат настроек\n');
                 warning('Old settings format detected')
                 % Получение данных из таблицы
                 updatedData = loadedSettings.channelSettings;
@@ -3388,12 +3388,12 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
                 csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
                 filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
                 
-                fprintf('DEBUG: loadSettingsFile: Загружено каналов (старый формат): %d\n', length(channelNames));
+                % fprintf('DEBUG: loadSettingsFile: Загружено каналов (старый формат): %d\n', length(channelNames));
             end
             
-            fprintf('DEBUG: loadSettingsFile: Вызываем updateTable()\n');
+            % fprintf('DEBUG: loadSettingsFile: Вызываем updateTable()\n');
             updateTable();
-            fprintf('DEBUG: loadSettingsFile: После updateTable(): numChannels = %d\n', numChannels);
+            % fprintf('DEBUG: loadSettingsFile: После updateTable(): numChannels = %d\n', numChannels);
 
             if isfield(loadedSettings, 'filterSettings') && ~(isempty(loadedSettings.filterSettings))
                 filterSettings = loadedSettings.filterSettings;
@@ -3430,11 +3430,11 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             
 
             
-            fprintf('DEBUG: loadSettingsFile: Настройки каналов загружены успешно\n');
+            % fprintf('DEBUG: loadSettingsFile: Настройки каналов загружены успешно\n');
             disp('Channel settings loaded successfully')
             
         catch ME
-            fprintf('DEBUG: loadSettingsFile: ОШИБКА: %s\n', ME.message);
+            % fprintf('DEBUG: loadSettingsFile: ОШИБКА: %s\n', ME.message);
             warning('Error loading channel settings: %s', ME.message)
             % В случае ошибки создаем настройки по умолчанию
             setDefaultChannelSettings();
@@ -3597,7 +3597,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
                     slope_measurement_settings.peak_start = loadedSettings.cursor_positions.peak_start + rel_shift;
                     slope_measurement_settings.peak_end = loadedSettings.cursor_positions.peak_end + rel_shift;
                     
-                    fprintf('✓ Позиции курсоров загружены из настроек (rel_shift=%.3f)\n', rel_shift);
+                    fprintf('✓ Позиции курсоров загружены из настроек\n');
                     
                     % Обновляем edit fields с новыми позициями
                     updateCursorEditFields();
@@ -3690,7 +3690,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             newFs = Fs;
             
             % Устанавливаем режим центра
-            if sweep_info.is_sweep_data && stims_exist
+            if stims_exist && ~isempty(stims)
                 selectedCenter = 'stimulus';
             else
                 selectedCenter = 'time';
