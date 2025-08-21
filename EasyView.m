@@ -8,7 +8,7 @@ function EasyView()
     %               
     % Date:         31.07.2025
     
-    EV_version = '1.11.03';
+    EV_version = '1.11.04';
     
     clc
     disp(['Easy Viewer version: ' EV_version])

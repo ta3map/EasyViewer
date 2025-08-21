@@ -40,7 +40,7 @@ function [mean_data, mean_time] = calculateMeanSignal()
             after_zero_signals{valid_results} = signal_data(zero_idx+1:end);
             
             % fprintf('DEBUG: Результат #%d - t=0 индекс: %d, до: %d, после: %d\n', ...
-                i, zero_idx, length(before_zero_signals{valid_results}), length(after_zero_signals{valid_results}));
+            %    i, zero_idx, length(before_zero_signals{valid_results}), length(after_zero_signals{valid_results}));
         else
             % fprintf('DEBUG: Результат #%d пропущен (пустые данные)\n', i);
         end
@@ -85,7 +85,7 @@ function [mean_data, mean_time] = calculateMeanSignal()
         end
         
         % fprintf('DEBUG: Результат #%d - нормализовано до: %d, после: %d\n', ...
-            i, length(normalized_before_signals{i}), length(normalized_after_signals{i}));
+        %    i, length(normalized_before_signals{i}), length(normalized_after_signals{i}));
     end
     
     % Собираем полные сигналы
@@ -114,18 +114,18 @@ function [mean_data, mean_time] = calculateMeanSignal()
     mean_time = (-min_before_length+1:min_after_length) * time_step;
     
     % fprintf('DEBUG: Финальный размер mean_data: %s, mean_time: %s\n', ...
-        mat2str(size(mean_data)), mat2str(size(mean_time)));
+    %    mat2str(size(mean_data)), mat2str(size(mean_time)));
     
     % Выводим значения в начале и конце векторов
     if ~isempty(mean_data) && ~isempty(mean_time)
         % fprintf('DEBUG: Начало mean_time: [%.3f, %.3f, %.3f, %.3f, %.3f]\n', ...
-            mean_time(1:min(5, length(mean_time))));
+        %    mean_time(1:min(5, length(mean_time))));
         % fprintf('DEBUG: Конец mean_time: [%.3f, %.3f, %.3f, %.3f, %.3f]\n', ...
-            mean_time(max(1, end-4):end));
+        %    mean_time(max(1, end-4):end));
         % fprintf('DEBUG: Начало mean_data: [%.6f, %.6f, %.6f, %.6f, %.6f]\n', ...
-            mean_data(1:min(5, length(mean_data))));
+        %    mean_data(1:min(5, length(mean_data))));
         % fprintf('DEBUG: Конец mean_data: [%.6f, %.6f, %.6f, %.6f, %.6f]\n', ...
-            mean_data(max(1, end-4):end));
+        %    mean_data(max(1, end-4):end));
     end
     
     

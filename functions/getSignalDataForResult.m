@@ -37,7 +37,7 @@ function [signal_data, time_data] = getSignalDataForResult(metadata)
         time_data = time(cond);
         
         % fprintf('DEBUG: Исходный размер signal_data: %s, time_data: %s\n', ...
-            mat2str(size(signal_data)), mat2str(size(time_data)));
+        %     mat2str(size(signal_data)), mat2str(size(time_data)));
         
         % Нормализуем время относительно rel_shift
         if strcmp(metadata.selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
@@ -83,12 +83,12 @@ function [signal_data, time_data] = getSignalDataForResult(metadata)
         
         % fprintf('DEBUG: rel_shift для нормализации = %.3f\n', local_rel_shift);
         % fprintf('DEBUG: Время до нормализации: [%.3f, %.3f, %.3f, %.3f, %.3f]\n', ...
-            time_data(1:min(5, length(time_data))));
+        %     time_data(1:min(5, length(time_data))));
         
         time_data = time_data - local_rel_shift;
         
         % fprintf('DEBUG: Время после нормализации: [%.3f, %.3f, %.3f, %.3f, %.3f]\n', ...
-            time_data(1:min(5, length(time_data))));
+        %     time_data(1:min(5, length(time_data))));
         
         % Фильтрация если включена
         if sum(filter_avaliable) > 0 && filter_avaliable(selected_channel)
@@ -100,7 +100,7 @@ function [signal_data, time_data] = getSignalDataForResult(metadata)
         % fprintf('DEBUG: Ресэмплинг пропущен - используем исходные данные\n');
         
         % fprintf('DEBUG: getSignalDataForResult - финальный размер signal_data: %s, time_data: %s\n', ...
-            mat2str(size(signal_data)), mat2str(size(time_data)));
+        %     mat2str(size(signal_data)), mat2str(size(time_data)));
         
     catch ME
         fprintf('❌ Ошибка при получении данных для результата: %s\n', ME.message);
