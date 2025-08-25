@@ -1,6 +1,30 @@
 function optionsRemovalArtifactsGUI()
     
-    global art_rem_window_ms SettingsFilepath
+    global art_rem_window_ms SettingsFilepath updateAnalysisPlotFunc_global
+    
+    % Если SettingsFilepath пустая - устанавливаем путь по умолчанию
+    if isempty(SettingsFilepath)
+        SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
+    end
+    
+    % Проверяем, если глобальная переменная пустая - загружаем из файла настроек
+    if isempty(art_rem_window_ms) && exist(SettingsFilepath, 'file')
+        try
+            d = load(SettingsFilepath);
+            if isfield(d, 'art_rem_window_ms')
+                art_rem_window_ms = d.art_rem_window_ms;
+            else
+                art_rem_window_ms = 0;
+            end
+        catch
+            art_rem_window_ms = 0;
+        end
+    end
+    
+    % Если все еще пустая - устанавливаем значение по умолчанию
+    if isempty(art_rem_window_ms)
+        art_rem_window_ms = 0;
+    end
     
     window_ms = art_rem_window_ms; % локальное значение
     
@@ -63,6 +87,15 @@ function optionsRemovalArtifactsGUI()
         
         % сохраняем фактор в глобальные настройки              
         save(SettingsFilepath, 'art_rem_window_ms', '-append');
+        
+        % Обновляем график в signalAnalysisGUI если он открыт
+        if ~isempty(updateAnalysisPlotFunc_global)
+            try
+                updateAnalysisPlotFunc_global();
+            catch
+                % Игнорируем ошибки если функция недоступна
+            end
+        end
         
         % Close the GUI window
         close(fig);

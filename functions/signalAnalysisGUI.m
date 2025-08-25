@@ -9,6 +9,7 @@ function signalAnalysisGUI()
     global stimShowFlag art_rem_window_ms
     global SettingsFilepath
     global original_xlim original_ylim
+    global channel_data time_in
 
     % Принудительно загружаем настройки единиц времени из основного приложения
     SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
@@ -109,11 +110,22 @@ function signalAnalysisGUI()
     % Глобальные переменные для groupSettingsEditor
     global EV_version numChannels updateAnalysisPlotFunc_global
     
+    % Глобальные переменные для UI элементов
+    global hBaselineStartEdit hBaselineEndEdit hPeakStartEdit hPeakEndEdit
+    global hPlotAxes hNavigationStatus
+    
     % Инициализация флага показа стимулов
     stimShowFlag = true;
     
     % Инициализация размера окна удаления артефакта (в мс)
-    % art_rem_window_ms = 10;
+    if isempty(art_rem_window_ms)
+        try
+            d = load(SettingsFilepath);
+            art_rem_window_ms = d.art_rem_window_ms;
+        catch
+            art_rem_window_ms = 0;
+        end
+    end
 
     % Инициализация настроек если их нет
     if isempty(slope_measurement_settings)
@@ -543,6 +555,12 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
     mean_signal_data = [];
     mean_signal_time = [];
     
+    % Переменные для перетаскивания области зума
+    pan_active = false;
+    pan_start_mouse_pos = [];
+    pan_start_xlim = [];
+    pan_start_ylim = [];
+    
     % Флаг для восстановления состояния из метаданных
     restoring_from_metadata = false;
     
@@ -568,6 +586,9 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
     
     % Добавляем обработку колеса мыши для зума
     set(signalFig, 'WindowScrollWheelFcn', @mouseWheelZoom);
+    
+    % Добавляем обработку правой кнопки мыши для перетаскивания зума
+    set(hPlotAxes, 'ButtonDownFcn', @rightClickPan);
     
     % Загружаем позиции курсоров из настроек при первом запуске
     loadCursorPositionsFromSettings();
@@ -685,7 +706,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
     
     function slopePercentCallback(src, ~)
         new_percent = str2double(get(src, 'String'));
-        if ~isnan(new_percent) && new_percent > 0 && new_percent < 100
+        if ~isnan(new_percent) & new_percent > 0 & new_percent < 100
             slope_measurement_settings.slope_percent = new_percent;
             updatePlotAndCalculation();
         end
@@ -761,7 +782,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
     
     function onsetThresholdCallback(src, ~)
         new_threshold = str2double(get(src, 'String'));
-        if ~isnan(new_threshold) && new_threshold > 0
+        if ~isnan(new_threshold) & new_threshold > 0
             slope_measurement_settings.onset_threshold = new_threshold;
             updatePlotAndCalculation();
         end
@@ -802,7 +823,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         % Координирует вычисление результатов и обновление графика
         
         % Пропускаем обновление графика в режиме автоанализа
-        if exist('auto_analysis_mode', 'var') && auto_analysis_mode
+        if exist('auto_analysis_mode', 'var') & auto_analysis_mode
             % Только вычисляем результаты, НЕ обновляем график
             [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = calculateResults();
             return;
@@ -842,48 +863,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         onset_value = NaN;
         measurement_metadata = struct();
         
-        % Проверяем, нужно ли использовать средний сигнал
-        if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
-            % Используем средний сигнал
-            channel_data = mean_signal_data;
-            time_in = mean_signal_time;
-            rel_shift = 0; % В режиме среднего сигнала время уже нормализовано
-        else
-            % Получаем данные текущего временного интервала
-            plot_time_interval = chosen_time_interval;
-            plot_time_interval(1) = plot_time_interval(1) - time_back;
-            
-            cond = time >= plot_time_interval(1) & time < plot_time_interval(2);
-            local_lfp = lfp(cond, :);
-            
-            % Вычитание средних каналов если нужно
-            if ~isempty(mean_group_ch) && any(mean_group_ch)
-                local_lfp(:, mean_group_ch) = local_lfp(:, mean_group_ch) - mean(local_lfp(:, mean_group_ch), 2);
-            end
-            
-            selected_channel = slope_measurement_settings.channel;
-            channel_data = local_lfp(:, selected_channel);
-            time_in = time(cond);
-            
-            % Устанавливаем сдвиг для относительного времени
-            if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
-                rel_shift = stims(stim_inx);
-            else
-                rel_shift = chosen_time_interval(1);
-            end
-            
-            % Фильтрация если включена
-            if sum(filter_avaliable) > 0 && filter_avaliable(selected_channel)
-                channel_data = applyFilter(channel_data, filterSettings, newFs);
-            end
-            
-            % Ресэмплинг если нужен
-            if Fs ~= newFs
-                lfp_Fs = round(newFs);
-                channel_data = resample(double(channel_data), lfp_Fs, Fs);
-                time_in = linspace(time_in(1), time_in(end), length(channel_data));
-            end
-        end
+        [channel_data, time_in] = getCurrentData();
         
         % Получаем параметры для расчета
         baseline_start = slope_measurement_settings.baseline_start;
@@ -903,19 +883,21 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             baseline_data_struct.baseline_end = baseline_rel.end;
             baseline_data_struct.peak_start = peak_rel.start;
             baseline_data_struct.peak_end = peak_rel.end;
+            time_in_rel = time_in;
         else
             % В обычном режиме используем абсолютные координаты с вычитанием rel_shift
             baseline_data_struct.baseline_start = baseline_start - rel_shift;
             baseline_data_struct.baseline_end = baseline_end - rel_shift;
             baseline_data_struct.peak_start = peak_start - rel_shift;
             baseline_data_struct.peak_end = peak_end - rel_shift;
+            time_in_rel = time_in - rel_shift;
         end
         
         baseline_data_struct.slope_percent = slope_percent;
         baseline_data_struct.peak_polarity = peak_polarity;
         
         % Расчет slope с использованием calculateMeasurementByType
-        time_in_rel = time_in - rel_shift;
+        
         [slope_value, measurement_metadata] = calculateMeasurementByType(channel_data, time_in_rel, ...
             baseline_data_struct.peak_start, baseline_data_struct.peak_end, 'Slope', baseline_data_struct);
         
@@ -972,51 +954,17 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         peak_start = slope_measurement_settings.peak_start;
         peak_end = slope_measurement_settings.peak_end;
         
-        % Проверяем, нужно ли использовать средний сигнал
+        % [channel_data, time_in] = getCurrentData();
+        
+        % Преобразование времени с учетом единиц
         if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
-            % Используем средний сигнал
-            channel_data = mean_signal_data;
-            time_in = mean_signal_time;
-            rel_shift = 0;
+            % В режиме среднего сигнала время уже нормализовано
             time_display = time_in * timeUnitFactor;
         else
-            % Получаем данные текущего временного интервала с учетом обоих окон
-            plot_time_interval = chosen_time_interval;
-            plot_time_interval(1) = plot_time_interval(1) - time_back;
-            plot_time_interval(2) = chosen_time_interval(1) + time_forward;
-            
-            cond = time >= plot_time_interval(1) & time < plot_time_interval(2);
-            local_lfp = lfp(cond, :);
-            
-            
-            selected_channel = slope_measurement_settings.channel;
-            channel_data = local_lfp(:, selected_channel);
-            time_in = time(cond);
-            
-            % Устанавливаем сдвиг для относительного времени
-            if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
-                rel_shift = stims(stim_inx);
-            else
-                rel_shift = chosen_time_interval(1);
-            end
-            
-            % Убираем артефакт стимуляции если есть стимулы
-            if not(isempty(stims)) && stimShowFlag
-                Fs_fascor = Fs/1000;
-                channel_data = removeStimArtifact(channel_data, stims, time_in, art_rem_window_ms*Fs_fascor*0.5);
-            end
-            
-            
-            % Преобразование времени с учетом единиц
-            if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
-                % В режиме среднего сигнала время уже нормализовано
-                time_display = time_in * timeUnitFactor;
-            else
-                % В обычном режиме нормализуем относительно rel_shift
-                time_display = (time_in - rel_shift) * timeUnitFactor;
-            end
+            % В обычном режиме нормализуем относительно rel_shift
+            time_display = (time_in - rel_shift) * timeUnitFactor;
         end
-        
+
         % Отображение графика
         axes(hPlotAxes);
         cla(hPlotAxes);
@@ -1622,6 +1570,14 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
                 original_xlim = xlim(hPlotAxes);
             end
             
+            % Вычисляем относительные позиции зума на основе текущих границ осей
+            current_xlim = xlim(hPlotAxes);
+            full_range = current_xlim(2) - current_xlim(1);
+            
+            % Конвертируем абсолютные времена в относительные (0-1)
+            zoom_start_rel = (zoom_start_time - current_xlim(1)) / full_range;
+            zoom_end_rel = (zoom_end_time - current_xlim(1)) / full_range;
+            
             % Обновляем кнопку зума
             zoomBtn = findobj(signalFig, 'Style', 'pushbutton', 'Callback', @toggleZoom);
             if ~isempty(zoomBtn)
@@ -1646,6 +1602,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         if mean_results_active && ~isempty(mean_signal_data)
             % В режиме среднего сигнала используем его данные
             y_data = mean_signal_data;
+            x_data = mean_signal_time;
         else
             % В обычном режиме получаем данные текущего интервала
             plot_time_interval = chosen_time_interval;
@@ -1655,12 +1612,13 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             cond = time >= plot_time_interval(1) & time < plot_time_interval(2);
             selected_channel = slope_measurement_settings.channel;
             y_data = lfp(cond, selected_channel);
+            x_data = time(cond)-rel_shift;
         end
         
         % Вычисляем оптимальные границы амплитуды
         % Удаляем артефакты для всех каналов
         Fs_fascor = Fs/1000;
-        y_data = removeStimArtifact(y_data, 0, time(cond)-rel_shift, art_rem_window_ms*Fs_fascor*0.5);
+        y_data = removeStimArtifact(y_data, 0, x_data, art_rem_window_ms*Fs_fascor*0.5);
         y_min = min(y_data);
         y_max = max(y_data);
         y_range = y_max - y_min;
@@ -1705,51 +1663,44 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             return;
         end
         
-        cp = get(hPlotAxes, 'CurrentPoint');
-        if isempty(cp)
-            return;
-        end
-        
-        cursor_time = cp(1,1) / timeUnitFactor;
-        
-        % Определяем полный временной диапазон в зависимости от режима
-        if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
-            % В режиме среднего сигнала время уже нормализовано
-            full_start = min(mean_signal_time);
-            full_end = max(mean_signal_time);
-        else
-            full_start = chosen_time_interval(1) - time_back;
-            full_end = chosen_time_interval(2);
-        end
-        
-        full_range = full_end - full_start;
-        current_zoom_range = (zoom_end_rel - zoom_start_rel) * full_range;
+        % Получаем текущие границы осей
+        current_xlim = xlim(hPlotAxes);
+        current_range = current_xlim(2) - current_xlim(1);
         
         % Коэффициент зума
         zoom_factor = 0.1;
         
         if eventdata.VerticalScrollCount > 0
-            new_zoom_range = current_zoom_range * (1 + zoom_factor);
+            new_range = current_range * (1 + zoom_factor);
         else
-            new_zoom_range = current_zoom_range * (1 - zoom_factor);
+            new_range = current_range * (1 - zoom_factor);
         end
         
-        if new_zoom_range >= full_range
+        % Проверяем минимальный размер зума
+        if new_range >= (original_xlim(2) - original_xlim(1))
             resetZoom();
             return;
         end
         
         % Зум от центра текущей области
-        current_zoom_center = full_start + (zoom_start_rel + zoom_end_rel) / 2 * full_range;
+        center = (current_xlim(1) + current_xlim(2)) / 2;
+        new_start = center - new_range / 2;
+        new_end = center + new_range / 2;
         
-        new_zoom_start = current_zoom_center - new_zoom_range / 2;
-        new_zoom_end = current_zoom_center + new_zoom_range / 2;
+        % Применяем новые границы осей
+        xlim([new_start, new_end]);
         
-        zoom_start_rel = (new_zoom_start - full_start) / full_range;
-        zoom_end_rel = (new_zoom_end - full_start) / full_range;
+        % Обновляем относительные позиции зума
+        full_range = original_xlim(2) - original_xlim(1);
+        zoom_start_rel = (new_start - original_xlim(1)) / full_range;
+        zoom_end_rel = (new_end - original_xlim(1)) / full_range;
         
+        % Обновляем статус навигации
         updateNavigationStatus();
-        updatePlotAndCalculation();
+        
+        % Обновляем только позиции линий без пересчета параметров
+        updateLinePositions();
+        updateMeasurementCursorPositions();
     end
     
     % === Функции для работы с таблицей результатов ===
@@ -1784,21 +1735,11 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         metadata.zoom_y_min = zoom_y_min;
         metadata.zoom_y_max = zoom_y_max;
         
-        % Всегда сохраняем текущие границы амплитуды и времени
-        if isempty(original_ylim)
-            % Если original_ylim пустой, берем текущие границы
-            axes(hPlotAxes);
-            metadata.original_ylim = ylim(hPlotAxes);
-        else
-            metadata.original_ylim = original_ylim;
-        end
-        if isempty(original_xlim)
-            % Если original_xlim пустой, берем текущие границы
-            axes(hPlotAxes);
-            metadata.original_xlim = xlim(hPlotAxes);
-        else
-            metadata.original_xlim = original_xlim;
-        end
+        % вычисляем границы осей
+        [original_xlim, original_ylim] = calculateOptimalAxisLimits();
+        metadata.original_xlim = original_xlim;
+        metadata.original_ylim = original_ylim;
+        
         metadata.selectedCenter = selectedCenter;
         metadata.event_inx = event_inx;
         metadata.stim_inx = stim_inx;
@@ -1873,22 +1814,12 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         metadata.zoom_end_rel = zoom_end_rel;
         metadata.zoom_y_min = zoom_y_min;
         metadata.zoom_y_max = zoom_y_max;
-        
-        % Всегда сохраняем текущие границы амплитуды и времени
-        if isempty(original_ylim)
-            % Если original_ylim пустой, берем текущие границы
-            axes(hPlotAxes);
-            metadata.original_ylim = ylim(hPlotAxes);
-        else
-            metadata.original_ylim = original_ylim;
-        end
-        if isempty(original_xlim)
-            % Если original_xlim пустой, берем текущие границы
-            axes(hPlotAxes);
-            metadata.original_xlim = xlim(hPlotAxes);
-        else
-            metadata.original_xlim = original_xlim;
-        end
+
+        % вычисляем границы осей
+        [original_xlim, original_ylim] = calculateOptimalAxisLimits();
+        metadata.original_xlim = original_xlim;
+        metadata.original_ylim = original_ylim;
+
         metadata.selectedCenter = selectedCenter;
         metadata.event_inx = event_inx;
         metadata.stim_inx = stim_inx;
@@ -2310,6 +2241,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             axes(hPlotAxes);
             ylim(original_ylim);
             xlim(original_xlim);
+            fprintf('DEBUG: Восстановлены оригинальные границы ylim: %s, xlim: %s\n', mat2str(original_ylim), mat2str(original_xlim));
         end
         
         % Восстанавливаем режим навигации
@@ -2426,12 +2358,26 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             [mean_signal_data, mean_signal_time] = calculateMeanSignal();
             set(hMeanResultsBtn, 'String', 'Show Single');
             fprintf('✓ Режим среднего сигнала включен (%d результатов)\n', length(slope_measurement_results));
+            % вычисляем границы осей
+            [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits();
+            axes(hPlotAxes);
+            xlim(optimal_xlim);
+            ylim(optimal_ylim);
         else
             % Сбрасываем средний сигнал
             mean_signal_data = [];
             mean_signal_time = [];
             set(hMeanResultsBtn, 'String', 'Av. Trace');
             fprintf('✓ Режим одиночного сигнала включен\n');
+            if isempty(original_xlim) && isempty(original_ylim)
+                [original_xlim, original_ylim] = calculateOptimalAxisLimits();
+                axes(hPlotAxes);
+                xlim(original_xlim);
+                ylim(original_ylim);
+            else
+                xlim(original_xlim);
+                ylim(original_ylim);
+            end
         end
         
         % Обновляем состояние кнопок
@@ -2864,19 +2810,33 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         
         % Проверяем, есть ли уже результаты в таблице
         if ~isempty(slope_measurement_results)
-            % Запрашиваем подтверждение у пользователя
-            choice = questdlg('The table already contains results. Auto measurement will clear them. Continue?', ...
-                              'Clear Results Confirmation', ...
-                              'Yes', 'No', 'No');
-            if strcmp(choice, 'No')
-                fprintf('❌ Auto measurement cancelled by user\n');
-                return;
+            % Запрашиваем подтверждение у пользователя с тремя опциями
+            choice = questdlg('The table already contains results. Do you want to clear them before auto measurement?', ...
+                              'Auto Measurement Options', ...
+                              'Yes', 'No', 'Cancel', 'Cancel');
+            
+            switch choice
+                case 'Yes'
+                    % Очищаем таблицу результатов перед автоматическим измерением
+                    slope_measurement_results = [];
+                    updateResultsTable();
+                    fprintf('✓ Таблица очищена перед автоматическим измерением\n');
+                    
+                case 'No'
+                    % Продолжаем с существующими результатами
+                    fprintf('✓ Автоматическое измерение будет добавлено к существующим результатам\n');
+                    
+                case 'Cancel'
+                    % Отменяем операцию
+                    fprintf('❌ Автоматическое измерение отменено пользователем\n');
+                    return;
+                    
+                otherwise
+                    % Пользователь закрыл диалог
+                    fprintf('❌ Автоматическое измерение отменено\n');
+                    return;
             end
         end
-        
-        % Очищаем таблицу результатов перед автоматическим измерением
-        slope_measurement_results = [];
-        updateResultsTable();
         
         % Сбрасываем выделения
         selected_row_slope = [];
@@ -2943,18 +2903,24 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         auto_analysis_mode = true;
         
         % Создаем окно прогресса
-        hWaitBar = waitbar(0, 'Начинаем автоанализ...', 'Name', 'Автоанализ сигнала');
+        hWaitBar = waitbar(0, 'Starting auto analysis...', 'Name', 'Auto analysis');
         
         % Циклически измеряем каждый участок
         try
             for i = 1:total_ranges
+                % Проверяем, не было ли закрыто окно прогресса
+                if ~ishandle(hWaitBar)
+                    fprintf('❌ Автоматическое измерение отменено пользователем\n');
+                    break;
+                end
+                
                 % Обновляем прогресс
                 progress = i / total_ranges;
                 percent = round(progress * 100);
-                current_message = sprintf('Измерение участка %d из %d (%d%%)', i, total_ranges, percent);
+                current_message = sprintf('Measuring segment %d of %d (%d%%)', i, total_ranges, percent);
                 waitbar(progress, hWaitBar, current_message);
                 
-                fprintf('Измерение участка %d/%d...\n', i, total_ranges);
+                fprintf('Measuring segment %d/%d...\n', i, total_ranges);
                 
                 % Переключаемся на следующий участок (аналогично Next)
                 switch selectedCenter
@@ -2973,9 +2939,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
                         chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
                 end
             
-
-            
-                            % Применяем сохраненные относительные позиции к новому интервалу
+                % Применяем сохраненные относительные позиции к новому интервалу
                 setRelativePositions(baseline_rel, peak_rel);
                 
                 % Обновляем edit fields после изменения позиций
@@ -2987,15 +2951,33 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
                 % Автоматически добавляем результат в таблицу БЕЗ обновления UI
                 addResultSilent();
                 
+                % Минимальная задержка для проверки отмены
+                pause(0.01);
+                
                 % Минимальное обновление для прогресса
                 if mod(i, 10) == 0 || i == total_ranges
                     fprintf('Прогресс: %d/%d\n', i, total_ranges);
                 end
             end
+            
+            % Проверяем, была ли отмена
+            if ~ishandle(hWaitBar)
+                fprintf('❌ Автоматическое измерение отменено пользователем\n');
+            else
+                fprintf('SUCCESS: Автоматическое измерение завершено! Добавлено %d результатов\n', total_ranges);
+            end
+            
+            % Принудительно закрываем окно прогресса после завершения цикла
+            if exist('hWaitBar', 'var') && ishandle(hWaitBar)
+                close(hWaitBar);
+                fprintf('✓ Окно прогресса закрыто после завершения\n');
+            end
+            
         catch ME
             % Закрываем окно прогресса при ошибке
             if exist('hWaitBar', 'var') && ishandle(hWaitBar)
                 close(hWaitBar);
+                fprintf('✓ Окно прогресса закрыто при ошибке\n');
             end
             
             % Сбрасываем флаг автоанализа
@@ -3030,11 +3012,10 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         % Сбрасываем флаг автоанализа
         auto_analysis_mode = false;
         
-        % Показываем финальное сообщение о завершении
+        % Закрываем окно прогресса в любом случае
         if exist('hWaitBar', 'var') && ishandle(hWaitBar)
-            waitbar(1, hWaitBar, 'Завершено! Обновляем интерфейс...');
-            pause(0.5); % Небольшая пауза чтобы пользователь увидел сообщение
             close(hWaitBar);
+            fprintf('✓ Окно прогресса закрыто\n');
         end
         
         % ФИНАЛЬНОЕ обновление всех таблиц и графика
@@ -3044,8 +3025,6 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         
         % Обновляем статус навигации
         updateNavigationStatus();
-        
-        fprintf('SUCCESS: Автоматическое измерение завершено! Добавлено %d результатов\n', total_ranges);
     end
     
     function loadResults(~, ~)
@@ -3822,6 +3801,88 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             fprintf('❌ Ошибка при открытии настроек удаления артефакта: %s\n', ME.message);
             errordlg(['Error opening Artifact Removal Options: ' ME.message], 'Error');
         end
+    end
+
+    % === Функции для перетаскивания области зума ===
+    
+    function rightClickPan(~, ~)
+        if ~zoom_active
+            return;
+        end
+        
+        % Проверяем, что это правая кнопка мыши
+        if strcmp(get(signalFig, 'SelectionType'), 'alt') % alt = правая кнопка
+            pan_active = true;
+            
+            % Запоминаем начальную позицию мыши и границы зума
+            cp = get(hPlotAxes, 'CurrentPoint');
+            pan_start_mouse_pos = [cp(1,1), cp(1,2)]; % X и Y координаты
+            pan_start_xlim = xlim(hPlotAxes);
+            pan_start_ylim = ylim(hPlotAxes);
+            
+            % Устанавливаем обработчики движения и отпускания мыши
+            set(signalFig, 'WindowButtonMotionFcn', @panZoom);
+            set(signalFig, 'WindowButtonUpFcn', @stopPanZoom);
+        end
+    end
+    
+    function panZoom(~, ~)
+        if ~pan_active
+            return;
+        end
+        
+        % Вычисляем смещение мыши от начальной точки
+        cp = get(hPlotAxes, 'CurrentPoint');
+        mouse_delta_x = cp(1,1) - pan_start_mouse_pos(1);
+        mouse_delta_y = cp(1,2) - pan_start_mouse_pos(2);
+        
+        % Сдвигаем область зума по X на то же расстояние
+        new_xlim = pan_start_xlim - mouse_delta_x;
+        
+        % Проверяем границы по X (не выходим за original_xlim)
+        zoom_width = new_xlim(2) - new_xlim(1);
+        if new_xlim(1) < original_xlim(1)
+            new_xlim = [original_xlim(1), original_xlim(1) + zoom_width];
+        elseif new_xlim(2) > original_xlim(2)
+            new_xlim = [original_xlim(2) - zoom_width, original_xlim(2)];
+        end
+        
+        % Сдвигаем область зума по Y на то же расстояние
+        new_ylim = pan_start_ylim - mouse_delta_y;
+        
+        % Проверяем границы по Y (не выходим за original_ylim)
+        zoom_height = new_ylim(2) - new_ylim(1);
+        if new_ylim(1) < original_ylim(1)
+            new_ylim = [original_ylim(1), original_ylim(1) + zoom_height];
+        elseif new_ylim(2) > original_ylim(2)
+            new_ylim = [original_ylim(2) - zoom_height, original_ylim(2)];
+        end
+        
+        % Применяем новые границы
+        xlim(new_xlim);
+        ylim(new_ylim);
+        
+        % Обновляем zoom_start_rel и zoom_end_rel
+        full_range = original_xlim(2) - original_xlim(1);
+        zoom_start_rel = (new_xlim(1) - original_xlim(1)) / full_range;
+        zoom_end_rel = (new_xlim(2) - original_xlim(1)) / full_range;
+        
+        % Обновляем zoom_y_min и zoom_y_max
+        zoom_y_min = new_ylim(1);
+        zoom_y_max = new_ylim(2);
+        
+        % Обновляем позиции линий
+        updateLinePositions();
+        updateMeasurementCursorPositions();
+    end
+    
+    function stopPanZoom(~, ~)
+        pan_active = false;
+        set(signalFig, 'WindowButtonMotionFcn', '');
+        set(signalFig, 'WindowButtonUpFcn', '');
+        
+        % Обновляем статус навигации
+        updateNavigationStatus();
     end
 
 end 

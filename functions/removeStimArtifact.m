@@ -12,7 +12,7 @@ function data_out = removeStimArtifact(data_in, stims, time, win_r)
     % fprintf('  - win_r: %.3f\n', win_r);
 
 % Проверка входных данных
-if ~isnumeric(data_in) || ~isnumeric(stims) || ~isnumeric(time) || ~isnumeric(win_r)
+if ~isnumeric(data_in) | ~isnumeric(stims) | ~isnumeric(time) | ~isnumeric(win_r)
     error('Все входные параметры должны быть числовыми');
 end
 
@@ -36,7 +36,7 @@ end
 data_out = data_in;
 
 % Убираем артефакт стимула
-if ~isempty(stims) && win_r ~= 0
+if ~isempty(stims) & win_r ~= 0
     stim_inxs = ClosestIndex(stims, time); % Индекс стимулов
     % % fprintf('DEBUG: Найдены индексы стимулов: %s\n', mat2str(stim_inxs));
     
@@ -50,7 +50,7 @@ if ~isempty(stims) && win_r ~= 0
         % % fprintf('DEBUG: Обработка стимула %d - окно [%d, %d]\n', i, start_inx, end_inx);
         
         % Убедитесь, что индексы не выходят за пределы данных
-        if start_inx > 1 && end_inx < size(data_in, 1)
+        if start_inx > 1 & end_inx < size(data_in, 1)
             % Проходим по каждому столбцу и применяем линейную интерполяцию
             for col = 1:size(data_in, 2)
                 % Используем стартовое и конечное значения для интерполяции
