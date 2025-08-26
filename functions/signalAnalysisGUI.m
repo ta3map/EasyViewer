@@ -10,7 +10,8 @@ function signalAnalysisGUI()
     global SettingsFilepath
     global original_xlim original_ylim
     global channel_data time_in
-
+    global saveChannelSettingsFunc
+    
     % Принудительно загружаем настройки единиц времени из основного приложения
     SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
     if exist(SettingsFilepath, 'file')
@@ -39,10 +40,7 @@ function signalAnalysisGUI()
     global slope_measurement_results
     global selected_row_slope % для отслеживания выделенной строки в таблице
     
-    % Глобальные переменные для множественных измерений
-    global multiple_measurements
-    global measurement_cursors
-    global selected_measurement_row % для отслеживания выделенной строки в таблице измерений
+    % Глобальные переменные для измерений
     global slope_value slope_angle peak_time peak_value baseline_value onset_time onset_value onset_method measurement_metadata
 
     % Глобальные переменные для сохранения результатов
@@ -112,7 +110,7 @@ function signalAnalysisGUI()
     
     % Глобальные переменные для UI элементов
     global hBaselineStartEdit hBaselineEndEdit hPeakStartEdit hPeakEndEdit
-    global hPlotAxes hNavigationStatus
+    global hPlotAxes hNavigationStatus hReplaceBtn
     
     % Инициализация флага показа стимулов
     stimShowFlag = true;
@@ -210,24 +208,9 @@ function signalAnalysisGUI()
         lastOpenedFiles = {};
     end
     
-        % Инициализация базовых данных если GUI запущен автономно
-    if isempty(hd) || isempty(lfp) || isempty(time)
-        % Пытаемся автоматически открыть последний файл
-        autoOpenLastFile();
-    end
+
 
     
-    % Инициализация множественных измерений если их нет
-    if isempty(multiple_measurements)
-        multiple_measurements = struct('range_start_rel', {}, 'range_end_rel', {}, 'measurement_value', {}, 'metadata', {}, ...
-                                     'function_type', {}, 'line_color', {}, 'line_style', {}, 'line_width', {}, ...
-                                     'label_text', {}, 'label_background', {}, 'font_size', {});
-    end
-    
-    % Инициализация курсоров измерений если их нет
-    if isempty(measurement_cursors)
-        measurement_cursors = [];
-    end
     
     % Инициализация переменной для выделенной строки измерений
     selected_measurement_row = [];
@@ -418,20 +401,24 @@ function signalAnalysisGUI()
     hRemoveBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Remove', ...
         'Position', [1040, 470, 70, 25], 'Callback', @removeResult);
     
+    % Кнопка замены результата
+    hReplaceBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Replace', ...
+        'Position', [1040, 440, 70, 25], 'Callback', @replaceResult, 'Enable', 'off');
+    
     % Кнопка просмотра среднего сигнала
     hMeanResultsBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Av. Trace', ...
-        'Position', [1040, 420, 70, 25], 'Callback', @toggleMeanResults, 'Enable', 'off');
+        'Position', [1040, 400, 70, 25], 'Callback', @toggleMeanResults, 'Enable', 'off');
     
     % Кнопка открытия файла
     uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Open File', ...
         'Position', [20, 570, 70, 25], 'Callback', @openFile);
     
     % Кнопка групповых настроек
-    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Group Settings', ...
+    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Settings', ...
         'Position', [100, 570, 100, 25], 'Callback', @openGroupSettingsEditor);
     
     % Кнопка настроек удаления артефакта
-    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Artifact Options', ...
+    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Artifact Removal', ...
         'Position', [210, 570, 100, 25], 'Callback', @openArtifactOptions);
     
     % Кнопка загрузки результатов
@@ -564,23 +551,9 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
     % Флаг для восстановления состояния из метаданных
     restoring_from_metadata = false;
     
-    % Инициализация
-    % fprintf('DEBUG: Перед initializeTimes: timeUnitFactor = %d, selectedUnit = %s\n', timeUnitFactor, selectedUnit);
-    initializeTimes();
-    % fprintf('DEBUG: После initializeTimes: timeUnitFactor = %d, selectedUnit = %s\n', timeUnitFactor, selectedUnit);
-    
-    % Устанавливаем видимость поля порога в зависимости от выбранного метода
-    % updateOnsetThresholdVisibility();
-    
-    updateNavigationStatus();
-    updatePlotAndCalculation();
-    updateResultsTable();
-    updateMeasurementsTable();
-    updateButtonStates();
-    
     % Пытаемся автоматически открыть последний файл при запуске
     autoOpenLastFile();
-    
+
     % Добавляем обработку клавиш для навигации
     set(signalFig, 'KeyPressFcn', @keyPressFunction);
     
@@ -591,7 +564,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
     set(hPlotAxes, 'ButtonDownFcn', @rightClickPan);
     
     % Загружаем позиции курсоров из настроек при первом запуске
-    loadCursorPositionsFromSettings();
+    %loadCursorPositionsFromSettings();
     
     % === Callback функции ===
         
@@ -1125,8 +1098,8 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         
         grid on;
         
-            % Обновляем таблицу измерений
-    updateMeasurementsTable();
+    % Обновляем таблицу измерений
+    % updateMeasurementsTable();
     
     % Обновляем таблицу результатов
     % updateResultsTable(); % Закомментировано чтобы не терять выделение при восстановлении состояния
@@ -1433,10 +1406,10 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         updatePlotAndCalculation();
         
         % Пересчитываем значения измерений для нового сегмента
-        for i = 1:length(multiple_measurements)
-            calculateMeasurementValue(i);
-        end
-        updateMeasurementsTable();
+        % for i = 1:length(multiple_measurements)
+        %     calculateMeasurementValue(i);
+        % end
+        % updateMeasurementsTable();
     end
     
     function [baseline_rel, peak_rel] = getRelativePositions()
@@ -1906,6 +1879,119 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             updateButtonStates();
             updatePlotAndCalculation();
         end
+        
+        % Обновляем состояние кнопки Replace
+        updateReplaceButtonState();
+    end
+    
+    function replaceResult(~, ~)
+        % Заменяет выбранный результат текущим измерением
+        
+        if isempty(selected_row_slope) || selected_row_slope > length(slope_measurement_results)
+            fprintf('❌ Нет выбранного результата для замены\n');
+            return;
+        end
+        
+        % Проверяем, что у нас есть текущие результаты
+        if ~exist('slope_value', 'var') || isnan(slope_value)
+            fprintf('❌ Нет текущих результатов для замены\n');
+            return;
+        end
+        
+        % Используем глобальные метаданные если они есть, иначе создаем новые
+        if ~isempty(current_measurement_metadata)
+            % Используем существующие метаданные с rel_shift
+            metadata = current_measurement_metadata;
+        else
+            % Создаем новые метаданные
+            metadata = struct();
+        end
+        
+        % Добавляем недостающие поля в метаданные
+        metadata.channel = slope_measurement_settings.channel;
+        metadata.baseline_start = slope_measurement_settings.baseline_start;
+        metadata.baseline_end = slope_measurement_settings.baseline_end;
+        metadata.peak_start = slope_measurement_settings.peak_start;
+        metadata.peak_end = slope_measurement_settings.peak_end;
+        metadata.slope_percent = slope_measurement_settings.slope_percent;
+        metadata.peak_polarity = slope_measurement_settings.peak_polarity;
+        metadata.chosen_time_interval = chosen_time_interval;
+        metadata.zoom_active = zoom_active;
+        metadata.zoom_start_rel = zoom_start_rel;
+        metadata.zoom_end_rel = zoom_end_rel;
+        metadata.zoom_y_min = zoom_y_min;
+        metadata.zoom_y_max = zoom_y_max;
+        
+        % вычисляем границы осей
+        [original_xlim, original_ylim] = calculateOptimalAxisLimits();
+        metadata.original_xlim = original_xlim;
+        metadata.original_ylim = original_ylim;
+        
+        metadata.selectedCenter = selectedCenter;
+        metadata.event_inx = event_inx;
+        metadata.stim_inx = stim_inx;
+        metadata.sweep_inx = sweep_inx;
+        metadata.onset_method = slope_measurement_settings.onset_method;
+        metadata.onset_threshold = slope_measurement_settings.onset_threshold;
+        metadata.show_baseline = slope_measurement_settings.show_baseline;
+        metadata.show_onset = slope_measurement_settings.show_onset;
+        metadata.show_slope = slope_measurement_settings.show_slope;
+        metadata.show_peak = slope_measurement_settings.show_peak;
+        
+        % Добавляем rel_shift только если его нет в переданных метаданных
+        if ~isfield(metadata, 'rel_shift')
+            if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
+                metadata.rel_shift = stims(stim_inx);
+            else
+                metadata.rel_shift = chosen_time_interval(1);
+            end
+        end
+        
+        % Добавляем позиции курсоров в метаданные
+        metadata.cursor_positions = struct();
+        metadata.cursor_positions.baseline_start = slope_measurement_settings.baseline_start;
+        metadata.cursor_positions.baseline_end = slope_measurement_settings.baseline_end;
+        metadata.cursor_positions.peak_start = slope_measurement_settings.peak_start;
+        metadata.cursor_positions.peak_end = slope_measurement_settings.peak_end;
+        
+        % Создаем новый результат
+        new_result = struct('baseline_value', baseline_value, 'slope_value', slope_value, ...
+                           'peak_time', peak_time, 'peak_value', peak_value, ...
+                           'onset_time', onset_time, 'onset_value', onset_value, 'onset_method', onset_method, ...
+                           'metadata', metadata);
+
+        % Добавляем время стимула в метаданные если оно есть
+        if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
+            new_result.metadata.stim_time = stims(stim_inx);
+        else
+            new_result.metadata.stim_time = NaN;
+        end
+
+        % Заменяем выбранный результат
+        slope_measurement_results(selected_row_slope) = new_result;
+        
+        % Обновляем таблицу
+        updateResultsTable();
+        
+        fprintf('✓ Результат #%d заменен текущим измерением\n', selected_row_slope);
+        
+        % Сбрасываем выделение
+        selected_row_slope = [];
+        updateReplaceButtonState();
+    end
+    
+    function updateReplaceButtonState()
+        % Обновляет состояние кнопки Replace в зависимости от выбора строки
+        
+        if exist('hReplaceBtn', 'var') && ishandle(hReplaceBtn)
+            if ~isempty(selected_row_slope) && selected_row_slope <= length(slope_measurement_results)
+                % Есть выбранная строка - активируем кнопку
+                set(hReplaceBtn, 'Enable', 'on');
+            else
+                % Нет выбранной строки - деактивируем кнопку
+                set(hReplaceBtn, 'Enable', 'off');
+            end
+        end
     end
     
     function saveResults(~, ~)
@@ -2035,7 +2121,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             average_values.std_baseline = std(baseline_values, 'omitnan');
             
             % Сохраняем метаданные в .meta файл (фактически .mat формат)
-            save(meta_path, 'slope_measurement_results', 'multiple_measurements', 'average_values', '-v7.3');
+            save(meta_path, 'slope_measurement_results', 'average_values', '-v7.3');
             
             fprintf('✓ Результаты сохранены:\n');
             fprintf('  Excel: %s\n', excel_path);
@@ -2100,6 +2186,9 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         % Активируем кнопку Mean Results если есть результаты
         set(hMeanResultsBtn, 'Enable', 'on');
         
+        % Обновляем состояние кнопки Replace
+        updateReplaceButtonState();
+        
         % fprintf('DEBUG: updateResultsTable: вызываю updateAverageTable()\n');
         % Обновляем таблицу средних значений
         updateAverageTable();
@@ -2160,6 +2249,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         
         if isempty(event.Indices)
             selected_row_slope = [];
+            updateReplaceButtonState();
             return;
         end
         
@@ -2176,6 +2266,9 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             
             % Восстанавливаем состояние из метаданных
             restoreStateFromMetadata(selected_row_slope);
+            
+            % Обновляем состояние кнопки Replace
+            updateReplaceButtonState();
         end
     end
     
@@ -2300,10 +2393,10 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         updatePlotAndCalculation();
         
         % Пересчитываем значения измерений при восстановлении состояния
-        for i = 1:length(multiple_measurements)
-            calculateMeasurementValue(i);
-        end
-        updateMeasurementsTable();
+        % for i = 1:length(multiple_measurements)
+        %     calculateMeasurementValue(i);
+        % end
+        % updateMeasurementsTable();
         
         % Сбрасываем флаг восстановления
         restoring_from_metadata = false;
@@ -2395,343 +2488,23 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             set(hPrevBtn, 'Enable', 'off');
             set(hNextBtn, 'Enable', 'off');
             set(hAddBtn, 'Enable', 'off');
+            set(hReplaceBtn, 'Enable', 'off');
             set(hRemoveBtn, 'Enable', 'off');
         else
             % Активируем кнопки при показе одиночного сигнала
             set(hPrevBtn, 'Enable', 'on');
             set(hNextBtn, 'Enable', 'on');
             set(hAddBtn, 'Enable', 'on');
+            set(hReplaceBtn, 'Enable', 'on');
             set(hRemoveBtn, 'Enable', 'on');
         end
+        
+        % Обновляем состояние кнопки Replace отдельно
+        updateReplaceButtonState();
     end
     
 
-    % === Функции для множественных измерений ===
-    
-    function addMeasurement(~, ~)
-        % Добавляет новое измерение с интерактивными курсорами
-        
-        % Получаем текущие данные
-        [channel_data, time_in] = getCurrentData();
-        if isempty(channel_data) || isempty(time_in)
-            fprintf('❌ Нет данных для измерения\n');
-            return;
-        end
-        
-        % Вычисляем начальные позиции для нового диапазона (в относительном времени)
-        time_range = max(time_in) - min(time_in);
-        range_start_rel = time_range * 0.3;
-        range_end_rel = time_range * 0.7;
-        
-        % Создаем новое измерение с настройками по умолчанию
-        colors = {'r', 'g', 'b', 'm', 'c', 'y'};
-        color_idx = mod(length(multiple_measurements), length(colors)) + 1;
-        
-        new_measurement = struct('range_start_rel', range_start_rel, 'range_end_rel', range_end_rel, ...
-                               'measurement_value', NaN, 'metadata', struct(), ...
-                               'function_type', 'Mean', 'line_color', colors{color_idx}, ...
-                               'line_style', ':', 'line_width', 2, ...
-                               'label_text', sprintf('M%d', length(multiple_measurements) + 1), ...
-                               'label_background', 'white', 'font_size', 10);
-        
-        % Добавляем в глобальный массив
-        multiple_measurements = [multiple_measurements, new_measurement];
-        
-        % Вычисляем значение измерения
-        calculateMeasurementValue(length(multiple_measurements));
-        
-        % Обновляем отображение
-        updateMeasurementsTable();
-        updateMeasurementCursors();
-        
-        fprintf('✓ Добавлено измерение #%d (диапазон: %.3f - %.3f)\n', ...
-            length(multiple_measurements), range_start_rel, range_end_rel);
-    end
-    
-    function removeMeasurement(~, ~)
-        % Удаляет выделенное измерение или последнее добавленное
-        
-        if isempty(multiple_measurements)
-            fprintf('❌ Нет измерений для удаления\n');
-            return;
-        end
-        
-        % Определяем какое измерение удалять
-        if ~isempty(selected_measurement_row) && selected_measurement_row <= length(multiple_measurements)
-            % Удаляем выделенное измерение
-            remove_index = selected_measurement_row;
-            fprintf('✓ Удалено выделенное измерение #%d\n', remove_index);
-        else
-            % Удаляем последнее измерение
-            remove_index = length(multiple_measurements);
-            fprintf('✓ Удалено последнее измерение #%d\n', remove_index);
-        end
-        
-        % Удаляем измерение
-        multiple_measurements(remove_index) = [];
-        
-        % Удаляем соответствующие курсоры
-        if ~isempty(measurement_cursors) && length(measurement_cursors) >= 3
-            % Вычисляем индекс курсоров для удаляемого измерения
-            cursor_start_idx = (remove_index - 1) * 3 + 1;
-            cursor_end_idx = remove_index * 3;
-            
-            % Удаляем курсоры в обратном порядке, чтобы индексы не сдвигались
-            for i = cursor_end_idx:-1:cursor_start_idx
-                if i <= length(measurement_cursors) && ishandle(measurement_cursors(i))
-                    delete(measurement_cursors(i));
-                end
-            end
-            
-            % Удаляем элементы из массива курсоров
-            measurement_cursors(cursor_start_idx:cursor_end_idx) = [];
-        end
-        
-        % Сбрасываем выделение
-        selected_measurement_row = [];
-        
-        % Обновляем отображение
-        updateMeasurementsTable();
-        updateMeasurementCursors();
-    end
-    
-    function calculateMeasurementValue(measurement_index)
-        % Вычисляет значение измерения для заданного индекса
-        
-        if measurement_index > length(multiple_measurements)
-            return;
-        end
-        
-        % Получаем данные
-        [channel_data, time_in] = getCurrentData();
-        if isempty(channel_data) || isempty(time_in)
-            return;
-        end
-        
-        % Получаем диапазон измерения (в относительном времени)
-        range_start_rel = multiple_measurements(measurement_index).range_start_rel;
-        range_end_rel = multiple_measurements(measurement_index).range_end_rel;
-        
-        % Используем относительные координаты (от 0)
-        % range_start_rel и range_end_rel уже в относительном времени
-        range_start = range_start_rel;
-        range_end = range_end_rel;
-        
-        % Нормализуем время используя rel_shift (как в основном коде)
-        if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
-            rel_shift = stims(stim_inx);
-        else
-            rel_shift = time_in(1);
-        end
-        time_in_rel = time_in - rel_shift;
-        
-        % Вычисляем измерение через соответствующую функцию
-        function_type = multiple_measurements(measurement_index).function_type;
-        
-        if strcmp(function_type, 'Slope')
-            % Для Slope нужны дополнительные параметры baseline
-            % Создаем структуру baseline_data с текущими настройками slope measurement
-            % Нормализуем времена baseline относительно rel_shift
-            baseline_data_struct = struct();
-            baseline_data_struct.baseline_start = slope_measurement_settings.baseline_start - rel_shift;
-            baseline_data_struct.baseline_end = slope_measurement_settings.baseline_end - rel_shift;
-            baseline_data_struct.peak_start = slope_measurement_settings.peak_start - rel_shift;
-            baseline_data_struct.peak_end = slope_measurement_settings.peak_end - rel_shift;
-            baseline_data_struct.slope_percent = slope_measurement_settings.slope_percent;
-            baseline_data_struct.peak_polarity = slope_measurement_settings.peak_polarity;
-            
-            [measurement_value, measurement_metadata] = calculateMeasurementByType(channel_data, time_in_rel, range_start, range_end, function_type, baseline_data_struct);
-        else
-            % Для остальных типов измерений
-            [measurement_value, measurement_metadata] = calculateMeasurementByType(channel_data, time_in_rel, range_start, range_end, function_type);
-        end
-        
-        % Сохраняем результат
-        multiple_measurements(measurement_index).measurement_value = measurement_value;
-        multiple_measurements(measurement_index).metadata = measurement_metadata;
-    end
-    
-    function updateMeasurementsTable()
-        % Обновляет таблицу измерений
-        
-        % Пропускаем обновление в режиме автоанализа
-        if exist('auto_analysis_mode', 'var') && auto_analysis_mode
-            return;
-        end
-        
-        if isempty(multiple_measurements)
-            set(hMeasurementsTable, 'Data', {});
-            return;
-        end
-        
-        % Подготавливаем данные для таблицы
-        table_data = cell(length(multiple_measurements), 3);
-        for i = 1:length(multiple_measurements)
-            range_start_rel = multiple_measurements(i).range_start_rel;
-            range_end_rel = multiple_measurements(i).range_end_rel;
-            measurement_value = multiple_measurements(i).measurement_value;
-            
-            % Форматируем диапазон (в относительном времени)
-            range_text = sprintf('%.1f-%.1f', range_start_rel * timeUnitFactor, range_end_rel * timeUnitFactor);
-            
-            table_data{i, 1} = range_text; % Range
-            table_data{i, 2} = measurement_value; % Value
-            table_data{i, 3} = multiple_measurements(i).function_type(1); % Type (первая буква функции)
-        end
-        
-        set(hMeasurementsTable, 'Data', table_data);
-    end
-    
-    function updateMeasurementCursors()
-        % Обновляет отображение курсоров измерений на графике
-        
-        % Удаляем старые курсоры
-        for i = 1:length(measurement_cursors)
-            if ishandle(measurement_cursors(i))
-                delete(measurement_cursors(i));
-            end
-        end
-        measurement_cursors = [];
-        
-        if isempty(multiple_measurements)
-            return;
-        end
-        
-        % Устанавливаем текущие оси
-        axes(hPlotAxes);
-        
-        % Получаем границы осей
-        ylims = ylim(hPlotAxes);
-        
-        % Создаем новые курсоры для каждого измерения
-        for i = 1:length(multiple_measurements)
-            range_start_rel = multiple_measurements(i).range_start_rel;
-            range_end_rel = multiple_measurements(i).range_end_rel;
-            
-            % Конвертируем в отображаемые координаты (всегда в относительном времени)
-            t_start = range_start_rel * timeUnitFactor;
-            t_end = range_end_rel * timeUnitFactor;
-            
-            % Получаем настройки измерения
-            line_color = multiple_measurements(i).line_color;
-            line_style = multiple_measurements(i).line_style;
-            line_width = multiple_measurements(i).line_width;
-            label_text = multiple_measurements(i).label_text;
-            label_background = multiple_measurements(i).label_background;
-            font_size = multiple_measurements(i).font_size;
-            
-            % Линия начала диапазона
-            h_start = line([t_start, t_start], ylims, 'Color', line_color, ...
-                          'LineWidth', line_width, 'LineStyle', line_style);
-            
-            % Линия конца диапазона
-            h_end = line([t_end, t_end], ylims, 'Color', line_color, ...
-                        'LineWidth', line_width, 'LineStyle', line_style);
-            
-            % Делаем курсоры перетаскиваемыми
-            set(h_start, 'ButtonDownFcn', @(src,evt)startDragMeasurement(src,evt,i,'start'));
-            set(h_end, 'ButtonDownFcn', @(src,evt)startDragMeasurement(src,evt,i,'end'));
-            
-            % Подписи диапазонов
-            h_label = text(t_start, ylims(1) + (ylims(2) - ylims(1)) * 0.05, label_text, ...
-                 'HorizontalAlignment', 'center', 'Color', line_color, 'FontWeight', 'bold', ...
-                 'FontSize', font_size, 'BackgroundColor', label_background);
-            
-            % Добавляем в массив курсоров (включая подписи)
-            measurement_cursors = [measurement_cursors, h_start, h_end, h_label];
-        end
-    end
-    
-    function startDragMeasurement(src, ~, measurement_index, cursor_type)
-        % Начинает перетаскивание курсора измерения
-        set(signalFig, 'WindowButtonMotionFcn', @(s,e)dragMeasurementCursor(s,e,measurement_index,cursor_type));
-        set(signalFig, 'WindowButtonUpFcn', @stopDragMeasurement);
-    end
-    
-    function dragMeasurementCursor(~, ~, measurement_index, cursor_type)
-        % Перетаскивание курсора измерения
-        pt = get(hPlotAxes, 'CurrentPoint');
-        new_time_rel = pt(1,1) / timeUnitFactor; % Конвертируем обратно в секунды (относительное время)
-        
-        % Получаем текущие данные для определения границ
-        [channel_data, time_in] = getCurrentData();
-        if ~isempty(time_in)
-            time_range = max(time_in) - min(time_in);
-            new_time_rel = min(time_range, new_time_rel);
-        end
-        
-        % Обновляем позицию курсора (в относительном времени)
-        if strcmp(cursor_type, 'start')
-            multiple_measurements(measurement_index).range_start_rel = new_time_rel;
-        else % 'end'
-            multiple_measurements(measurement_index).range_end_rel = new_time_rel;
-        end
-        
-        % Убеждаемся что начало < конец
-        if multiple_measurements(measurement_index).range_start_rel >= multiple_measurements(measurement_index).range_end_rel
-            if strcmp(cursor_type, 'start')
-                multiple_measurements(measurement_index).range_start_rel = multiple_measurements(measurement_index).range_end_rel - 0.001;
-            else
-                multiple_measurements(measurement_index).range_end_rel = multiple_measurements(measurement_index).range_start_rel + 0.001;
-            end
-        end
-        
-        % Обновляем только позиции курсоров без пересчета
-        updateMeasurementCursorPositions();
-    end
-    
-    function stopDragMeasurement(~, ~)
-        % Завершает перетаскивание курсора измерения
-        set(signalFig, 'WindowButtonMotionFcn', '');
-        set(signalFig, 'WindowButtonUpFcn', '');
-        
-        % Пересчитываем значения измерений
-        for i = 1:length(multiple_measurements)
-            calculateMeasurementValue(i);
-        end
-        
-        % Обновляем отображение
-        updateMeasurementsTable();
-        
-        % ПЕРЕРИСОВЫВАЕМ ГРАФИК С НОВЫМИ ОБЪЕКТАМИ ВИЗУАЛИЗАЦИИ
-        updatePlotAndCalculation();
-    end
-    
-    function updateMeasurementCursorPositions()
-        % Обновляет только позиции курсоров измерений без пересчета
-        if isempty(measurement_cursors)
-            return;
-        end
-        
-        % Устанавливаем текущие оси
-        axes(hPlotAxes);
-        
-        % Получаем границы осей
-        ylims = ylim(hPlotAxes);
-        
-        % Обновляем позиции для каждого измерения
-        for i = 1:length(multiple_measurements)
-            range_start_rel = multiple_measurements(i).range_start_rel;
-            range_end_rel = multiple_measurements(i).range_end_rel;
-            
-            % Конвертируем в отображаемые координаты (всегда в относительном времени)
-            t_start = range_start_rel * timeUnitFactor;
-            t_end = range_end_rel * timeUnitFactor;
-            
-            % Обновляем позиции линий и подписей (каждое измерение имеет 3 элемента: 2 линии + 1 подпись)
-            cursor_idx = (i-1) * 3 + 1;
-            if cursor_idx <= length(measurement_cursors) && ishandle(measurement_cursors(cursor_idx))
-                set(measurement_cursors(cursor_idx), 'XData', [t_start, t_start], 'YData', ylims);
-            end
-            if cursor_idx + 1 <= length(measurement_cursors) && ishandle(measurement_cursors(cursor_idx + 1))
-                set(measurement_cursors(cursor_idx + 1), 'XData', [t_end, t_end], 'YData', ylims);
-            end
-            if cursor_idx + 2 <= length(measurement_cursors) && ishandle(measurement_cursors(cursor_idx + 2))
-                set(measurement_cursors(cursor_idx + 2), 'Position', [t_start, ylims(1) + (ylims(2) - ylims(1)) * 0.05, 0]);
-            end
-        end
-    end
-    
+
     function [channel_data, time_in] = getCurrentData()
         % Получает текущие данные для измерений
         
@@ -2766,43 +2539,8 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         end
     end
     
-    function measurementTableSelectionChanged(~, event)
-        % Обработчик изменения выделения в таблице измерений
-        
-        if isempty(event.Indices)
-            selected_measurement_row = [];
-            return;
-        end
-        
-        selected_measurement_row = event.Indices(1);
-        if selected_measurement_row <= length(multiple_measurements)
-            fprintf('✓ Выбрано измерение #%d\n', selected_measurement_row);
-        end
-    end
+
     
-    function openMeasurementProperties(~, ~)
-        % Открывает окно свойств для выделенного измерения
-        
-        if isempty(selected_measurement_row) || selected_measurement_row > length(multiple_measurements)
-            fprintf('❌ Выберите измерение для редактирования свойств\n');
-            return;
-        end
-        
-        % Открываем окно свойств измерения
-        measurementPropertiesGUI(selected_measurement_row);
-        
-        % После закрытия окна обновляем отображение
-        if ~isempty(selected_measurement_row) && selected_measurement_row <= length(multiple_measurements)
-            % Пересчитываем значение измерения с новыми настройками
-            calculateMeasurementValue(selected_measurement_row);
-            
-            % Обновляем отображение
-            updateMeasurementsTable();
-            updateMeasurementCursors();
-            
-            fprintf('OK: Отображение обновлено после изменения свойств\n');
-        end
-    end
     
     function autoMeasureAllTimeRanges(~, ~)
         % Автоматически измеряет все временные участки и заполняет таблицу
@@ -3020,11 +2758,14 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         
         % ФИНАЛЬНОЕ обновление всех таблиц и графика
         updateResultsTable();
-        updateMeasurementsTable();
+        % updateMeasurementsTable();
         updatePlotAndCalculation();
         
         % Обновляем статус навигации
         updateNavigationStatus();
+        
+        % Обновляем состояние кнопки Replace
+        updateReplaceButtonState();
     end
     
     function loadResults(~, ~)
@@ -3055,32 +2796,20 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             % Загружаем основные результаты
             slope_measurement_results = loaded_data.slope_measurement_results;
             
-            % Загружаем множественные измерения
-            multiple_measurements = loaded_data.multiple_measurements;
-            
-            % Очищаем курсоры измерений
-            if ~isempty(measurement_cursors)
-                for i = 1:length(measurement_cursors)
-                    if ishandle(measurement_cursors(i))
-                        delete(measurement_cursors(i));
-                    end
-                end
-                measurement_cursors = [];
-            end
-            
+
             % Сбрасываем выделения
             selected_row_slope = [];
             selected_measurement_row = [];
             
             % Обновляем отображение
             updateResultsTable();
-            updateMeasurementsTable();
-            updateMeasurementCursors();
+            % updateMeasurementsTable();
+            % updateMeasurementCursors();
             
             fprintf('✓ Результаты загружены из файла:\n');
             fprintf('  Файл: %s\n', filepath);
             fprintf('  Результатов: %d\n', length(slope_measurement_results));
-            fprintf('  Измерений: %d\n', length(multiple_measurements));
+            % fprintf('  Измерений: %d\n', length(multiple_measurements));
             
             % Восстанавливаем состояние первого результата если есть
             if ~isempty(slope_measurement_results)
@@ -3110,17 +2839,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         
         % Очищаем все предыдущие результаты и измерения
         slope_measurement_results = [];
-        multiple_measurements = [];
-        
-        % Очищаем курсоры измерений
-        if ~isempty(measurement_cursors)
-            for i = 1:length(measurement_cursors)
-                if ishandle(measurement_cursors(i))
-                    delete(measurement_cursors(i));
-                end
-            end
-            measurement_cursors = [];
-        end
+
         
         % Сбрасываем выделения
         selected_row_slope = [];
@@ -3261,8 +2980,11 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             updateNavigationStatus();
             updatePlotAndCalculation();
             updateResultsTable();
-            updateMeasurementsTable();
+            % updateMeasurementsTable();
             updateButtonStates();
+            
+            % Обновляем состояние кнопки Replace
+            updateReplaceButtonState();
             
             % Загружаем позиции курсоров из настроек ПОСЛЕ загрузки файла
             loadCursorPositionsFromSettings();
@@ -3291,19 +3013,6 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
                 % Очищаем все результаты slope measurement
                 slope_measurement_results = [];
                 
-                % Очищаем все множественные измерения
-                multiple_measurements = [];
-                
-                % Очищаем курсоры измерений
-                if ~isempty(measurement_cursors)
-                    for i = 1:length(measurement_cursors)
-                        if ishandle(measurement_cursors(i))
-                            delete(measurement_cursors(i));
-                        end
-                    end
-                    measurement_cursors = [];
-                end
-                
                 % Сбрасываем выделения
                 selected_row_slope = [];
                 selected_measurement_row = [];
@@ -3315,16 +3024,19 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
                 
                 % Обновляем отображение
                 updateResultsTable();
-                updateMeasurementsTable();
-                updateMeasurementCursors();
+                % updateMeasurementsTable();
+                % updateMeasurementCursors();
                 
-                % Обновляем состояние кнопок
-                updateButtonStates();
-                
-                % Обновляем график
-                updatePlotAndCalculation();
-                
-                fprintf('✓ Все результаты и измерения очищены\n');
+                        % Обновляем состояние кнопок
+        updateButtonStates();
+        
+        % Обновляем график
+        updatePlotAndCalculation();
+        
+        % Обновляем состояние кнопки Replace
+        updateReplaceButtonState();
+        
+        fprintf('✓ Все результаты и измерения очищены\n');
                 
             case 'No'
                 % Пользователь отменил операцию
@@ -3517,10 +3229,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             return;
         end
         
-        % Устанавливаем версию EasyViewer если её нет
-        if ~exist('EV_version', 'var') || isempty(EV_version)
-            EV_version = '1.10.00';
-        end
+
         
         % Устанавливаем единицы времени если их нет
         if ~exist('timeUnitFactor', 'var') || isempty(timeUnitFactor)
@@ -3536,7 +3245,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         updateTableFunc = @() disp('Table update function called');
         updateLocalCoefsFunc = @() disp('Local coefficients update function called');
         updatePlotFunc = @() updatePlotAndCalculation();
-        saveChannelSettingsFunc = @() disp('Channel settings save function called');
+        saveChannelSettingsFunc = @() saveChannelSettings();
         
         % Открываем редактор групповых настроек
         try
@@ -3544,6 +3253,36 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             disp('Group Settings Editor opened successfully');
         catch ME
             errordlg(['Error opening Group Settings Editor: ' ME.message], 'Error');
+        end
+    end
+
+    % Функция сохранения настроек каналов
+    function saveChannelSettings()
+        if exist(matFilePath, 'file') == 2
+            % если мат файл существует, 
+            % это не просто промежуточные варианты, как ICA,
+            % то сохранять настройки
+
+            [path, name, ~] = fileparts(matFilePath);
+            channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
+            save(channelSettingsFilePath, ...
+                'newFs', ...
+                'shiftCoeff', ...
+                'time_forward', ...
+                'time_back', ...
+                'filterSettings', ...
+                'csd_smooth_coef', ...
+                'csd_contrast_coef', ...
+                'channelNames', ...% (*) - начиная с 1.10.00 заменяет собой channelSettings
+                'channelEnabled', ...%(*)
+                'scalingCoefficients', ...%(*)
+                'colorsIn', ...%(*)
+                'lineCoefficients', ...%(*)
+                'mean_group_ch', ...%(*)
+                'csd_avaliable', ...%(*)
+                'filter_avaliable', ...
+                'stims', ...% сохраняем смещенные стимулы
+                'EV_version');%(*)
         end
     end
 
@@ -3613,7 +3352,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         end
     end
 
-    % === ДОБАВЛЕНО: Функция для загрузки позиций курсоров ===
+    % === Функция для загрузки позиций курсоров ===
     
     function loadCursorPositionsFromSettings()
         % Загружает позиции курсоров из настроек ПОСЛЕ загрузки файла
@@ -3669,28 +3408,13 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
                 return;
             end
             
-            % Проверяем, не открыт ли уже этот файл
-            if exist('matFilePath', 'var') && ~isempty(matFilePath) && strcmp(matFilePath, lastFile)
-                fprintf('ℹ️ Файл уже открыт: %s\n', lastFile);
-                return;
-            end
+
             
             fprintf('🔄 Автоматически открываю последний файл: %s\n', lastFile);
             
             % Очищаем все предыдущие результаты и измерения
             slope_measurement_results = [];
-            multiple_measurements = [];
-            
-            % Очищаем курсоры измерений
-            if ~isempty(measurement_cursors)
-                for i = 1:length(measurement_cursors)
-                    if ishandle(measurement_cursors(i))
-                        delete(measurement_cursors(i));
-                    end
-                end
-                measurement_cursors = [];
-            end
-            
+
             % Сбрасываем выделения
             selected_row_slope = [];
             selected_measurement_row = [];
@@ -3736,9 +3460,6 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             end
             numChannels = length(channelNames);
             
-            % Устанавливаем версию EasyViewer
-            EV_version = '1.10.00';
-            
             % Обновляем глобальные переменные
             matFilePath = lastFile;
             [~, matFileName, ~] = fileparts(matFilePath);
@@ -3762,8 +3483,11 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
             updateNavigationStatus();
             updatePlotAndCalculation();
             updateResultsTable();
-            updateMeasurementsTable();
+            % updateMeasurementsTable();
             updateButtonStates();
+            
+            % Обновляем состояние кнопки Replace
+            updateReplaceButtonState();
             
             % Загружаем позиции курсоров из настроек ПОСЛЕ загрузки файла
             loadCursorPositionsFromSettings();
