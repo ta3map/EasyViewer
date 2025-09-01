@@ -6,9 +6,9 @@ function EasyView()
     % Author:       Azat Gainutdinov
     %               ta3map@gmail.com
     %               
-    % Date:         26.08.2025
+    % Date:         01.09.2025
     
-    EV_version = '1.11.07';
+    EV_version = '1.11.10';
     
     clc
     disp(['Easy Viewer version: ' EV_version])

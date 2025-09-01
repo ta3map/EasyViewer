@@ -216,9 +216,9 @@ end
     figTag = 'SlopeMeasurement';
     
     % Определяем названия колонок как единый источник (доступны во всех функциях)
-    table_column_names = {'Slope', 'Peak Time (rel)', 'Peak Time (abs)', 'Peak Amplitude', 'Peak Value (rel)', 'Onset Time (rel)', 'Onset Time (abs)', 'Baseline', 'Channel', 'Stim Time', 'Info'};
-    table_column_widths = {50, 50, 50, 60, 60, 65, 65, 50, 50, 60, 80};
-    table_column_formats = {'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'char'};
+    table_column_names = {'Stimulus', 'Slope', 'Peak Time (rel)', 'Peak Time (abs)', 'Peak Amplitude', 'Peak Value (rel)', 'Onset Time (rel)', 'Onset Time (abs)', 'Peak - Onset', 'Baseline', 'Channel', 'Stim Time', 'Info'};
+    table_column_widths = {50, 50, 50, 50, 60, 60, 65, 65, 80, 50, 50, 60, 80};
+    table_column_formats = {'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'char'};
     
     % Поиск открытой фигуры с заданным идентификатором
     guiFig = findobj('Type', 'figure', 'Tag', figTag);
@@ -233,7 +233,7 @@ end
     signalFig = figure('Name', 'Signal Analysis', 'Tag', figTag, ...
         'Resize', 'off', ...
         'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', ...
-        'Position', [100, 100, 1470, 600]);
+        'Position', [100, 100, 1600, 600]);
 
     % === Левая панель управления ===
     
@@ -423,35 +423,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save', ...
 uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
     'Position', [1040, 210, 70, 25], 'Callback', @saveImage);
     
-    % === Панель множественных измерений ===
-    % ФУНКЦИЯ В РАЗРАБОТКЕ - все элементы скрыты и неактивны
-    % Заголовок панели измерений
-    hMultipleMeasurementsTitle = uicontrol(signalFig, 'Style', 'text', 'Position', [280, 560, 200, 20], ...
-        'String', 'Multiple Measurements', 'HorizontalAlignment', 'center', 'FontWeight', 'bold', ...
-        'Visible', 'off');
-    
-    % Кнопки управления измерениями
-    hAddMeasurementBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Add Measurement', ...
-        'Position', [280, 530, 100, 25], 'Callback', @addMeasurement, ...
-        'Visible', 'off', 'Enable', 'off');
-    hRemoveMeasurementBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Remove Measurement', ...
-        'Position', [390, 530, 100, 25], 'Callback', @removeMeasurement, ...
-        'Visible', 'off', 'Enable', 'off');
-    
-    % Таблица измерений
-    hMeasurementsTable = uitable(signalFig, 'Position', [280, 50, 200, 470], ...
-        'ColumnName', {'Range', 'Value', 'Type'}, ...
-        'ColumnWidth', {80, 80, 40}, ...
-        'ColumnFormat', {'char', 'numeric', 'char'}, ...
-        'Data', {}, ...
-        'CellSelectionCallback', @measurementTableSelectionChanged, ...
-        'Visible', 'off');
-    
-    % Кнопка для открытия свойств выделенного измерения
-    hPropertiesBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Properties', ...
-        'Position', [280, 20, 100, 25], 'Callback', @openMeasurementProperties, ...
-        'Visible', 'off', 'Enable', 'off');
-    
+ 
         
     
     % === График ===
@@ -460,6 +432,10 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
     % Кнопка зума в левом углу графика
     hZoomButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Zoom', ...
         'Position', [290, 530, 70, 25], 'Callback', @toggleZoom);
+    
+    % Кнопка Autoscale для применения оптимальных размеров осей
+    hAutoscaleButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Autoscale', ...
+        'Position', [370, 530, 70, 25], 'Callback', @applyAutoscale);
 
     % === Таблица текущих результатов ===
     % Заголовок таблицы текущих результатов
@@ -480,7 +456,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         'String', 'Results Table', 'HorizontalAlignment', 'center', 'FontWeight', 'bold');
 
     % Таблица собираемых результатов
-    hResultsTable = uitable(signalFig, 'Position', [1120, 110, 330, 380], ...
+    hResultsTable = uitable(signalFig, 'Position', [1120, 110, 450, 380], ...
         'ColumnName', table_column_names, ...
         'ColumnWidth', table_column_widths, ...
         'ColumnFormat', table_column_formats, ...
@@ -497,11 +473,11 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         'String', 'Average Values', 'HorizontalAlignment', 'center', 'FontWeight', 'bold');
     
     % Таблица средних значений (одна строчка)
-    hAverageTable = uitable(signalFig, 'Position', [1120, 15, 330, 60], ...
-        'ColumnName', {'Slope', 'Peak Time (rel)', 'Peak Amplitude', 'Onset Time (rel)', 'Baseline'}, ...
-        'ColumnWidth', {66, 66, 66, 66, 66}, ...
-        'ColumnFormat', {'numeric', 'numeric', 'numeric', 'numeric', 'numeric'}, ...
-        'Data', {NaN, NaN, NaN, NaN, NaN});
+    hAverageTable = uitable(signalFig, 'Position', [1120, 15, 450, 60], ...
+        'ColumnName', {'Slope', 'Peak Time (rel)', 'Peak Amplitude', 'Onset Time (rel)', 'Baseline', 'Peak - Onset'}, ...
+        'ColumnWidth', {66, 66, 66, 66, 66, 66}, ...
+        'ColumnFormat', {'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric'}, ...
+        'Data', {NaN, NaN, NaN, NaN, NaN, NaN});
     
     % Переменные для хранения графических объектов
     hBaselineLines = [];  % линии baseline диапазона
@@ -511,7 +487,6 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
     hOnsetMarker = [];    % маркер онсета
     hBaselineMarkers = [];% маркеры baseline
     hPeakMarkers = [];    % маркеры peak диапазона
-    hMeasurementLines = []; % линии измерений (множественные курсоры)
     
     % Локальные переменные для зума
     zoom_active = false;
@@ -1067,12 +1042,6 @@ updateCursorEditFields();
         
         grid on;
         
-    % Обновляем таблицу измерений
-    % updateMeasurementsTable();
-    
-    % Обновляем таблицу результатов
-    % updateResultsTable(); % Закомментировано чтобы не терять выделение при восстановлении состояния
-    
     % Добавляем возможность перетаскивания для диапазонов
     makeDraggable();
     end
@@ -1371,12 +1340,6 @@ updateCursorEditFields();
         % Обновляем статус и график
         updateNavigationStatus();
         updatePlotAndCalculation();
-        
-        % Пересчитываем значения измерений для нового сегмента
-        % for i = 1:length(multiple_measurements)
-        %     calculateMeasurementValue(i);
-        % end
-        % updateMeasurementsTable();
     end
     
     function [baseline_rel, peak_rel] = getRelativePositions()
@@ -1994,7 +1957,7 @@ updateCursorEditFields();
         
         try
             % Подготавливаем данные для Excel
-            excel_data = cell(length(slope_measurement_results) + 1, 11);
+            excel_data = cell(length(slope_measurement_results) + 1, 13);
             
             % Используем те же названия колонок что и в таблице
             excel_data(1, :) = table_column_names;
@@ -2015,17 +1978,25 @@ updateCursorEditFields();
                 % Абсолютное время онсета
                 onset_time_abs = (slope_measurement_results(i).onset_time + metadata.rel_shift) * timeUnitFactor;
                 
-                excel_data{i+1, 1} = slope_measurement_results(i).slope_value;
-                excel_data{i+1, 2} = peak_time_rel;
-                excel_data{i+1, 3} = peak_time_abs;
-                excel_data{i+1, 4} = slope_measurement_results(i).peak_value;
-                excel_data{i+1, 5} = slope_measurement_results(i).peak_value - slope_measurement_results(i).baseline_value; % Peak Value (rel)
-                excel_data{i+1, 6} = onset_time_rel;
-                excel_data{i+1, 7} = onset_time_abs;
-                excel_data{i+1, 8} = slope_measurement_results(i).baseline_value;
-                excel_data{i+1, 9} = metadata.channel;
-                excel_data{i+1, 10} = metadata.stim_time; % Stim Time
-                excel_data{i+1, 11} = getNavigationStatusText(metadata);
+                % Номер стимула
+                stimulus_number = metadata.stim_inx;
+                
+                % Разность времени пика и онсета
+                peak_onset_diff = (slope_measurement_results(i).peak_time - slope_measurement_results(i).onset_time) * timeUnitFactor;
+                
+                excel_data{i+1, 1} = stimulus_number;
+                excel_data{i+1, 2} = slope_measurement_results(i).slope_value;
+                excel_data{i+1, 3} = peak_time_rel;
+                excel_data{i+1, 4} = peak_time_abs;
+                excel_data{i+1, 5} = slope_measurement_results(i).peak_value;
+                excel_data{i+1, 6} = slope_measurement_results(i).peak_value - slope_measurement_results(i).baseline_value; % Peak Value (rel)
+                excel_data{i+1, 7} = onset_time_rel;
+                excel_data{i+1, 8} = onset_time_abs;
+                excel_data{i+1, 9} = peak_onset_diff;
+                excel_data{i+1, 10} = slope_measurement_results(i).baseline_value;
+                excel_data{i+1, 11} = metadata.channel;
+                excel_data{i+1, 12} = metadata.stim_time; % Stim Time
+                excel_data{i+1, 13} = getNavigationStatusText(metadata);
             end
             
             % Добавляем пустую строку после основных данных
@@ -2035,12 +2006,14 @@ updateCursorEditFields();
             excel_data{end+1, 1} = 'Average Values';
             
             % Добавляем названия колонок для средних значений
-            excel_data{end+1, 1} = 'Slope';
-            excel_data{end, 2} = 'Peak Time (rel)';
-            excel_data{end, 4} = 'Peak Amplitude';
-            excel_data{end, 5} = 'Peak Value (rel)';
-            excel_data{end, 6} = 'Onset Time (rel)';
-            excel_data{end, 8} = 'Baseline';
+            excel_data{end+1, 2} = 'Slope';
+            excel_data{end, 3} = 'Peak Time (rel)';
+            excel_data{end, 5} = 'Peak Amplitude';
+            excel_data{end, 6} = 'Peak Value (rel)';
+            excel_data{end, 7} = 'Onset Time (rel)';
+            excel_data{end, 8} = 'Onset Time (abs)';
+            excel_data{end, 9} = 'Peak - Onset';
+            excel_data{end, 10} = 'Baseline';
             
             % Вычисляем средние значения
             slope_values = [slope_measurement_results.slope_value];
@@ -2049,23 +2022,26 @@ updateCursorEditFields();
             peak_value_rel_values = peak_amplitude_values - [slope_measurement_results.baseline_value];
             onset_time_rel_values = [slope_measurement_results.onset_time] * timeUnitFactor;
             baseline_values = [slope_measurement_results.baseline_value];
+            peak_onset_diff_values = ([slope_measurement_results.peak_time] - [slope_measurement_results.onset_time]) * timeUnitFactor;
             
             % Добавляем средние значения
-            excel_data{end+1, 1} = mean(slope_values, 'omitnan');
-            excel_data{end, 2} = mean(peak_time_rel_values, 'omitnan');
-            excel_data{end, 4} = mean(peak_amplitude_values, 'omitnan');
-            excel_data{end, 5} = mean(peak_value_rel_values, 'omitnan');
-            excel_data{end, 6} = mean(onset_time_rel_values, 'omitnan');
-            excel_data{end, 8} = mean(baseline_values, 'omitnan');
+            excel_data{end+1, 2} = mean(slope_values, 'omitnan');
+            excel_data{end, 3} = mean(peak_time_rel_values, 'omitnan');
+            excel_data{end, 5} = mean(peak_amplitude_values, 'omitnan');
+            excel_data{end, 6} = mean(peak_value_rel_values, 'omitnan');
+            excel_data{end, 7} = mean(onset_time_rel_values, 'omitnan');
+            excel_data{end, 9} = mean(peak_onset_diff_values, 'omitnan');
+            excel_data{end, 10} = mean(baseline_values, 'omitnan');
             
             % Добавляем стандартные отклонения
             excel_data{end+1, 1} = 'Standard Deviation';
-            excel_data{end+1, 1} = std(slope_values, 'omitnan');
-            excel_data{end, 2} = std(peak_time_rel_values, 'omitnan');
-            excel_data{end, 4} = std(peak_amplitude_values, 'omitnan');
-            excel_data{end, 5} = std(peak_value_rel_values, 'omitnan');
-            excel_data{end, 6} = std(onset_time_rel_values, 'omitnan');
-            excel_data{end, 8} = std(baseline_values, 'omitnan');
+            excel_data{end+1, 2} = std(slope_values, 'omitnan');
+            excel_data{end, 3} = std(peak_time_rel_values, 'omitnan');
+            excel_data{end, 5} = std(peak_amplitude_values, 'omitnan');
+            excel_data{end, 6} = std(peak_value_rel_values, 'omitnan');
+            excel_data{end, 7} = std(onset_time_rel_values, 'omitnan');
+            excel_data{end, 9} = std(peak_onset_diff_values, 'omitnan');
+            excel_data{end, 10} = std(baseline_values, 'omitnan');
             
             % Сохраняем Excel файл
             writecell(excel_data, excel_path);
@@ -2087,8 +2063,14 @@ updateCursorEditFields();
             average_values.std_onset_time_rel = std(onset_time_rel_values, 'omitnan');
             average_values.std_baseline = std(baseline_values, 'omitnan');
             
+            % Сохраняем информацию об оригинальном файле
+            original_file_info = struct();
+            original_file_info.matFilePath = matFilePath;
+            original_file_info.matFileName = matFileName;
+            original_file_info.timestamp = datestr(now);
+            
             % Сохраняем метаданные в .meta файл (фактически .mat формат)
-            save(meta_path, 'slope_measurement_results', 'average_values', '-v7.3');
+            save(meta_path, 'slope_measurement_results', 'average_values', 'original_file_info', '-v7.3');
             
             fprintf('✓ Результаты сохранены:\n');
             fprintf('  Excel: %s\n', excel_path);
@@ -2116,7 +2098,7 @@ updateCursorEditFields();
         end
         
         % Подготавливаем данные для таблицы
-        table_data = cell(length(slope_measurement_results), 11);
+        table_data = cell(length(slope_measurement_results), 13);
         for i = 1:length(slope_measurement_results)
             metadata = slope_measurement_results(i).metadata;
             
@@ -2135,17 +2117,25 @@ updateCursorEditFields();
             % Относительное значение пика (относительно базовой линии)
             peak_value_rel = slope_measurement_results(i).peak_value - slope_measurement_results(i).baseline_value;
             
-            table_data{i, 1} = slope_measurement_results(i).slope_value;
-            table_data{i, 2} = peak_time_rel;
-            table_data{i, 3} = peak_time_abs;
-            table_data{i, 4} = slope_measurement_results(i).peak_value;
-            table_data{i, 5} = peak_value_rel;
-            table_data{i, 6} = onset_time_rel;
-            table_data{i, 7} = onset_time_abs;
-            table_data{i, 8} = slope_measurement_results(i).baseline_value;
-            table_data{i, 9} = metadata.channel;
-            table_data{i, 10} = metadata.stim_time;
-            table_data{i, 11} = getNavigationStatusText(metadata);
+            % Номер стимула
+            stimulus_number = metadata.stim_inx;
+            
+            % Разность времени пика и онсета
+            peak_onset_diff = (slope_measurement_results(i).peak_time - slope_measurement_results(i).onset_time) * timeUnitFactor;
+            
+            table_data{i, 1} = stimulus_number;
+            table_data{i, 2} = slope_measurement_results(i).slope_value;
+            table_data{i, 3} = peak_time_rel;
+            table_data{i, 4} = peak_time_abs;
+            table_data{i, 5} = slope_measurement_results(i).peak_value;
+            table_data{i, 6} = peak_value_rel;
+            table_data{i, 7} = onset_time_rel;
+            table_data{i, 8} = onset_time_abs;
+            table_data{i, 9} = peak_onset_diff;
+            table_data{i, 10} = slope_measurement_results(i).baseline_value;
+            table_data{i, 11} = metadata.channel;
+            table_data{i, 12} = metadata.stim_time;
+            table_data{i, 13} = getNavigationStatusText(metadata);
         end
         
         set(hResultsTable, 'Data', table_data);
@@ -2169,7 +2159,7 @@ updateCursorEditFields();
         if isempty(slope_measurement_results)
             % Если нет результатов, показываем NaN
 
-            set(hAverageTable, 'Data', {NaN, NaN, NaN, NaN, NaN});
+            set(hAverageTable, 'Data', {NaN, NaN, NaN, NaN, NaN, NaN});
             return;
         end
         
@@ -2197,8 +2187,12 @@ updateCursorEditFields();
 
         disp(hAverageTable);
         
+        % Вычисляем разность времени пика и онсета для всех результатов
+        peak_onset_diff_values = ([slope_measurement_results.peak_time] - [slope_measurement_results.onset_time]) * timeUnitFactor;
+        avg_peak_onset_diff = mean(peak_onset_diff_values, 'omitnan');
+        
         try
-            set(hAverageTable, 'Data', {avg_slope, avg_peak_time_rel, avg_peak_amplitude, avg_onset_time_rel, avg_baseline});
+            set(hAverageTable, 'Data', {avg_slope, avg_peak_time_rel, avg_peak_amplitude, avg_onset_time_rel, avg_baseline, avg_peak_onset_diff});
         catch ME
             fprintf('Ошибка при обновлении таблицы: %s\n', ME.message);
         end
@@ -2280,22 +2274,26 @@ updateCursorEditFields();
         % Восстанавливаем временной интервал
         chosen_time_interval = metadata.chosen_time_interval;
         
-        % Восстанавливаем зум
-        zoom_active = metadata.zoom_active;
-        zoom_start_rel = metadata.zoom_start_rel;
-        zoom_end_rel = metadata.zoom_end_rel;
-        zoom_y_min = metadata.zoom_y_min;
-        zoom_y_max = metadata.zoom_y_max;
-        original_ylim = metadata.original_ylim;
-        original_xlim = metadata.original_xlim;
+        % Восстанавливаем зум (закомментировано для возможного использования в будущем)
+        % zoom_active = metadata.zoom_active;
+        % zoom_start_rel = metadata.zoom_start_rel;
+        % zoom_end_rel = metadata.zoom_end_rel;
+        % zoom_y_min = metadata.zoom_y_min;
+        % zoom_y_max = metadata.zoom_y_max;
+        % original_ylim = metadata.original_ylim;
+        % original_xlim = metadata.original_xlim;
         
-        % Восстанавливаем границы амплитуды и времени если они были сохранены и зум не был применен
-        if ~isempty(original_ylim) && length(original_ylim) == 2 && ~isempty(original_xlim) && length(original_xlim) == 2 && ~zoom_active
-            axes(hPlotAxes);
-            ylim(original_ylim);
-            xlim(original_xlim);
-            fprintf('DEBUG: Восстановлены оригинальные границы ylim: %s, xlim: %s\n', mat2str(original_ylim), mat2str(original_xlim));
-        end
+        % Вместо восстановления зума применяем оптимальные размеры осей
+        [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits();
+        axes(hPlotAxes);
+        xlim(optimal_xlim);
+        ylim(optimal_ylim);
+        
+        % Сохраняем оптимальные границы как original для возможного использования
+        original_xlim = optimal_xlim;
+        original_ylim = optimal_ylim;
+        
+        fprintf('DEBUG: Применены оптимальные границы ylim: %s, xlim: %s\n', mat2str(optimal_ylim), mat2str(optimal_xlim));
         
         % Восстанавливаем режим навигации
         selectedCenter = metadata.selectedCenter;
@@ -2333,31 +2331,21 @@ updateCursorEditFields();
         % Обновляем edit fields с относительным временем
         updateCursorEditFields();
         
-        % Обновляем кнопку зума
+        % Обновляем кнопку зума (зум сброшен, поэтому всегда показываем "Zoom")
         zoomBtn = findobj(signalFig, 'Style', 'pushbutton', 'Callback', @toggleZoom);
         if ~isempty(zoomBtn)
-            if zoom_active
-                set(zoomBtn, 'String', 'Reset Zoom');
-            else
-                set(zoomBtn, 'String', 'Zoom');
-            end
+            set(zoomBtn, 'String', 'Zoom');
         end
         
-        % Если был применен зум, обновляем статус навигации
-        if zoom_active
-            updateNavigationStatus();
-        end
+        % Зум сброшен, поэтому обновляем статус навигации без учета зума
+        % if zoom_active
+        %     updateNavigationStatus();
+        % end
         
         % Обновляем график и статус
         updateNavigationStatus();
         updatePlotAndCalculation();
-        
-        % Пересчитываем значения измерений при восстановлении состояния
-        % for i = 1:length(multiple_measurements)
-        %     calculateMeasurementValue(i);
-        % end
-        % updateMeasurementsTable();
-        
+                
         % Сбрасываем флаг восстановления
         restoring_from_metadata = false;
         
@@ -2718,7 +2706,6 @@ updateCursorEditFields();
         
         % ФИНАЛЬНОЕ обновление всех таблиц и графика
         updateResultsTable();
-        % updateMeasurementsTable();
         updatePlotAndCalculation();
         
         % Обновляем статус навигации
@@ -2753,6 +2740,17 @@ updateCursorEditFields();
             % Загружаем данные из файла (фактически .mat файл с расширением .meta)
             loaded_data = load(filepath, '-mat');
             
+            % Проверяем, нужно ли загружать оригинальный файл
+            if isfield(loaded_data, 'original_file_info') && ~isempty(loaded_data.original_file_info.matFileName)
+                if ~strcmp(loaded_data.original_file_info.matFileName, matFileName)
+                    % Имена файлов не совпадают, загружаем оригинальный файл
+                    fprintf('📁 Загружаю оригинальный файл: %s\n', loaded_data.original_file_info.matFilePath);
+                    OpenFilePath(loaded_data.original_file_info.matFilePath);
+                else
+                    fprintf('ℹ️ Оригинальный файл уже загружен: %s\n', matFileName);
+                end
+            end
+            
             % Загружаем основные результаты
             slope_measurement_results = loaded_data.slope_measurement_results;
             
@@ -2763,13 +2761,10 @@ updateCursorEditFields();
             
             % Обновляем отображение
             updateResultsTable();
-            % updateMeasurementsTable();
-            % updateMeasurementCursors();
             
             fprintf('✓ Результаты загружены из файла:\n');
             fprintf('  Файл: %s\n', filepath);
             fprintf('  Результатов: %d\n', length(slope_measurement_results));
-            % fprintf('  Измерений: %d\n', length(multiple_measurements));
             
             % Восстанавливаем состояние первого результата если есть
             if ~isempty(slope_measurement_results)
@@ -2940,7 +2935,6 @@ updateCursorEditFields();
             updateNavigationStatus();
             updatePlotAndCalculation();
             updateResultsTable();
-            % updateMeasurementsTable();
             updateButtonStates();
             
             % Обновляем состояние кнопки Replace
@@ -2984,8 +2978,6 @@ updateCursorEditFields();
                 
                 % Обновляем отображение
                 updateResultsTable();
-                % updateMeasurementsTable();
-                % updateMeasurementCursors();
                 
                         % Обновляем состояние кнопок
         updateButtonStates();
@@ -3366,10 +3358,18 @@ updateCursorEditFields();
                 lastOpenedFiles(end) = [];
                 return;
             end
-            
-
-            
             fprintf('🔄 Автоматически открываю последний файл: %s\n', lastFile);
+            OpenFilePath(lastFile)
+        catch ME
+            fprintf('❌ Ошибка при автоматическом открытии последнего файла: %s\n', ME.message);
+            fprintf('ℹ️ Продолжаем с чистой инициализацией\n');
+        end
+    end
+
+    function OpenFilePath(filepath)
+        try
+            
+            
             
             % Очищаем все предыдущие результаты и измерения
             slope_measurement_results = [];
@@ -3384,7 +3384,7 @@ updateCursorEditFields();
             mean_signal_time = [];
             
             % Загружаем файл
-            [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info] = load_zav_file(lastFile);
+            [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info] = load_zav_file(filepath);
             
             % Устанавливаем флаги
             stims_exist = ~isempty(stims);
@@ -3420,7 +3420,7 @@ updateCursorEditFields();
             numChannels = length(channelNames);
             
             % Обновляем глобальные переменные
-            matFilePath = lastFile;
+            matFilePath = filepath;
             [~, matFileName, ~] = fileparts(matFilePath);
             
             % Загружаем настройки каналов (индивидуальные или групповые)
@@ -3442,7 +3442,6 @@ updateCursorEditFields();
             updateNavigationStatus();
             updatePlotAndCalculation();
             updateResultsTable();
-            % updateMeasurementsTable();
             updateButtonStates();
             
             % Обновляем состояние кнопки Replace
@@ -3566,6 +3565,38 @@ updateCursorEditFields();
         
         % Обновляем статус навигации
         updateNavigationStatus();
+    end
+    
+    function applyAutoscale(~, ~)
+        % Применяет оптимальные размеры осей для видимых данных
+        
+        % Вычисляем оптимальные границы осей
+        [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits();
+        
+        % Применяем новые границы
+        axes(hPlotAxes);
+        xlim(optimal_xlim);
+        ylim(optimal_ylim);
+        
+        % Сбрасываем зум если он был активен
+        if zoom_active
+            zoom_active = false;
+            zoom_start_rel = 0;
+            zoom_end_rel = 1;
+            zoom_y_min = [];
+            zoom_y_max = [];
+            
+            % Обновляем кнопку зума
+            zoomBtn = findobj(signalFig, 'Style', 'pushbutton', 'Callback', @toggleZoom);
+            if ~isempty(zoomBtn)
+                set(zoomBtn, 'String', 'Zoom');
+            end
+        end
+        
+        % Обновляем статус навигации
+        updateNavigationStatus();
+        
+        fprintf('✓ Применены оптимальные размеры осей\n');
     end
 
 end 
