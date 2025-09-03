@@ -217,7 +217,7 @@ end
     
     % Определяем названия колонок как единый источник (доступны во всех функциях)
     table_column_names = {'Stimulus', 'Slope', 'Peak Time (rel)', 'Peak Time (abs)', 'Peak Amplitude', 'Peak Value (rel)', 'Onset Time (rel)', 'Onset Time (abs)', 'Peak - Onset', 'Baseline', 'Channel', 'Stim Time', 'Info'};
-    table_column_widths = {50, 50, 50, 50, 60, 60, 65, 65, 80, 50, 50, 60, 80};
+    table_column_widths = {55, 50, 100, 100, 100, 100, 100, 100, 100, 80, 80, 80, 200};
     table_column_formats = {'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'char'};
     
     % Поиск открытой фигуры с заданным идентификатором
@@ -413,6 +413,10 @@ end
     uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Load', ...
         'Position', [1040, 270, 70, 25], 'Callback', @loadResults);
     
+    % Кнопка сбора всех метаданных
+    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Collect All', ...
+        'Position', [1040, 300, 70, 25], 'Callback', @collectAllMetadata);
+    
 
     
     % Кнопка сохранения результатов
@@ -439,24 +443,25 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
 
     % === Таблица текущих результатов ===
     % Заголовок таблицы текущих результатов
-    uicontrol(signalFig, 'Style', 'text', 'Position', [1120, 580, 330, 20], ...
+    uicontrol(signalFig, 'Style', 'text', 'Position', [1135, 580, 460, 20], ...
         'String', 'Current Results', 'HorizontalAlignment', 'center', 'FontWeight', 'bold');
     
     % Таблица текущих результатов (одна строчка)
-    hCurrentResultsTable = uitable(signalFig, 'Position', [1120, 520, 330, 60], ...
+    hCurrentResultsTable = uitable(signalFig, 'Position', [1135, 520, 460, 60], ...
         'ColumnName', {'Slope', 'Peak Time (rel)', 'Peak Amplitude', 'Onset Time (rel)', 'Baseline'}, ...
-        'ColumnWidth', {66, 66, 66, 66, 66}, ...
+        'ColumnWidth', {90, 90, 90, 90, 90}, ...
         'ColumnFormat', {'numeric', 'numeric', 'numeric', 'numeric', 'numeric'}, ...
-        'Data', {NaN, NaN, NaN, NaN, NaN});
+        'Data', {NaN, NaN, NaN, NaN, NaN}, ...
+        'RowName', []);
     
 
     % === Таблица результатов ===
     % Заголовок таблицы
-    uicontrol(signalFig, 'Style', 'text', 'Position', [1120, 485, 330, 25], ...
+    uicontrol(signalFig, 'Style', 'text', 'Position', [1135, 485, 460, 25], ...
         'String', 'Results Table', 'HorizontalAlignment', 'center', 'FontWeight', 'bold');
 
     % Таблица собираемых результатов
-    hResultsTable = uitable(signalFig, 'Position', [1120, 110, 450, 380], ...
+    hResultsTable = uitable(signalFig, 'Position', [1135, 110, 460, 380], ...
         'ColumnName', table_column_names, ...
         'ColumnWidth', table_column_widths, ...
         'ColumnFormat', table_column_formats, ...
@@ -465,19 +470,20 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
     
     % Кнопка очистки собираемых результатов
     uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Clear Table', ...
-        'Position', [1380, 490, 70, 25], 'Callback', @clearAllResults);
+        'Position', [1500, 490, 70, 25], 'Callback', @clearAllResults);
 
     % === Таблица средних значений ===
     % Заголовок таблицы средних значений
-    uicontrol(signalFig, 'Style', 'text', 'Position', [1120, 75, 330, 20], ...
+    uicontrol(signalFig, 'Style', 'text', 'Position', [1135, 75, 460, 20], ...
         'String', 'Average Values', 'HorizontalAlignment', 'center', 'FontWeight', 'bold');
     
     % Таблица средних значений (одна строчка)
-    hAverageTable = uitable(signalFig, 'Position', [1120, 15, 450, 60], ...
+    hAverageTable = uitable(signalFig, 'Position', [1135, 15, 460, 60], ...
         'ColumnName', {'Slope', 'Peak Time (rel)', 'Peak Amplitude', 'Onset Time (rel)', 'Baseline', 'Peak - Onset'}, ...
-        'ColumnWidth', {66, 66, 66, 66, 66, 66}, ...
+        'ColumnWidth', {75, 75, 75, 75, 75, 75}, ...
         'ColumnFormat', {'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric'}, ...
-        'Data', {NaN, NaN, NaN, NaN, NaN, NaN});
+        'Data', {NaN, NaN, NaN, NaN, NaN, NaN}, ...
+        'RowName', []);
     
     % Переменные для хранения графических объектов
     hBaselineLines = [];  % линии baseline диапазона
@@ -613,7 +619,18 @@ updateCursorEditFields();
     
     function channelCallback(src, ~)
         slope_measurement_settings.channel = get(src, 'Value');
+        
+        % Вычисляем и применяем оптимальные границы осей
+        [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
+        
+        % Сохраняем как original для правильной работы зума
+        original_xlim = optimal_xlim;
+        original_ylim = optimal_ylim;
+        
+        % Обновляем график
         updatePlotAndCalculation();
+        
+        fprintf('✓ Канал изменен, применены оптимальные размеры осей\n');
     end
     
     function polarityCallback(src, ~)
@@ -1329,9 +1346,7 @@ updateCursorEditFields();
 
         % устанавливаем оптимальные границы осей только если зум не активен
         if ~zoom_active
-            [original_xlim, original_ylim] = calculateOptimalAxisLimits();
-            xlim(original_xlim);
-            ylim(original_ylim);
+            [original_xlim, original_ylim] = calculateOptimalAxisLimits(true);
         end
 
         % Обновляем edit fields после изменения позиций
@@ -1493,8 +1508,18 @@ updateCursorEditFields();
         end
     end
 
-    function [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits()
+    function [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(should_apply_limits)
         % Вычисляет оптимальные границы осей на основе настроек файла и данных
+        % и опционально применяет их к текущим осям
+        %
+        % Параметры:
+        %   should_apply_limits - если true, применяет границы к текущим осям,
+        %                        если false, только возвращает значения
+        %                        (по умолчанию true)
+        
+        if nargin < 1
+            should_apply_limits = true;
+        end
         
         % Границы по X - просто time_back и time_forward
         x_start = -time_back * timeUnitFactor;
@@ -1532,6 +1557,13 @@ updateCursorEditFields();
         
         y_padding = y_range * 0.05; % 5% запас
         optimal_ylim = [y_min - y_padding, y_max + y_padding];
+        
+        % Применяем границы к текущим осям если нужно
+        if should_apply_limits
+            axes(hPlotAxes);
+            xlim(optimal_xlim);
+            ylim(optimal_ylim);
+        end
     end
 
     function resetZoom()
@@ -1639,7 +1671,7 @@ updateCursorEditFields();
         metadata.zoom_y_max = zoom_y_max;
         
         % вычисляем границы осей
-        [original_xlim, original_ylim] = calculateOptimalAxisLimits();
+        [original_xlim, original_ylim] = calculateOptimalAxisLimits(false);
         metadata.original_xlim = original_xlim;
         metadata.original_ylim = original_ylim;
         
@@ -1719,7 +1751,7 @@ updateCursorEditFields();
         metadata.zoom_y_max = zoom_y_max;
 
         % вычисляем границы осей
-        [original_xlim, original_ylim] = calculateOptimalAxisLimits();
+        [original_xlim, original_ylim] = calculateOptimalAxisLimits(false);
         metadata.original_xlim = original_xlim;
         metadata.original_ylim = original_ylim;
 
@@ -1853,7 +1885,7 @@ updateCursorEditFields();
         metadata.zoom_y_max = zoom_y_max;
         
         % вычисляем границы осей
-        [original_xlim, original_ylim] = calculateOptimalAxisLimits();
+        [original_xlim, original_ylim] = calculateOptimalAxisLimits(false);
         metadata.original_xlim = original_xlim;
         metadata.original_ylim = original_ylim;
         
@@ -2118,7 +2150,11 @@ updateCursorEditFields();
             peak_value_rel = slope_measurement_results(i).peak_value - slope_measurement_results(i).baseline_value;
             
             % Номер стимула
-            stimulus_number = metadata.stim_inx;
+            if isfield(metadata, 'stim_inx')
+                stimulus_number = metadata.stim_inx;
+            else
+                stimulus_number = NaN;
+            end
             
             % Разность времени пика и онсета
             peak_onset_diff = (slope_measurement_results(i).peak_time - slope_measurement_results(i).onset_time) * timeUnitFactor;
@@ -2284,10 +2320,7 @@ updateCursorEditFields();
         % original_xlim = metadata.original_xlim;
         
         % Вместо восстановления зума применяем оптимальные размеры осей
-        [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits();
-        axes(hPlotAxes);
-        xlim(optimal_xlim);
-        ylim(optimal_ylim);
+        [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
         
         % Сохраняем оптимальные границы как original для возможного использования
         original_xlim = optimal_xlim;
@@ -2400,10 +2433,7 @@ updateCursorEditFields();
             set(hMeanResultsBtn, 'String', 'Show Single');
             fprintf('✓ Режим среднего сигнала включен (%d результатов)\n', length(slope_measurement_results));
             % вычисляем границы осей
-            [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits();
-            axes(hPlotAxes);
-            xlim(optimal_xlim);
-            ylim(optimal_ylim);
+            [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
         else
             % Сбрасываем средний сигнал
             mean_signal_data = [];
@@ -2411,10 +2441,7 @@ updateCursorEditFields();
             set(hMeanResultsBtn, 'String', 'Av. Trace');
             fprintf('✓ Режим одиночного сигнала включен\n');
             if isempty(original_xlim) && isempty(original_ylim)
-                [original_xlim, original_ylim] = calculateOptimalAxisLimits();
-                axes(hPlotAxes);
-                xlim(original_xlim);
-                ylim(original_ylim);
+                [original_xlim, original_ylim] = calculateOptimalAxisLimits(true);
             else
                 xlim(original_xlim);
                 ylim(original_ylim);
@@ -2754,6 +2781,32 @@ updateCursorEditFields();
             % Загружаем основные результаты
             slope_measurement_results = loaded_data.slope_measurement_results;
             
+            % Проверяем и обновляем старые метаданные
+            fprintf('Проверка и обновление старых метаданных...\n');
+            for i = 1:length(slope_measurement_results)
+                % Проверяем наличие поля stim_inx
+                if ~isfield(slope_measurement_results(i).metadata, 'stim_inx')
+                    % Для старых метаданных пробуем получить номер стимула из индекса
+                    if strcmp(slope_measurement_results(i).metadata.selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
+                        slope_measurement_results(i).metadata.stim_inx = i;
+                        fprintf('  Результат #%d: добавлен номер стимула %d\n', i, i);
+                    else
+                        slope_measurement_results(i).metadata.stim_inx = NaN;
+                        fprintf('  Результат #%d: номер стимула не определен\n', i);
+                    end
+                end
+                
+                % Проверяем наличие полей для peak_onset_diff
+                if ~isfield(slope_measurement_results(i), 'onset_time')
+                    slope_measurement_results(i).onset_time = NaN;
+                    fprintf('  Результат #%d: добавлено поле onset_time\n', i);
+                end
+                if ~isfield(slope_measurement_results(i), 'onset_value')
+                    slope_measurement_results(i).onset_value = NaN;
+                    fprintf('  Результат #%d: добавлено поле onset_value\n', i);
+                end
+            end
+            fprintf('Обновление метаданных завершено\n');
 
             % Сбрасываем выделения
             selected_row_slope = [];
@@ -2930,6 +2983,13 @@ updateCursorEditFields();
             
             % Обновляем edit fields для нового файла
             updateCursorEditFields();
+            
+            % Вычисляем и применяем оптимальные границы осей
+            [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
+            
+            % Сохраняем как original для правильной работы зума
+            original_xlim = optimal_xlim;
+            original_ylim = optimal_ylim;
             
             % Обновляем отображение
             updateNavigationStatus();
@@ -3344,7 +3404,7 @@ updateCursorEditFields();
         try
             % Проверяем, есть ли список последних файлов
             if isempty(lastOpenedFiles)
-                fprintf('ℹ️ Нет последних файлов для автоматического открытия\n');
+                fprintf('ℹ️ No recent files found for automatic opening\n');
                 return;
             end
             
@@ -3353,16 +3413,38 @@ updateCursorEditFields();
             
             % Проверяем, существует ли файл
             if ~exist(lastFile, 'file')
-                fprintf('⚠️ Последний файл не найден: %s\n', lastFile);
+                fprintf('⚠️ Last file not found: %s\n', lastFile);
                 % Удаляем несуществующий файл из списка
                 lastOpenedFiles(end) = [];
+                
+                % Показываем диалог с предложением открыть файл вручную
+                choice = questdlg('Last opened file not found. Would you like to open a file manually?', ...
+                    'File Not Found', ...
+                    'Yes', 'No', 'Yes');
+                
+                switch choice
+                    case 'Yes'
+                        % Получаем путь к последнему открытому файлу или используем стандартную директорию
+                        initialDir = pwd;
+                        if ~isempty(lastOpenedFiles)
+                            initialDir = fileparts(lastOpenedFiles{end});
+                        end
+                        
+                        [file, path] = uigetfile('*.mat', 'Load .mat File (ZAV or Heka format)', initialDir);
+                        if ~isequal(file, 0)
+                            filepath = fullfile(path, file);
+                            OpenFilePath(filepath);
+                        end
+                    case 'No'
+                        fprintf('ℹ️ Manual file opening cancelled\n');
+                end
                 return;
             end
-            fprintf('🔄 Автоматически открываю последний файл: %s\n', lastFile);
+            fprintf('🔄 Automatically opening last file: %s\n', lastFile);
             OpenFilePath(lastFile)
         catch ME
-            fprintf('❌ Ошибка при автоматическом открытии последнего файла: %s\n', ME.message);
-            fprintf('ℹ️ Продолжаем с чистой инициализацией\n');
+            fprintf('❌ Error during automatic file opening: %s\n', ME.message);
+            fprintf('ℹ️ Continuing with clean initialization\n');
         end
     end
 
@@ -3437,6 +3519,13 @@ updateCursorEditFields();
             
             % Обновляем edit fields для нового файла
             updateCursorEditFields();
+            
+            % Вычисляем и применяем оптимальные границы осей
+            [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
+            
+            % Сохраняем как original для правильной работы зума
+            original_xlim = optimal_xlim;
+            original_ylim = optimal_ylim;
             
             % Обновляем отображение
             updateNavigationStatus();
@@ -3570,13 +3659,8 @@ updateCursorEditFields();
     function applyAutoscale(~, ~)
         % Применяет оптимальные размеры осей для видимых данных
         
-        % Вычисляем оптимальные границы осей
-        [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits();
-        
-        % Применяем новые границы
-        axes(hPlotAxes);
-        xlim(optimal_xlim);
-        ylim(optimal_ylim);
+        % Вычисляем и применяем оптимальные границы осей
+        [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
         
         % Сбрасываем зум если он был активен
         if zoom_active
@@ -3597,6 +3681,305 @@ updateCursorEditFields();
         updateNavigationStatus();
         
         fprintf('✓ Применены оптимальные размеры осей\n');
+    end
+
+    function collectAllMetadata(~, ~)
+        % Функция для сбора всех метаданных из подпапок и создания сводной таблицы
+        
+        % Определяем начальную директорию из текущего файла
+        if ~isempty(matFilePath)
+            initial_dir = fileparts(matFilePath);
+        else
+            initial_dir = pwd;
+        end
+        
+        % Запрашиваем корневую папку для поиска
+        root_dir = uigetdir(initial_dir, 'Select Root Directory for Metadata Collection');
+        if root_dir == 0
+            fprintf('❌ Сбор метаданных отменен\n');
+            return;
+        end
+        
+        % Создаем окно прогресса
+        hWaitBar = waitbar(0, 'Starting metadata collection...', 'Name', 'Collecting Metadata');
+        
+        try
+            % Находим все .meta файлы рекурсивно
+            fprintf('🔍 Поиск .meta файлов в папке %s...\n', root_dir);
+            meta_files = dir(fullfile(root_dir, '**', '*.meta'));
+            
+            if isempty(meta_files)
+                close(hWaitBar);
+                errordlg('No .meta files found in the selected directory and its subdirectories.', 'No Files Found');
+                fprintf('❌ .meta файлы не найдены\n');
+                return;
+            end
+            
+            fprintf('✓ Найдено файлов: %d\n', length(meta_files));
+            
+            % Инициализируем массив для всех результатов
+            all_results = [];
+            
+            % Обрабатываем каждый файл
+            for i = 1:length(meta_files)
+                % Обновляем прогресс
+                progress = i / length(meta_files);
+                waitbar(progress, hWaitBar, sprintf('Processing file %d of %d (%d%%)', i, length(meta_files), round(progress * 100)));
+                
+                % Полный путь к файлу
+                meta_path = fullfile(meta_files(i).folder, meta_files(i).name);
+                
+                try
+                    % Загружаем метаданные
+                    loaded_data = load(meta_path, '-mat');
+                    
+                    % Проверяем наличие необходимых полей
+                    if ~isfield(loaded_data, 'slope_measurement_results') || isempty(loaded_data.slope_measurement_results)
+                        fprintf('⚠️ Пропущен файл %s: отсутствуют результаты измерений\n', meta_files(i).name);
+                        continue;
+                    end
+                    
+                    % Проверяем и нормализуем структуру каждого результата
+                    for j = 1:length(loaded_data.slope_measurement_results)
+                        % Проверяем наличие metadata
+                        if ~isfield(loaded_data.slope_measurement_results(j), 'metadata')
+                            loaded_data.slope_measurement_results(j).metadata = struct();
+                        end
+                        
+                        % Добавляем информацию о файле
+                        loaded_data.slope_measurement_results(j).metadata.source_file = meta_files(i).name;
+                        loaded_data.slope_measurement_results(j).metadata.source_path = meta_files(i).folder;
+                        
+                        % Проверяем наличие rel_shift
+                        if ~isfield(loaded_data.slope_measurement_results(j).metadata, 'rel_shift')
+                            loaded_data.slope_measurement_results(j).metadata.rel_shift = 0;
+                        end
+                        
+                        % Проверяем наличие stim_inx
+                        if ~isfield(loaded_data.slope_measurement_results(j).metadata, 'stim_inx')
+                            loaded_data.slope_measurement_results(j).metadata.stim_inx = NaN;
+                        end
+                        
+                        % Проверяем наличие channel
+                        if ~isfield(loaded_data.slope_measurement_results(j).metadata, 'channel')
+                            loaded_data.slope_measurement_results(j).metadata.channel = 1;
+                        end
+                        
+                        % Проверяем наличие stim_time
+                        if ~isfield(loaded_data.slope_measurement_results(j).metadata, 'stim_time')
+                            loaded_data.slope_measurement_results(j).metadata.stim_time = NaN;
+                        end
+                    end
+                    
+                    % Объединяем результаты
+                    if isempty(all_results)
+                        all_results = loaded_data.slope_measurement_results;
+                    else
+                        all_results = [all_results, loaded_data.slope_measurement_results];
+                    end
+                    
+                catch ME
+                    fprintf('⚠️ Ошибка при обработке файла %s: %s\n', meta_files(i).name, ME.message);
+                    continue;
+                end
+            end
+            
+            % Закрываем окно прогресса
+            close(hWaitBar);
+            
+            if isempty(all_results)
+                errordlg('No valid results found in any of the .meta files.', 'No Results');
+                fprintf('❌ Нет валидных результатов для сохранения\n');
+                return;
+            end
+            
+            % Создаем имя файла для сохранения на основе имени корневой папки
+            [~, root_folder_name, ~] = fileparts(root_dir);
+            default_excel_name = fullfile(root_dir, [root_folder_name '_combined_results.xlsx']);
+            
+            % Запрашиваем имя файла для сохранения
+            [filename, pathname] = uiputfile({'*.xlsx', 'Excel Files (*.xlsx)'}, ...
+                'Save Combined Results As', default_excel_name);
+            
+            if isequal(filename, 0) || isequal(pathname, 0)
+                fprintf('❌ Сохранение отменено\n');
+                return;
+            end
+            
+            excel_path = fullfile(pathname, filename);
+            
+            % Подготавливаем данные для Excel
+            excel_data = cell(length(all_results) + 1, 15); % +2 колонки для пути и имени файла
+            
+            % Заголовки колонок (включая новые)
+            headers = {'Source File', 'Source Path', 'Stimulus', 'Slope', 'Peak Time (rel)', ...
+                'Peak Time (abs)', 'Peak Amplitude', 'Peak Value (rel)', 'Onset Time (rel)', ...
+                'Onset Time (abs)', 'Peak - Onset', 'Baseline', 'Channel', 'Stim Time', 'Info'};
+            excel_data(1, :) = headers;
+            
+            % Заполняем данные с разделителями между файлами
+            current_row = 2; % Начинаем с 2, так как 1-я строка - заголовки
+            current_file = '';
+            
+            for i = 1:length(all_results)
+                metadata = all_results(i).metadata;
+                
+                % Если начинается новый файл, добавляем пустую строку-разделитель
+                if ~strcmp(current_file, metadata.source_file) && ~isempty(current_file)
+                    % Добавляем пустую строку
+                    for j = 1:size(excel_data, 2)
+                        excel_data{current_row, j} = '';
+                    end
+                    current_row = current_row + 1;
+                end
+                current_file = metadata.source_file;
+                
+                % Относительное время пика
+                peak_time_rel = all_results(i).peak_time * timeUnitFactor;
+                
+                % Абсолютное время пика
+                peak_time_abs = (all_results(i).peak_time + metadata.rel_shift) * timeUnitFactor;
+                
+                % Относительное время онсета
+                onset_time_rel = all_results(i).onset_time * timeUnitFactor;
+                
+                % Абсолютное время онсета
+                onset_time_abs = (all_results(i).onset_time + metadata.rel_shift) * timeUnitFactor;
+                
+                % Разность времени пика и онсета
+                peak_onset_diff = (all_results(i).peak_time - all_results(i).onset_time) * timeUnitFactor;
+                
+                % Заполняем строку данных
+                excel_data{current_row, 1} = metadata.source_file;
+                excel_data{current_row, 2} = metadata.source_path;
+                excel_data{current_row, 3} = metadata.stim_inx;
+                excel_data{current_row, 4} = all_results(i).slope_value;
+                excel_data{current_row, 5} = peak_time_rel;
+                excel_data{current_row, 6} = peak_time_abs;
+                excel_data{current_row, 7} = all_results(i).peak_value;
+                excel_data{current_row, 8} = all_results(i).peak_value - all_results(i).baseline_value;
+                excel_data{current_row, 9} = onset_time_rel;
+                excel_data{current_row, 10} = onset_time_abs;
+                excel_data{current_row, 11} = peak_onset_diff;
+                excel_data{current_row, 12} = all_results(i).baseline_value;
+                excel_data{current_row, 13} = metadata.channel;
+                excel_data{current_row, 14} = metadata.stim_time;
+                excel_data{current_row, 15} = getNavigationStatusText(metadata);
+                
+                current_row = current_row + 1;
+            end
+            
+            % Сохраняем основные данные на первый лист
+            writecell(excel_data, excel_path, 'Sheet', 'Raw Data');
+            
+            % Создаем второй лист со статистикой по каждому файлу
+            % Заголовки для листа статистики
+            stats_headers = {'File Name', 'N', ...
+                'Slope (Mean)', 'Slope (STD)', ...
+                'Peak Time (Mean)', 'Peak Time (STD)', ...
+                'Peak Amplitude (Mean)', 'Peak Amplitude (STD)', ...
+                'Peak Value rel (Mean)', 'Peak Value rel (STD)', ...
+                'Onset Time (Mean)', 'Onset Time (STD)', ...
+                'Peak-Onset (Mean)', 'Peak-Onset (STD)', ...
+                'Baseline (Mean)', 'Baseline (STD)'};
+            
+            % Получаем уникальные имена файлов
+            source_files = cell(1, length(all_results));
+            for i = 1:length(all_results)
+                source_files{i} = all_results(i).metadata.source_file;
+            end
+            unique_files = unique(source_files);
+            stats_data = cell(length(unique_files) + 1, length(stats_headers));
+            stats_data(1, :) = stats_headers;
+            
+            % Для каждого файла вычисляем статистику
+            for i = 1:length(unique_files)
+                file_name = unique_files{i};
+                % Находим все результаты для этого файла
+                file_mask = false(1, length(all_results));
+                for j = 1:length(all_results)
+                    if strcmp(all_results(j).metadata.source_file, file_name)
+                        file_mask(j) = true;
+                    end
+                end
+                file_results = all_results(file_mask);
+                
+                % Количество измерений
+                n_measurements = sum(file_mask);
+                
+                % Вычисляем статистику
+                slope_values = [file_results.slope_value];
+                peak_times = [file_results.peak_time] * timeUnitFactor;
+                peak_values = [file_results.peak_value];
+                peak_values_rel = [file_results.peak_value] - [file_results.baseline_value];
+                onset_times = [file_results.onset_time] * timeUnitFactor;
+                peak_onset_diff = ([file_results.peak_time] - [file_results.onset_time]) * timeUnitFactor;
+                baseline_values = [file_results.baseline_value];
+                
+                % Заполняем строку данных
+                row = i + 1;
+                stats_data{row, 1} = file_name;
+                stats_data{row, 2} = n_measurements;
+                stats_data{row, 3} = mean(slope_values, 'omitnan');
+                stats_data{row, 4} = std(slope_values, 'omitnan');
+                stats_data{row, 5} = mean(peak_times, 'omitnan');
+                stats_data{row, 6} = std(peak_times, 'omitnan');
+                stats_data{row, 7} = mean(peak_values, 'omitnan');
+                stats_data{row, 8} = std(peak_values, 'omitnan');
+                stats_data{row, 9} = mean(peak_values_rel, 'omitnan');
+                stats_data{row, 10} = std(peak_values_rel, 'omitnan');
+                stats_data{row, 11} = mean(onset_times, 'omitnan');
+                stats_data{row, 12} = std(onset_times, 'omitnan');
+                stats_data{row, 13} = mean(peak_onset_diff, 'omitnan');
+                stats_data{row, 14} = std(peak_onset_diff, 'omitnan');
+                stats_data{row, 15} = mean(baseline_values, 'omitnan');
+                stats_data{row, 16} = std(baseline_values, 'omitnan');
+            end
+            
+            % Добавляем общую статистику по всем файлам
+            stats_data{end+1, 1} = 'ALL FILES';
+            stats_data{end, 2} = length(all_results);
+            
+            % Вычисляем общую статистику
+            all_slopes = [all_results.slope_value];
+            all_peak_times = [all_results.peak_time] * timeUnitFactor;
+            all_peak_values = [all_results.peak_value];
+            all_peak_values_rel = [all_results.peak_value] - [all_results.baseline_value];
+            all_onset_times = [all_results.onset_time] * timeUnitFactor;
+            all_peak_onset_diff = ([all_results.peak_time] - [all_results.onset_time]) * timeUnitFactor;
+            all_baseline_values = [all_results.baseline_value];
+            
+            stats_data{end, 3} = mean(all_slopes, 'omitnan');
+            stats_data{end, 4} = std(all_slopes, 'omitnan');
+            stats_data{end, 5} = mean(all_peak_times, 'omitnan');
+            stats_data{end, 6} = std(all_peak_times, 'omitnan');
+            stats_data{end, 7} = mean(all_peak_values, 'omitnan');
+            stats_data{end, 8} = std(all_peak_values, 'omitnan');
+            stats_data{end, 9} = mean(all_peak_values_rel, 'omitnan');
+            stats_data{end, 10} = std(all_peak_values_rel, 'omitnan');
+            stats_data{end, 11} = mean(all_onset_times, 'omitnan');
+            stats_data{end, 12} = std(all_onset_times, 'omitnan');
+            stats_data{end, 13} = mean(all_peak_onset_diff, 'omitnan');
+            stats_data{end, 14} = std(all_peak_onset_diff, 'omitnan');
+            stats_data{end, 15} = mean(all_baseline_values, 'omitnan');
+            stats_data{end, 16} = std(all_baseline_values, 'omitnan');
+            
+            % Сохраняем статистику на второй лист
+            writecell(stats_data, excel_path, 'Sheet', 'Statistics');
+            
+            fprintf('✓ Сводная таблица сохранена:\n');
+            fprintf('  Путь: %s\n', excel_path);
+            fprintf('  Обработано файлов: %d\n', length(meta_files));
+            fprintf('  Всего результатов: %d\n', length(all_results));
+            
+        catch ME
+            % Закрываем окно прогресса при ошибке
+            if exist('hWaitBar', 'var') && ishandle(hWaitBar)
+                close(hWaitBar);
+            end
+            fprintf('❌ Ошибка при сборе метаданных: %s\n', ME.message);
+            errordlg(['Error collecting metadata: ' ME.message], 'Error');
+        end
     end
 
 end 
