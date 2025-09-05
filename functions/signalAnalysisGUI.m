@@ -466,6 +466,7 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         'ColumnWidth', table_column_widths, ...
         'ColumnFormat', table_column_formats, ...
         'Data', {}, ...
+        'RowName', {}, ...
         'CellSelectionCallback', @tableSelectionChanged);
     
     % Кнопка очистки собираемых результатов
@@ -1810,13 +1811,26 @@ updateCursorEditFields();
             % Удаляем результат
             slope_measurement_results(selected_row_slope) = [];
             
+            % Сохраняем позицию прокрутки перед обновлением таблицы
+            global saved_vpos saved_hpos;
+            try
+                jTable = findjobj(hResultsTable);
+                % UIScrollPane уже содержит методы прокрутки
+                saved_vpos = jTable.getVerticalScrollBar.getValue();
+                saved_hpos = jTable.getHorizontalScrollBar.getValue();
+                fprintf('DEBUG: Сохранены позиции - vpos: %d, hpos: %d\n', saved_vpos, saved_hpos);
+            catch
+                saved_vpos = [];
+                saved_hpos = [];
+            end
+            
             % Обновляем таблицу
             updateResultsTable();
+        
+        fprintf('✓ Результат #%d удален из таблицы\n', selected_row_slope);
+        
+        % Оставляем selected_row_slope без изменений для сохранения выделения
             
-            fprintf('✓ Результат #%d удален из таблицы\n', selected_row_slope);
-            
-            % Сбрасываем выделение
-            selected_row_slope = [];
         else
             % Fallback: если нет выделенной строки, удаляем последний результат
             if ~isempty(slope_measurement_results)
@@ -1932,13 +1946,26 @@ updateCursorEditFields();
         % Заменяем выбранный результат
         slope_measurement_results(selected_row_slope) = new_result;
         
+        % Сохраняем позицию прокрутки перед обновлением таблицы
+        global saved_vpos saved_hpos;
+        try
+            jTable = findjobj(hResultsTable);
+            % UIScrollPane уже содержит методы прокрутки
+            saved_vpos = jTable.getVerticalScrollBar.getValue();
+            saved_hpos = jTable.getHorizontalScrollBar.getValue();
+            fprintf('DEBUG: Сохранены позиции - vpos: %d, hpos: %d\n', saved_vpos, saved_hpos);
+        catch
+            saved_vpos = [];
+            saved_hpos = [];
+        end
+        
         % Обновляем таблицу
         updateResultsTable();
         
         fprintf('✓ Результат #%d заменен текущим измерением\n', selected_row_slope);
         
-        % Сбрасываем выделение
-        selected_row_slope = [];
+        % Оставляем selected_row_slope без изменений для сохранения выделения
+        
         updateReplaceButtonState();
     end
     
@@ -2122,6 +2149,7 @@ updateCursorEditFields();
             return;
         end
         
+        
         if isempty(slope_measurement_results)
             set(hResultsTable, 'Data', {});
             % Деактивируем кнопку Mean Results
@@ -2184,6 +2212,37 @@ updateCursorEditFields();
         
         % Обновляем таблицу средних значений
         updateAverageTable();
+        
+        % Восстанавливаем позицию прокрутки через Java
+        global saved_vpos saved_hpos;
+        try
+            % Получаем Java-объект таблицы через findjobj
+            jTable = findjobj(hResultsTable);
+            fprintf('DEBUG: jTable тип: %s\n', class(jTable));
+            
+            % Проверяем доступные методы UIScrollPane
+            fprintf('DEBUG: Проверяем методы UIScrollPane\n');
+            
+            % Восстанавливаем позицию прокрутки через viewport
+            if exist('saved_vpos', 'var') && ~isempty(saved_vpos)
+                fprintf('DEBUG: Восстанавливаем vpos: %d\n', saved_vpos);
+                
+                try
+                    viewport = jTable.getViewport();
+                    viewport.setViewPosition(java.awt.Point(0, saved_vpos));
+                    % fprintf('DEBUG: ✓ Способ 2 (viewport) применен\n');
+                catch ME
+                    fprintf('DEBUG: ✗ Способ 2 не сработал: %s\n', ME.message);
+                end
+                
+                % Принудительно обновляем интерфейс
+                drawnow;
+            end
+        catch ME
+            % Выводим ошибки Java для отладки
+            fprintf('DEBUG: Ошибка при восстановлении позиции: %s\n', ME.message);
+        end
+        
     end
     
     function updateAverageTable()
