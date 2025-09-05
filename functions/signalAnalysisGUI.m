@@ -1824,6 +1824,19 @@ updateCursorEditFields();
                 saved_hpos = [];
             end
             
+            % Отключаем видимость таблицы для плавного обновления
+            set(hResultsTable, 'Visible', 'off');
+            
+            % Показываем текст "Wait..." в центре таблицы
+            waitText = uicontrol(signalFig, 'Style', 'text', ...
+                'Position', [1135, 300, 460, 20], ...
+                'String', 'Wait...', ...
+                'FontSize', 16, ...
+                'FontWeight', 'bold', ...
+                'BackgroundColor', get(signalFig, 'Color'), ...
+                'ForegroundColor', [0.5, 0.5, 0.5], ...
+                'HorizontalAlignment', 'center');
+            
             % Обновляем таблицу
             updateResultsTable();
         
@@ -1958,6 +1971,19 @@ updateCursorEditFields();
             saved_vpos = [];
             saved_hpos = [];
         end
+        
+        % Отключаем видимость таблицы для плавного обновления
+        set(hResultsTable, 'Visible', 'off');
+        
+        % Показываем текст "Wait..." в центре таблицы
+        waitText = uicontrol(signalFig, 'Style', 'text', ...
+            'Position', [1135, 300, 460, 20], ...
+            'String', 'Wait...', ...
+            'FontSize', 16, ...
+            'FontWeight', 'bold', ...
+            'BackgroundColor', get(signalFig, 'Color'), ...
+            'ForegroundColor', [0.5, 0.5, 0.5], ...
+            'HorizontalAlignment', 'center');
         
         % Обновляем таблицу
         updateResultsTable();
@@ -2235,7 +2261,17 @@ updateCursorEditFields();
                     fprintf('DEBUG: ✗ Способ 2 не сработал: %s\n', ME.message);
                 end
                 
-                % Принудительно обновляем интерфейс
+                % Удаляем текст "Wait..." и включаем видимость таблицы
+                waitTextHandles = findobj(signalFig, 'Style', 'text', 'String', 'Wait...');
+                if ~isempty(waitTextHandles)
+                    delete(waitTextHandles);
+                end
+                set(hResultsTable, 'Visible', 'on');
+                
+                % Принудительно обновляем интерфейс несколькими способами
+                drawnow;
+                jTable.repaint();
+                jTable.getParent().repaint();
                 drawnow;
             end
         catch ME
