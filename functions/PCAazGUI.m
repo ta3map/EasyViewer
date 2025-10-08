@@ -68,7 +68,7 @@ end
         
         % Validate inputs
         if isnan(r) || r <= 0
-            errordlg('Please enter a valid number for components (r).', 'Input Error');
+            fprintf('Please enter a valid number for components (r).\n');
             return;
         end
         
@@ -159,7 +159,7 @@ end
             close(fig)
         catch e
             % Display error message if PCA fails
-            errordlg(['Error during PCA: ' e.message], 'PCA Error');
+            fprintf('Error during PCA: %s\n', e.message);
         end
     end
 end

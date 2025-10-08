@@ -1,19 +1,38 @@
-function EasyView()
+function signalViewerGUI()
+    % Загружаем глобальные настройки (включая инициализацию по умолчанию)
+    loadGlobalSettings();
     
+    % Загружаем координаты элементов из JSON файла
+    coordsFile = fullfile(fileparts(mfilename('fullpath')), 'signalViewerGUI_coords.json');
+    if exist(coordsFile, 'file')
+        coordsData = jsondecode(fileread(coordsFile));
+    else
+        error('Файл координат не найден: %s', coordsFile);
+    end
+    
+    % Вспомогательная функция для получения координат элемента
+    function pos = getElementPosition(tag)
+        if isfield(coordsData.elements, tag)
+            pos = coordsData.elements.(tag);
+        else
+            error('Координаты для элемента %s не найдены в JSON файле', tag);
+        end
+    end
     % Easy Viewer:  visualization and analysis and electrophysiological data
     % 
     % 
     % Author:       Azat Gainutdinov
     %               ta3map@gmail.com
     %               
-    % Date:         05.09.2025
+    % Date:         01.10.2025
     
-    EV_version = '1.12';
+    % EV_version теперь определена в app.m как глобальная переменная
+    global EV_version
     
     clc
     disp(['Easy Viewer version: ' EV_version])
     
-    global app_path EV_version
+    global app_path
     
     EV_path = pwd;
     disp('working directory:')
@@ -23,13 +42,7 @@ function EasyView()
     disp('app directory:')
     fprintf('%s\n',app_path);
     
-    icons_path = [app_path, '\icons'];
-    
-    % если папки с иконками нет, скачиваем с GitHub и помещаем куда надо
-    % это нужно для скомпилированного приложения
-    if exist(icons_path) == 0 
-        icons_path = downloadAndExtractGithub(app_path, 'icons');
-    end
+    % Иконки не используются
     
     disp('please wait ...')
    
@@ -200,7 +213,7 @@ function EasyView()
     outside_calling_filepath = [];
     call_mean_events = @meanEventsCallback;
     call_csd = @ShowCSDButtonCallback;
-    call_closeall = @closeAllButOne;
+    % call_closeall убрано - теперь это делает главное окно app.m
     call_resetMainWindowButtons = @resetMainWindowButtons;
     call_updateTable = @updateTable;
     call_setStandardChannelSettings = @setStandardChannelSettings;
@@ -211,142 +224,16 @@ function EasyView()
     updateLocalCoefsFunc = @updateLocalCoefs;
     updatePlotFunc = @updatePlot;
     
-    % Загрузка списка последних файлов
-    SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
-    loadLastOpenedFiles()
-    function loadLastOpenedFiles()
-        if exist(SettingsFilepath, 'file')
-            d = load(SettingsFilepath);
-            lastOpenedFiles = d.lastOpenedFiles;
-            figure_position = d.figure_position;
-            if ~isempty(lastOpenedFiles)
-                matFilePath = lastOpenedFiles{end};
-                [~, matFileName, ~] = fileparts(matFilePath);
-            else
-                matFilePath = '';
-            end
-            % настройки добавления события
-            if isfield(d, 'add_event_settings')
-                add_event_settings = d.add_event_settings;
-            end
-            % глобальные настройки единиц времени
-            if isfield(d, 'timeUnitFactor')
-                timeUnitFactor = d.timeUnitFactor;
-                selectedUnit = d.selectedUnit;
-            else
-                timeUnitFactor = 1;    
-                selectedUnit = 's';
-            end            
-            % глобальные настройки автодетекции
-            if isfield(d, 'autodetection_settings')
-                autodetection_settings = d.autodetection_settings;
-            else
-                autodetection_settings = [];
-            end
-            % размер окна очистки артефакта
-            if isfield(d, 'art_rem_window_ms')
-                art_rem_window_ms = d.art_rem_window_ms;
-            else
-                art_rem_window_ms = 0;
-            end
-            % настройки стиля линей
-            if isfield(d, 'lines_and_styles')
-                lines_and_styles = d.lines_and_styles;
-            end
-            % настройки видимости боковой панели
-            if isfield(d, 'side_panel_visible')
-                side_panel_visible = d.side_panel_visible;
-            else
-                side_panel_visible = true; % fallback для старых настроек
-            end
-        else
-            % Инициализация всех переменных при первом запуске
-            lastOpenedFiles = {};
-            figure_position = base_figure_position;            
-            add_event_settings.mode = 'manual';
-            add_event_settings.channel = 11;
-            add_event_settings.polarity = 'positive';
-            add_event_settings.timeWindow = 10;
-            timeUnitFactor = 1;    
-            selectedUnit = 's';
-            art_rem_window_ms = 0;
-            side_panel_visible = true;
-            save(SettingsFilepath, 'lastOpenedFiles', 'figure_position', ...
-                'add_event_settings', 'timeUnitFactor', 'selectedUnit', ...
-                'art_rem_window_ms', 'lines_and_styles', 'side_panel_visible');
-        end
-        
+    % Устанавливаем matFilePath и matFileName из последних открытых файлов
+    if ~isempty(lastOpenedFiles)
+        matFilePath = lastOpenedFiles{end};
+        [~, matFileName, ~] = fileparts(matFilePath);
+    else
+        matFilePath = '';
+        matFileName = '';
     end
 
-    %% координаты графических элементов
-    
-    
-    scaleX = figure_position(3) / base_figure_position(3);
-    scaleY = figure_position(4) / base_figure_position(4);
-    scaling_matrix = [scaleX, scaleY, scaleX, scaleY];
-    
-    file_menu_coords = [3, 528, 150, 100].*scaling_matrix*min_scale_coef;
-    file_btn_coords = [3, 628, 150, 20].*scaling_matrix*min_scale_coef;    
-    
-    view_menu_coords = [153, 528, 150, 100].*scaling_matrix*min_scale_coef;
-    view_btn_coords = [153, 628, 150, 20].*scaling_matrix*min_scale_coef;
-    
-    opt_menu_coords = [303, 528, 150, 100].*scaling_matrix*min_scale_coef;
-    option_btn_coords = [303, 628, 150, 20].*scaling_matrix*min_scale_coef;
-    
-    analysis_menu_coords = [453, 528, 150, 100].*scaling_matrix*min_scale_coef;
-    analysis_btn_coords = [453, 628, 150, 20].*scaling_matrix*min_scale_coef;
-    
-    % Side panel
-    channelTable_coords = [10, 27, 300, 370].*scaling_matrix*min_scale_coef;
-    LoadSettingsBtn_coords = [10, 5, 120, 20].*scaling_matrix*min_scale_coef;
-    
-    % Event panel
-    EventsTableTitle_coords = [10, 177, 200, 20].*scaling_matrix*min_scale_coef;
-    saveEventsBtn_coords = [270, 140, 70, 30].*scaling_matrix*min_scale_coef;
-    loadEventsBtn_coords = [270, 110, 70, 30].*scaling_matrix*min_scale_coef;
-    eventAdd_coords = [10, 10, 80, 30].*scaling_matrix*min_scale_coef;
-    eventDeleteEdit_coords = [100, 10, 50, 30].*scaling_matrix*min_scale_coef;
-    eventTable_coords = [10, 50, 250, 127].*scaling_matrix*min_scale_coef;    
-    meanEventsWindowEdit_coords = [285, 48, 40, 20].*scaling_matrix*min_scale_coef;
-    meanEventsWindowText_coords = [265, 60, 80, 20].*scaling_matrix*min_scale_coef;    
-    MeanEventsBtn_coords = [270, 80, 70, 30].*scaling_matrix*min_scale_coef;    
-    clearTableBtn_coords = [270, 10, 70, 30].*scaling_matrix*min_scale_coef;
-    AutoEventDetectionBtn_coords = [220, 178, 120, 20].*scaling_matrix*min_scale_coef;    
-    DeleteEventBtn_coords = [150, 10, 80, 30].*scaling_matrix*min_scale_coef;
-    
-    timeSlider_coords = [300, 50, 220, 15].*scaling_matrix*min_scale_coef;
-    timeUnitPopup_coords = [540, 35, 50, 30].*scaling_matrix*min_scale_coef;
-    timeCenterPopup_coords = [540, 10, 50, 30].*scaling_matrix*min_scale_coef;
-    FMbutton_coords = [10, 10, 120, 30].*scaling_matrix*min_scale_coef;
-    timeBackEdit_coords = [165, 10, 50, 30].*scaling_matrix*min_scale_coef;
-    timeForwardEdit_coords = [220, 10, 50, 30].*scaling_matrix*min_scale_coef;
-    
-    showCSDbutton_coords = [720, 55, 50, 30].*scaling_matrix*min_scale_coef;
-    
-    showSpikesButton_coords = [775, 55, 50, 30].*scaling_matrix*min_scale_coef; 
-    stdCoefEdit_coords = [775, 5, 40, 30].*scaling_matrix*min_scale_coef;       
-    stdCoefText_coords = [755, 35, 80, 15].*scaling_matrix*min_scale_coef;    
-    
-    showPowerButton_coords = [840, 55, 50, 30].*scaling_matrix*min_scale_coef;
-    powerWindow_coords = [840, 5, 40, 30].*scaling_matrix*min_scale_coef;
-    powerText_coords = [815, 35, 90, 15].*scaling_matrix*min_scale_coef;
-    
-    previousbutton_coords = [305, 10, 100, 30].*scaling_matrix*min_scale_coef;
-    nextbutton_coords = [415, 10, 100, 30].*scaling_matrix*min_scale_coef;
-    
-    shiftCoeffEdit_coords = [650, 10, 50, 30].*scaling_matrix*min_scale_coef;
-    FsCoeffEdit_coords = [650, 50, 50, 30].*scaling_matrix*min_scale_coef;
-    FsText_coords = [600, 43, 80, 30].*scaling_matrix*min_scale_coef;
-    shiftCoefText_coords = [598, 3, 60, 30].*scaling_matrix*min_scale_coef;
-    
-    
-    LoadMatFileBtn_coords = [10, 40, 120, 30].*scaling_matrix*min_scale_coef;
-    TimeWindowText_coords = [165, 42, 100, 30].*scaling_matrix*min_scale_coef;
-    BeforeText_coords = [165, 27, 50, 30].*scaling_matrix*min_scale_coef;
-    AfterText_coords = [220, 27, 50, 30].*scaling_matrix*min_scale_coef;
-    
-    % Конец координат графических элементов
+    %% координаты графических элементов - теперь загружаются из JSON файла
         %%
     function saveSettings()
         figure_position = f.Position;
@@ -367,13 +254,23 @@ function EasyView()
     
     f.Position = figure_position;
     
-    mainPanel = uipanel('Parent', f, 'Position', [.01 .01 .7 .13]);
-    multiax_position_a = [0.07    0.2    0.63    0.74];
-    multiax_position_b = [0.07    0.2    0.9    0.74];
-    multiax = axes('Position', multiax_position_a);
+    % Применяем начальное масштабирование элементов сразу после создания окна
+    try
+        coordsFile = fullfile(fileparts(mfilename('fullpath')), 'signalViewerGUI_coords.json');
+        if exist(coordsFile, 'file')
+            ResizeElements(f, coordsFile, figure_position);
+        end
+    catch ME
+        warning('Ошибка при начальном масштабировании элементов: %s', ME.message);
+    end
+    
+    mainPanel = uipanel('Parent', f, 'Position', getElementPosition('main_panel'), 'Tag', 'main_panel');
+    multiax_position_a = getElementPosition('multiax_position_a');
+    multiax_position_b = getElementPosition('multiax_position_b');
+    multiax = axes('Position', multiax_position_a, 'Tag', 'multiax');
     set(multiax,'TickLabelInterpreter','none')
     
-    sidePanel = uipanel('Parent', f, 'Position', [.72 .33 .27 .63]);
+    sidePanel = uipanel('Parent', f, 'Position', getElementPosition('side_panel'), 'Tag', 'side_panel');
     
     % боковая панель видна по умолчанию (или согласно сохраненным настройкам)
     if ~exist('side_panel_visible', 'var') || isempty(side_panel_visible)
@@ -402,15 +299,17 @@ function EasyView()
                            'ColumnName', {'Channel', 'Enabled', 'Scale', 'Color', 'Line Width'}, ...
                            'ColumnFormat', {'char', 'logical', 'numeric', 'char', 'numeric'}, ...
                            'ColumnEditable', [false true true true true], ...
-                           'Position', channelTable_coords);
+                           'Position', getElementPosition('channel_table'), 'Tag', 'channel_table');
     % Кнопка для загрузки настроек    
-    LoadSettingsBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Load Channel Settings', 'Position', LoadSettingsBtn_coords, 'Callback', @loadSettings);
+    LoadSettingsBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Load Channel Settings', 'Position', getElementPosition('load_settings_btn'), 'Callback', @loadSettings, 'Tag', 'load_settings_btn');
     
     % Панель событий                   
     event_panel_position_a = [.72 .01 .27 .31];
-    eventPanel = uipanel('Parent', f, 'Position', event_panel_position_a);
+    eventPanel = uipanel('Parent', f, 'Position', getElementPosition('event_panel'), 'Tag', 'event_panel');
     
     set(f, 'SizeChangedFcn', @resizeComponents);
+    % Сохраняем настройки после изменения размера окна
+    set(f, 'WindowButtonUpFcn', @(~,~)saveSettings());
     % Настройка обработчика закрытия для фигуры
     set(f, 'CloseRequestFcn', @(src, event)closeAllCallback(src, event));
         
@@ -420,60 +319,58 @@ function EasyView()
     
     % Добавление текстовой метки как заголовка к sidePanel
     EventsTableTitle = uicontrol('Parent', eventPanel, 'Style', 'text', 'String', event_title_string, ...
-              'Position', EventsTableTitle_coords, ...
+              'Position', getElementPosition('events_table_title'), ...
               'HorizontalAlignment', 'left', ...
-              'FontWeight', 'bold'); % Жирный шрифт для заголовка
+              'FontWeight', 'bold', 'Tag', 'events_table_title'); % Жирный шрифт для заголовка
       
     % Добавление слайдера для времени
-    timeSlider = uicontrol('Parent', mainPanel, 'Style', 'slider', 'Position', timeSlider_coords, 'Min', 0, 'Max', 1, 'Value', 0, 'Callback', @timeSliderCallback);
+    timeSlider = uicontrol('Parent', mainPanel, 'Style', 'slider', 'Position', getElementPosition('time_slider'), 'Min', 0, 'Max', 1, 'Value', 0, 'Callback', @timeSliderCallback, 'Tag', 'time_slider');
 
     % Добавление выпадающего списка для выбора единиц времени
     units = {'s', 'ms', 'min'};
-    timeUnitPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', units, 'Position', timeUnitPopup_coords, 'Callback', @changeTimeUnit);
+    timeUnitPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', units, 'Position', getElementPosition('time_unit_popup'), 'Callback', @changeTimeUnit, 'Tag', 'time_unit_popup');
     index = find(strcmp(units, selectedUnit));
     set(timeUnitPopup, 'Value', index);
 
     % Добавление выпадающего списка для выбора режима просмотра
-    timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', {'time', 'stimulus', 'event', 'sweep'}, 'Position', timeCenterPopup_coords, 'Callback', @changeTimeCenter);
+    timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', {'time', 'stimulus', 'event', 'sweep'}, 'Position', getElementPosition('time_center_popup'), 'Callback', @changeTimeCenter, 'Tag', 'time_center_popup');
 
     % Кнопка для загрузки .mat файла
-    LoadMatFileBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Load .mat File (ZAV/Heka)', 'Position', LoadMatFileBtn_coords, 'Callback', @OpenZavLfpFile);
-    btnIcon(LoadMatFileBtn, [icons_path, '\open-file.png'], false) % ставим иконку для кнопки
+    LoadMatFileBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Load .mat File (ZAV/Heka)', 'Position', getElementPosition('load_mat_file_btn'), 'Callback', @OpenZavLfpFile, 'Tag', 'load_mat_file_btn');
     
     % Кнопка для менеджера файлов
-    FMbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'File Manager', 'Position', FMbutton_coords, 'Callback', @fileManagerBtnClb);
-    btnIcon(FMbutton, [icons_path, '\file manager.png'], false) % ставим иконку для кнопки
+    FMbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'File Manager', 'Position', getElementPosition('fm_button'), 'Callback', @fileManagerBtnClb, 'Tag', 'fm_button');
     
     % Поля для выбора временного окна
-    TimeWindowText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', ['Time Window, ' selectedUnit ':'] , 'Position', TimeWindowText_coords);
-    BeforeText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'before', 'Position', BeforeText_coords);
-    AfterText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'after', 'Position', AfterText_coords);
-    timeBackEdit = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', num2str(time_back*timeUnitFactor), 'Position', timeBackEdit_coords, 'Callback', @timeBackEditCallback);
-    timeForwardEdit = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', num2str(time_forward*timeUnitFactor), 'Position', timeForwardEdit_coords, 'Callback', @timeForwardEditCallback);
+    TimeWindowText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', ['Time Window, ' selectedUnit ':'] , 'Position', getElementPosition('time_window_text'), 'Tag', 'time_window_text');
+    BeforeText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'before', 'Position', getElementPosition('before_text'), 'Tag', 'before_text');
+    AfterText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'after', 'Position', getElementPosition('after_text'), 'Tag', 'after_text');
+    timeBackEdit = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', num2str(time_back*timeUnitFactor), 'Position', getElementPosition('time_back_edit'), 'Callback', @timeBackEditCallback, 'Tag', 'time_back_edit');
+    timeForwardEdit = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', num2str(time_forward*timeUnitFactor), 'Position', getElementPosition('time_forward_edit'), 'Callback', @timeForwardEditCallback, 'Tag', 'time_forward_edit');
 
     % Spikes
     % STD
-    stdCoefEdit = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', num2str(std_coef), 'Position', stdCoefEdit_coords, 'Callback', @StdCoefCallback);
-    stdCoefText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'MUA coef:', 'Position', stdCoefText_coords);
+    stdCoefEdit = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', num2str(std_coef), 'Position', getElementPosition('std_coef_edit'), 'Callback', @StdCoefCallback, 'Tag', 'std_coef_edit');
+    stdCoefText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'MUA coef:', 'Position', getElementPosition('std_coef_text'), 'Tag', 'std_coef_text');
     
-    showSpikesButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'MUA', 'Position', showSpikesButton_coords, 'Callback', @ShowSpikesButtonCallback);
-    showCSDbutton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'CSD', 'Position', showCSDbutton_coords, 'Callback', @ShowCSDButtonCallback);
+    showSpikesButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'MUA', 'Position', getElementPosition('show_spikes_button'), 'Callback', @ShowSpikesButtonCallback, 'Tag', 'show_spikes_button');
+    showCSDbutton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'CSD', 'Position', getElementPosition('show_csd_button'), 'Callback', @ShowCSDButtonCallback, 'Tag', 'show_csd_button');
     
-    showPowerButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Power', 'Position', showPowerButton_coords, 'Callback', @ShowPowerButtonCallback);
-    powerWindow = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', num2str(power_window*timeUnitFactor), 'Position', powerWindow_coords, 'Callback', @powerWindowCallback);
-    powerText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', ['Window, ' selectedUnit ':'], 'Position', powerText_coords);
+    showPowerButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Power', 'Position', getElementPosition('show_power_button'), 'Callback', @ShowPowerButtonCallback, 'Tag', 'show_power_button');
+    powerWindow = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', num2str(power_window*timeUnitFactor), 'Position', getElementPosition('power_window'), 'Callback', @powerWindowCallback, 'Tag', 'power_window');
+    powerText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', ['Window, ' selectedUnit ':'], 'Position', getElementPosition('power_text'), 'Tag', 'power_text');
     
     % Кнопки для навигации по времени
-    previousbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Previous', 'Position', previousbutton_coords, 'Callback', {@shiftTime, -1, timeForwardEdit});
-    nextbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Next', 'Position', nextbutton_coords, 'Callback', {@shiftTime, 1, timeForwardEdit});
+    previousbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Previous', 'Position', getElementPosition('previous_button'), 'Callback', {@shiftTime, -1, timeForwardEdit}, 'Tag', 'previous_button');
+    nextbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Next', 'Position', getElementPosition('next_button'), 'Callback', {@shiftTime, 1, timeForwardEdit}, 'Tag', 'next_button');
 
     % Окошко для выбора размера shiftCoeff
-    shiftCoefText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'Ch. Shift:', 'Position', shiftCoefText_coords);
-    shiftCoeffEdit = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', '200', 'Position', shiftCoeffEdit_coords, 'Callback', @shiftCoeffEditCallback);
+    shiftCoefText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'Ch. Shift:', 'Position', getElementPosition('shift_coef_text'), 'Tag', 'shift_coef_text');
+    shiftCoeffEdit = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', '200', 'Position', getElementPosition('shift_coeff_edit'), 'Callback', @shiftCoeffEditCallback, 'Tag', 'shift_coeff_edit');
 
     % Окошко для выбора частоты дискретизации
-    FsText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'Fs:', 'Position', FsText_coords);
-    FsCoeffEdit = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', '1000', 'Position', FsCoeffEdit_coords, 'Callback', @FsCoeffEditCallback);
+    FsText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'Fs:', 'Position', getElementPosition('fs_text'), 'Tag', 'fs_text');
+    FsCoeffEdit = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', '1000', 'Position', getElementPosition('fs_coeff_edit'), 'Callback', @FsCoeffEditCallback, 'Tag', 'fs_coeff_edit');
     
     %% Выпадающие меню
     analysis_functions = {'Auto Event Detection',...
@@ -496,13 +393,13 @@ function EasyView()
     analysis_menu = uicontrol('Style', 'listbox',...
         'String', analysis_functions,...
         'Visible', 'off', ...
-        'Position', analysis_menu_coords,...
-        'Callback', @AnalysisMenuSelectionCallback);
+        'Position', getElementPosition('analysis_menu'),...
+        'Callback', @AnalysisMenuSelectionCallback, 'Tag', 'analysis_menu');
     % Создание кнопки для активации выпадающего списка
     analysisBtn = uicontrol('Style', 'pushbutton', 'String', 'Analysis',...
         'Visible', 'on', ...
-        'Position', analysis_btn_coords,...
-        'Callback', @showAnalysisMenu);       
+        'Position', getElementPosition('analysis_btn'),...
+        'Callback', @showAnalysisMenu, 'Tag', 'analysis_btn');       
     
     % Список действий
     file_functions = {'open ZAV(.mat) file', ...
@@ -522,14 +419,14 @@ function EasyView()
     file_menu = uicontrol('Style', 'listbox',...
         'String', file_functions,...
         'Visible', 'off', ...
-        'Position', file_menu_coords,...
-        'Callback', @FileMenuSelectionCallback);
+        'Position', getElementPosition('file_menu'),...
+        'Callback', @FileMenuSelectionCallback, 'Tag', 'file_menu');
     
     % Создание кнопки для активации выпадающего списка
     fileBtn = uicontrol('Style', 'pushbutton', 'String', 'File',...
         'Visible', 'on', ...
-        'Position', file_btn_coords,...
-        'Callback', @showFileMenu);
+        'Position', getElementPosition('file_btn'),...
+        'Callback', @showFileMenu, 'Tag', 'file_btn');
                 
     view_functions = {'close all windows', ...
         '', ...
@@ -545,14 +442,14 @@ function EasyView()
     view_menu = uicontrol('Style', 'listbox',...
         'String', view_functions,...
         'Visible', 'off', ...
-        'Position', view_menu_coords,...
-        'Callback', @ViewMenuSelectionCallback);
+        'Position', getElementPosition('view_menu'),...
+        'Callback', @ViewMenuSelectionCallback, 'Tag', 'view_menu');
     
     % Создание кнопки для активации выпадающего списка
     viewBtn = uicontrol('Style', 'pushbutton', 'String', 'View',...
         'Visible', 'on', ...
-        'Position', view_btn_coords,...
-        'Callback', @showViewMenu);          
+        'Position', getElementPosition('view_btn'),...
+        'Callback', @showViewMenu, 'Tag', 'view_btn');          
                 
     % Список настроек
     options = {'Manual events settings',...
@@ -575,49 +472,49 @@ function EasyView()
     opt_menu = uicontrol('Style', 'listbox',...
               'String', options,...
               'Visible', 'off', ...
-              'Position', opt_menu_coords,...
-              'Callback', @OptionsSelectionCallback);
+              'Position', getElementPosition('opt_menu'),...
+              'Callback', @OptionsSelectionCallback, 'Tag', 'opt_menu');
     % Создание кнопки для активации выпадающего списка
     OptBtn = uicontrol('Style', 'pushbutton', 'String', 'Options',...
                     'Visible', 'on', ...
-                    'Position', option_btn_coords + [0, 0, 0, 0],...
-                    'Callback', @showMenu);
+                    'Position', getElementPosition('option_btn'),...
+                    'Callback', @showMenu, 'Tag', 'option_btn');
 
                 % Конец выпадающих меню
     %%
     % Таблица для отображения событий с расширенными колонками
     event_table_data = [num2cell([]), num2cell([]), num2cell([]), num2cell([]), num2cell([])];    
     eventTable = uitable('Parent', eventPanel, ...
-                     'Position', eventTable_coords, ...
+                     'Position', getElementPosition('event_table'), ...
                      'ColumnName', {'Time', 'Comment', 'Amplitude', 'Channel', 'Source'}, ...
                      'ColumnFormat', {'bank', 'char', 'bank', 'numeric', 'char'}, ... % Формат для отображения чисел
                      'Data', event_table_data, ...
-                     'ColumnEditable', [false true false false false]);
+                     'ColumnEditable', [false true false false false], 'Tag', 'event_table');
                  
     % Автоматический детектор событий
     AutoEventDetectionBtn = uicontrol('Parent', eventPanel,'Style', 'pushbutton', 'String', 'Auto Event Detection',...
-        'Position', AutoEventDetectionBtn_coords, 'Callback', @openAutoEventDetectionWindow);
+        'Position', getElementPosition('auto_event_detection_btn'), 'Callback', @openAutoEventDetectionWindow, 'Tag', 'auto_event_detection_btn');
     
     % Кнопки и поля для управления событиями    
-    DeleteEventBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Delete Event', 'Position', DeleteEventBtn_coords, 'Callback', @deleteEvent);
-    eventDeleteEdit = uicontrol('Parent', eventPanel, 'Style', 'edit', 'Position', eventDeleteEdit_coords, 'Callback', @eventEdited);
+    DeleteEventBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Delete Event', 'Position', getElementPosition('delete_event_btn'), 'Callback', @deleteEvent, 'Tag', 'delete_event_btn');
+    eventDeleteEdit = uicontrol('Parent', eventPanel, 'Style', 'edit', 'Position', getElementPosition('event_delete_edit'), 'Callback', @eventEdited, 'Tag', 'event_delete_edit');
 
     % Clear Table
-    clearTableBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Clear Table', 'Position', clearTableBtn_coords, 'Callback', @clearTable);
+    clearTableBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Clear Table', 'Position', getElementPosition('clear_table_btn'), 'Callback', @clearTable, 'Tag', 'clear_table_btn');
     
     % Add event
-    eventAdd = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Add Event', 'Position', eventAdd_coords, 'Callback', @addEvent);
+    eventAdd = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Add Event', 'Position', getElementPosition('event_add'), 'Callback', @addEvent, 'Tag', 'event_add');
 
     % Кнопка для сохранения событий
-    saveEventsBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Save Events', 'Position', saveEventsBtn_coords, 'Callback', @saveEvents);
+    saveEventsBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Save Events', 'Position', getElementPosition('save_events_btn'), 'Callback', @saveEvents, 'Tag', 'save_events_btn');
 
     % Кнопка для загрузки событий
-    loadEventsBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Load Events', 'Position', loadEventsBtn_coords, 'Callback', @loadEvents);
+    loadEventsBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Load Events', 'Position', getElementPosition('load_events_btn'), 'Callback', @loadEvents, 'Tag', 'load_events_btn');
 
     % Кнопка и окно ввода для 'Mean Events'
-    MeanEventsBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Mean Events', 'Position', MeanEventsBtn_coords, 'Callback', @meanEventsCallback);
-    meanEventsWindowText = uicontrol('Parent', eventPanel, 'Style', 'text', 'String', 'Window(+/-, s):', 'Position', meanEventsWindowText_coords, 'visible', 'off');
-    meanEventsWindowEdit = uicontrol('Parent', eventPanel, 'Style', 'edit', 'String', '1', 'Position', meanEventsWindowEdit_coords, 'visible', 'off'); % Окно ввода временного окна (скрыл)
+    MeanEventsBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Mean Events', 'Position', getElementPosition('mean_events_btn'), 'Callback', @meanEventsCallback, 'Tag', 'mean_events_btn');
+    meanEventsWindowText = uicontrol('Parent', eventPanel, 'Style', 'text', 'String', 'Window(+/-, s):', 'Position', getElementPosition('mean_events_window_text'), 'visible', 'off', 'Tag', 'mean_events_window_text');
+    meanEventsWindowEdit = uicontrol('Parent', eventPanel, 'Style', 'edit', 'String', '1', 'Position', getElementPosition('mean_events_window_edit'), 'visible', 'off', 'Tag', 'mean_events_window_edit'); % Окно ввода временного окна (скрыл)
     
     % Применяем полное состояние боковой панели после создания всех элементов
     if ~side_panel_visible
@@ -677,23 +574,20 @@ function EasyView()
 %     resizeComponents();
     % Функция, вызываемая при закрытии фигуры
     function closeAllCallback(src, ~)
+        % Сохраняем настройки перед закрытием
+        try
+            saveSettings();
+        catch
+            % Игнорируем ошибки сохранения при закрытии
+        end
+        
         % Закрытие всех фигур
         clear global
-        closeAllButOne(src)
+        % closeAllButOne убрано - теперь это делает главное окно app.m
         delete(src);
     end
 
-    % Закрываем все фигуры, кроме EasyViewer
-    function closeAllButOne(targetFigure)
-        % Получаем массив всех текущих фигур
-        figures = findobj(allchild(0), 'flat', 'Type', 'figure');
-        % Перебираем все фигуры и закрываем те, которые не совпадают с целевой
-        for i = 1:length(figures)
-            if figures(i) ~= targetFigure
-                close(figures(i));
-            end
-        end
-    end
+    % Функция closeAllButOne убрана - теперь это делает главное окно app.m
 
     % Callback для сброса параметров
     function resetParametersCallback(~, ~)
@@ -865,7 +759,7 @@ function EasyView()
         switch selectedOption
             case view_functions{1}
                 % закрыть все окна кроме основного
-                closeAllButOne(f);
+                % Убрано - теперь это делает главное окно app.m
             case view_functions{3}
                 % показывать или скрывать боковую панель
                 showHideSidePanel();
@@ -910,7 +804,7 @@ function EasyView()
             case options{13}%'Reset record''s settings'
                 resetRecordSettings();
             case options{15}
-                groupSettingsEditor();
+                settingsEditor();
             case ''
             dont_close_menu = true;
         end
@@ -1051,68 +945,19 @@ function EasyView()
     end
 
     function resizeComponents(~, ~)
-        
-        % сбрасываем изменения боковой панели
-        showSidePanel();
-        
-        % Получение текущего размера фигуры
-        pos = get(f, 'Position');
-        scaleX = pos(3) / figure_position(3);
-        scaleY = pos(4) / figure_position(4);
-        scaling_matrix = [scaleX, scaleY, scaleX, scaleY];
-
-        
-        
-        set(opt_menu, 'Position', opt_menu_coords .*scaling_matrix);
-        set(file_menu, 'Position', file_menu_coords .*scaling_matrix);
-        set(view_menu, 'Position', view_menu_coords .*scaling_matrix);
-        set(analysis_menu, 'Position', analysis_menu_coords .*scaling_matrix);  
-        
-        set(OptBtn, 'Position', option_btn_coords .*scaling_matrix);
-        set(fileBtn, 'Position', file_btn_coords .*scaling_matrix);        
-        set(viewBtn, 'Position', view_btn_coords .*scaling_matrix);
-        set(analysisBtn, 'Position', analysis_btn_coords .*scaling_matrix);
-        
-        set(saveEventsBtn, 'Position', saveEventsBtn_coords .* scaling_matrix);
-        set(loadEventsBtn, 'Position', loadEventsBtn_coords .* scaling_matrix);
-        set(eventAdd, 'Position', eventAdd_coords .* scaling_matrix);
-        set(channelTable, 'Position', channelTable_coords .* scaling_matrix);
-        set(timeSlider, 'Position', timeSlider_coords .* scaling_matrix);
-        set(timeUnitPopup, 'Position', timeUnitPopup_coords .* scaling_matrix);
-        set(timeCenterPopup, 'Position', timeCenterPopup_coords .* scaling_matrix);
-        set(FMbutton, 'Position', FMbutton_coords .* scaling_matrix);
-        set(timeBackEdit, 'Position', timeBackEdit_coords .* scaling_matrix);
-        set(timeForwardEdit, 'Position', timeForwardEdit_coords .* scaling_matrix);
-        set(stdCoefEdit, 'Position', stdCoefEdit_coords .* scaling_matrix);
-        
-        set(powerWindow, 'Position', powerWindow_coords .* scaling_matrix);
-        set(powerText, 'Position', powerText_coords .* scaling_matrix);
-        
-        set(showSpikesButton, 'Position', showSpikesButton_coords .* scaling_matrix);
-        set(showPowerButton, 'Position', showPowerButton_coords .* scaling_matrix);        
-        set(showCSDbutton, 'Position', showCSDbutton_coords .* scaling_matrix);
-        
-        set(previousbutton, 'Position', previousbutton_coords .* scaling_matrix);
-        set(nextbutton, 'Position', nextbutton_coords .* scaling_matrix);
-        set(eventTable, 'Position', eventTable_coords .* scaling_matrix);
-        set(LoadSettingsBtn, 'Position', LoadSettingsBtn_coords .* scaling_matrix);
-        set(eventDeleteEdit, 'Position', eventDeleteEdit_coords .* scaling_matrix);
-        set(shiftCoeffEdit, 'Position', shiftCoeffEdit_coords .* scaling_matrix);
-        set(FsCoeffEdit, 'Position', FsCoeffEdit_coords .* scaling_matrix);
-        set(meanEventsWindowEdit, 'Position', meanEventsWindowEdit_coords .* scaling_matrix);
-        set(meanEventsWindowText, 'Position', meanEventsWindowText_coords .* scaling_matrix);
-        set(clearTableBtn, 'Position', clearTableBtn_coords .* scaling_matrix);
-        set(MeanEventsBtn, 'Position', MeanEventsBtn_coords .* scaling_matrix);
-        set(AutoEventDetectionBtn, 'Position', AutoEventDetectionBtn_coords .* scaling_matrix);        
-        set(DeleteEventBtn, 'Position', DeleteEventBtn_coords .* scaling_matrix);
-        set(FsText, 'Position', FsText_coords .* scaling_matrix);
-        set(shiftCoefText, 'Position', shiftCoefText_coords .* scaling_matrix);
-        set(stdCoefText, 'Position', stdCoefText_coords .* scaling_matrix);
-        set(EventsTableTitle, 'Position', EventsTableTitle_coords .* scaling_matrix);
-        set(LoadMatFileBtn, 'Position', LoadMatFileBtn_coords .* scaling_matrix);
-        set(TimeWindowText, 'Position', TimeWindowText_coords .* scaling_matrix);
-        set(BeforeText, 'Position', BeforeText_coords .* scaling_matrix);
-        set(AfterText, 'Position', AfterText_coords .* scaling_matrix);
+        try
+            % сбрасываем изменения боковой панели
+            showSidePanel();
+            
+            % Путь к файлу координат
+            coordsFile = fullfile(fileparts(mfilename('fullpath')), 'signalViewerGUI_coords.json');
+            
+            % Используем глобальную переменную figure_position как базовую позицию
+            % для правильного вычисления коэффициентов масштабирования
+            ResizeElements(f, coordsFile, figure_position);
+        catch ME
+            warning('Ошибка при масштабировании элементов: %s', ME.message);
+        end
     end
 
 
@@ -1163,7 +1008,7 @@ function EasyView()
     function shiftCoeffEditCallback(src, ~)
         newShiftCoeff = str2double(get(src, 'String'));
         if isnan(newShiftCoeff) || newShiftCoeff <= 0
-            uiwait(errordlg('Invalid Shift Coeff Value'));
+            fprintf('Invalid Shift Coeff Value\n');
             return;
         end
         shiftCoeff = newShiftCoeff;
@@ -1174,7 +1019,7 @@ function EasyView()
     function FsCoeffEditCallback(src, ~)
         newFsCoeff = str2double(get(src, 'String'));
         if isnan(newFsCoeff) || newFsCoeff <= 0
-            uiwait(errordlg('Invalid Fs Value'));
+            fprintf('Invalid Fs Value\n');
             return;
         end
         newFs = newFsCoeff;
@@ -1223,7 +1068,7 @@ function EasyView()
         windowSize = str2double(get(src, 'String'))/timeUnitFactor;% time_forward - в секундах
         time_forward = windowSize;
         if isnan(windowSize) || windowSize <= 0
-            uiwait(errordlg('Invalid time window size.'));
+            fprintf('Invalid time window size.\n');
             return;
         end
                 
@@ -1344,37 +1189,6 @@ function EasyView()
                 % Обычное время
                 set(timeSlider, 'Max', time(end));
                 set(timeSlider, 'Min', time(1));
-        end
-    end
-    % Функция сохранения настроек каналов
-    function saveChannelSettings()
-        if exist(matFilePath, 'file') == 2
-            % если мат файл существует, 
-            % это не просто промежуточные варианты, как ICA,
-            % то сохранять настройки
-
-            [path, name, ~] = fileparts(matFilePath);
-            channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
-            channelSettings = get(channelTable, 'Data');
-            save(channelSettingsFilePath, ...
-                'channelSettings', ...% для версии начиная с 1.10.00 не актуален как хранитель данных
-                'newFs', ...
-                'shiftCoeff', ...
-                'time_forward', ...
-                'time_back', ...
-                'filterSettings', ...
-                'csd_smooth_coef', ...
-                'csd_contrast_coef', ...
-                'channelNames', ...% (*) - начиная с 1.10.00 заменяет собой channelSettings
-                'channelEnabled', ...%(*)
-                'scalingCoefficients', ...%(*)
-                'colorsIn', ...%(*)
-                'lineCoefficients', ...%(*)
-                'mean_group_ch', ...%(*)
-                'csd_avaliable', ...%(*)
-                'filter_avaliable', ...
-                'stims', ...% сохраняем смещенные стимулы
-                'EV_version');%(*)
         end
     end
     
@@ -1924,7 +1738,7 @@ end
     function resetRecordSettings()
         % Функция для сброса настроек записи к значениям по умолчанию
         if ~data_loaded
-            uiwait(errordlg('No data loaded. Please load a MAT file first.'));
+            fprintf('No data loaded. Please load a MAT file first.\n');
             return;
         end
         
@@ -1985,7 +1799,7 @@ end
                 updatePlot();
                 
                 % Уведомление пользователя
-                msgbox('Channel settings have been reset to default values.', 'Settings Reset', 'help');
+                fprintf('Channel settings have been reset to default values.\n');
                 
             case 'No'
                 % Пользователь отменил операцию
@@ -2343,7 +2157,7 @@ function loadEvents(~, ~)
         
 %         updatePlot(); Уже обновили график когда вызывали timeForwardEditCallback
     else
-        uiwait(errordlg('No events found in the file.'));
+        fprintf('No events found in the file.\n');
     end
 end
 
@@ -2455,7 +2269,7 @@ end
             end
         else
             % Dialog box to inform the user that the latest version is already installed
-            msgbox('The latest version is already installed.', 'No Update Required', 'warn');
+            fprintf('The latest version is already installed.\n');
         end
     end
 

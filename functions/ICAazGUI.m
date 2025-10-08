@@ -93,15 +93,15 @@ end
         
         % Validate inputs
         if isnan(r) || r <= 0
-            errordlg('Please enter a valid number for components (r).', 'Input Error');
+            fprintf('Please enter a valid number for components (r).\n');
             return;
         end
         if isnan(maxIter) || maxIter <= 0
-            errordlg('Please enter a valid number for max iterations.', 'Input Error');
+            fprintf('Please enter a valid number for max iterations.\n');
             return;
         end
         if isnan(tol) || tol <= 0
-            errordlg('Please enter a valid number for convergence tolerance.', 'Input Error');
+            fprintf('Please enter a valid number for convergence tolerance.\n');
             return;
         end
         
@@ -199,7 +199,7 @@ end
             close(fig)
         catch e
             % Display error message if fastICA fails
-            errordlg(['Error during fastICA: ' e.message], 'fastICA Error');
+            fprintf('Error during fastICA: %s\n', e.message);
         end
     end
 end

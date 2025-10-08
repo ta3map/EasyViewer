@@ -71,7 +71,7 @@ function fileManagerGUI()
                 set(fig, 'Name', ['File Manager: ' filename, ext]);
             end
         catch ME
-            errordlg('Failed to load list.', 'Error');
+            fprintf('Failed to load list.\n');
             disp(ME)
         end
     end
@@ -133,7 +133,7 @@ function fileManagerGUI()
                     
                 end
             catch ME
-                errordlg('Failed to load file.', 'Error');
+                fprintf('Failed to load file.\n');
                 disp(ME)
             end
         end
@@ -146,7 +146,7 @@ function fileManagerGUI()
                 T = cell2table(t.Data, 'VariableNames', data.Properties.VariableNames);
                 writetable(T, fullfile(path, file));
             catch
-                errordlg('Failed to save file.', 'Error');
+                fprintf('Failed to save file.\n');
             end
         end
     end
@@ -170,7 +170,7 @@ function fileManagerGUI()
                     disp(file2open)                    
                 end    
                 
-                wb = msgbox('Please wait...', 'Status');   
+                fprintf('Please wait...\n');   
                 outside_calling_filepath = file2open;
                 switch ext                    
                     case '.ev'
@@ -185,7 +185,7 @@ function fileManagerGUI()
                 close(wb)
                 
             catch ME
-                errordlg('Failed to open file.', 'Error');
+                fprintf('Failed to open file.\n');
                 disp(ME)
             end
         end

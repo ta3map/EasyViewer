@@ -85,8 +85,25 @@ function optionsRemovalArtifactsGUI()
         % отправляем в глобальную переменную
         art_rem_window_ms = window_ms;
         
-        % сохраняем фактор в глобальные настройки              
-        save(SettingsFilepath, 'art_rem_window_ms', '-append');
+        % сохраняем фактор в глобальные настройки
+        try
+            if exist(SettingsFilepath, 'file')
+                save(SettingsFilepath, 'art_rem_window_ms', '-append');
+            else
+                % Если файл не существует, создаем его с базовыми настройками
+                initializeDefaultSettings();
+                save(SettingsFilepath, 'art_rem_window_ms', '-append');
+            end
+        catch ME
+            warning('Error saving settings: %s', ME.message);
+            % Создаем файл заново если не удалось сохранить
+            try
+                initializeDefaultSettings();
+                save(SettingsFilepath, 'art_rem_window_ms', '-append');
+            catch ME2
+                fprintf('Error saving settings: %s\n', ME2.message);
+            end
+        end
         
         % Обновляем график в signalAnalysisGUI если он открыт
         if ~isempty(updateAnalysisPlotFunc_global)

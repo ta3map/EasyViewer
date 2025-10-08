@@ -7,7 +7,7 @@ function editStimulusTimesGUI()
 
     % Check if stims exist
     if isempty(stims)
-        errordlg('No stimulus times available to shift.', 'Error');
+        fprintf('No stimulus times available to shift.\n');
         return;
     end
 
@@ -102,7 +102,7 @@ function editStimulusTimesGUI()
         selectedIndices = find(selectedMask);
         
         if isempty(selectedIndices)
-            errordlg('No stimuli selected for deletion.', 'Error');
+            fprintf('No stimuli selected for deletion.\n');
             return;
         end
         
@@ -159,7 +159,7 @@ function editStimulusTimesGUI()
         tableData = get(stimTable, 'Data');
         
         if isempty(tableData)
-            errordlg('No stimulus times to apply.', 'Error');
+            fprintf('No stimulus times to apply.\n');
             return;
         end
         
@@ -168,7 +168,7 @@ function editStimulusTimesGUI()
         
         % Validate times (must be non-negative)
         if any(newStimTimes < 0)
-            errordlg('Stimulus times cannot be negative.', 'Error');
+            fprintf('Stimulus times cannot be negative.\n');
             return;
         end
         

@@ -84,7 +84,7 @@ function eventCrossCorrelationGUI()
         xAxisUnit = get(xAxisPopup, 'Value');
 
         if isempty(events1) || isempty(events2)
-            errordlg('Please load both event files.', 'File Load Error');
+            fprintf('Please load both event files.\n');
             return;
         end
 

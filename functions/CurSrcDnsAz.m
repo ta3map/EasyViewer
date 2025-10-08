@@ -1,7 +1,7 @@
 function [csd, newtrange, newchrange] = CurSrcDnsAz(eeg, varargin)
     
 if size(eeg, 2) < 4
-     errordlg('Error: At least 4 channels are required to compute CSD.', 'CSD Error');
+     fprintf('Error: At least 4 channels are required to compute CSD.\n');
 else
     method = 1;
     % Input parameters parsing and setting defaults

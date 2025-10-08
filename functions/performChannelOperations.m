@@ -111,7 +111,7 @@ function performChannelOperations()
                 case 'A / B'
                     resultData{i} = dataA{i} ./ dataB{i};
                 otherwise
-                    errordlg('Invalid operation selected.');
+                    fprintf('Invalid operation selected.\n');
                     return;
             end
         end
@@ -178,7 +178,7 @@ function performChannelOperations()
         % Update plot
         updatePlot()
         % Notify user
-        msgbox('Operation completed.', 'Success');
+        fprintf('Operation completed.\n');
         % Закрываем окно GUI после успешной конвертации
         close(fig);
     end

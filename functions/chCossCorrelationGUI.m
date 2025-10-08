@@ -56,7 +56,7 @@ function chCossCorrelationGUI()
         xAxisUnit = get(xAxisPopup, 'Value');
         
         if isempty(selectedChannels1) || isempty(selectedChannels2)
-            errordlg('Please select channels from both groups.', 'Selection Error');
+            fprintf('Please select channels from both groups.\n');
             return;
         end
 

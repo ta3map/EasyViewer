@@ -56,7 +56,7 @@ function setupMeanEventsGUI()
         if isnan(newVal)
             % If conversion fails, revert to the previous value and show an error dialog
             set(src, 'String', num2str(t_mean_profile, '%.2f'));
-            errordlg('Please enter a valid number', 'Invalid Input');
+            fprintf('Please enter a valid number\n');
         else
             t_mean_profile = newVal;
         end

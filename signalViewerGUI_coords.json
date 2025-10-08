@@ -1,0 +1,64 @@
+{
+  "base_figure_position": [16, 48, 1024, 520],
+  "elements": {
+    "main_panel": [0.01, 0.01, 0.7, 0.13],
+    "side_panel": [0.72, 0.33, 0.27, 0.63],
+    "event_panel": [0.72, 0.01, 0.27, 0.31],
+    "multiax_position_a": [0.07, 0.2, 0.63, 0.74],
+    "multiax_position_b": [0.07, 0.2, 0.9, 0.74],
+    
+    "file_menu": [3, 528, 150, 100],
+    "file_btn": [3, 628, 150, 20],
+    "view_menu": [153, 528, 150, 100],
+    "view_btn": [153, 628, 150, 20],
+    "opt_menu": [303, 528, 150, 100],
+    "option_btn": [303, 628, 150, 20],
+    "analysis_menu": [453, 528, 150, 100],
+    "analysis_btn": [453, 628, 150, 20],
+    
+    "channel_table": [10, 27, 300, 370],
+    "load_settings_btn": [10, 5, 120, 20],
+    
+    "events_table_title": [10, 177, 200, 20],
+    "save_events_btn": [270, 140, 70, 30],
+    "load_events_btn": [270, 110, 70, 30],
+    "event_add": [10, 10, 80, 30],
+    "event_delete_edit": [100, 10, 50, 30],
+    "event_table": [10, 50, 250, 127],
+    "mean_events_window_edit": [285, 48, 40, 20],
+    "mean_events_window_text": [265, 60, 80, 20],
+    "mean_events_btn": [270, 80, 70, 30],
+    "clear_table_btn": [270, 10, 70, 30],
+    "auto_event_detection_btn": [220, 178, 120, 20],
+    "delete_event_btn": [150, 10, 80, 30],
+    
+    "time_slider": [300, 50, 220, 15],
+    "time_unit_popup": [540, 35, 50, 30],
+    "time_center_popup": [540, 10, 50, 30],
+    "fm_button": [10, 10, 120, 30],
+    "time_back_edit": [165, 10, 50, 30],
+    "time_forward_edit": [220, 10, 50, 30],
+    
+    "show_csd_button": [720, 55, 50, 30],
+    "show_spikes_button": [775, 55, 50, 30],
+    "std_coef_edit": [775, 5, 40, 30],
+    "std_coef_text": [755, 35, 80, 15],
+    
+    "show_power_button": [840, 55, 50, 30],
+    "power_window": [840, 5, 40, 30],
+    "power_text": [815, 35, 90, 15],
+    
+    "previous_button": [305, 10, 100, 30],
+    "next_button": [415, 10, 100, 30],
+    
+    "shift_coeff_edit": [650, 10, 50, 30],
+    "fs_coeff_edit": [650, 50, 50, 30],
+    "fs_text": [600, 43, 80, 30],
+    "shift_coef_text": [598, 3, 60, 30],
+    
+    "load_mat_file_btn": [10, 40, 120, 30],
+    "time_window_text": [165, 42, 100, 30],
+    "before_text": [165, 27, 50, 30],
+    "after_text": [220, 27, 50, 30]
+  }
+}

@@ -317,7 +317,7 @@ function autoEventDetectionGUI()
         % Проверяем что переменные с результатами детекции существуют
         if ~exist('amplitudes_detected', 'var') || ~exist('channels_detected', 'var') || ...
            ~exist('widths_detected', 'var') || ~exist('metadata_detected', 'var')
-            uiwait(errordlg('Please run "Check Detection" first before applying results.', 'Detection Required'));
+            fprintf('Please run "Check Detection" first before applying results.\n');
             return;
         end
         
@@ -412,7 +412,7 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     global stims_exist stims time
     
     data_in = lfp;
-    wb = msgbox('Please wait...', 'Status');
+    fprintf('Please wait...\n');
     
     % Распаковка параметров из структуры
     DetectionType = params.DetectionType;
@@ -440,7 +440,7 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
             data_in(:, ch_to_filter) = applyFilter(data_in(:, ch_to_filter), filterSettings, newFs);        
         end
     catch ME
-        uiwait(errordlg(['An error occurred: ', ME.message], 'Error'));
+        fprintf('An error occurred: %s\n', ME.message);
     end
     
 

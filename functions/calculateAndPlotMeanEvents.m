@@ -1,5 +1,5 @@
 function calculateAndPlotMeanEvents()
-wb = msgbox('Please wait...', 'Status');
+fprintf('Please wait...\n');
 % Инициализация переменных
 global Fs N time ch_inxs  
 global shiftCoeff
