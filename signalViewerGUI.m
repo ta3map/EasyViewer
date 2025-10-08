@@ -1,4 +1,9 @@
-function signalViewerGUI()
+function signalViewerGUI(editMode)
+    % Проверяем режим редактирования
+    if nargin < 1
+        editMode = 'normal';
+    end
+    
     % Загружаем глобальные настройки (включая инициализацию по умолчанию)
     loadGlobalSettings();
     
@@ -580,6 +585,15 @@ function signalViewerGUI()
             saveSettings();
         catch
             % Игнорируем ошибки сохранения при закрытии
+        end
+        
+        % Если был режим редактирования - обновляем координаты
+        if strcmp(editMode, 'edit')
+            try
+                update_coords(coordsFile, f);
+            catch ME
+                warning('Ошибка при обновлении координат: %s', ME.message);
+            end
         end
         
         % Закрытие всех фигур
@@ -2271,6 +2285,11 @@ end
             % Dialog box to inform the user that the latest version is already installed
             fprintf('The latest version is already installed.\n');
         end
+    end
+
+    % Режим редактирования координат
+    if strcmp(editMode, 'edit')
+        inspect(f);
     end
 
 end

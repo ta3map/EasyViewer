@@ -1,67 +1,382 @@
 {
-  "base_figure_position": [100, 100, 1600, 900],
+  "base_figure_position": [
+    100,
+    100,
+    1600,
+    900
+  ],
   "elements": {
-    "channel_label": [20, 600, 100, 20],
-    "channel_popup": [120, 600, 150, 25],
-    "polarity_label": [20, 530, 100, 20],
-    "polarity_popup": [120, 530, 100, 25],
-    "slope_percent_label": [20, 500, 100, 20],
-    "slope_percent_edit": [120, 500, 60, 25],
-    "slope_percent_unit": [185, 500, 20, 20],
-    "onset_method_label": [20, 420, 100, 20],
-    "onset_method_popup": [120, 420, 120, 25],
-    "onset_threshold_label": [20, 390, 100, 20],
-    "onset_threshold_edit": [120, 390, 60, 25],
-    "onset_threshold_unit": [185, 390, 20, 20],
-    "baseline_separator": [20, 410, 250, 20],
-    "baseline_start_label": [20, 380, 100, 20],
-    "baseline_start_edit": [120, 380, 80, 25],
-    "baseline_start_unit": [205, 380, 20, 20],
-    "baseline_end_label": [20, 350, 100, 20],
-    "baseline_end_edit": [120, 350, 80, 25],
-    "baseline_end_unit": [205, 350, 20, 20],
-    "peak_separator": [20, 320, 250, 20],
-    "peak_start_label": [20, 290, 100, 20],
-    "peak_start_edit": [120, 290, 80, 25],
-    "peak_start_unit": [205, 290, 20, 20],
-    "peak_end_label": [20, 260, 100, 20],
-    "peak_end_edit": [120, 260, 80, 25],
-    "peak_end_unit": [205, 260, 20, 20],
-    "results_separator": [20, 230, 250, 20],
-    "baseline_text": [80, 205, 100, 20],
-    "baseline_checkbox": [145, 205, 20, 20],
-    "peak_text": [80, 185, 100, 20],
-    "peak_checkbox": [145, 185, 20, 20],
-    "slope_text": [80, 165, 100, 20],
-    "slope_checkbox": [145, 165, 20, 20],
-    "onset_text": [80, 145, 100, 20],
-    "onset_checkbox": [145, 145, 20, 20],
-    "navigation_separator": [20, 105, 250, 20],
-    "navigation_status": [20, 65, 250, 20],
-    "prev_btn": [600, 5, 70, 25],
-    "next_btn": [675, 5, 70, 25],
-    "auto_measure_btn": [950, 5, 100, 25],
-    "add_btn": [1040, 500, 70, 25],
-    "remove_btn": [1040, 470, 70, 25],
-    "replace_btn": [1040, 440, 70, 25],
-    "mean_results_btn": [1040, 400, 70, 25],
-    "open_file_btn": [20, 720, 70, 25],
-    "settings_btn": [100, 720, 100, 25],
-    "artifact_removal_btn": [210, 720, 100, 25],
-    "results_table": [1135, 110, 460, 380],
-    "current_results_table": [1135, 520, 460, 60],
-    "average_table": [1135, 15, 460, 60],
-    "results_table_separator": [1135, 90, 460, 20],
-    "current_results_table_separator": [1135, 500, 460, 20],
-    "average_table_separator": [1135, 5, 460, 20],
-    "plot_container": [0.22, 0.15, 0.483, 0.75],
-    "main_axes": [0.1, 0.1, 0.8, 0.8],
-    "zoom_btn": [330, 650, 70, 25],
-    "autoscale_btn": [410, 650, 70, 25],
-    "clear_table_btn": [1500, 490, 70, 25],
-    "load_btn": [1040, 270, 70, 25],
-    "collect_all_btn": [1040, 300, 70, 25],
-    "save_btn": [1040, 240, 70, 25],
-    "save_image_btn": [1040, 210, 70, 25]
+    "channel_label": [
+      23,
+      766,
+      100,
+      20
+    ],
+    "channel_popup": [
+      96,
+      764,
+      150,
+      25
+    ],
+    "polarity_label": [
+      20,
+      726,
+      100,
+      20
+    ],
+    "polarity_popup": [
+      120,
+      726,
+      100,
+      25
+    ],
+    "slope_percent_label": [
+      20,
+      696,
+      100,
+      20
+    ],
+    "slope_percent_edit": [
+      120,
+      696,
+      60,
+      25
+    ],
+    "slope_percent_unit": [
+      185,
+      696,
+      20,
+      20
+    ],
+    "onset_method_label": [
+      20,
+      420,
+      100,
+      20
+    ],
+    "onset_method_popup": [
+      120,
+      420,
+      120,
+      25
+    ],
+    "onset_threshold_label": [
+      20,
+      390,
+      100,
+      20
+    ],
+    "onset_threshold_edit": [
+      120,
+      390,
+      60,
+      25
+    ],
+    "onset_threshold_unit": [
+      185,
+      390,
+      20,
+      20
+    ],
+    "baseline_separator": [
+      16,
+      637,
+      250,
+      20
+    ],
+    "baseline_start_label": [
+      16,
+      607,
+      100,
+      20
+    ],
+    "baseline_start_edit": [
+      116,
+      607,
+      80,
+      25
+    ],
+    "baseline_start_unit": [
+      201,
+      607,
+      20,
+      20
+    ],
+    "baseline_end_label": [
+      16,
+      577,
+      100,
+      20
+    ],
+    "baseline_end_edit": [
+      116,
+      577,
+      80,
+      25
+    ],
+    "baseline_end_unit": [
+      201,
+      577,
+      20,
+      20
+    ],
+    "peak_separator": [
+      -9,
+      508,
+      250,
+      20
+    ],
+    "peak_start_label": [
+      17,
+      464,
+      100,
+      18
+    ],
+    "peak_start_edit": [
+      117,
+      464,
+      81,
+      25
+    ],
+    "peak_start_unit": [
+      202,
+      464,
+      20,
+      20
+    ],
+    "peak_end_label": [
+      17,
+      434,
+      100,
+      20
+    ],
+    "peak_end_edit": [
+      117,
+      434,
+      80,
+      25
+    ],
+    "peak_end_unit": [
+      202,
+      434,
+      20,
+      20
+    ],
+    "results_separator": [
+      3,
+      371,
+      250,
+      20
+    ],
+    "baseline_text": [
+      63,
+      346,
+      100,
+      20
+    ],
+    "baseline_checkbox": [
+      145,
+      349,
+      23,
+      18
+    ],
+    "peak_text": [
+      63,
+      326,
+      100,
+      20
+    ],
+    "peak_checkbox": [
+      145,
+      327,
+      20,
+      20
+    ],
+    "slope_text": [
+      63,
+      306,
+      100,
+      20
+    ],
+    "slope_checkbox": [
+      145,
+      307,
+      20,
+      20
+    ],
+    "onset_text": [
+      63,
+      286,
+      100,
+      20
+    ],
+    "onset_checkbox": [
+      145,
+      287,
+      20,
+      20
+    ],
+    "navigation_separator": [
+      22,
+      112,
+      250,
+      20
+    ],
+    "navigation_status": [
+      45,
+      22,
+      201,
+      64
+    ],
+    "prev_btn": [
+      472,
+      19,
+      214,
+      77
+    ],
+    "next_btn": [
+      716,
+      21,
+      224,
+      77
+    ],
+    "auto_measure_btn": [
+      988,
+      21,
+      113,
+      76
+    ],
+    "add_btn": [
+      1045,
+      707,
+      70,
+      25
+    ],
+    "remove_btn": [
+      1044,
+      677,
+      70,
+      25
+    ],
+    "replace_btn": [
+      1044,
+      647,
+      70,
+      25
+    ],
+    "mean_results_btn": [
+      1044,
+      608,
+      70,
+      25
+    ],
+    "open_file_btn": [
+      20,
+      827,
+      83,
+      57
+    ],
+    "settings_btn": [
+      136,
+      825,
+      100,
+      59
+    ],
+    "artifact_removal_btn": [
+      210,
+      720,
+      100,
+      25
+    ],
+    "results_table": [
+      1123,
+      163,
+      460,
+      569
+    ],
+    "current_results_table": [
+      1122,
+      804,
+      460,
+      60
+    ],
+    "average_table": [
+      1125,
+      24,
+      460,
+      75
+    ],
+    "results_table_separator": [
+      1124,
+      736,
+      460,
+      20
+    ],
+    "current_results_table_separator": [
+      1126,
+      867,
+      460,
+      20
+    ],
+    "average_table_separator": [
+      1123,
+      104,
+      460,
+      20
+    ],
+    "plot_container": [
+      0.174375,
+      0.12999999999999998,
+      0.52500000000000013,
+      0.85555555555555551
+    ],
+    "main_axes": [
+      0.1,
+      0.078328981723237615,
+      0.8,
+      0.82167101827676248
+    ],
+    "zoom_btn": [
+      293,
+      829,
+      77,
+      49
+    ],
+    "autoscale_btn": [
+      379,
+      829,
+      73,
+      49
+    ],
+    "clear_table_btn": [
+      1506,
+      745,
+      76,
+      53
+    ],
+    "load_btn": [
+      1044,
+      478,
+      70,
+      25
+    ],
+    "collect_all_btn": [
+      1044,
+      508,
+      70,
+      25
+    ],
+    "save_btn": [
+      1045,
+      449,
+      70,
+      25
+    ],
+    "save_image_btn": [
+      1041,
+      200,
+      74,
+      58
+    ]
   }
 }

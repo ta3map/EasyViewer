@@ -1,4 +1,9 @@
-function signalAnalysisGUI()
+function signalAnalysisGUI(editMode)
+    % Проверяем режим редактирования
+    if nargin < 1
+        editMode = 'normal';
+    end
+    
     % Загружаем глобальные настройки (включая инициализацию по умолчанию)
     loadGlobalSettings();
     
@@ -405,22 +410,6 @@ end
     hAutoMeasureBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Auto Measure All', ...
         'Position', getElementPosition('auto_measure_btn'), 'Callback', @autoMeasureAllTimeRanges, 'Tag', 'auto_measure_btn');
     
-    % Кнопка добавления результата
-    hAddBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Add', ...
-        'Position', getElementPosition('add_btn'), 'Callback', @addResult, 'Tag', 'add_btn');
-    
-    % Кнопка удаления результата
-    hRemoveBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Remove', ...
-        'Position', getElementPosition('remove_btn'), 'Callback', @removeResult, 'Tag', 'remove_btn');
-    
-    % Кнопка замены результата
-    hReplaceBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Replace', ...
-        'Position', getElementPosition('replace_btn'), 'Callback', @replaceResult, 'Enable', 'off', 'Tag', 'replace_btn');
-    
-    % Кнопка просмотра среднего сигнала
-    hMeanResultsBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Av. Trace', ...
-        'Position', getElementPosition('mean_results_btn'), 'Callback', @toggleMeanResults, 'Enable', 'off', 'Tag', 'mean_results_btn');
-    
     % Кнопка открытия файла
     uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Open File', ...
         'Position', getElementPosition('open_file_btn'), 'Callback', @openFile, 'Tag', 'open_file_btn');
@@ -428,25 +417,6 @@ end
     % Кнопка групповых настроек
     uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Settings', ...
         'Position', getElementPosition('settings_btn'), 'Callback', @openGroupSettingsEditor, 'Tag', 'settings_btn');
-    
-    
-    % Кнопка загрузки результатов
-    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Load', ...
-        'Position', getElementPosition('load_btn'), 'Callback', @loadResults, 'Tag', 'load_btn');
-    
-    % Кнопка сбора всех метаданных
-    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Collect All', ...
-        'Position', getElementPosition('collect_all_btn'), 'Callback', @collectAllMetadata, 'Tag', 'collect_all_btn');
-    
-
-    
-    % Кнопка сохранения результатов
-uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save', ...
-    'Position', getElementPosition('save_btn'), 'Callback', @saveResults, 'Tag', 'save_btn');
-
-% Кнопка сохранения изображения
-uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
-    'Position', getElementPosition('save_image_btn'), 'Callback', @saveImage, 'Tag', 'save_image_btn');
     
  
         
@@ -469,6 +439,39 @@ uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
     % Кнопка Autoscale для применения оптимальных размеров осей
     hAutoscaleButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Autoscale', ...
         'Position', getElementPosition('autoscale_btn'), 'Callback', @applyAutoscale, 'Tag', 'autoscale_btn');
+
+    % === Кнопки управления трассами (поверх графика) ===
+    % Кнопка добавления результата
+    hAddBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Add', ...
+        'Position', getElementPosition('add_btn'), 'Callback', @addResult, 'Tag', 'add_btn');
+    
+    % Кнопка удаления результата
+    hRemoveBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Remove', ...
+        'Position', getElementPosition('remove_btn'), 'Callback', @removeResult, 'Tag', 'remove_btn');
+    
+    % Кнопка замены результата
+    hReplaceBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Replace', ...
+        'Position', getElementPosition('replace_btn'), 'Callback', @replaceResult, 'Enable', 'off', 'Tag', 'replace_btn');
+    
+    % Кнопка просмотра среднего сигнала
+    hMeanResultsBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Av. Trace', ...
+        'Position', getElementPosition('mean_results_btn'), 'Callback', @toggleMeanResults, 'Enable', 'off', 'Tag', 'mean_results_btn');
+    
+    % Кнопка сбора всех метаданных
+    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Collect All', ...
+        'Position', getElementPosition('collect_all_btn'), 'Callback', @collectAllMetadata, 'Tag', 'collect_all_btn');
+    
+    % Кнопка загрузки результатов
+    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Load', ...
+        'Position', getElementPosition('load_btn'), 'Callback', @loadResults, 'Tag', 'load_btn');
+    
+    % Кнопка сохранения результатов
+    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save', ...
+        'Position', getElementPosition('save_btn'), 'Callback', @saveResults, 'Tag', 'save_btn');
+    
+    % Кнопка сохранения изображения
+    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
+        'Position', getElementPosition('save_image_btn'), 'Callback', @saveImage, 'Tag', 'save_image_btn');
 
     % === Таблица текущих результатов ===
     % Разделитель таблицы текущих результатов
@@ -4074,8 +4077,22 @@ updateCursorEditFields();
     end
 
     function closeSignalAnalysisWindow(src, ~)
+        % Если был режим редактирования - обновляем координаты
+        if strcmp(editMode, 'edit')
+            try
+                update_coords(coordsFile, signalFig);
+            catch ME
+                warning('Ошибка при обновлении координат: %s', ME.message);
+            end
+        end
+        
         % Не сохраняем положение окна - всегда используем базовое из JSON
         delete(src);
+    end
+
+    % Режим редактирования координат
+    if strcmp(editMode, 'edit')
+        inspect(signalFig);
     end
 
 end 
