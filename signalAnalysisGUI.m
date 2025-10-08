@@ -2992,78 +2992,29 @@ updateCursorEditFields();
         mean_signal_data = [];
         mean_signal_time = [];
         
-        % Загружаем новый файл используя существующую логику
+        % Загружаем новый файл используя универсальную функцию
         try
-            % Проверяем, является ли файл Heka форматом
-            if detectHekaFormat(filepath)
-                disp('Heka format detected, converting to ZAV...');
-                [lfp, spks, hd, zavp, lfpVar, chnlGrp] = hekaToZav(filepath);
-                % Создаем структуру d для совместимости с остальным кодом
-                d.lfp = lfp;
-                d.spks = spks;
-                d.hd = hd;
-                d.zavp = zavp;
-                d.lfpVar = lfpVar;
-                d.chnlGrp = chnlGrp;
-            else
-                d = load(filepath); % Загружаем данные в структуру как обычно
-            end
+            % Используем универсальную функцию загрузки
+            [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info] = load_zav_file(filepath, ...
+                'auto_set_time_windows', true, ...
+                'auto_set_fs', true);
             
-            % Извлечение основных переменных
-            spks = d.spks;
-            lfp = d.lfp;
-            hd = d.hd;
-            Fs = d.zavp.dwnSmplFrq;
-            zavp = d.zavp;
-            lfpVar = d.lfpVar;
-            chnlGrp = d.chnlGrp;
-            
-            % Получение размеров исходной матрицы
+            % Получаем размеры для совместимости
             [m, n, p] = size(lfp);
-            
-            % Обработка свипов
-            if p > 1 % случай со свипами
-                [lfp, spks, stims, lfpVar, sweep_info] = sweepProcessData(p, spks, n, m, lfp, Fs, zavp, lfpVar);
-                stims_exist = ~isempty(stims);
-                
-                % Сохраняем информацию о свипах
-                sweep_inx = 1; % по умолчанию показываем первый свип
-            else
-                if isfield(zavp, 'realStim') 
-                    stims = zavp.realStim(:).r(:) * zavp.siS;  
-                    stims_exist = ~isempty(stims);
-                else
-                    stims = [];
-                    stims_exist = false;
-                end
-                
-                % Для данных без свипов создаем пустую структуру sweep_info
-                sweep_info = struct();
-                sweep_info.is_sweep_data = false;
-                sweep_inx = 1;
-            end
-            
-            % Создание временной оси
             N = size(lfp, 1);
-            time = (0:N-1) / Fs; % в секундах
+            Fs = zavp.dwnSmplFrq;
             
-            % Установка time_back и time_forward на основе флага autoSetTimeWindowsFromSweeps
-            if p > 1
-                % Если есть свипы, показываем весь первый свип
-                time_back = 0;
-                time_forward = m / Fs; % длительность одного свипа в секундах
-            else
-                % Используем значения по умолчанию
-                time_forward = 0.6;
-                time_back = 0.6;
-            end
+            % Устанавливаем флаги
+            stims_exist = ~isempty(stims);
+            sweep_inx = 1;
             
+            % Устанавливаем временные параметры
             chosen_time_interval = [0, time_forward];
             
-            % Установка newFs на основе Fs
+            % Устанавливаем newFs
             newFs = Fs; % используем частоту даунсемплинга
             
-            % Автоматический выбор режима центра для файлов со свипами
+            % Автоматический выбор режима центра
             if stims_exist && ~isempty(stims)
                 selectedCenter = 'stimulus';
             else
