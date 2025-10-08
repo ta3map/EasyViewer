@@ -236,8 +236,8 @@ function signalViewerGUI()
     %% координаты графических элементов - теперь загружаются из JSON файла
         %%
     function saveSettings()
-        figure_position = f.Position;
-        save(SettingsFilepath, 'lastOpenedFiles', 'figure_position', 'add_event_settings', '-append');
+        % Не сохраняем положение окна - всегда используем базовое из JSON
+        save(SettingsFilepath, 'lastOpenedFiles', 'add_event_settings', '-append');
     end
 
     % Создание таймера
@@ -251,7 +251,8 @@ function signalViewerGUI()
            'Tag', 'EasyViwerFigure', ...
            'KeyPressFcn', @keyPressFunction);
     
-    
+    % Используем базовое положение из JSON файла
+    figure_position = coordsData.base_figure_position;
     f.Position = figure_position;
     
     % Применяем начальное масштабирование элементов сразу после создания окна
@@ -952,8 +953,7 @@ function signalViewerGUI()
             % Путь к файлу координат
             coordsFile = fullfile(fileparts(mfilename('fullpath')), 'signalViewerGUI_coords.json');
             
-            % Используем глобальную переменную figure_position как базовую позицию
-            % для правильного вычисления коэффициентов масштабирования
+            % Используем figure_position для правильного вычисления коэффициентов масштабирования
             ResizeElements(f, coordsFile, figure_position);
         catch ME
             warning('Ошибка при масштабировании элементов: %s', ME.message);

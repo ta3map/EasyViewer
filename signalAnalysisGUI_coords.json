@@ -1,5 +1,5 @@
 {
-  "base_figure_position": [16, 48, 1024, 520],
+  "base_figure_position": [100, 100, 1600, 900],
   "elements": {
     "channel_label": [20, 600, 100, 20],
     "channel_popup": [120, 600, 150, 25],

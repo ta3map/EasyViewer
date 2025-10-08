@@ -240,12 +240,8 @@ end
         return
     end
     
-    % Создание главного окна с использованием сохраненного положения
-    % Если figure_position не загружен, используем значение по умолчанию
-    if ~exist('figure_position', 'var') || isempty(figure_position)
-        figure_position = [100, 100, 1600, 600];
-    end
-    
+    % Создание главного окна с использованием базового положения из JSON
+    figure_position = coordsData.base_figure_position;
     signalFig = figure('Name', 'Signal Analysis', 'Tag', figTag, ...
         'Resize', 'on', ...
         'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', ...
@@ -256,7 +252,7 @@ end
     try
         coordsFile = fullfile(fileparts(mfilename('fullpath')), 'signalAnalysisGUI_coords.json');
         if exist(coordsFile, 'file')
-            % Используем глобальную переменную figure_position как базовую позицию
+            % Используем figure_position как базовую позицию
             ResizeElements(signalFig, coordsFile, figure_position);
         end
     catch ME
@@ -4070,8 +4066,7 @@ updateCursorEditFields();
             % Путь к файлу координат
             coordsFile = fullfile(fileparts(mfilename('fullpath')), 'signalAnalysisGUI_coords.json');
             
-            % Используем глобальную переменную figure_position как базовую позицию
-            % для правильного вычисления коэффициентов масштабирования
+            % Используем figure_position для правильного вычисления коэффициентов масштабирования
             ResizeElements(signalFig, coordsFile, figure_position);
         catch ME
             warning('Ошибка при масштабировании элементов: %s', ME.message);
@@ -4079,19 +4074,7 @@ updateCursorEditFields();
     end
 
     function closeSignalAnalysisWindow(src, ~)
-        % Сохраняем положение окна перед закрытием
-        try
-            SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
-            if exist(SettingsFilepath, 'file')
-                d = load(SettingsFilepath);
-            else
-                d = struct();
-            end
-            d.figure_position = src.Position;
-            save(SettingsFilepath, '-struct', 'd', '-append');
-        catch ME
-            warning('Ошибка при сохранении положения окна: %s', ME.message);
-        end
+        % Не сохраняем положение окна - всегда используем базовое из JSON
         delete(src);
     end
 
