@@ -1,4 +1,6 @@
 function signalViewerGUI(editMode)
+    disp('Signal Viewer Started')
+
     % Проверяем режим редактирования
     if nargin < 1
         editMode = 'normal';
@@ -12,7 +14,7 @@ function signalViewerGUI(editMode)
     if exist(coordsFile, 'file')
         coordsData = jsondecode(fileread(coordsFile));
     else
-        error('Файл координат не найден: %s', coordsFile);
+        error('Coordinates file not found: %s', coordsFile);
     end
     
     % Вспомогательная функция для получения координат элемента
@@ -20,36 +22,12 @@ function signalViewerGUI(editMode)
         if isfield(coordsData.elements, tag)
             pos = coordsData.elements.(tag);
         else
-            error('Координаты для элемента %s не найдены в JSON файле', tag);
+            error('Coordinates for element %s not found in JSON file', tag);
         end
     end
-    % Easy Viewer:  visualization and analysis and electrophysiological data
-    % 
-    % 
-    % Author:       Azat Gainutdinov
-    %               ta3map@gmail.com
-    %               
-    % Date:         01.10.2025
-    
+
     % EV_version теперь определена в app.m как глобальная переменная
-    global EV_version
-    
-    clc
-    disp(['Easy Viewer version: ' EV_version])
-    
-    global app_path
-    
-    EV_path = pwd;
-    disp('working directory:')
-    fprintf('%s\n',EV_path);
-    
-    app_path = fileparts(mfilename('fullpath'));
-    disp('app directory:')
-    fprintf('%s\n',app_path);
-    
-    % Иконки не используются
-    
-    disp('please wait ...')
+    global EV_path EV_version
    
     global Fs N time chosen_time_interval ch_inxs m_coef
     global shiftCoeff eventTable
@@ -267,7 +245,7 @@ function signalViewerGUI(editMode)
             ResizeElements(f, coordsFile, figure_position);
         end
     catch ME
-        warning('Ошибка при начальном масштабировании элементов: %s', ME.message);
+        warning('Error during initial element scaling: %s', ME.message);
     end
     
     mainPanel = uipanel('Parent', f, 'Position', getElementPosition('main_panel'), 'Tag', 'main_panel');
@@ -592,7 +570,7 @@ function signalViewerGUI(editMode)
             try
                 update_coords(coordsFile, f);
             catch ME
-                warning('Ошибка при обновлении координат: %s', ME.message);
+                warning('Error updating coordinates: %s', ME.message);
             end
         end
         
@@ -970,7 +948,7 @@ function signalViewerGUI(editMode)
             % Используем figure_position для правильного вычисления коэффициентов масштабирования
             ResizeElements(f, coordsFile, figure_position);
         catch ME
-            warning('Ошибка при масштабировании элементов: %s', ME.message);
+            warning('Error scaling elements: %s', ME.message);
         end
     end
 

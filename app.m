@@ -1,16 +1,41 @@
 function app()
-    % Глобальная переменная версии приложения
-    global EV_version
-    EV_version = '1.12.05';
+
+    % Easy Viewer:  visualization and analysis and electrophysiological data
+    % 
+    % 
+    % Author:       Azat Gainutdinov
+    %               ta3map@gmail.com
+    %               
+    % Date:         21.10.2025    
+
+
+    global EV_path EV_version
     
-    % Проверяем, не открыто ли уже окно
+    EV_version = '1.12.06';
+
+    clc
+    disp(['Easy Viewer version: ' EV_version])
+    
+    
+    EV_path = pwd;
+    disp('working directory:')
+    fprintf('%s\n',EV_path);
+    
+    app_path = fileparts(mfilename('fullpath'));
+    disp('app directory:')
+    fprintf('%s\n',app_path);
+        
+    disp('please wait ...')
+
+
+    % Check if window is already open
     existingFig = findobj('Tag', 'EasyViewerApp');
     if ~isempty(existingFig)
         figure(existingFig);
         return;
     end
     
-    % Создаем главное окно
+    % Create main window
     f = figure('Name', ['EasyViewer App v' EV_version], ...
               'NumberTitle', 'off', ...
               'MenuBar', 'none', ...
@@ -20,14 +45,14 @@ function app()
               'Tag', 'EasyViewerApp', ...
               'CloseRequestFcn', @closeApp);
     
-    % Закрываем все другие окна перед открытием главного окна
+    % Close all other windows before opening main window
     closeAllButOne(f);
     
-    % Создаем панель для кнопок
+    % Create panel for buttons
     panel = uipanel('Parent', f, ...
                    'Position', [0.1, 0.1, 0.8, 0.8]);
     
-    % Кнопка для запуска signalViewerGUI
+    % Button to launch signalViewerGUI
     uicontrol('Parent', panel, ...
              'Style', 'pushbutton', ...
              'String', 'Signal Viewer', ...
@@ -35,7 +60,7 @@ function app()
              'FontSize', 14, ...
              'Callback', @(~,~)signalViewerGUI());
     
-    % Кнопка для запуска signalAnalysisGUI
+    % Button to launch signalAnalysisGUI
     uicontrol('Parent', panel, ...
              'Style', 'pushbutton', ...
              'String', 'Signal Analysis', ...
@@ -43,11 +68,11 @@ function app()
              'FontSize', 14, ...
              'Callback', @(~,~)signalAnalysisGUI());
     
-    % Закрываем все фигуры, кроме указанной
+    % Close all figures except the specified one
     function closeAllButOne(targetFigure)
-        % Получаем массив всех текущих фигур
+        % Get array of all current figures
         figures = findobj(allchild(0), 'flat', 'Type', 'figure');
-        % Перебираем все фигуры и закрываем те, которые не совпадают с целевой
+        % Iterate through all figures and close those that don't match target
         for i = 1:length(figures)
             if figures(i) ~= targetFigure
                 close(figures(i));
@@ -55,12 +80,12 @@ function app()
         end
     end
     
-    % Функция обработки закрытия главного окна
+    % Function to handle main window closing
     function closeApp(src, ~)
-        % Закрываем все дочерние окна
+        % Close all child windows
         closeAllButOne(src);
         
-        % Закрываем главное окно
+        % Close main window
         delete(src);
     end
 end 

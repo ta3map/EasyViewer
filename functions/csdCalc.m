@@ -37,7 +37,7 @@ function [csd_image, csd_t_range, csd_ch_range] = csdCalc(params)
         
         for ch = 1:size(csd_image, 1)
             csd_image(ch, :) = medfilt1(csd_image(ch, :), csd_smooth_coef);
-            csd_image(ch, :) = smooth(csd_image(ch, :), csd_smooth_coef);
+            csd_image(ch, :) = smooth1(csd_image(ch, :), csd_smooth_coef);
         end
     end
     csd_ch_range = flip([offsets(2), offsets(end-1)]);

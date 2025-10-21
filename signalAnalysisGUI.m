@@ -1,4 +1,6 @@
 function signalAnalysisGUI(editMode)
+    disp('Signal Analysis Started')
+
     % Проверяем режим редактирования
     if nargin < 1
         editMode = 'normal';
@@ -12,7 +14,7 @@ function signalAnalysisGUI(editMode)
     if exist(coordsFile, 'file')
         coordsData = jsondecode(fileread(coordsFile));
     else
-        error('Файл координат не найден: %s', coordsFile);
+        error('Coordinates file not found: %s', coordsFile);
     end
     
     % Вспомогательная функция для получения координат элемента
@@ -20,7 +22,7 @@ function signalAnalysisGUI(editMode)
         if isfield(coordsData.elements, tag)
             pos = coordsData.elements.(tag);
         else
-            error('Координаты для элемента %s не найдены в JSON файле', tag);
+            error('Coordinates for element %s not found in JSON file', tag);
         end
     end
     
@@ -261,7 +263,7 @@ end
             ResizeElements(signalFig, coordsFile, figure_position);
         end
     catch ME
-        warning('Ошибка при начальном масштабировании элементов: %s', ME.message);
+        warning('Error during initial element scaling: %s', ME.message);
     end
 
     % === Левая панель управления ===
@@ -670,7 +672,7 @@ updateCursorEditFields();
         % Обновляем график
         updatePlotAndCalculation();
         
-        fprintf('✓ Канал изменен, применены оптимальные размеры осей\n');
+        fprintf('✓ Channel changed, optimal axis sizes applied\n');
     end
     
     function polarityCallback(src, ~)
@@ -1466,12 +1468,12 @@ updateCursorEditFields();
     function startZoomSelection()
         % Начинаем выбор области для зума
         axes(hPlotAxes);
-        fprintf('Выберите область зума: кликните любые две точки для определения области\n');
+        fprintf('Select zoom area: click any two points to define the area\n');
         
         % Собираем две точки для зума (с координатами X и Y)
         [x1, y1] = ginput(1);
         if isempty(x1)
-            fprintf('Зум отменен\n');
+            fprintf('Zoom cancelled\n');
             return;
         end
         
@@ -1481,13 +1483,13 @@ updateCursorEditFields();
         current_ylim = ylim(hPlotAxes);
         hTempLineV = line([x1, x1], current_ylim, 'Color', 'r', 'LineStyle', '--', 'LineWidth', 2);
         hTempLineH = line(current_xlim, [y1, y1], 'Color', 'r', 'LineStyle', '--', 'LineWidth', 2);
-        fprintf('Первая точка выбрана: (%.3f, %.3f). Выберите вторую точку\n', x1, y1);
+        fprintf('First point selected: (%.3f, %.3f). Select second point\n', x1, y1);
         
         [x2, y2] = ginput(1);
         if isempty(x2)
             delete(hTempLineV);
             delete(hTempLineH);
-            fprintf('Зум отменен\n');
+            fprintf('Zoom cancelled\n');
             return;
         end
         
@@ -1505,7 +1507,7 @@ updateCursorEditFields();
         if zoom_x_end > zoom_x_start && zoom_y_end > zoom_y_start
             applyZoom(zoom_x_start, zoom_x_end, zoom_y_start, zoom_y_end);
         else
-            fprintf('Некорректная область зума: область должна иметь ненулевой размер\n');
+            fprintf('Invalid zoom area: area must have non-zero size\n');
         end
     end
     
@@ -1625,10 +1627,10 @@ updateCursorEditFields();
             set(zoomBtn, 'String', 'Zoom');
             % fprintf('DEBUG: Кнопка сброшена на: %s, zoom_active = %d\n', get(zoomBtn, 'String'), zoom_active);
         else
-            fprintf('ERROR: Кнопка зума не найдена в resetZoom!\n');
+            fprintf('ERROR: Zoom button not found in resetZoom!\n');
         end
         
-        fprintf('✓ Зум сброшен (будут вычислены новые оптимальные границы)\n');
+        fprintf('✓ Zoom reset (new optimal boundaries will be calculated)\n');
         updateNavigationStatus();
         updatePlotAndCalculation();
     end
@@ -1760,7 +1762,7 @@ updateCursorEditFields();
         % Обновляем таблицу
         updateResultsTable();
         
-        fprintf('✓ Результат добавлен в таблицу (всего: %d)\n', length(slope_measurement_results));
+        fprintf('✓ Result added to table (total: %d)\n', length(slope_measurement_results));
     end
     
     function addResultSilent()
@@ -1879,7 +1881,7 @@ updateCursorEditFields();
             % Обновляем таблицу
             updateResultsTable();
         
-        fprintf('✓ Результат #%d удален из таблицы\n', selected_row_slope);
+        fprintf('✓ Result #%d removed from table\n', selected_row_slope);
         
         % Оставляем selected_row_slope без изменений для сохранения выделения
             
@@ -1892,9 +1894,9 @@ updateCursorEditFields();
                 % Обновляем таблицу
                 updateResultsTable();
                 
-                fprintf('✓ Последний результат #%d удален из таблицы\n', last_index);
+                fprintf('✓ Last result #%d removed from table\n', last_index);
             else
-                fprintf('❌ Нет результатов для удаления\n');
+                fprintf('❌ No results to delete\n');
             end
         end
         
@@ -1916,13 +1918,13 @@ updateCursorEditFields();
         % Заменяет выбранный результат текущим измерением
         
         if isempty(selected_row_slope) || selected_row_slope > length(slope_measurement_results)
-            fprintf('❌ Нет выбранного результата для замены\n');
+            fprintf('❌ No selected result to replace\n');
             return;
         end
         
         % Проверяем, что у нас есть текущие результаты
         if ~exist('slope_value', 'var') || isnan(slope_value)
-            fprintf('❌ Нет текущих результатов для замены\n');
+            fprintf('❌ No current results to replace\n');
             return;
         end
         
@@ -2027,7 +2029,7 @@ updateCursorEditFields();
         % Обновляем таблицу
         updateResultsTable();
         
-        fprintf('✓ Результат #%d заменен текущим измерением\n', selected_row_slope);
+        fprintf('✓ Result #%d replaced with current measurement\n', selected_row_slope);
         
         % Оставляем selected_row_slope без изменений для сохранения выделения
         
@@ -2052,7 +2054,7 @@ updateCursorEditFields();
         % Сохраняет результаты в Excel файл и метаданные в .meta файл
         
         if isempty(slope_measurement_results)
-            fprintf('❌ Нет результатов для сохранения\n');
+            fprintf('❌ No results to save\n');
             return;
         end
 
@@ -2070,7 +2072,7 @@ updateCursorEditFields();
                                        'Save Excel Results As', defaultFileName);
         
         if isequal(filename, 0) || isequal(pathname, 0)
-            fprintf('❌ Сохранение отменено\n');
+            fprintf('❌ Save cancelled\n');
             return;
         end
         
@@ -2196,13 +2198,13 @@ updateCursorEditFields();
             % Сохраняем метаданные в .meta файл (фактически .mat формат)
             save(meta_path, 'slope_measurement_results', 'average_values', 'original_file_info', '-v7.3');
             
-            fprintf('✓ Результаты сохранены:\n');
+            fprintf('✓ Results saved:\n');
             fprintf('  Excel: %s\n', excel_path);
             fprintf('  Metadata: %s\n', meta_path);
-            fprintf('  Всего записей: %d\n', length(slope_measurement_results));
+            fprintf('  Total records: %d\n', length(slope_measurement_results));
             
         catch ME
-            fprintf('❌ Ошибка при сохранении: %s\n', ME.message);
+            fprintf('❌ Error saving: %s\n', ME.message);
         end
     end
     
@@ -2364,7 +2366,7 @@ updateCursorEditFields();
         try
             set(hAverageTable, 'Data', {avg_slope, avg_peak_time_rel, avg_peak_amplitude, avg_onset_time_rel, avg_baseline, avg_peak_onset_diff});
         catch ME
-            fprintf('Ошибка при обновлении таблицы: %s\n', ME.message);
+            fprintf('Error updating table: %s\n', ME.message);
         end
     end
     
@@ -2516,7 +2518,7 @@ updateCursorEditFields();
         % Сбрасываем флаг восстановления
         restoring_from_metadata = false;
         
-        fprintf('✓ Состояние восстановлено из результата #%d\n', row_index);
+        fprintf('✓ State restored from result #%d\n', row_index);
     end
     
     function status_text = getNavigationStatusText(metadata)
@@ -2555,7 +2557,7 @@ updateCursorEditFields();
         % Переключает режим просмотра среднего сигнала
         
         if isempty(slope_measurement_results)
-            fprintf('❌ Нет результатов для усреднения\n');
+            fprintf('❌ No results for averaging\n');
             return;
         end
         
@@ -2565,7 +2567,7 @@ updateCursorEditFields();
             % Вычисляем средний сигнал
             [mean_signal_data, mean_signal_time] = calculateMeanSignal();
             set(hMeanResultsBtn, 'String', 'Show Single');
-            fprintf('✓ Режим среднего сигнала включен (%d результатов)\n', length(slope_measurement_results));
+            fprintf('✓ Average signal mode enabled (%d results)\n', length(slope_measurement_results));
             % вычисляем границы осей
             [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
         else
@@ -2573,7 +2575,7 @@ updateCursorEditFields();
             mean_signal_data = [];
             mean_signal_time = [];
             set(hMeanResultsBtn, 'String', 'Av. Trace');
-            fprintf('✓ Режим одиночного сигнала включен\n');
+            fprintf('✓ Single signal mode enabled\n');
             if isempty(original_xlim) && isempty(original_ylim)
                 [original_xlim, original_ylim] = calculateOptimalAxisLimits(true);
             else
@@ -2667,20 +2669,20 @@ updateCursorEditFields();
                     % Очищаем таблицу результатов перед автоматическим измерением
                     slope_measurement_results = [];
                     updateResultsTable();
-                    fprintf('✓ Таблица очищена перед автоматическим измерением\n');
+                    fprintf('✓ Table cleared before automatic measurement\n');
                     
                 case 'No'
                     % Продолжаем с существующими результатами
-                    fprintf('✓ Автоматическое измерение будет добавлено к существующим результатам\n');
+                    fprintf('✓ Automatic measurement will be added to existing results\n');
                     
                 case 'Cancel'
                     % Отменяем операцию
-                    fprintf('❌ Автоматическое измерение отменено пользователем\n');
+                    fprintf('❌ Automatic measurement cancelled by user\n');
                     return;
                     
                 otherwise
                     % Пользователь закрыл диалог
-                    fprintf('❌ Автоматическое измерение отменено\n');
+                    fprintf('❌ Automatic measurement cancelled\n');
                     return;
             end
         end
@@ -2706,18 +2708,18 @@ updateCursorEditFields();
             case 'stimulus'
                 if stims_exist && ~isempty(stims)
                     total_ranges = length(stims);
-                    fprintf('Автоматическое измерение %d стимулов...\n', total_ranges);
+                    fprintf('Automatic measurement of %d stimuli...\n', total_ranges);
                 else
-                    fprintf('ERROR: Нет стимулов для измерения\n');
+                    fprintf('ERROR: No stimuli for measurement\n');
                     return;
                 end
                 
             case 'sweep'
                 if isstruct(sweep_info) && sweep_info.is_sweep_data
                     total_ranges = sweep_info.sweep_count;
-                    fprintf('Автоматическое измерение %d sweepов...\n', total_ranges);
+                    fprintf('Automatic measurement of %d sweeps...\n', total_ranges);
                 else
-                    fprintf('ERROR: Нет sweep данных для измерения\n');
+                    fprintf('ERROR: No sweep data for measurement\n');
                     return;
                 end
                 
@@ -2725,18 +2727,18 @@ updateCursorEditFields();
                 % Для режима time вычисляем количество возможных шагов
                 windowSize = chosen_time_interval(2) - chosen_time_interval(1);
                 if windowSize <= 0
-                    fprintf('ERROR: Некорректный размер временного окна\n');
+                    fprintf('ERROR: Invalid time window size\n');
                     return;
                 end
                 total_ranges = floor((time(end) - time(1)) / windowSize);
                 if total_ranges <= 0
-                    fprintf('ERROR: Недостаточно данных для измерения\n');
+                    fprintf('ERROR: Insufficient data for measurement\n');
                     return;
                 end
-                fprintf('Автоматическое измерение %d временных участков...\n', total_ranges);
+                fprintf('Automatic measurement of %d time segments...\n', total_ranges);
                 
             otherwise
-                fprintf('ERROR: Неподдерживаемый режим навигации\n');
+                fprintf('ERROR: Unsupported navigation mode\n');
                 return;
         end
         
@@ -2757,7 +2759,7 @@ updateCursorEditFields();
             for i = 1:total_ranges
                 % Проверяем, не было ли закрыто окно прогресса
                 if ~ishandle(hWaitBar)
-                    fprintf('❌ Автоматическое измерение отменено пользователем\n');
+                    fprintf('❌ Automatic measurement cancelled by user\n');
                     break;
                 end
                 
@@ -2803,7 +2805,7 @@ updateCursorEditFields();
                 
                 % Минимальное обновление для прогресса
                 if mod(i, 10) == 0 || i == total_ranges
-                    fprintf('Прогресс: %d/%d\n', i, total_ranges);
+                    fprintf('Progress: %d/%d\n', i, total_ranges);
                 end
             end
             
@@ -2811,28 +2813,28 @@ updateCursorEditFields();
             if ~ishandle(hWaitBar)
                 fprintf('❌ Автоматическое измерение отменено пользователем\n');
             else
-                fprintf('SUCCESS: Автоматическое измерение завершено! Добавлено %d результатов\n', total_ranges);
+                fprintf('SUCCESS: Automatic measurement completed! Added %d results\n', total_ranges);
             end
             
             % Принудительно закрываем окно прогресса после завершения цикла
             if exist('hWaitBar', 'var') && ishandle(hWaitBar)
                 close(hWaitBar);
-                fprintf('✓ Окно прогресса закрыто после завершения\n');
+                fprintf('✓ Progress window closed after completion\n');
             end
             
         catch ME
             % Закрываем окно прогресса при ошибке
             if exist('hWaitBar', 'var') && ishandle(hWaitBar)
                 close(hWaitBar);
-                fprintf('✓ Окно прогресса закрыто при ошибке\n');
+                fprintf('✓ Progress window closed on error\n');
             end
             
             % Сбрасываем флаг автоанализа
             auto_analysis_mode = false;
             
             % Показываем ошибку пользователю
-            fprintf('Ошибка при автоанализе: %s\n', ME.message);
-            fprintf('❌ Ошибка при автоанализе: %s\n', ME.message);
+            fprintf('Error in auto-analysis: %s\n', ME.message);
+            fprintf('❌ Error in auto-analysis: %s\n', ME.message);
             return;
         end
         
@@ -2862,7 +2864,7 @@ updateCursorEditFields();
         % Закрываем окно прогресса в любом случае
         if exist('hWaitBar', 'var') && ishandle(hWaitBar)
             close(hWaitBar);
-            fprintf('✓ Окно прогресса закрыто\n');
+            fprintf('✓ Progress window closed\n');
         end
         
         % ФИНАЛЬНОЕ обновление всех таблиц и графика
@@ -2891,7 +2893,7 @@ updateCursorEditFields();
         [filename, pathname] = uigetfile('*.meta', 'Load Results From', defaultPath);
         
         if isequal(filename, 0) || isequal(pathname, 0)
-            fprintf('❌ Загрузка отменена\n');
+            fprintf('❌ Loading cancelled\n');
             return;
         end
         
@@ -2905,10 +2907,10 @@ updateCursorEditFields();
             if isfield(loaded_data, 'original_file_info') && ~isempty(loaded_data.original_file_info.matFileName)
                 if ~strcmp(loaded_data.original_file_info.matFileName, matFileName)
                     % Имена файлов не совпадают, загружаем оригинальный файл
-                    fprintf('📁 Загружаю оригинальный файл: %s\n', loaded_data.original_file_info.matFilePath);
+                    fprintf('📁 Loading original file: %s\n', loaded_data.original_file_info.matFilePath);
                     OpenFilePath(loaded_data.original_file_info.matFilePath);
                 else
-                    fprintf('ℹ️ Оригинальный файл уже загружен: %s\n', matFileName);
+                    fprintf('ℹ️ Original file already loaded: %s\n', matFileName);
                 end
             end
             
@@ -2916,31 +2918,31 @@ updateCursorEditFields();
             slope_measurement_results = loaded_data.slope_measurement_results;
             
             % Проверяем и обновляем старые метаданные
-            fprintf('Проверка и обновление старых метаданных...\n');
+            fprintf('Checking and updating old metadata...\n');
             for i = 1:length(slope_measurement_results)
                 % Проверяем наличие поля stim_inx
                 if ~isfield(slope_measurement_results(i).metadata, 'stim_inx')
                     % Для старых метаданных пробуем получить номер стимула из индекса
                     if strcmp(slope_measurement_results(i).metadata.selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
                         slope_measurement_results(i).metadata.stim_inx = i;
-                        fprintf('  Результат #%d: добавлен номер стимула %d\n', i, i);
+                        fprintf('  Result #%d: added stimulus number %d\n', i, i);
                     else
                         slope_measurement_results(i).metadata.stim_inx = NaN;
-                        fprintf('  Результат #%d: номер стимула не определен\n', i);
+                        fprintf('  Result #%d: stimulus number not determined\n', i);
                     end
                 end
                 
                 % Проверяем наличие полей для peak_onset_diff
                 if ~isfield(slope_measurement_results(i), 'onset_time')
                     slope_measurement_results(i).onset_time = NaN;
-                    fprintf('  Результат #%d: добавлено поле onset_time\n', i);
+                    fprintf('  Result #%d: added onset_time field\n', i);
                 end
                 if ~isfield(slope_measurement_results(i), 'onset_value')
                     slope_measurement_results(i).onset_value = NaN;
-                    fprintf('  Результат #%d: добавлено поле onset_value\n', i);
+                    fprintf('  Result #%d: added onset_value field\n', i);
                 end
             end
-            fprintf('Обновление метаданных завершено\n');
+            fprintf('Metadata update completed\n');
 
             % Сбрасываем выделения
             selected_row_slope = [];
@@ -2949,9 +2951,9 @@ updateCursorEditFields();
             % Обновляем отображение
             updateResultsTable();
             
-            fprintf('✓ Результаты загружены из файла:\n');
-            fprintf('  Файл: %s\n', filepath);
-            fprintf('  Результатов: %d\n', length(slope_measurement_results));
+            fprintf('✓ Results loaded from file:\n');
+            fprintf('  File: %s\n', filepath);
+            fprintf('  Results: %d\n', length(slope_measurement_results));
             
             % Восстанавливаем состояние первого результата если есть
             if ~isempty(slope_measurement_results)
@@ -2959,7 +2961,7 @@ updateCursorEditFields();
             end
             
         catch ME
-            fprintf('❌ Ошибка при загрузке: %s\n', ME.message);
+            fprintf('❌ Error loading: %s\n', ME.message);
         end
     end
     
@@ -3088,13 +3090,13 @@ updateCursorEditFields();
             % Загружаем позиции курсоров из настроек ПОСЛЕ загрузки файла
             loadCursorPositionsFromSettings();
             
-            fprintf('✓ Файл успешно загружен: %s\n', matFileName);
-            fprintf('  Размер данных: %dx%dx%d\n', size(lfp));
-            fprintf('  Частота дискретизации: %.1f Гц\n', Fs);
-            fprintf('  Длительность: %.3f с\n', time(end));
+            fprintf('✓ File successfully loaded: %s\n', matFileName);
+            fprintf('  Data size: %dx%dx%d\n', size(lfp));
+            fprintf('  Sampling rate: %.1f Hz\n', Fs);
+            fprintf('  Duration: %.3f s\n', time(end));
             
         catch ME
-            fprintf('❌ Ошибка при загрузке файла: %s\n', ME.message);
+            fprintf('❌ Error loading file: %s\n', ME.message);
             % Восстанавливаем предыдущие данные если загрузка не удалась
             return;
         end
@@ -3133,7 +3135,7 @@ updateCursorEditFields();
         % Обновляем состояние кнопки Replace
         updateReplaceButtonState();
         
-        fprintf('✓ Все результаты и измерения очищены\n');
+        fprintf('✓ All results and measurements cleared\n');
                 
             case 'No'
                 % Пользователь отменил операцию
@@ -3146,9 +3148,9 @@ updateCursorEditFields();
         % Вызывается из settingsEditor.m
         try
             updatePlotAndCalculation();
-            fprintf('✓ График анализа сигнала обновлен из групповых настроек\n');
+            fprintf('✓ Signal analysis plot updated from group settings\n');
         catch ME
-            warning('Ошибка при обновлении графика анализа: %s', ME.message);
+            warning('Error updating analysis plot: %s', ME.message);
         end
     end
 
@@ -3375,7 +3377,7 @@ updateCursorEditFields();
              'Save Image As', defaultFileName);
         
         if isequal(file, 0) || isequal(path, 0)
-            fprintf('❌ Сохранение изображения отменено\n');
+            fprintf('❌ Image save cancelled\n');
             return;
         end
         
@@ -3393,23 +3395,23 @@ updateCursorEditFields();
             switch filterindex
                 case 1
                     print(tempFig, filename, '-dpdf', '-bestfit');
-                    fprintf('✓ График сохранен в PDF: %s\n', filename);
+                    fprintf('✓ Plot saved as PDF: %s\n', filename);
                 case 2
                     print(tempFig, filename, '-depsc');
-                    fprintf('✓ График сохранен в EPS: %s\n', filename);
+                    fprintf('✓ Plot saved as EPS: %s\n', filename);
                 case 3
                     saveas(tempFig, filename, 'png');
-                    fprintf('✓ График сохранен в PNG: %s\n', filename);
+                    fprintf('✓ Plot saved as PNG: %s\n', filename);
                 otherwise
                     saveas(tempFig, filename);
-                    fprintf('✓ График сохранен: %s\n', filename);
+                    fprintf('✓ Plot saved: %s\n', filename);
             end
             
             % Удаляем временную фигуру
             delete(tempFig);
             
         catch ME
-            fprintf('❌ Ошибка при сохранении графика: %s\n', ME.message);
+            fprintf('❌ Error saving plot: %s\n', ME.message);
             fprintf('Error saving image: %s\n', ME.message);
             
             % Убеждаемся что временная фигура удалена даже при ошибке
@@ -3435,7 +3437,7 @@ updateCursorEditFields();
                     slope_measurement_settings.peak_start = loadedSettings.cursor_positions.peak_start + rel_shift;
                     slope_measurement_settings.peak_end = loadedSettings.cursor_positions.peak_end + rel_shift;
                     
-                    fprintf('✓ Позиции курсоров загружены из настроек\n');
+                    fprintf('✓ Cursor positions loaded from settings\n');
                     
                     % Обновляем edit fields с новыми позициями
                     updateCursorEditFields();
@@ -3443,13 +3445,13 @@ updateCursorEditFields();
                     % Обновляем график с новыми позициями курсоров
                     updatePlotAndCalculation();
                 else
-                    fprintf('ℹ️ Позиции курсоров не найдены в настройках\n');
+                    fprintf('ℹ️ Cursor positions not found in settings\n');
                 end
             else
-                fprintf('ℹ️ Файл настроек не найден\n');
+                fprintf('ℹ️ Settings file not found\n');
             end
         catch ME
-            fprintf('❌ Ошибка при загрузке позиций курсоров: %s\n', ME.message);
+            fprintf('❌ Error loading cursor positions: %s\n', ME.message);
         end
     end
 
@@ -3595,14 +3597,14 @@ updateCursorEditFields();
             % Загружаем позиции курсоров из настроек ПОСЛЕ загрузки файла
             loadCursorPositionsFromSettings();
             
-            fprintf('✓ Последний файл успешно загружен: %s\n', matFileName);
-            fprintf('  Размер данных: %dx%dx%d\n', size(lfp));
-            fprintf('  Частота дискретизации: %.1f Гц\n', Fs);
-            fprintf('  Длительность: %.3f с\n', time(end));
+            fprintf('✓ Last file successfully loaded: %s\n', matFileName);
+            fprintf('  Data size: %dx%dx%d\n', size(lfp));
+            fprintf('  Sampling rate: %.1f Hz\n', Fs);
+            fprintf('  Duration: %.3f s\n', time(end));
             
         catch ME
-            fprintf('❌ Ошибка при автоматическом открытии последнего файла: %s\n', ME.message);
-            fprintf('ℹ️ Продолжаем с чистой инициализацией\n');
+            fprintf('❌ Error auto-opening last file: %s\n', ME.message);
+            fprintf('ℹ️ Continuing with clean initialization\n');
         end
     end
 
@@ -3712,7 +3714,7 @@ updateCursorEditFields();
         % Обновляем статус навигации
         updateNavigationStatus();
         
-        fprintf('✓ Применены оптимальные размеры осей\n');
+        fprintf('✓ Optimal axis sizes applied\n');
     end
 
     function collectAllMetadata(~, ~)
@@ -3728,7 +3730,7 @@ updateCursorEditFields();
         % Запрашиваем корневую папку для поиска
         root_dir = uigetdir(initial_dir, 'Select Root Directory for Metadata Collection');
         if root_dir == 0
-            fprintf('❌ Сбор метаданных отменен\n');
+            fprintf('❌ Metadata collection cancelled\n');
             return;
         end
         
@@ -3737,17 +3739,17 @@ updateCursorEditFields();
         
         try
             % Находим все .meta файлы рекурсивно
-            fprintf('🔍 Поиск .meta файлов в папке %s...\n', root_dir);
+            fprintf('🔍 Searching for .meta files in folder %s...\n', root_dir);
             meta_files = dir(fullfile(root_dir, '**', '*.meta'));
             
             if isempty(meta_files)
                 close(hWaitBar);
                 fprintf('No .meta files found in the selected directory and its subdirectories.\n');
-                fprintf('❌ .meta файлы не найдены\n');
+                fprintf('❌ No .meta files found\n');
                 return;
             end
             
-            fprintf('✓ Найдено файлов: %d\n', length(meta_files));
+            fprintf('✓ Files found: %d\n', length(meta_files));
             
             % Инициализируем массив для всех результатов
             all_results = [];
@@ -3767,7 +3769,7 @@ updateCursorEditFields();
                     
                     % Проверяем наличие необходимых полей
                     if ~isfield(loaded_data, 'slope_measurement_results') || isempty(loaded_data.slope_measurement_results)
-                        fprintf('⚠️ Пропущен файл %s: отсутствуют результаты измерений\n', meta_files(i).name);
+                        fprintf('⚠️ Skipped file %s: no measurement results\n', meta_files(i).name);
                         continue;
                     end
                     
@@ -3811,7 +3813,7 @@ updateCursorEditFields();
                     end
                     
                 catch ME
-                    fprintf('⚠️ Ошибка при обработке файла %s: %s\n', meta_files(i).name, ME.message);
+                    fprintf('⚠️ Error processing file %s: %s\n', meta_files(i).name, ME.message);
                     continue;
                 end
             end
@@ -3821,7 +3823,7 @@ updateCursorEditFields();
             
             if isempty(all_results)
                 fprintf('No valid results found in any of the .meta files.\n');
-                fprintf('❌ Нет валидных результатов для сохранения\n');
+                fprintf('❌ No valid results to save\n');
                 return;
             end
             
@@ -3834,7 +3836,7 @@ updateCursorEditFields();
                 'Save Combined Results As', default_excel_name);
             
             if isequal(filename, 0) || isequal(pathname, 0)
-                fprintf('❌ Сохранение отменено\n');
+                fprintf('❌ Save cancelled\n');
                 return;
             end
             
@@ -3999,10 +4001,10 @@ updateCursorEditFields();
             % Сохраняем статистику на второй лист
             writecell(stats_data, excel_path, 'Sheet', 'Statistics');
             
-            fprintf('✓ Сводная таблица сохранена:\n');
-            fprintf('  Путь: %s\n', excel_path);
-            fprintf('  Обработано файлов: %d\n', length(meta_files));
-            fprintf('  Всего результатов: %d\n', length(all_results));
+            fprintf('✓ Summary table saved:\n');
+            fprintf('  Path: %s\n', excel_path);
+            fprintf('  Files processed: %d\n', length(meta_files));
+            fprintf('  Total results: %d\n', length(all_results));
             
         catch ME
             % Закрываем окно прогресса при ошибке
