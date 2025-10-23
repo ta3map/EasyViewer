@@ -21,6 +21,19 @@ function signalAnalysisGUI(editMode)
     function pos = getElementPosition(tag)
         if isfield(coordsData.elements, tag)
             pos = coordsData.elements.(tag);
+            
+            % Проверяем, не является ли элемент осью или панелью - для них оставляем относительные координаты
+            if ~strcmp(tag, 'main_axes') && ~strcmp(tag, 'plot_container') && ...
+               ~strcmp(tag, 'main_panel') && ~strcmp(tag, 'side_panel') && ~strcmp(tag, 'event_panel')
+                % Преобразуем относительные координаты в абсолютные на основе base_figure_position
+                base_pos = coordsData.base_figure_position;
+                pos = [
+                    pos(1) * base_pos(3),  % x
+                    pos(2) * base_pos(4),  % y
+                    pos(3) * base_pos(3),  % width
+                    pos(4) * base_pos(4)   % height
+                ];
+            end
         else
             error('Coordinates for element %s not found in JSON file', tag);
         end
@@ -3034,7 +3047,7 @@ updateCursorEditFields();
             numChannels = length(channelNames);
             
             % fprintf('DEBUG: openFile: channelNames = ');
-            disp(channelNames);
+            % disp(channelNames);
             % fprintf('DEBUG: openFile: numChannels = %d\n', numChannels);
             
             % === КОНЕЦ ДОБАВЛЕННОГО КОДА ===
@@ -3160,7 +3173,7 @@ updateCursorEditFields();
         % Простая версия функции updateTable для signalAnalysisGUI
         % fprintf('DEBUG: updateTable: Функция вызвана\n');
         % fprintf('DEBUG: updateTable: channelNames = ');
-        disp(channelNames);
+        % disp(channelNames);
         % fprintf('DEBUG: updateTable: numChannels = %d\n', numChannels);
         
         % Здесь можно добавить логику обновления таблицы если нужно
@@ -3202,7 +3215,7 @@ updateCursorEditFields();
         try
             loadedSettings = load(channelSettingsFilePath, '-mat');
             % fprintf('DEBUG: loadSettingsFile: Файл загружен, поля: ');
-            disp(fieldnames(loadedSettings));
+            % disp(fieldnames(loadedSettings));
             if isfield(loadedSettings, 'EV_version') % работает с 1.10.00  
                 % fprintf('DEBUG: loadSettingsFile: Новый формат настроек (EV_version = %s)\n', loadedSettings.EV_version);
                 channelNames = np_flatten(loadedSettings.channelNames);

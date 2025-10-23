@@ -21,6 +21,19 @@ function signalViewerGUI(editMode)
     function pos = getElementPosition(tag)
         if isfield(coordsData.elements, tag)
             pos = coordsData.elements.(tag);
+            
+            % Проверяем, не является ли элемент осью или панелью - для них оставляем относительные координаты
+            if ~strcmp(tag, 'main_axes') && ~strcmp(tag, 'multiax') && ...
+               ~strcmp(tag, 'main_panel') && ~strcmp(tag, 'side_panel') && ~strcmp(tag, 'event_panel')
+                % Преобразуем относительные координаты в абсолютные на основе base_figure_position
+                base_pos = coordsData.base_figure_position;
+                pos = [
+                    pos(1) * base_pos(3),  % x
+                    pos(2) * base_pos(4),  % y
+                    pos(3) * base_pos(3),  % width
+                    pos(4) * base_pos(4)   % height
+                ];
+            end
         else
             error('Coordinates for element %s not found in JSON file', tag);
         end

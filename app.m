@@ -6,12 +6,12 @@ function app()
     % Author:       Azat Gainutdinov
     %               ta3map@gmail.com
     %               
-    % Date:         21.10.2025    
+    % Date:         23.10.2025    
 
 
     global EV_path EV_version
-    
-    EV_version = '1.12.06';
+
+    EV_version = '1.12.08';
 
     clc
     disp(['Easy Viewer version: ' EV_version])

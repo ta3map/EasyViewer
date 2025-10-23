@@ -3074,7 +3074,7 @@ updateCursorEditFields();
             numChannels = length(channelNames);
             
             % fprintf('DEBUG: openFile: channelNames = ');
-            disp(channelNames);
+            % disp(channelNames);
             % fprintf('DEBUG: openFile: numChannels = %d\n', numChannels);
             
             % === КОНЕЦ ДОБАВЛЕННОГО КОДА ===
@@ -3200,7 +3200,7 @@ updateCursorEditFields();
         % Простая версия функции updateTable для signalAnalysisGUI
         % fprintf('DEBUG: updateTable: Функция вызвана\n');
         % fprintf('DEBUG: updateTable: channelNames = ');
-        disp(channelNames);
+        % disp(channelNames);
         % fprintf('DEBUG: updateTable: numChannels = %d\n', numChannels);
         
         % Здесь можно добавить логику обновления таблицы если нужно
@@ -3242,7 +3242,7 @@ updateCursorEditFields();
         try
             loadedSettings = load(channelSettingsFilePath, '-mat');
             % fprintf('DEBUG: loadSettingsFile: Файл загружен, поля: ');
-            disp(fieldnames(loadedSettings));
+            % disp(fieldnames(loadedSettings));
             if isfield(loadedSettings, 'EV_version') % работает с 1.10.00  
                 % fprintf('DEBUG: loadSettingsFile: Новый формат настроек (EV_version = %s)\n', loadedSettings.EV_version);
                 channelNames = np_flatten(loadedSettings.channelNames);

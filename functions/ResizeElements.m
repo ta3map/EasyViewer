@@ -32,7 +32,6 @@ function ResizeElements(figHandle, coordsFile, basePosition)
         % Вычисляем коэффициенты масштабирования
         scaleX = currentPosition(3) / basePosition(3);
         scaleY = currentPosition(4) / basePosition(4);
-        scaling_matrix = [scaleX, scaleY, scaleX, scaleY];
         
         % Отладочная информация (можно убрать после отладки)
         % fprintf('Текущая позиция: %s\n', mat2str(currentPosition));
@@ -72,6 +71,17 @@ function ResizeElements(figHandle, coordsFile, basePosition)
                     coords = coords';
                 end
                 
+                % Проверяем, не является ли элемент осью или панелью - для них оставляем относительные координаты
+                if ~strcmp(tag, 'main_axes') && ~strcmp(tag, 'multiax') && ~strcmp(tag, 'plot_container') && ...
+                   ~strcmp(tag, 'main_panel') && ~strcmp(tag, 'side_panel') && ~strcmp(tag, 'event_panel')
+                    % Преобразуем относительные координаты в абсолютные на основе basePosition
+                    coords = [
+                        coords(1) * basePosition(3),  % x
+                        coords(2) * basePosition(4),  % y
+                        coords(3) * basePosition(3),  % width
+                        coords(4) * basePosition(4)   % height
+                    ];
+                end
                 % Отладочная информация для элемента (можно убрать после отладки)
                 % fprintf('Элемент %s: координаты %s (тип: %s)\n', tag, mat2str(coords), class(coords));
                 
@@ -83,12 +93,12 @@ function ResizeElements(figHandle, coordsFile, basePosition)
                             set(element, 'Position', coords);
                         else
                             % Для всех остальных элементов (uicontrol, uitable, uipanel) применяем масштабирование
-                            newPosition = coords .* scaling_matrix;
-                            
-                            % Убеждаемся, что newPosition - это вектор-строка из 4 элементов
-                            if size(newPosition, 1) > 1
-                                newPosition = newPosition(:)';  % Преобразуем в строку
-                            end
+                            newPosition = [
+                                coords(1) * scaleX,  % x
+                                coords(2) * scaleY,  % y
+                                coords(3) * scaleX,  % width
+                                coords(4) * scaleY   % height
+                            ];
                             
                             % Проверяем, что newPosition является валидным вектором из 4 элементов
                             if length(newPosition) == 4 && isnumeric(newPosition) && all(isfinite(newPosition))

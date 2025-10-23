@@ -19,6 +19,7 @@ global calculation_result
 global art_rem_window_ms
 global stims
 global t_mean_profile
+global wb
 
 local_evfilename = evfilename;
 
