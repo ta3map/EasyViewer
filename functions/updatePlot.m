@@ -222,8 +222,13 @@ function updatePlot()
 
 
 
-    cond2 = events >= plot_time_interval(1) & events < plot_time_interval(2);    
-    evets_x = events(cond2)*timeUnitFactor;     
+    if ~isempty(events)
+        cond2 = events >= plot_time_interval(1) & events < plot_time_interval(2);    
+        evets_x = events(cond2)*timeUnitFactor;
+    else
+        cond2 = [];
+        evets_x = [];
+    end     
 
 %     events_color = [255, 15, 107]/255;
 %     stims_color = [126, 237, 219]/255;

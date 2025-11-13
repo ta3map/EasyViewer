@@ -4,6 +4,34 @@ function [event_x, amplitude, channel, width, prominence, metadata] = addExtraEv
     
     disp('adding new event ...')
     
+    % Проверяем и инициализируем add_event_settings если необходимо
+    if isempty(add_event_settings) || ~isstruct(add_event_settings)
+        add_event_settings = struct();
+    end
+    
+    % Инициализируем обязательные поля если они отсутствуют
+    if ~isfield(add_event_settings, 'channel')
+        add_event_settings.channel = 1;
+    end
+    if ~isfield(add_event_settings, 'mode')
+        add_event_settings.mode = 'manual';
+    end
+    if ~isfield(add_event_settings, 'polarity')
+        add_event_settings.polarity = 'positive';
+    end
+    if ~isfield(add_event_settings, 'timeWindow')
+        add_event_settings.timeWindow = 10;
+    end
+    if ~isfield(add_event_settings, 'minPeakHeight')
+        add_event_settings.minPeakHeight = 10;
+    end
+    if ~isfield(add_event_settings, 'maxPeakWidth')
+        add_event_settings.maxPeakWidth = 50;
+    end
+    if ~isfield(add_event_settings, 'signal_type')
+        add_event_settings.signal_type = 'lfp';
+    end
+    
     % Получаем первичную временную координату события
     [event_x, ~] = ginput(1); 
     event_x = event_x/timeUnitFactor;

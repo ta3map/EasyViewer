@@ -368,13 +368,22 @@ function autoEventDetectionGUI()
         % Сохранение настроек перед закрытием
         saveSettings();
         
-        events_exist = true;
-        event_inx = 1;
-        selectedCenter = 'event';
-        set(timeCenterPopup, 'Value', 3);
-        
-        chosen_time_interval(1) = events(event_inx);
-        chosen_time_interval(2) = events(event_inx)+windowSize;
+        % Проверяем наличие событий перед установкой параметров
+        if ~isempty(events)
+            events_exist = true;
+            event_inx = 1;
+            selectedCenter = 'event';
+            set(timeCenterPopup, 'Value', 3);
+            
+            chosen_time_interval(1) = events(event_inx);
+            chosen_time_interval(2) = events(event_inx)+windowSize;
+        else
+            % Если событий нет, не меняем режим и не устанавливаем временной интервал
+            events_exist = false;
+            % Не меняем selectedCenter и timeCenterPopup
+            % Не меняем chosen_time_interval
+            fprintf('No events detected. Please adjust detection parameters.\n');
+        end
                         
         updatePlot(); % Обновление графика с новыми событиями        
     

@@ -73,14 +73,50 @@ else
     d = load(filepath); % Загружаем данные в структуру как обычно
 end
 
-% Извлечение основных переменных
-spks = d.spks;
-lfp = d.lfp;
-hd = d.hd;
-Fs = d.zavp.dwnSmplFrq;
-zavp = d.zavp;
-lfpVar = d.lfpVar;
-chnlGrp = d.chnlGrp;
+% Извлечение основных переменных с проверкой наличия полей
+if isfield(d, 'spks')
+    spks = d.spks;
+else
+    spks = [];
+    fprintf('Поле spks не найдено, используем пустой массив\n');
+end
+
+if isfield(d, 'lfp')
+    lfp = d.lfp;
+else
+    error('Поле lfp обязательно для загрузки ZAV файла');
+end
+
+if isfield(d, 'hd')
+    hd = d.hd;
+else
+    error('Поле hd обязательно для загрузки ZAV файла');
+end
+
+if isfield(d, 'zavp')
+    zavp = d.zavp;
+    if isfield(zavp, 'dwnSmplFrq')
+        Fs = zavp.dwnSmplFrq;
+    else
+        error('Поле zavp.dwnSmplFrq обязательно для загрузки ZAV файла');
+    end
+else
+    error('Поле zavp обязательно для загрузки ZAV файла');
+end
+
+if isfield(d, 'lfpVar')
+    lfpVar = d.lfpVar;
+else
+    lfpVar = [];
+    fprintf('Поле lfpVar не найдено, используем пустой массив\n');
+end
+
+if isfield(d, 'chnlGrp')
+    chnlGrp = d.chnlGrp;
+else
+    chnlGrp = [];
+    fprintf('Поле chnlGrp не найдено, используем пустой массив\n');
+end
 
 fprintf('Частота дискретизации: %.1f Гц\n', Fs);
 
