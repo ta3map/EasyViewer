@@ -47,26 +47,30 @@ function updatePlot()
     end
     
     % Проверка, совпадают ли частоты дискретизации
-    if Fs == newFs
-        % Если частоты Fs совпадают, просто копируем данные без ресемплинга
+    if Fs <= newFs
+        % Если newFs >= Fs, не делаем ресемплинг (апсемплинг не нужен и вызывает краевые эффекты)
         data_res = data;
         time_res = time_in;
-        lfp_Fs = newFs;
+        lfp_Fs = Fs;
     else
-        % Иначе, проводим ресемплинг
+        % Иначе, проводим ресемплинг (только даунсемплинг)
         raw_Fs = Fs;
         lfp_Fs = round(newFs);
         numRawPoints = size(data, 1); % количество точек в исходных данных
 
-        numPoints = ceil(numRawPoints * lfp_Fs / raw_Fs); % вычисляем количество точек после ресемплинга
+        % Используем interp1 для ресемплинга (быстрее и без краевых эффектов от фильтра)
+        t_original = time_in;
+        totalDuration = t_original(end) - t_original(1);
+        numPoints = round(totalDuration * lfp_Fs) + 1;
+        t_resampled = linspace(time_in(1), time_in(end), numPoints);
 
         data_res = zeros(numPoints, size(data, 2)); % предварительное выделение памяти
 
         for ch = 1:size(data, 2)
-            data_res(:, ch) = resample(double(data(:, ch)), lfp_Fs , raw_Fs);
+            data_res(:, ch) = interp1(t_original, double(data(:, ch)), t_resampled, 'linear', 'extrap');
         end
 
-        time_res = linspace(time_in(1),time_in(end),size(data_res, 1));
+        time_res = t_resampled;
     end
 
     numChannels = size(data_res, 2);

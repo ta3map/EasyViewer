@@ -237,6 +237,18 @@ function signalViewerGUI(editMode)
         save(SettingsFilepath, 'lastOpenedFiles', 'add_event_settings', '-append');
     end
 
+    % Идентификатор (tag) для GUI фигуры
+    figTag = 'EasyViwerFigure';
+    
+    % Поиск открытой фигуры с заданным идентификатором
+    guiFig = findobj('Type', 'figure', 'Tag', figTag);
+    
+    if ~isempty(guiFig)
+        % Делаем существующее окно текущим (активным)
+        figure(guiFig);
+        return
+    end
+    
     % Создание таймера
     timer('TimerFcn', @resetParametersCallback, 'StartDelay', 1, 'ExecutionMode', 'singleShot');
     
@@ -245,7 +257,7 @@ function signalViewerGUI(editMode)
            'NumberTitle', 'off',...
            'MenuBar', 'none', ... % Отключение стандартного меню
            'ToolBar', 'none', ...
-           'Tag', 'EasyViwerFigure', ...
+           'Tag', figTag, ...
            'KeyPressFcn', @keyPressFunction);
     
     % Используем базовое положение из JSON файла
@@ -302,8 +314,10 @@ function signalViewerGUI(editMode)
                            'ColumnFormat', {'char', 'logical', 'numeric', 'char', 'numeric', 'logical', 'logical', 'logical', 'logical'}, ...
                            'ColumnEditable', [false true true true true true true true true], ...
                            'Position', getElementPosition('channel_table'), 'Tag', 'channel_table');
-    % Toggle кнопка для выбора/снятия всех каналов
-    toggleAllChannelsBtn = uicontrol('Parent', sidePanel, 'Style', 'togglebutton', 'String', '(De)select ch', 'Position', getElementPosition('load_settings_btn'), 'Callback', @toggleAllChannels, 'Tag', 'toggle_all_channels_btn');
+    % Toggle кнопки для свойств каналов
+    toggleAllChannelsBtn = uicontrol('Parent', sidePanel, 'Style', 'togglebutton', 'String', '(De)select ch', 'Position', getElementPosition('toggle_all_channels_btn'), 'Callback', @(src,evt)toggleChannelProperty(src, evt, 2), 'Tag', 'toggle_all_channels_btn');
+    toggleCSDBtn = uicontrol('Parent', sidePanel, 'Style', 'togglebutton', 'String', '(De)select CSD', 'Position', getElementPosition('toggle_csd_btn'), 'Callback', @(src,evt)toggleChannelProperty(src, evt, 7), 'Tag', 'toggle_csd_btn');
+    toggleBaselineBtn = uicontrol('Parent', sidePanel, 'Style', 'togglebutton', 'String', '(De)select Baseline', 'Position', getElementPosition('toggle_baseline_btn'), 'Callback', @(src,evt)toggleChannelProperty(src, evt, 9), 'Tag', 'toggle_baseline_btn');
     
     % Панель событий                   
     event_panel_position_a = [.72 .01 .27 .31];
@@ -1549,23 +1563,31 @@ function signalViewerGUI(editMode)
         set(multiax, 'Visible', 'on')
     end
 
-    function toggleAllChannels(~, ~)
-        % Получение текущих данных из таблицы
+    function toggleChannelProperty(~, ~, columnIndex)
+        % Общая функция для toggle кнопок свойств каналов
+        % columnIndex - номер колонки в таблице (2=Enabled, 7=CSD, 9=Baseline)
         updatedData = get(channelTable, 'Data');
-        currentEnabled = [updatedData{:, 2}];
+        currentValues = [updatedData{:, columnIndex}];
         
         % Определение нового состояния: если все включены - выключаем все, иначе включаем все
-        allEnabled = all(currentEnabled);
+        allEnabled = all(currentValues);
         newState = ~allEnabled;
-        
-        % Обновление состояния всех каналов
-        channelEnabled(:) = newState;
         
         % Обновление данных в таблице
         for i = 1:size(updatedData, 1)
-            updatedData{i, 2} = newState;
+            updatedData{i, columnIndex} = newState;
         end
         set(channelTable, 'Data', updatedData);
+        
+        % Обновление соответствующих глобальных переменных
+        switch columnIndex
+            case 2
+                channelEnabled(:) = newState;
+            case 7
+                csd_avaliable(:) = newState;
+            case 9
+                baseline_subtract_available(:) = newState;
+        end
         
         % Обновление выбора каналов и графика
         updateChannelSelection();
@@ -2236,6 +2258,34 @@ end
     set(eventTable, 'CellEditCallback', @updateEventTable);
     set(channelTable, 'CellEditCallback', @updateChannelSelection);
     
+    % Пытаемся автоматически открыть последний файл при запуске
+    autoOpenLastFile();
+    
+    function autoOpenLastFile()
+        % Автоматически открывает последний открытый файл при запуске GUI
+        
+        try
+            % Проверяем, есть ли список последних файлов
+            if isempty(lastOpenedFiles)
+                return;
+            end
+            
+            % Берем последний файл из списка
+            lastFile = lastOpenedFiles{end};
+            
+            % Проверяем, существует ли файл
+            if ~exist(lastFile, 'file')
+                % Удаляем несуществующий файл из списка
+                lastOpenedFiles(end) = [];
+                return;
+            end
+            
+            % Загружаем файл
+            loadMatFile(lastFile);
+        catch ME
+            % Игнорируем ошибки при автоматической загрузке
+        end
+    end
     
     function updateAndRunInstaller()
         saveDirectory = fullfile(fileparts(EV_path), 'EV updates'); % Save directory

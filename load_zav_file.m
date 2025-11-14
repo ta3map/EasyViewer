@@ -104,6 +104,17 @@ else
     error('Поле zavp обязательно для загрузки ZAV файла');
 end
 
+% Попытка восстановить оригинальную частоту дискретизации
+orig_Fs = [];
+if isfield(zavp, 'siS')
+    if zavp.siS > 0
+        orig_Fs_from_siS = 1 / zavp.siS;
+        if abs(orig_Fs_from_siS - Fs) > 0.1
+            orig_Fs = orig_Fs_from_siS;
+        end
+    end
+end
+
 if isfield(d, 'lfpVar')
     lfpVar = d.lfpVar;
 else
@@ -118,7 +129,13 @@ else
     fprintf('Поле chnlGrp не найдено, используем пустой массив\n');
 end
 
-fprintf('Частота дискретизации: %.1f Гц\n', Fs);
+fprintf('Частота дискретизации (после даунсемплинга): %.1f Гц\n', Fs);
+if ~isempty(orig_Fs)
+    fprintf('Оригинальная частота дискретизации: %.1f Гц\n', orig_Fs);
+    fprintf('Коэффициент даунсемплинга: %.2f\n', orig_Fs / Fs);
+else
+    fprintf('Оригинальная частота дискретизации: не определена\n');
+end
 
 % Получение размеров исходной матрицы
 [m, n, p] = size(lfp);
