@@ -6,7 +6,7 @@ function loadGlobalSettings()
     global lastOpenedFiles figure_position add_event_settings
     global timeUnitFactor selectedUnit autodetection_settings
     global art_rem_window_ms lines_and_styles side_panel_visible
-    global SettingsFilepath
+    global auto_open_last_file SettingsFilepath
     
     % Путь к файлу настроек
     SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
@@ -27,6 +27,7 @@ function loadGlobalSettings()
             autodetection_settings = [];
             lines_and_styles = [];
             side_panel_visible = true;
+            auto_open_last_file = true;
             cursor_positions = struct();
             
             % Сохраняем файл настроек
@@ -40,6 +41,7 @@ function loadGlobalSettings()
                 'autodetection_settings', ...
                 'lines_and_styles', ...
                 'side_panel_visible', ...
+                'auto_open_last_file', ...
                 'cursor_positions');
             
             disp('Default settings file created successfully');
@@ -114,6 +116,13 @@ function loadGlobalSettings()
                 side_panel_visible = true; % fallback для старых настроек
             end
             
+            % Загружаем настройку автоматического открытия последнего файла
+            if isfield(d, 'auto_open_last_file')
+                auto_open_last_file = d.auto_open_last_file;
+            else
+                auto_open_last_file = false; % fallback для старых настроек - отключаем автооткрытие
+            end
+            
         catch ME
             warning('Ошибка при загрузке настроек: %s', ME.message);
             % В случае ошибки устанавливаем значения по умолчанию
@@ -140,6 +149,7 @@ function loadGlobalSettings()
         autodetection_settings = [];
         art_rem_window_ms = 0;
         side_panel_visible = true;
+        auto_open_last_file = true;
         lines_and_styles = struct();
     end
 end

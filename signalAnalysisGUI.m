@@ -55,6 +55,7 @@ function signalAnalysisGUI(editMode)
     % Глобальные переменные настроек (загружены в app.m)
     global figure_position lastOpenedFiles add_event_settings
     global autodetection_settings lines_and_styles side_panel_visible
+    global auto_open_last_file
     
     % Глобальные настройки уже загружены в app.m
     
@@ -3479,6 +3480,15 @@ updateCursorEditFields();
 
     function autoOpenLastFile()
         % Автоматически открывает последний открытый файл при запуске GUI
+        
+        % Проверяем настройку автоматического открытия
+        if ~exist('auto_open_last_file', 'var') || isempty(auto_open_last_file)
+            return; % Если настройка не загружена - не открываем
+        end
+        
+        if ~auto_open_last_file
+            return;
+        end
         
         try
             % Проверяем, есть ли список последних файлов

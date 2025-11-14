@@ -73,6 +73,7 @@ function signalViewerGUI(editMode)
     global art_rem_window_ms
     global stimShowFlag 
     global lines_and_styles
+    global auto_open_last_file
     global keyboardpressed previousKey
     global ica_flag pca_flag
     global autoSetNewFsFromFs % флаг автоматической установки newFs на основе Fs
@@ -480,9 +481,7 @@ function signalViewerGUI(editMode)
         '', ...
         'Mean Events', ...
         '', ...
-        'Reset record''s settings', ...
-        '', ...
-        'Edit Group Settings'};
+        'Reset record''s settings'};
    
     % Создание выпадающего списка
     opt_menu = uicontrol('Style', 'listbox',...
@@ -828,8 +827,6 @@ function signalViewerGUI(editMode)
                 setupMeanEventsGUI();
             case options{13}%'Reset record''s settings'
                 resetRecordSettings();
-            case options{15}
-                settingsEditor();
             case ''
             dont_close_menu = true;
         end
@@ -2263,6 +2260,15 @@ end
     
     function autoOpenLastFile()
         % Автоматически открывает последний открытый файл при запуске GUI
+        
+        % Проверяем настройку автоматического открытия
+        if ~exist('auto_open_last_file', 'var') || isempty(auto_open_last_file)
+            return; % Если настройка не загружена - не открываем
+        end
+        
+        if ~auto_open_last_file
+            return;
+        end
         
         try
             % Проверяем, есть ли список последних файлов
