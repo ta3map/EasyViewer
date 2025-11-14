@@ -9,9 +9,10 @@ function app()
     % Date:         13.11.2025    
 
 
-    global EV_path EV_version
+    global EV_path EV_version EV_date
 
     EV_version = '1.12.11';
+    EV_date = '14.11.2025';
 
     clc
     disp(['Easy Viewer version: ' EV_version])

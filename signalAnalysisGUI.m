@@ -452,6 +452,10 @@ end
         'Position', getElementPosition('main_axes'), ...  % Координаты из JSON
         'Tag', 'main_axes');
     
+    % Плейсхолдер пока файл не загружен
+    set(hPlotAxes, 'Visible', 'off');
+    text(hPlotAxes, 0.5, 0.5, 'Load ZAV or EV file', 'color', 'r', 'horizontalalignment', 'center');
+    
     % Кнопка зума в левом углу графика
     hZoomButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Zoom', ...
         'Position', getElementPosition('zoom_btn'), 'Callback', @toggleZoom, 'Tag', 'zoom_btn');
@@ -3100,6 +3104,9 @@ updateCursorEditFields();
             original_xlim = optimal_xlim;
             original_ylim = optimal_ylim;
             
+            % Показываем оси после загрузки файла
+            set(hPlotAxes, 'Visible', 'on');
+            
             % Обновляем отображение
             updateNavigationStatus();
             updatePlotAndCalculation();
@@ -3615,6 +3622,9 @@ updateCursorEditFields();
             % Сохраняем как original для правильной работы зума
             original_xlim = optimal_xlim;
             original_ylim = optimal_ylim;
+            
+            % Показываем оси после загрузки файла
+            set(hPlotAxes, 'Visible', 'on');
             
             % Обновляем отображение
             updateNavigationStatus();

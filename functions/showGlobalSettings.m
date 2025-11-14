@@ -94,12 +94,19 @@ function showGlobalSettings()
                                  'Callback', @autoOpenCheckboxCallback, ...
                                  'FontSize', 10);
     
+    % Reset to Defaults button
+    resetBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
+                         'String', 'Reset to Defaults', ...
+                         'Position', [25, 20, 150, 35], ...
+                         'Callback', @resetToDefaults, ...
+                         'FontSize', 11);
+    
     % Close button
-    uicontrol('Parent', fig, 'Style', 'pushbutton', ...
-              'String', 'Close', ...
-              'Position', [250, 20, 100, 35], ...
-              'Callback', @closeWindow, ...
-              'FontSize', 11);
+    closeBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
+                         'String', 'Close', ...
+                         'Position', [250, 20, 100, 35], ...
+                         'Callback', @closeWindow, ...
+                         'FontSize', 11);
     
     function autoOpenCheckboxCallback(src, ~)
         % Сохраняем настройку при изменении чекбокса
@@ -113,6 +120,44 @@ function showGlobalSettings()
             end
         catch ME
             warning('Error saving auto_open_last_file setting: %s', ME.message);
+        end
+    end
+    
+    function resetToDefaults(~, ~)
+        % Сбрасывает все глобальные настройки к значениям по умолчанию
+        choice = questdlg('Are you sure you want to reset all global settings to default values? This action cannot be undone.', ...
+                          'Reset to Defaults', ...
+                          'Yes', 'No', 'No');
+        if strcmp(choice, 'Yes')
+            try
+                % Удаляем файл настроек
+                if exist(SettingsFilepath, 'file')
+                    delete(SettingsFilepath);
+                end
+                
+                % Перезагружаем настройки (создастся новый файл с настройками по умолчанию)
+                loadGlobalSettings();
+                
+                % Обновляем таблицу
+                if exist(SettingsFilepath, 'file')
+                    d = load(SettingsFilepath);
+                else
+                    d = struct();
+                end
+                tableData = buildSettingsTable(d);
+                set(table, 'Data', tableData);
+                
+                % Обновляем чекбокс
+                if exist('auto_open_last_file', 'var') && ~isempty(auto_open_last_file)
+                    set(autoOpenCheckbox, 'Value', auto_open_last_file);
+                else
+                    set(autoOpenCheckbox, 'Value', true);
+                end
+                
+                fprintf('Global settings reset to default values\n');
+            catch ME
+                warning('Error resetting global settings: %s', ME.message);
+            end
         end
     end
     

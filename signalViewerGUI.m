@@ -39,8 +39,8 @@ function signalViewerGUI(editMode)
         end
     end
 
-    % EV_version теперь определена в app.m как глобальная переменная
-    global EV_path EV_version
+    % EV_version и EV_date теперь определены в app.m как глобальные переменные
+    global EV_path EV_version EV_date
    
     global Fs N time chosen_time_interval ch_inxs m_coef
     global shiftCoeff eventTable
@@ -168,6 +168,7 @@ function signalViewerGUI(editMode)
     file_menu_visible = false;
     view_menu_visible = false;
     analysis_menu_visible = false;
+    help_menu_visible = false;
     
     binsize = 0.001;%s
     show_spikes = false;
@@ -494,6 +495,24 @@ function signalViewerGUI(editMode)
                     'Visible', 'on', ...
                     'Position', getElementPosition('option_btn'),...
                     'Callback', @showMenu, 'Tag', 'option_btn');
+    
+    % Список пунктов Help меню
+    help_functions = {'About Program', ...
+        '', ...
+        'About Current File'};
+    
+    % Создание выпадающего списка
+    help_menu = uicontrol('Style', 'listbox',...
+        'String', help_functions,...
+        'Visible', 'off', ...
+        'Position', getElementPosition('help_menu'),...
+        'Callback', @HelpMenuSelectionCallback, 'Tag', 'help_menu');
+    
+    % Создание кнопки для активации выпадающего списка
+    helpBtn = uicontrol('Style', 'pushbutton', 'String', 'Help',...
+        'Visible', 'on', ...
+        'Position', getElementPosition('help_btn'),...
+        'Callback', @showHelpMenu, 'Tag', 'help_btn');
 
                 % Конец выпадающих меню
     %%
@@ -637,6 +656,9 @@ function signalViewerGUI(editMode)
         
         set(analysis_menu, 'Visible', 'off'); % Скрыть меню
         analysis_menu_visible = false;
+        
+        set(help_menu, 'Visible', 'off'); % Скрыть меню
+        help_menu_visible = false;
         
         catch
             disp('bravo 5')
@@ -964,6 +986,35 @@ function signalViewerGUI(editMode)
             set(opt_menu, 'Visible', 'on'); % Показать меню   
         end
         menu_visible = not(menu_visible);
+    end
+    
+    % Функция обратного вызова для кнопки Help
+    function showHelpMenu(~, ~)
+        if help_menu_visible
+            set(help_menu, 'Visible', 'off'); % Убрать меню
+        else
+            set(help_menu, 'Visible', 'on'); % Показать меню
+        end
+        help_menu_visible = not(help_menu_visible);
+    end
+    
+    % Обратный вызов выпадающего списка Help
+    function HelpMenuSelectionCallback(src, ~)
+        val = src.Value;
+        str = src.String;
+        selectedOption = str{val};
+        dont_close_menu = false;
+        switch selectedOption
+            case help_functions{1} % 'About Program'
+                showAboutProgram();
+            case help_functions{3} % 'About Current File'
+                showAboutCurrentFile();
+            case ''
+                dont_close_menu = true;
+        end
+        if ~dont_close_menu
+            resetGraphParameters()
+        end
     end
 
     function resizeComponents(~, ~)
