@@ -11,7 +11,7 @@ function app()
 
     global EV_path EV_version
 
-    EV_version = '1.12.10';
+    EV_version = '1.12.11';
 
     clc
     disp(['Easy Viewer version: ' EV_version])

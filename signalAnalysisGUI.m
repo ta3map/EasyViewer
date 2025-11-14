@@ -3767,8 +3767,27 @@ updateCursorEditFields();
             table_calling = old_table_calling;
         end
         
-        % Обновляем статус навигации
-        updateNavigationStatus();
+        % Если события успешно загружены, переключаемся на режим событий и обновляем график
+        if events_exist && ~isempty(events)
+            selectedCenter = 'event';
+            event_inx = 1;
+            
+            % Обновляем временной интервал для первого события
+            if exist('time_forward', 'var') && ~isempty(time_forward)
+                chosen_time_interval(1) = events(event_inx);
+                chosen_time_interval(2) = events(event_inx) + time_forward;
+            end
+            
+            % Обновляем edit fields
+            updateCursorEditFields();
+            
+            % Обновляем график и статус
+            updateNavigationStatus();
+            updatePlotAndCalculation();
+        else
+            % Обновляем только статус если события не загружены
+            updateNavigationStatus();
+        end
     end
 
     function collectAllMetadata(~, ~)
