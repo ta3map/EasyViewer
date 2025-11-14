@@ -182,6 +182,7 @@ function fileManagerGUI()
                         table_calling()
                         event_inx = 1;                        
                 end
+                fprintf('File loaded.\n');
                 close(wb)
                 
             catch ME

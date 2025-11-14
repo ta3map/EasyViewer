@@ -1,4 +1,7 @@
-function calculateAndPlotMeanEvents()
+function calculateAndPlotMeanEvents(sourceType)
+if nargin < 1
+    sourceType = 'events'; % обратная совместимость
+end
 fprintf('Please wait...\n');
 % Инициализация переменных
 global Fs N time ch_inxs  
@@ -20,15 +23,32 @@ global art_rem_window_ms
 global stims
 global t_mean_profile
 global wb
+global matFileName
 
-local_evfilename = evfilename;
+if strcmp(sourceType, 'stimuli')
+    params.timePoints = stims;
+    if isempty(evfilename) || strcmp(evfilename, '')
+        if ~isempty(matFileName) && ~strcmp(matFileName, '')
+            local_evfilename = matFileName;
+        else
+            local_evfilename = 'stimuli';
+        end
+    else
+        local_evfilename = evfilename;
+    end
+    figureName = 'Mean Stimulus Data';
+else
+    params.timePoints = events;
+    local_evfilename = evfilename;
+    figureName = 'Mean Event Data';
+end
 
 [mat_file_folder, original_filename, ~] = fileparts(matFilePath);
 
 channelSettings = get(channelTable, 'Data');
 
-params.events = events;
-params.figure = figure('Name', 'Mean Event Data', 'Tag', 'meanSignalResult'); % Создание нового окна для графика;
+params.sourceType = sourceType;
+params.figure = figure('Name', figureName, 'Tag', 'meanSignalResult'); % Создание нового окна для графика;
 params.figure.Position = [32, 64, 1024, 768];
 params.meanWindow = 2;% s
 params.hd = hd;
@@ -176,5 +196,5 @@ function SaveImageClb(~,~)
     
 end
 
-
+fprintf('Mean events calculated.\n');
 end

@@ -1,7 +1,12 @@
 function [f, calculation_result] = plotMeanEvents(params)
 
     % Распаковка переменных из params
-    events = params.events;
+    timePoints = params.timePoints;
+    if isfield(params, 'sourceType')
+        sourceType = params.sourceType;
+    else
+        sourceType = 'events'; % обратная совместимость
+    end
     meanWindow = params.meanWindow;
     hd = params.hd;
     channelSettings = params.channelSettings;
@@ -41,13 +46,13 @@ function [f, calculation_result] = plotMeanEvents(params)
 
     % Подготовка данных для среднего
     meanData = zeros(round(meanWindow * Fs), size(lfp, 2));
-    numEvents = length(events);
+    numEvents = length(timePoints);
     
     lfp(:, mean_group_ch) = lfp(:, mean_group_ch) - nanmean(lfp(:, mean_group_ch), 2); % вычитание выбранных средних каналов
     
     for i = 1:numEvents
-        % Вычисление индексов окна вокруг события
-        eventIdx = round(events(i) * Fs);
+        % Вычисление индексов окна вокруг временной точки
+        eventIdx = round(timePoints(i) * Fs);
         windowStart = max(eventIdx - round(meanWindow * Fs / 2), 1);
         windowEnd = min(windowStart + round(meanWindow * Fs) - 1, N);
 
@@ -67,8 +72,8 @@ function [f, calculation_result] = plotMeanEvents(params)
     if show_spikes && not(isempty(spks)) && not(show_CSD)
         clear evs
         for i = 1:numEvents
-            % Вычисление индексов окна вокруг события
-            eventIdx = round(events(i) * Fs);
+            % Вычисление индексов окна вокруг временной точки
+            eventIdx = round(timePoints(i) * Fs);
             windowStart = max(eventIdx - round(meanWindow * Fs / 2), 1);
             windowEnd = min(windowStart + round(meanWindow * Fs) - 1, N);
 
@@ -221,8 +226,12 @@ end
     'color', pl_colors_in);
 
     xlabel('Time');
-    ylabel('Mean Value');    
-    title([titlename, ', ', num2str(numEvents), ' events'], 'interpreter', 'none')        
+    ylabel('Mean Value');
+    if strcmp(sourceType, 'stimuli')
+        title([titlename, ', ', num2str(numEvents), ' stimuli'], 'interpreter', 'none')
+    else
+        title([titlename, ', ', num2str(numEvents), ' events'], 'interpreter', 'none')
+    end        
 
     ylim([offsets(end)-shiftCoeff, offsets(1)+shiftCoeff])
     xlim([start_time, end_time]*timeUnitFactor)
@@ -230,7 +239,8 @@ end
     calculation_result = struct();
 
     calculation_result.meanData = meanData;
-    calculation_result.events = events;
+    calculation_result.timePoints = timePoints;
+    calculation_result.sourceType = sourceType;
     calculation_result.channelSettings = channelSettings;
     calculation_result.activeChannels = activeChannels;
     calculation_result.scalingCoefficients = scalingCoefficients;

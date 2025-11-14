@@ -47,6 +47,7 @@ function app()
     
     % Close all other windows before opening main window
     closeAllButOne(f);
+    disp('Application ready')
     
     % Create panel for buttons
     panel = uipanel('Parent', f, ...

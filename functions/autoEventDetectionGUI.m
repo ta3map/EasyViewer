@@ -590,6 +590,7 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
         channels_detected = [];
         metadata_detected = [];
     end
+    fprintf('Events detected.\n');
     close(wb)
 end
 

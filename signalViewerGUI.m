@@ -1006,7 +1006,28 @@ function signalViewerGUI(editMode)
     end
 %% Построение среднего графика
     function meanEventsCallback(~, ~)
-        calculateAndPlotMeanEvents();
+        if ~events_exist && ~stims_exist
+            errordlg('No events or stimuli available. Please load events or a file with stimuli.', 'Error');
+            return;
+        end
+        
+        if events_exist && ~stims_exist
+            calculateAndPlotMeanEvents('events');
+        elseif ~events_exist && stims_exist
+            calculateAndPlotMeanEvents('stimuli');
+        else
+            choice = questdlg('Select data source for mean calculation:', ...
+                'Mean Calculation', ...
+                'Events', 'Stimuli', 'Cancel', 'Events');
+            switch choice
+                case 'Events'
+                    calculateAndPlotMeanEvents('events');
+                case 'Stimuli'
+                    calculateAndPlotMeanEvents('stimuli');
+                case 'Cancel'
+                    return;
+            end
+        end
     end
 %%
 
