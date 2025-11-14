@@ -429,6 +429,10 @@ end
     uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Open File', ...
         'Position', getElementPosition('open_file_btn'), 'Callback', @openFile, 'Tag', 'open_file_btn');
     
+    % Кнопка загрузки событий
+    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Load Events', ...
+        'Position', getElementPosition('load_events_btn'), 'Callback', @loadEvents, 'Tag', 'load_events_btn');
+    
     % Кнопка групповых настроек
     uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Settings', ...
         'Position', getElementPosition('settings_btn'), 'Callback', @openGroupSettingsEditor, 'Tag', 'settings_btn');
@@ -820,7 +824,11 @@ updateCursorEditFields();
         end
         
         % Обновляем временной интервал на основе режима и временных окон
-        if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
+        if strcmp(selectedCenter, 'event') && events_exist && ~isempty(events)
+            % В режиме события центрируем интервал по текущему событию
+            chosen_time_interval(1) = events(event_inx);
+            chosen_time_interval(2) = chosen_time_interval(1) + time_forward;
+        elseif strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
             % В режиме стимула центрируем интервал по текущему стимулу
             chosen_time_interval(1) = stims(stim_inx);
             chosen_time_interval(2) = chosen_time_interval(1) + time_forward;
@@ -3728,6 +3736,39 @@ updateCursorEditFields();
         updateNavigationStatus();
         
         fprintf('✓ Optimal axis sizes applied\n');
+    end
+
+    function loadEvents(~, ~)
+        % Загружает события из файла используя универсальную функцию
+        global updatePlotFunc table_calling
+        
+        % Сохраняем текущие callback функции
+        old_updatePlotFunc = [];
+        old_table_calling = [];
+        if exist('updatePlotFunc', 'var')
+            old_updatePlotFunc = updatePlotFunc;
+        end
+        if exist('table_calling', 'var')
+            old_table_calling = table_calling;
+        end
+        
+        % Устанавливаем callback функции для signalAnalysisGUI
+        updatePlotFunc = @() updatePlotAndCalculation();
+        table_calling = []; % В signalAnalysisGUI нет таблицы событий
+        
+        % Вызываем универсальную функцию загрузки
+        loadEventsFromFile();
+        
+        % Восстанавливаем callback функции
+        if ~isempty(old_updatePlotFunc)
+            updatePlotFunc = old_updatePlotFunc;
+        end
+        if ~isempty(old_table_calling)
+            table_calling = old_table_calling;
+        end
+        
+        % Обновляем статус навигации
+        updateNavigationStatus();
     end
 
     function collectAllMetadata(~, ~)

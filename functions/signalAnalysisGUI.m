@@ -433,6 +433,9 @@ end
     uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Collect All', ...
         'Position', coordsData.elements.collect_all_btn, 'Callback', @collectAllMetadata, 'Tag', 'collect_all_btn');
     
+    % Кнопка загрузки событий
+    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Load Events', ...
+        'Position', coordsData.elements.load_events_btn, 'Callback', @loadEvents, 'Tag', 'load_events_btn');
 
     
     % Кнопка сохранения результатов
@@ -798,7 +801,11 @@ updateCursorEditFields();
         end
         
         % Обновляем временной интервал на основе режима и временных окон
-        if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
+        if strcmp(selectedCenter, 'event') && events_exist && ~isempty(events)
+            % В режиме события центрируем интервал по текущему событию
+            chosen_time_interval(1) = events(event_inx);
+            chosen_time_interval(2) = chosen_time_interval(1) + time_forward;
+        elseif strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
             % В режиме стимула центрируем интервал по текущему стимулу
             chosen_time_interval(1) = stims(stim_inx);
             chosen_time_interval(2) = chosen_time_interval(1) + time_forward;
@@ -3036,6 +3043,11 @@ updateCursorEditFields();
                 sweep_inx = 1;
             end
             
+            % Сбрасываем события при загрузке нового файла (события относятся к старому файлу)
+            events_exist = false;
+            events = [];
+            event_inx = 1;
+            
             % Создание временной оси
             N = size(lfp, 1);
             time = (0:N-1) / Fs; % в секундах
@@ -3057,7 +3069,9 @@ updateCursorEditFields();
             newFs = Fs; % используем частоту даунсемплинга
             
             % Автоматический выбор режима центра для файлов со свипами
-            if stims_exist && ~isempty(stims)
+            if events_exist && ~isempty(events)
+                selectedCenter = 'event';
+            elseif stims_exist && ~isempty(stims)
                 selectedCenter = 'stimulus';
             else
                 selectedCenter = 'time';
@@ -3568,7 +3582,11 @@ updateCursorEditFields();
             
             % Устанавливаем флаги
             stims_exist = ~isempty(stims);
-            events_exist = false; % пока не загружаем события
+            % events_exist будет установлен при загрузке событий через loadEvents
+            % Проверяем, есть ли уже загруженные события
+            if ~exist('events_exist', 'var')
+                events_exist = false;
+            end
             
             % Устанавливаем индексы
             stim_inx = 1;
@@ -3585,7 +3603,9 @@ updateCursorEditFields();
             newFs = Fs;
             
             % Устанавливаем режим центра
-            if stims_exist && ~isempty(stims)
+            if events_exist && ~isempty(events)
+                selectedCenter = 'event';
+            elseif stims_exist && ~isempty(stims)
                 selectedCenter = 'stimulus';
             else
                 selectedCenter = 'time';
@@ -3757,6 +3777,39 @@ updateCursorEditFields();
         fprintf('✓ Применены оптимальные размеры осей\n');
     end
 
+    function loadEvents(~, ~)
+        % Загружает события из файла используя универсальную функцию
+        global updatePlotFunc table_calling
+        
+        % Сохраняем текущие callback функции
+        old_updatePlotFunc = [];
+        old_table_calling = [];
+        if exist('updatePlotFunc', 'var')
+            old_updatePlotFunc = updatePlotFunc;
+        end
+        if exist('table_calling', 'var')
+            old_table_calling = table_calling;
+        end
+        
+        % Устанавливаем callback функции для signalAnalysisGUI
+        updatePlotFunc = @() updatePlotAndCalculation();
+        table_calling = []; % В signalAnalysisGUI нет таблицы событий
+        
+        % Вызываем универсальную функцию загрузки
+        loadEventsFromFile();
+        
+        % Восстанавливаем callback функции
+        if ~isempty(old_updatePlotFunc)
+            updatePlotFunc = old_updatePlotFunc;
+        end
+        if ~isempty(old_table_calling)
+            table_calling = old_table_calling;
+        end
+        
+        % Обновляем статус навигации
+        updateNavigationStatus();
+    end
+    
     function collectAllMetadata(~, ~)
         % Функция для сбора всех метаданных из подпапок и создания сводной таблицы
         
