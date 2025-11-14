@@ -3,7 +3,7 @@ function updatePlot()
     global chosen_time_interval time_back cond time lfp mean_group_ch ch_inxs m_coef Fs newFs timeUnitFactor multiax
     global ch_labels_l shiftCoeff widths_in_l colors_in_l show_spikes spks std_coef selectedUnit matFilePath stims events timeSlider
     global data time_in show_CSD filterSettings filter_avaliable csd_smooth_coef
-    global csd_contrast_coef csd_avaliable show_power power_window lfpVar
+    global csd_contrast_coef csd_avaliable lfpVar
     global csd_image csd_t_range csd_ch_range offsets
     global art_rem_window_ms stimShowFlag lines_and_styles
     global selectedCenter sweep_info sweep_inx % для работы со свипами
@@ -111,14 +111,6 @@ function updatePlot()
         
         [csd_image, csd_t_range, csd_ch_range] = csdCalc(params);
         csdPlotting(csd_image, csd_t_range, csd_ch_range, csd_contrast_coef);
-    end
-    
-    if show_power
-        windowSize = round(power_window * lfp_Fs); % Размер окна для RMS, примерно 25 мс
-        for ch = 1:size(data_res, 2)
-            % Вычисление RMS мощности сигнала
-            data_res(:, ch) = sqrt(movmean(data_res(:, ch).^2, windowSize));
-        end
     end
     
     % Сначала вызываем multiplot и получаем необходимые данные

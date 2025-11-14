@@ -66,7 +66,6 @@ function signalViewerGUI(editMode)
     global SettingsFilepath
     global csd_smooth_coef csd_contrast_coef
     global autodetection_settings
-    global show_power power_window % для мощности
     global lfpVar windowSize
     global timeCenterPopup
     global event_title_string evfilename eventDeleteEdit
@@ -156,9 +155,6 @@ function signalViewerGUI(editMode)
     
     event_title_string = 'Events';
     csd_contrast_coef = 99.9;
-    
-    show_power = false;
-    power_window = 0.025;% 25 милисекунд   
     
     data_loaded = false;
     autoSetNewFsFromFs = true; % по умолчанию включен автоматический расчет newFs
@@ -374,10 +370,6 @@ function signalViewerGUI(editMode)
     showSpikesButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'MUA', 'Position', getElementPosition('show_spikes_button'), 'Callback', @ShowSpikesButtonCallback, 'Tag', 'show_spikes_button');
     showCSDbutton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'CSD', 'Position', getElementPosition('show_csd_button'), 'Callback', @ShowCSDButtonCallback, 'Tag', 'show_csd_button');
     
-    showPowerButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Power', 'Position', getElementPosition('show_power_button'), 'Callback', @ShowPowerButtonCallback, 'Tag', 'show_power_button');
-    powerWindow = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', num2str(power_window*timeUnitFactor), 'Position', getElementPosition('power_window'), 'Callback', @powerWindowCallback, 'Tag', 'power_window');
-    powerText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', ['Window, ' selectedUnit ':'], 'Position', getElementPosition('power_text'), 'Tag', 'power_text');
-    
     % Кнопки для навигации по времени
     previousbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Previous', 'Position', getElementPosition('previous_button'), 'Callback', {@shiftTime, -1, timeForwardEdit}, 'Tag', 'previous_button');
     nextbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Next', 'Position', getElementPosition('next_button'), 'Callback', {@shiftTime, 1, timeForwardEdit}, 'Tag', 'next_button');
@@ -523,7 +515,8 @@ function signalViewerGUI(editMode)
                      'ColumnName', {'Time', 'Comment', 'Amplitude', 'Channel', 'Source'}, ...
                      'ColumnFormat', {'bank', 'char', 'bank', 'numeric', 'char'}, ... % Формат для отображения чисел
                      'Data', event_table_data, ...
-                     'ColumnEditable', [false true false false false], 'Tag', 'event_table');
+                     'ColumnEditable', [false true false false false], 'Tag', 'event_table', ...
+                     'CellSelectionCallback', @eventTableSelectionChanged);
                  
     % Автоматический детектор событий
     AutoEventDetectionBtn = uicontrol('Parent', eventPanel,'Style', 'pushbutton', 'String', 'Auto Event Detection',...
@@ -1129,21 +1122,9 @@ function signalViewerGUI(editMode)
         updatePlot(); % Обновление графика
     end
 
-    % power coef
-    function powerWindowCallback(src, ~)
-        power_window = str2double(get(src, 'String'))/timeUnitFactor;
-        updatePlot(); % Обновление графика
-    end
-
     function ShowSpikesButtonCallback(~, ~)
         show_spikes = not(show_spikes);
         set(showSpikesButton, 'Value', show_spikes);
-        updatePlot(); % Обновление графика
-    end
-
-    function ShowPowerButtonCallback(~, ~)
-        show_power = not(show_power);
-        set(showPowerButton, 'Value', show_power);
         updatePlot(); % Обновление графика
     end
 
@@ -1216,10 +1197,8 @@ function signalViewerGUI(editMode)
         
         set(timeBackEdit, 'String', num2str(time_back*timeUnitFactor));
         set(timeForwardEdit, 'String', num2str(time_forward*timeUnitFactor));        
-        set(powerWindow, 'String', num2str(power_window*timeUnitFactor));
         
         set(TimeWindowText, 'String', ['Time Window, ' selectedUnit ':']);
-        set(powerText, 'String', ['Window, ' selectedUnit ':']);
         
         UpdateEventTable();
         updatePlot(); % Обновление графика с новыми единицами времени
@@ -1413,6 +1392,34 @@ function signalViewerGUI(editMode)
         % Получение данных из таблицы
         updatedEventData = get(eventTable, 'Data');
         event_comments = updatedEventData(:, 2);
+    end
+    
+    function eventTableSelectionChanged(~, event)
+        % Обработчик выбора строки в таблице событий
+        if isempty(event.Indices) || isempty(events)
+            return;
+        end
+        
+        selected_row = event.Indices(1);
+        if selected_row > 0 && selected_row <= length(events)
+            % Переключаемся в режим событий
+            selectedCenter = 'event';
+            event_inx = selected_row;
+            
+            % Обновляем выпадающий список режима
+            set(timeCenterPopup, 'Value', 3);
+            
+            % Обновляем временной интервал для выбранного события
+            windowSize = time_forward;
+            chosen_time_interval(1) = events(event_inx);
+            chosen_time_interval(2) = events(event_inx) + windowSize;
+            
+            % Обновляем поле с номером события
+            set(eventDeleteEdit, 'String', num2str(event_inx));
+            
+            % Обновляем график
+            updatePlot();
+        end
     end
     
     % Внутренние функции для обработки событий GUI
