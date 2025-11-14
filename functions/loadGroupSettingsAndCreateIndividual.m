@@ -12,7 +12,7 @@ function loadGroupSettingsAndCreateIndividual(matFilePath, numChannels, Fs, EV_v
     
     % Глобальные переменные для настроек (будут созданы в createIndividualSettingsFromGroup)
     global channelNames channelEnabled scalingCoefficients colorsIn lineCoefficients
-    global mean_group_ch csd_avaliable filter_avaliable filterSettings
+    global mean_group_ch csd_avaliable filter_avaliable baseline_subtract_available filterSettings
     global stims stims_exist stims_loaded_from_settings
     global newFs shiftCoeff time_back time_forward stim_offset EV_version
     
@@ -105,7 +105,7 @@ function createIndividualSettingsFromGroup(numChannels, matFilePath)
     % Создает полные индивидуальные настройки на основе групповых
     
     global channelNames channelEnabled scalingCoefficients colorsIn lineCoefficients
-    global mean_group_ch csd_avaliable filter_avaliable filterSettings
+    global mean_group_ch csd_avaliable filter_avaliable baseline_subtract_available filterSettings
     global stims stims_exist stims_loaded_from_settings
     global newFs shiftCoeff time_back time_forward stim_offset EV_version
     
@@ -113,13 +113,14 @@ function createIndividualSettingsFromGroup(numChannels, matFilePath)
     channelNames = np_flatten(channelNames);
     channelEnabled = true(1, numChannels);
     scalingCoefficients = ones(1, numChannels);
-    colorsIn = np_flatten(repmat({'black'}, numChannels, 1));
+    colorsIn = np_flatten(getColors(numChannels));
     lineCoefficients = ones(1, numChannels)*0.5;
     mean_group_ch = false(1, numChannels);
     csd_avaliable = true(1, numChannels);
     
     % Устанавливаем настройки фильтрации по умолчанию (только в индивидуальных настройках)
     filter_avaliable = false(1, numChannels);
+    baseline_subtract_available = true(1, numChannels);
     filterSettings.filterType = 'highpass';
     filterSettings.freqLow = 10;
     filterSettings.freqHigh = 50;

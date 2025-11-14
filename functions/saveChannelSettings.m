@@ -5,7 +5,7 @@ function saveChannelSettings()
     % Глобальные переменные
     global matFilePath newFs shiftCoeff time_forward time_back
     global channelNames channelEnabled scalingCoefficients colorsIn lineCoefficients
-    global mean_group_ch csd_avaliable filter_avaliable filterSettings
+    global mean_group_ch csd_avaliable filter_avaliable baseline_subtract_available filterSettings
     global stims EV_version channelTable csd_smooth_coef csd_contrast_coef
     
     % Проверяем, что файл существует
@@ -39,6 +39,7 @@ function saveChannelSettings()
             'mean_group_ch', ...
             'csd_avaliable', ...
             'filter_avaliable', ...
+            'baseline_subtract_available', ...
             'stims', ...
             'EV_version');
     end

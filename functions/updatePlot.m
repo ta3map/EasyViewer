@@ -7,6 +7,16 @@ function updatePlot()
     global csd_image csd_t_range csd_ch_range offsets
     global art_rem_window_ms stimShowFlag lines_and_styles
     global selectedCenter sweep_info sweep_inx % для работы со свипами
+    global baseline_subtract_available % каналы с вычитанием базовой линии
+    
+    if isempty(ch_inxs)
+        axes(multiax);
+        cla(multiax);
+        xlabel('Time, s');
+        ylabel('Channels');
+        text(0.5, 0.5, 'No channels selected', 'HorizontalAlignment', 'center', 'Units', 'normalized');
+        return;
+    end
     
     csd_active = csd_avaliable(ch_inxs);
     
@@ -60,6 +70,14 @@ function updatePlot()
     end
 
     numChannels = size(data_res, 2);
+    
+    % Вычитание первого семпла для каналов с включенным baseline subtraction
+    baseline_subtract_active = baseline_subtract_available(ch_inxs);
+    for ch = 1:numChannels
+        if baseline_subtract_active(ch)
+            data_res(:, ch) = data_res(:, ch) - data_res(1, ch);
+        end
+    end
     
     % Отображение времени на графике с учетом выбранной единицы времени
     time_in_transformed = time_res * timeUnitFactor;
@@ -117,7 +135,7 @@ function updatePlot()
         ch_inx = ch_inx+1;
         group_index = ch_inx == chRangeIndexes;
         text(rangesTimeTicks(group_index), chRangesOffsets(group_index), num2str(chRanges(group_index)', '%.2f'), 'color', color{:}, 'backgroundcolor', 'w')
-        scatter(rangesTimeLabels(group_index), chRangesOffsets(group_index), '_', color{:})
+        scatter(rangesTimeLabels(group_index), chRangesOffsets(group_index), [], 'Marker', '_', 'MarkerEdgeColor', color{:})
     end
 
     

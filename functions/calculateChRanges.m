@@ -13,14 +13,6 @@ function [chRanges, chRangesOffsets, chRangeIndexes] = calculateChRanges(offsets
         minChValue = -shiftCoeff / 2.5;
         maxChValue = shiftCoeff / 2.5;
         valueStep = shiftCoeff / 10;
-        
-        if ch_inx == 1
-            maxChValue = nanmax(max(data_res(:, ch_inx)), maxChValue);
-        end
-        
-        if ch_inx == numChannels
-            minChValue = nanmin(min(data_res(:, ch_inx)), minChValue);
-        end
        
         thisRange = (minChValue:valueStep:maxChValue);
         

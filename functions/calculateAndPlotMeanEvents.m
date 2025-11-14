@@ -114,32 +114,18 @@ rangesTimeTicks = Xlims(1)+zeros(size(chRangesOffsets)) + 0.02*(Xlims(end) - Xli
 rangesTimeLabels = Xlims(1)+zeros(size(chRangesOffsets)) + 0.005*(Xlims(end) - Xlims(1)); 
 colors_in = channelSettings(:, 4)';
 colors_in_selected = colors_in(ch_inxs);
-ch_inx = 0;
-for color = colors_in_selected
-    ch_inx = ch_inx+1;
-    group_index = ch_inx == chRangeIndexes;
-    text(rangesTimeTicks(group_index), chRangesOffsets(group_index), num2str(chRanges(group_index)', '%.2f'), 'color', color{:}, 'backgroundcolor', 'w')
-    scatter(rangesTimeLabels(group_index), chRangesOffsets(group_index), '_', color{:})
-end
+    ch_inx = 0;
+    for color = colors_in_selected
+        ch_inx = ch_inx+1;
+        group_index = ch_inx == chRangeIndexes;
+        text(rangesTimeTicks(group_index), chRangesOffsets(group_index), num2str(chRanges(group_index)', '%.2f'), 'color', color{:}, 'backgroundcolor', 'w')
+        scatter(rangesTimeLabels(group_index), chRangesOffsets(group_index), [], 'Marker', '_', 'MarkerEdgeColor', color{:})
+    end
 
 Ylims = [min(chRangesOffsets)-shiftCoeff*0.5, max(chRangesOffsets)+shiftCoeff*0.5];
 ylim(Ylims)
 
-% % обозначаем размеры
-% colors_in = channelSettings(:, 4)';
-% colors_in = colors_in(ch_inxs);
-% x_pos = time_forward*timeUnitFactor;
-% scaling_coefs = [channelSettings{:, 3}];
-% scaling_coefs = scaling_coefs(ch_inxs);
-% k = 0;
-% for y_pos = offsets+shiftCoeff/2
-%     k = k+1;
-%     color = colors_in{k};
-%     if k == 1 || scaling_coefs(k)~=1 || ~strcmp(color, 'black')
-%         text(x_pos, y_pos, ['  ', num2str(scaling_coefs(k)*shiftCoeff, 3)], 'color', color);
-%         plot([x_pos, x_pos], [y_pos+shiftCoeff/2, y_pos-shiftCoeff/2], 'color', color, 'linewidth', 2)
-%     end
-% end
+
 
 xline(0, 'r:');
 

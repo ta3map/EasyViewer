@@ -96,6 +96,7 @@ function signalViewerGUI(editMode)
     global mean_group_ch % каналы учавствующие в усреднении
     global csd_avaliable % каналы которые показывают CSD
     global filter_avaliable % каналы к которым применяется фильтрация
+    global baseline_subtract_available % каналы с вычитанием базовой линии
     
     global t_mean_profile
     
@@ -285,20 +286,24 @@ function signalViewerGUI(editMode)
     numChannels = length(channelNames);
     channelEnabled = true(numChannels, 1); % Все каналы активированы по умолчанию
     scalingCoefficients = ones(numChannels, 1); % Коэффициенты масштабирования по умолчанию
-    colorsIn = repmat({'black'}, numChannels, 1); % Инициализация цветов
+    colorsIn = getColors(numChannels); % Инициализация цветов
     lineCoefficients = ones(numChannels, 1)*0.1; % Инициализация толщины линий
+    mean_group_ch = false(numChannels, 1); % Ни один канал не участвует в усреднении
+    csd_avaliable = true(numChannels, 1); % Все каналы участвуют в CSD
+    filter_avaliable = false(numChannels, 1); % Ни один канал не участвует в фильтрации
+    baseline_subtract_available = true(numChannels, 1); % Вычитание базовой линии включено по умолчанию
 
-    tableData = [channelNames, num2cell(channelEnabled), num2cell(scalingCoefficients), colorsIn, num2cell(lineCoefficients)];
+    tableData = [channelNames, num2cell(channelEnabled), num2cell(scalingCoefficients), colorsIn, num2cell(lineCoefficients), num2cell(mean_group_ch), num2cell(csd_avaliable), num2cell(filter_avaliable), num2cell(baseline_subtract_available)];
 
     % Создание таблицы каналов в GUI
     channelTable = uitable('Parent', sidePanel, ...
                            'Data', tableData, ...
-                           'ColumnName', {'Channel', 'Enabled', 'Scale', 'Color', 'Line Width'}, ...
-                           'ColumnFormat', {'char', 'logical', 'numeric', 'char', 'numeric'}, ...
-                           'ColumnEditable', [false true true true true], ...
+                           'ColumnName', {'Channel', 'Enabled', 'Scale', 'Color', 'Line Width', 'Averaging', 'CSD', 'Filter', 'Baseline'}, ...
+                           'ColumnFormat', {'char', 'logical', 'numeric', 'char', 'numeric', 'logical', 'logical', 'logical', 'logical'}, ...
+                           'ColumnEditable', [false true true true true true true true true], ...
                            'Position', getElementPosition('channel_table'), 'Tag', 'channel_table');
-    % Кнопка для загрузки настроек    
-    LoadSettingsBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Load Channel Settings', 'Position', getElementPosition('load_settings_btn'), 'Callback', @loadSettings, 'Tag', 'load_settings_btn');
+    % Toggle кнопка для выбора/снятия всех каналов
+    toggleAllChannelsBtn = uicontrol('Parent', sidePanel, 'Style', 'togglebutton', 'String', '(De)select ch', 'Position', getElementPosition('load_settings_btn'), 'Callback', @toggleAllChannels, 'Tag', 'toggle_all_channels_btn');
     
     % Панель событий                   
     event_panel_position_a = [.72 .01 .27 .31];
@@ -1006,14 +1011,17 @@ function signalViewerGUI(editMode)
     end
 %% Построение среднего графика
     function meanEventsCallback(~, ~)
-        if ~events_exist && ~stims_exist
+        has_events = isscalar(events_exist) && events_exist;
+        has_stims = isscalar(stims_exist) && stims_exist;
+        
+        if ~has_events && ~has_stims
             errordlg('No events or stimuli available. Please load events or a file with stimuli.', 'Error');
             return;
         end
         
-        if events_exist && ~stims_exist
+        if has_events && ~has_stims
             calculateAndPlotMeanEvents('events');
-        elseif ~events_exist && stims_exist
+        elseif ~has_events && has_stims
             calculateAndPlotMeanEvents('stimuli');
         else
             choice = questdlg('Select data source for mean calculation:', ...
@@ -1322,6 +1330,7 @@ function signalViewerGUI(editMode)
         mean_group_ch = [updatedData{:, 6}];% каналы учавствующие в усреднении
         csd_avaliable = [updatedData{:, 7}];% каналы которые показывают CSD
         filter_avaliable  = [updatedData{:, 8}];%каналы к которым применяется фильтрация
+        baseline_subtract_available = [updatedData{:, 9}];% каналы с вычитанием базовой линии
 
         updateLocalCoefs()% локальные аналоги для текущего учаска времени
 
@@ -1540,44 +1549,47 @@ function signalViewerGUI(editMode)
         set(multiax, 'Visible', 'on')
     end
 
-    function loadSettings(~, ~)
-        % Определение начальной директории
-        [path, name, ~] = fileparts(matFilePath);
-        startPath = fullfile(path, [name '_channelSettings.stn']);
-
-        % Открытие диалогового окна для выбора файла
-        [fileName, filePath] = uigetfile('*.stn', 'Select Channel Settings File', startPath);
-
-        % Проверка, был ли выбран файл
-        if fileName ~= 0
-            channelSettingsFilePath = fullfile(filePath, fileName);
-
-            % Загрузка настроек из выбранного файла
-            if isfile(channelSettingsFilePath)
-                loadSettingsFile()
-                updateChannelSelection();
-            else
-                disp('File does not exist.');
-            end
-        else
-            disp('File selection cancelled.');
+    function toggleAllChannels(~, ~)
+        % Получение текущих данных из таблицы
+        updatedData = get(channelTable, 'Data');
+        currentEnabled = [updatedData{:, 2}];
+        
+        % Определение нового состояния: если все включены - выключаем все, иначе включаем все
+        allEnabled = all(currentEnabled);
+        newState = ~allEnabled;
+        
+        % Обновление состояния всех каналов
+        channelEnabled(:) = newState;
+        
+        % Обновление данных в таблице
+        for i = 1:size(updatedData, 1)
+            updatedData{i, 2} = newState;
         end
+        set(channelTable, 'Data', updatedData);
+        
+        % Обновление выбора каналов и графика
+        updateChannelSelection();
     end
 
     function updateTable()
-        tableData = [np_flatten(channelNames); ...
-        np_flatten(num2cell(channelEnabled));...
-        np_flatten(num2cell(scalingCoefficients)); ...
-        np_flatten(colorsIn); ...
-        np_flatten(num2cell(lineCoefficients)); ...
-        np_flatten(num2cell(mean_group_ch)); ...
-        np_flatten(num2cell(csd_avaliable));...
-        np_flatten(num2cell(filter_avaliable))]';
+        numCh = length(channelNames);
+        tableData = cell(numCh, 9);
+        for i = 1:numCh
+            tableData{i, 1} = channelNames{i};
+            tableData{i, 2} = channelEnabled(i);
+            tableData{i, 3} = scalingCoefficients(i);
+            tableData{i, 4} = colorsIn{i};
+            tableData{i, 5} = lineCoefficients(i);
+            tableData{i, 6} = mean_group_ch(i);
+            tableData{i, 7} = csd_avaliable(i);
+            tableData{i, 8} = filter_avaliable(i);
+            tableData{i, 9} = baseline_subtract_available(i);
+        end
 
         set(channelTable, 'Data', tableData, ... % Обновляем данные в таблице
-                   'ColumnName', {'Channel', 'Enabled', 'Scale', 'Color', 'Line Width', 'Averaging', 'CSD', 'Filter'}, ...
-                   'ColumnFormat', {'char', 'logical', 'numeric', 'char', 'numeric', 'logical', 'logical', 'logical'}, ...
-                   'ColumnEditable', [false true true true true true true true]);
+                   'ColumnName', {'Channel', 'Enabled', 'Scale', 'Color', 'Line Width', 'Averaging', 'CSD', 'Filter', 'Baseline'}, ...
+                   'ColumnFormat', {'char', 'logical', 'numeric', 'char', 'numeric', 'logical', 'logical', 'logical', 'logical'}, ...
+                   'ColumnEditable', [false true true true true true true true true]);
         
         updateLocalCoefs()
     end
@@ -1595,6 +1607,11 @@ function loadSettingsFile()
             mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
             csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
             filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
+            if isfield(loadedSettings, 'baseline_subtract_available')
+                baseline_subtract_available = np_flatten(loadedSettings.baseline_subtract_available);
+            else
+                baseline_subtract_available = true(numChannels, 1);
+            end
         else % неактуально с 1.10.00  
             warning('Old settings')
             % Получение данных из таблицы
@@ -1609,6 +1626,11 @@ function loadSettingsFile()
             mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
             csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
             filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
+            if isfield(loadedSettings, 'baseline_subtract_available')
+                baseline_subtract_available = np_flatten(loadedSettings.baseline_subtract_available);
+            else
+                baseline_subtract_available = true(numChannels, 1);
+            end
         end
         updateTable();
 
@@ -1696,11 +1718,12 @@ end
             channelNames = np_flatten(channelNames);
             channelEnabled = true(1, numChannels); % Все каналы активированы по умолчанию
             scalingCoefficients = ones(1, numChannels); % Коэффициенты масштабирования по умолчанию
-            colorsIn = np_flatten(repmat({'black'}, numChannels, 1)); % Инициализация цветов
+            colorsIn = np_flatten(getColors(numChannels)); % Инициализация цветов
             lineCoefficients = ones(1, numChannels)*0.5; % Инициализация толщины линий
             mean_group_ch = false(1, numChannels);% Ни один канал не участвует в усреднении
             csd_avaliable = true(1, numChannels);% Все каналы участвуют в CSD
             filter_avaliable = false(1, numChannels);% Ни один канал не участвует в фильтрации
+            baseline_subtract_available = true(1, numChannels);% Вычитание базовой линии включено по умолчанию
             
             filterSettings.filterType = 'highpass';
             filterSettings.freqLow = 10;
