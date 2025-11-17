@@ -1,4 +1,69 @@
 function signalViewerGUI(editMode)
+    % Все global объявления должны быть в самом начале функции
+    % EV_version и EV_date теперь определены в app.m как глобальные переменные
+    global EV_path EV_version EV_date
+   
+    global Fs N time chosen_time_interval ch_inxs m_coef
+    global shiftCoeff eventTable
+    global lfp hd spks multiax chnlGrp
+    
+    global matFilePath matFileName channelSettingsFilePath
+    global timeUnitFactor selectedUnit
+    global initialDir
+    global events event_inx events_exist event_comments
+    global event_amplitudes event_channels event_widths event_prominences event_metadata
+    global stims stim_inx stims_exist
+    global lastOpenedFiles
+    global updatedData
+    global zavp newFs selectedCenter
+    global time_back time_forward
+    global figure_position timeForwardEdit
+    global std_coef show_spikes binsize show_CSD % спайки/CSD
+    global ch_labels_l colors_in_l  widths_in_l
+    global add_event_settings
+    global timeSlider menu_visible filterSettings
+    global previousSliderValue % сохраняем предыдущее значение слайдера
+    global data_loaded
+    global SettingsFilepath
+    global csd_smooth_coef csd_contrast_coef
+    global autodetection_settings
+    global lfpVar windowSize
+    global timeCenterPopup
+    global event_title_string evfilename eventDeleteEdit
+    global art_rem_window_ms
+    global stimShowFlag 
+    global lines_and_styles
+    global auto_open_last_file
+    global keyboardpressed previousKey
+    global plot_updating loading_text_handle % флаг обновления графика и handle текста
+    global ica_flag pca_flag
+    global autoSetNewFsFromFs % флаг автоматической установки newFs на основе Fs
+    global autoSetTimeWindowsFromSweeps % флаг автоматической установки time_back/time_forward на основе свипов
+    global slope_measurement_settings % настройки измерения slope
+    global stims_loaded_from_settings % флаг загрузки стимулов из настроек
+    % Переменные для работы со свипами
+    global sweep_info sweep_inx % информация о свипах и индекс текущего свипа
+    global numChannels % число каналов
+    global tableData
+    global channelTable % отображаемые данные о каналах
+    global zoomState zoomButton % состояние зума и кнопка зума
+    global channelNames % названия каналов
+    global channelEnabled % вкл/выкл каналы
+    global scalingCoefficients % множитель амплитуды
+    global colorsIn % цвет линии
+    global lineCoefficients % толщина линии
+    global mean_group_ch % каналы учавствующие в усреднении
+    global csd_avaliable % каналы которые показывают CSD
+    global filter_avaliable % каналы к которым применяется фильтрация
+    global baseline_subtract_available % каналы с вычитанием базовой линии
+    global t_mean_profile
+    global event_calling outside_calling_filepath zav_calling table_calling 
+    global call_mean_events call_csd call_closeall zav_saving 
+    global call_resetMainWindowButtons call_updateTable
+    global call_setStandardChannelSettings
+    global saveChannelSettingsFunc
+    global updateTableFunc updateLocalCoefsFunc updatePlotFunc
+ 
     disp('Signal Viewer Started')
 
     % Проверяем режим редактирования
@@ -38,69 +103,6 @@ function signalViewerGUI(editMode)
             error('Coordinates for element %s not found in JSON file', tag);
         end
     end
-
-    % EV_version и EV_date теперь определены в app.m как глобальные переменные
-    global EV_path EV_version EV_date
-   
-    global Fs N time chosen_time_interval ch_inxs m_coef
-    global shiftCoeff eventTable
-    global lfp hd spks multiax chnlGrp
-    
-    global matFilePath matFileName channelSettingsFilePath
-    global timeUnitFactor selectedUnit
-    global initialDir
-    global events event_inx events_exist event_comments
-    global event_amplitudes event_channels event_widths event_prominences event_metadata
-    global stims stim_inx stims_exist
-    global lastOpenedFiles
-    global updatedData
-    global zavp newFs selectedCenter
-    global time_back time_forward
-    global figure_position timeForwardEdit
-    global std_coef show_spikes binsize show_CSD % спайки/CSD
-    global ch_labels_l colors_in_l  widths_in_l
-    global add_event_settings
-    global timeSlider menu_visible filterSettings
-    
-    global data_loaded
-    global SettingsFilepath
-    global csd_smooth_coef csd_contrast_coef
-    global autodetection_settings
-    global lfpVar windowSize
-    global timeCenterPopup
-    global event_title_string evfilename eventDeleteEdit
-    global art_rem_window_ms
-    global stimShowFlag 
-    global lines_and_styles
-    global auto_open_last_file
-    global keyboardpressed previousKey
-    global plot_updating loading_text_handle % флаг обновления графика и handle текста
-    global ica_flag pca_flag
-    global autoSetNewFsFromFs % флаг автоматической установки newFs на основе Fs
-    global autoSetTimeWindowsFromSweeps % флаг автоматической установки time_back/time_forward на основе свипов
-    global slope_measurement_settings % настройки измерения slope
-    global stims_loaded_from_settings % флаг загрузки стимулов из настроек
-    
-    % Переменные для работы со свипами
-    global sweep_info sweep_inx % информация о свипах и индекс текущего свипа
-    
-    global numChannels % число каналов
-    global tableData
-    
-    global channelTable % отображаемые данные о каналах
-    global zoomState zoomButton % состояние зума и кнопка зума
-    
-    global channelNames % названия каналов
-    global channelEnabled % вкл/выкл каналы
-    global scalingCoefficients % множитель амплитуды
-    global colorsIn % цвет линии
-    global lineCoefficients % толщина линии
-    global mean_group_ch % каналы учавствующие в усреднении
-    global csd_avaliable % каналы которые показывают CSD
-    global filter_avaliable % каналы к которым применяется фильтрация
-    global baseline_subtract_available % каналы с вычитанием базовой линии
-    
-    global t_mean_profile
     
     t_mean_profile = 0;
     
@@ -110,6 +112,7 @@ function signalViewerGUI(editMode)
     keyboardpressed = false;
     plot_updating = false;
     loading_text_handle = [];
+    previousSliderValue = 0; % инициализация предыдущего значения слайдера
     zoomState = struct( ...
         'await_points', false, ...
         'has_zoom', false, ...
@@ -206,15 +209,6 @@ function signalViewerGUI(editMode)
 
     
     % добавляем возможность вызвать функцию извне
-    global event_calling outside_calling_filepath zav_calling table_calling 
-    global call_mean_events call_csd call_closeall zav_saving 
-    global call_resetMainWindowButtons call_updateTable
-    global call_setStandardChannelSettings
-    global saveChannelSettingsFunc
-    
-    % Глобальные переменные для функций обновления
-    global updateTableFunc updateLocalCoefsFunc updatePlotFunc
-    
     zav_calling = @loadMatFile;
     zav_saving = @saveMatFile;
     table_calling = @UpdateEventTable;
@@ -1465,7 +1459,41 @@ function signalViewerGUI(editMode)
     
     % Функция обратного вызова слайдера
     function timeSliderCallback(src, ~)
+        
+        
+        % Если идет обновление графика - игнорируем
+        if plot_updating
+            % Возвращаем значение обратно
+            set(src, 'Value', previousSliderValue);
+            return;
+        end
+        
         sliderValue = get(src, 'Value'); % Текущее значение слайдера
+        sliderMin = get(src, 'Min');
+        sliderMax = get(src, 'Max');
+        
+        % Определяем шаг слайдера (обычно это небольшая величина)
+        % Используем 1% от диапазона как порог для определения клика по стрелке
+        sliderRange = sliderMax - sliderMin;
+        sliderStep = sliderRange / 100; % примерный шаг
+        
+        % Определяем направление изменения
+        valueChange = sliderValue - previousSliderValue;
+        
+        % Если изменение небольшое (меньше 2% от диапазона) - это клик по стрелке
+        if abs(valueChange) < sliderStep * 2 && abs(valueChange) > 0
+            % Это клик по стрелке - используем shiftTime
+            direction = sign(valueChange); % 1 для вперед, -1 для назад
+            % Возвращаем значение обратно
+            set(src, 'Value', previousSliderValue);
+            % Вызываем shiftTime
+            shiftTime(src, [], direction, timeForwardEdit);
+            return;
+        end
+        
+        % Иначе это перетаскивание ползунка - работаем как обычно
+        previousSliderValue = sliderValue;
+        
         windowSize = str2double(get(timeForwardEdit, 'String'))/timeUnitFactor;% должен быть в секундах;
         
         switch selectedCenter

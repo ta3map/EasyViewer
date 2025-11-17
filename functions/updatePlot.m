@@ -9,6 +9,7 @@ function updatePlot()
     global selectedCenter sweep_info sweep_inx % для работы со свипами
     global baseline_subtract_available % каналы с вычитанием базовой линии
     global plot_updating loading_text_handle % флаг обновления и handle текста
+    global previousSliderValue % сохраняем предыдущее значение слайдера
     
     fprintf('[%s] updatePlot: START, chosen_time_interval=[%.3f, %.3f], selectedCenter=%s\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2), selectedCenter);
     
@@ -304,6 +305,7 @@ function updatePlot()
     % Ограничиваем значение диапазоном слайдера
     sliderValue = max(sliderMin, min(sliderMax, sliderValue));
     set(timeSlider, 'Value', sliderValue);
+    previousSliderValue = sliderValue; % обновляем предыдущее значение
 
     % Сбрасываем флаг обновления в самом конце
     plot_updating = false;

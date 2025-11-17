@@ -52,7 +52,7 @@ auto_set_fs = p.Results.auto_set_fs;
 
 % Проверка существования файла
 if ~exist(filepath, 'file')
-    error('Файл %s не найден', filepath);
+    error('File %s not found', filepath);
 end
 
 % Получение информации о файле
@@ -61,11 +61,11 @@ if isempty(ext)
     filepath = [filepath '.mat'];
 end
 
-fprintf('Загружаем файл: %s\n', filename);
+fprintf('Loading file: %s\n', filename);
 
 % Проверяем, является ли файл Heka форматом
 if detectHekaFormat(filepath)
-    fprintf('Обнаружен формат Heka, конвертируем в ZAV...\n');
+    fprintf('Heka format detected, converting to ZAV...\n');
     [lfp, spks, hd, zavp, lfpVar, chnlGrp] = hekaToZav(filepath);
     % Создаем структуру d для совместимости с остальным кодом
     d.lfp = lfp;
@@ -75,7 +75,7 @@ if detectHekaFormat(filepath)
     d.lfpVar = lfpVar;
     d.chnlGrp = chnlGrp;
 else
-    fprintf('Загружаем данные в формате ZAV...\n');
+    fprintf('Loading data in ZAV format...\n');
     d = load(filepath); % Загружаем данные в структуру как обычно
 end
 
@@ -84,19 +84,19 @@ if isfield(d, 'spks')
     spks = d.spks;
 else
     spks = [];
-    fprintf('Поле spks не найдено, используем пустой массив\n');
+    fprintf('Field spks not found, using empty array\n');
 end
 
 if isfield(d, 'lfp')
     lfp = d.lfp;
 else
-    error('Поле lfp обязательно для загрузки ZAV файла');
+    error('Field lfp is required for loading ZAV file');
 end
 
 if isfield(d, 'hd')
     hd = d.hd;
 else
-    error('Поле hd обязательно для загрузки ZAV файла');
+    error('Field hd is required for loading ZAV file');
 end
 
 if isfield(d, 'zavp')
@@ -104,10 +104,10 @@ if isfield(d, 'zavp')
     if isfield(zavp, 'dwnSmplFrq')
         Fs = zavp.dwnSmplFrq;
     else
-        error('Поле zavp.dwnSmplFrq обязательно для загрузки ZAV файла');
+        error('Field zavp.dwnSmplFrq is required for loading ZAV file');
     end
 else
-    error('Поле zavp обязательно для загрузки ZAV файла');
+    error('Field zavp is required for loading ZAV file');
 end
 
 % Попытка восстановить оригинальную частоту дискретизации
@@ -125,22 +125,22 @@ if isfield(d, 'lfpVar')
     lfpVar = d.lfpVar;
 else
     lfpVar = [];
-    fprintf('Поле lfpVar не найдено, используем пустой массив\n');
+    fprintf('Field lfpVar not found, using empty array\n');
 end
 
 if isfield(d, 'chnlGrp')
     chnlGrp = d.chnlGrp;
 else
     chnlGrp = [];
-    fprintf('Поле chnlGrp не найдено, используем пустой массив\n');
+    fprintf('Field chnlGrp not found, using empty array\n');
 end
 
-fprintf('Частота дискретизации (после даунсемплинга): %.1f Гц\n', Fs);
+fprintf('Sampling rate (after downsampling): %.1f Hz\n', Fs);
 if ~isempty(orig_Fs)
-    fprintf('Оригинальная частота дискретизации: %.1f Гц\n', orig_Fs);
-    fprintf('Коэффициент даунсемплинга: %.2f\n', orig_Fs / Fs);
+    fprintf('Original sampling rate: %.1f Hz\n', orig_Fs);
+    fprintf('Downsampling factor: %.2f\n', orig_Fs / Fs);
 else
-    fprintf('Оригинальная частота дискретизации: не определена\n');
+    fprintf('Original sampling rate: not determined\n');
 end
 
 % Получение размеров исходной матрицы
@@ -148,21 +148,21 @@ end
 
 % Обработка свипов
 if p > 1 % случай со свипами
-    fprintf('Обнаружены свипы (количество: %d)\n', p);
+    fprintf('Sweeps detected (count: %d)\n', p);
     [lfp, spks, stims, lfpVar, sweep_info] = sweepProcessData(p, spks, n, m, lfp, Fs, zavp, lfpVar);
     stims_exist = ~isempty(stims);
     
     % Сохраняем информацию о свипах
     sweep_inx = 1; % по умолчанию показываем первый свип
     
-    fprintf('Длительность одного свипа: %.3f с\n', m/Fs);
+    fprintf('Duration of one sweep: %.3f s\n', m/Fs);
 else
-    fprintf('Обычные данные без свипов\n');
+    fprintf('Regular data without sweeps\n');
     if isfield(zavp, 'realStim') 
         stims = zavp.realStim(:).r(:) * zavp.siS;  
         stims_exist = ~isempty(stims);
         if stims_exist
-            fprintf('Количество стимулов: %d\n', length(stims));
+            fprintf('Number of stimuli: %d\n', length(stims));
         end
     else
         stims = [];
@@ -178,7 +178,7 @@ end
 % Создание временной оси
 N = size(lfp, 1);
 time = (0:N-1) / Fs; % в секундах
-fprintf('Общая длительность записи: %.3f с\n', time(end));
+fprintf('Total recording duration: %.3f s\n', time(end));
 
 % Установка time_back и time_forward на основе флага auto_set_time_windows
 if auto_set_time_windows && p > 1
@@ -186,12 +186,12 @@ if auto_set_time_windows && p > 1
     time_back = 0;
     % Используем исходную длину свипа m (до "распрямления" в sweepProcessData)
     time_forward = m / Fs; % длительность одного свипа в секундах
-    fprintf('Автоматически установлено временное окно: %.3f с\n', time_forward);
+    fprintf('Time window automatically set: %.3f s\n', time_forward);
 else
     % Используем значения по умолчанию
     time_forward = 0.6;
     time_back = 0.6;
-    fprintf('Использовано стандартное временное окно: %.3f с\n', time_forward);
+    fprintf('Standard time window used: %.3f s\n', time_forward);
 end
 
 % chosen_time_interval теперь устанавливается в loadMatFile после выбора режима
@@ -200,19 +200,19 @@ end
 % Установка newFs на основе флага auto_set_fs
 if auto_set_fs
     newFs = Fs; % используем частоту даунсемплинга
-    fprintf('Автоматически установлена частота дискретизации: %.1f Гц\n', newFs);
+    fprintf('Sampling rate automatically set: %.1f Hz\n', newFs);
 else
     newFs = 1000; % используем фиксированное значение
-    fprintf('Использована фиксированная частота дискретизации: %.1f Гц\n', newFs);
+    fprintf('Fixed sampling rate used: %.1f Hz\n', newFs);
 end
 
 % Автоматический выбор режима центра для файлов со свипами
 if p > 1 && stims_exist
     selectedCenter = 'stimulus';
-    fprintf('Автоматически выбран режим просмотра: stimulus\n');
+    fprintf('Viewing mode automatically selected: stimulus\n');
 else
     selectedCenter = 'time';
-    fprintf('Автоматически выбран режим просмотра: time\n');
+    fprintf('Viewing mode automatically selected: time\n');
 end
 
 % Инициализация переменных событий
@@ -226,40 +226,40 @@ event_metadata = [];
 
 % Загрузка событий если требуется
 if load_events
-    fprintf('Загружаем события...\n');
+    fprintf('Loading events...\n');
     [events, event_comments, event_amplitudes, event_channels, event_widths, event_prominences, event_metadata] = load_events_from_file(filepath, time);
     if ~isempty(events)
-        fprintf('Загружено событий: %d\n', length(events));
+        fprintf('Events loaded: %d\n', length(events));
     end
 end
 
 % Загрузка настроек каналов если требуется
 if load_settings
-    fprintf('Загружаем настройки каналов...\n');
+    fprintf('Loading channel settings...\n');
     [channelNames, channelEnabled, scalingCoefficients, colorsIn, lineCoefficients, mean_group_ch, csd_avaliable, filter_avaliable, filterSettings] = load_channel_settings(filepath, hd.recChNames);
-    fprintf('Настройки каналов загружены\n');
+    fprintf('Channel settings loaded\n');
 end
 
 % Вывод информации о каналах
-fprintf('Количество каналов: %d\n', n);
-fprintf('Названия каналов: ');
+fprintf('Number of channels: %d\n', n);
+fprintf('Channel names: ');
 for i = 1:min(5, n)
     fprintf('%s ', hd.recChNames{i});
 end
 if n > 5
-    fprintf('... и еще %d каналов', n-5);
+    fprintf('... and %d more channels', n-5);
 end
 fprintf('\n');
 
 % Вывод итоговой информации
-fprintf('\n=== ИТОГОВАЯ ИНФОРМАЦИЯ ===\n');
-fprintf('Размер данных LFP: %dx%dx%d\n', size(lfp));
-fprintf('Размер данных спайков: %dx%dx%d\n', size(spks));
-fprintf('Временное окно: forward=%.3f с, back=%.3f с\n', time_forward, time_back);
-fprintf('Стимулы: %s\n', ternary(stims_exist, 'да', 'нет'));
-fprintf('Свипы: %s\n', ternary(sweep_info.is_sweep_data, 'да', 'нет'));
-fprintf('События: %s\n', ternary(~isempty(events), 'да', 'нет'));
-fprintf('Файл успешно загружен!\n');
+fprintf('\n=== SUMMARY ===\n');
+fprintf('LFP data size: %dx%dx%d\n', size(lfp));
+fprintf('Spike data size: %dx%dx%d\n', size(spks));
+fprintf('Time window: forward=%.3f s, back=%.3f s\n', time_forward, time_back);
+fprintf('Stimuli: %s\n', ternary(stims_exist, 'yes', 'no'));
+fprintf('Sweeps: %s\n', ternary(sweep_info.is_sweep_data, 'yes', 'no'));
+fprintf('Events: %s\n', ternary(~isempty(events), 'yes', 'no'));
+fprintf('File successfully loaded!\n');
 
 % Собираем все данные в структуру
 data = struct();
@@ -364,7 +364,7 @@ if exist(event_file, 'file')
             event_metadata = [];
         end
     catch ME
-        warning('Ошибка при загрузке событий: %s', ME.message);
+        warning('Error loading events: %s', ME.message);
         events = [];
         event_comments = {};
         event_amplitudes = [];
@@ -402,7 +402,7 @@ if exist(settings_file, 'file')
             csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
             filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
         else
-            warning('Старые настройки каналов');
+            warning('Old channel settings');
             updatedData = loadedSettings.channelSettings;
             channelNames = updatedData(:, 1)';
             channelEnabled = [updatedData{:, 2}];
@@ -424,7 +424,7 @@ if exist(settings_file, 'file')
             filterSettings.channelsToFilter = false(length(defaultChannelNames), 1);
         end
     catch ME
-        warning('Ошибка при загрузке настроек каналов: %s', ME.message);
+        warning('Error loading channel settings: %s', ME.message);
         [channelNames, channelEnabled, scalingCoefficients, colorsIn, lineCoefficients, mean_group_ch, csd_avaliable, filter_avaliable, filterSettings] = create_default_channel_settings(defaultChannelNames);
     end
 else
