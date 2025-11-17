@@ -110,7 +110,11 @@ function signalViewerGUI(editMode)
         'await_points', false, ...
         'has_zoom', false, ...
         'points', zeros(0, 2), ...
-        'lines', gobjects(0));
+        'lines', gobjects(0), ...
+        'is_panning', false, ...
+        'pan_start_point', [0 0], ...
+        'pan_start_xlim', [0 0], ...
+        'pan_start_ylim', [0 0]);
     zoomButton = [];
     
     % Инициализация настроек slope measurement
@@ -580,11 +584,25 @@ function signalViewerGUI(editMode)
     set(loadEventsBtn, 'Enable', 'on');
            
     f.WindowButtonDownFcn = @(src, event)ButtonDownFcn(multiax, f);
+    f.WindowButtonMotionFcn = @(src, event)ButtonMotionFcn(multiax, f);
+    f.WindowButtonUpFcn = @(src, event)ButtonUpFcn(multiax, f);
+    
     function ButtonDownFcn(ax, fig)
         if zoomState.await_points
             handleZoomClick(ax);
             return;
         end
+        
+        if zoomState.has_zoom
+            cp = get(ax, 'CurrentPoint');
+            zoomState.is_panning = true;
+            zoomState.pan_start_point = [cp(1, 1), cp(1, 2)];
+            zoomState.pan_start_xlim = get(ax, 'XLim');
+            zoomState.pan_start_ylim = get(ax, 'YLim');
+            set(f, 'Pointer', 'fleur');
+            return;
+        end
+        
         % Проверяем, зажата ли клавиша Ctrl
         modifiers = get(fig, 'CurrentModifier');
         if ismember('control', modifiers) % Если зажата Ctrl
@@ -595,6 +613,34 @@ function signalViewerGUI(editMode)
         elseif ismember('shift', modifiers) % Если зажата Ctrl
             % Добавление события
             addEvent(eventAdd);
+        end
+    end
+    
+    function ButtonMotionFcn(ax, fig)
+        if ~zoomState.is_panning
+            return;
+        end
+        
+        cp = get(ax, 'CurrentPoint');
+        current_point = [cp(1, 1), cp(1, 2)];
+        
+        dx = current_point(1) - zoomState.pan_start_point(1);
+        dy = current_point(2) - zoomState.pan_start_point(2);
+        
+        zoomState.pan_new_xlim = zoomState.pan_start_xlim - dx;
+        zoomState.pan_new_ylim = zoomState.pan_start_ylim - dy;
+    end
+    
+    function ButtonUpFcn(ax, fig)
+        if zoomState.is_panning
+            if isfield(zoomState, 'pan_new_xlim') && ~isempty(zoomState.pan_new_xlim)
+                set(ax, 'XLim', zoomState.pan_new_xlim);
+                set(ax, 'YLim', zoomState.pan_new_ylim);
+            end
+            zoomState.is_panning = false;
+            zoomState.pan_new_xlim = [];
+            zoomState.pan_new_ylim = [];
+            set(f, 'Pointer', 'arrow');
         end
     end
 
@@ -713,6 +759,7 @@ function signalViewerGUI(editMode)
         if zoomState.has_zoom || zoomState.await_points
             zoomState.await_points = false;
             zoomState.has_zoom = false;
+            zoomState.is_panning = false;
             zoomState.points = zeros(0, 2);
             zoomState.lines = gobjects(0);
             set(src, 'String', 'Zoom');
