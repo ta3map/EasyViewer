@@ -273,8 +273,13 @@ function updatePlot()
 %     text(text_x, text_y, text_text, 'color', stims_color);    
     textMod(text_x, text_y, text_text, lines_and_styles, 'stimulus_lines')
     
-    % Обновление положения слайдера
-    set(timeSlider, 'Value', chosen_time_interval(1));
+    % Обновление положения слайдера с фильтром
+    sliderMin = get(timeSlider, 'Min');
+    sliderMax = get(timeSlider, 'Max');
+    sliderValue = chosen_time_interval(1);
+    % Ограничиваем значение диапазоном слайдера
+    sliderValue = max(sliderMin, min(sliderMax, sliderValue));
+    set(timeSlider, 'Value', sliderValue);
 
     % очищаем память 
     clear local_lfp time_in_transformed data_res

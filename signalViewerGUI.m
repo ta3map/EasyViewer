@@ -1966,24 +1966,6 @@ function loadSettingsFile()
         end
         if isfield(loadedSettings, 'time_forward')
             time_forward = loadedSettings.time_forward; % time window after (s)
-            % Правильно устанавливаем chosen_time_interval в зависимости от режима
-            switch selectedCenter
-                case 'stimulus'
-                    if stims_exist && stim_inx > 0 && stim_inx <= numel(stims)
-                        chosen_time_interval = [stims(stim_inx), stims(stim_inx) + time_forward];
-                    else
-                        chosen_time_interval = [0, time_forward];
-                    end
-                case 'sweep'
-                    if isfield(sweep_info, 'is_sweep_data') && sweep_info.is_sweep_data && sweep_inx > 0 && sweep_inx <= sweep_info.sweep_count
-                        chosen_time_interval = [sweep_info.sweep_times(sweep_inx), sweep_info.sweep_times(sweep_inx) + time_forward];
-                    else
-                        chosen_time_interval = [0, time_forward];
-                    end
-                otherwise
-                    chosen_time_interval = [0, time_forward];
-            end
-            fprintf('[%s] loadSettingsFile: AFTER loading time_forward=%.3f, chosen_time_interval=[%.3f, %.3f], selectedCenter=%s\n', datestr(now, 'HH:MM:SS.FFF'), time_forward, chosen_time_interval(1), chosen_time_interval(2), selectedCenter);
             set(timeForwardEdit, 'String', num2str(time_forward * timeUnitFactor));
         end
 
@@ -2006,6 +1988,28 @@ function loadSettingsFile()
             stims_exist = ~isempty(stims);
             stims_loaded_from_settings = true;
             disp('Loaded shifted stimulus times from settings')
+        end
+        
+        % Правильно устанавливаем chosen_time_interval в зависимости от режима
+        % Делаем это ПОСЛЕ загрузки всех настроек, включая stims
+        if isfield(loadedSettings, 'time_forward')
+            switch selectedCenter
+                case 'stimulus'
+                    if stims_exist && stim_inx > 0 && stim_inx <= numel(stims)
+                        chosen_time_interval = [stims(stim_inx), stims(stim_inx) + time_forward];
+                    else
+                        chosen_time_interval = [0, time_forward];
+                    end
+                case 'sweep'
+                    if isfield(sweep_info, 'is_sweep_data') && sweep_info.is_sweep_data && sweep_inx > 0 && sweep_inx <= sweep_info.sweep_count
+                        chosen_time_interval = [sweep_info.sweep_times(sweep_inx), sweep_info.sweep_times(sweep_inx) + time_forward];
+                    else
+                        chosen_time_interval = [0, time_forward];
+                    end
+                otherwise
+                    chosen_time_interval = [0, time_forward];
+            end
+            fprintf('[%s] loadSettingsFile: AFTER loading time_forward=%.3f, chosen_time_interval=[%.3f, %.3f], selectedCenter=%s\n', datestr(now, 'HH:MM:SS.FFF'), time_forward, chosen_time_interval(1), chosen_time_interval(2), selectedCenter);
         end
     catch
         createNewChoice = questdlg('An error occurred when loading channel settings. Do you want to create new channel settings file?', ...
