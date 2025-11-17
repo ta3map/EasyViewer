@@ -3,8 +3,8 @@ function app()
     global EV_path EV_version EV_date EV_author EV_email EV_description
 
     EV_path = pwd;
-    EV_version = '1.12.11';
-    EV_date = '14.11.2025';
+    EV_version = '1.12.12';
+    EV_date = '17.11.2025';
     EV_author = 'Azat Gainutdinov';
     EV_email = 'ta3map@gmail.com';
     EV_description = 'Visualization and analysis of electrophysiological data';

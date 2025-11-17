@@ -634,11 +634,79 @@ function signalViewerGUI(editMode)
         set(ax, 'XLim', xs);
         set(ax, 'YLim', ys);
         
+        zero_time_units = chosen_time_interval(1) * timeUnitFactor;
+        y_bottom = ys(1);
+        y_range = max(ys(2) - ys(1), eps);
+        tick_height = max(y_range * 0.05, eps);
+        label_offset = tick_height * 0.6;
+        
+        rel_min = xs(1) - zero_time_units;
+        rel_max = xs(2) - zero_time_units;
+        tick_values = generateNiceTicks(rel_min, rel_max, 10);
+
+        for idx = 1:numel(tick_values)
+            rel_time = tick_values(idx);
+            t_pos = zero_time_units + rel_time;
+            line(ax, [t_pos t_pos], [y_bottom y_bottom + tick_height], ...
+                'Color', [0 0 0], ...
+                'LineWidth', 1, ...
+                'HitTest', 'off');
+            
+            label_str = sprintf('%.1f', rel_time);
+            text(ax, t_pos, y_bottom + tick_height + label_offset, label_str, ...
+                'HorizontalAlignment', 'center', ...
+                'VerticalAlignment', 'bottom', ...
+                'Color', [0 0 0], ...
+                'BackgroundColor', 'none', ...
+                'Clipping', 'on');
+        end
+        
         zoomState.await_points = false;
         zoomState.has_zoom = true;
         zoomState.points = zeros(0, 2);
         zoomState.lines = gobjects(0);
         set(zoomButton, 'String', 'Reset Zoom');
+        set(f, 'Pointer', 'arrow');
+    end
+
+    function ticks = generateNiceTicks(minVal, maxVal, desiredCount)
+        if minVal > maxVal
+            temp = minVal; minVal = maxVal; maxVal = temp;
+        end
+        rangeVal = max(maxVal - minVal, eps);
+        if desiredCount < 2
+            desiredCount = 2;
+        end
+        rawStep = rangeVal / (desiredCount - 1);
+        magnitude = 10^floor(log10(rawStep));
+        normalized = rawStep / magnitude;
+        if normalized < 1.5
+            niceFraction = 1;
+        elseif normalized < 3
+            niceFraction = 2;
+        elseif normalized < 7
+            niceFraction = 5;
+        else
+            niceFraction = 10;
+        end
+        step = niceFraction * magnitude;
+        startTick = ceil(minVal / step) * step;
+        endTick = floor(maxVal / step) * step;
+        if startTick > minVal
+            startTick = startTick - step;
+        end
+        ticks = startTick:step:endTick;
+        if isempty(ticks) || ticks(1) > minVal
+            ticks = [startTick - step, ticks];
+        end
+        if ticks(end) < maxVal
+            ticks = [ticks, ticks(end) + step];
+        end
+        ticks = ticks(ticks >= minVal - step*0.5 & ticks <= maxVal + step*0.5);
+        if isempty(ticks)
+            ticks = [minVal, maxVal];
+        end
+        ticks = unique(ticks);
     end
 
     function zoomButtonCallback(src, ~)
@@ -648,11 +716,13 @@ function signalViewerGUI(editMode)
             zoomState.points = zeros(0, 2);
             zoomState.lines = gobjects(0);
             set(src, 'String', 'Zoom');
+            set(f, 'Pointer', 'arrow');
             updatePlot();
             return;
         end
         zoomState.await_points = true;
         zoomState.points = zeros(0, 2);
+        set(f, 'Pointer', 'crosshair');
     end
     
     % Функция для добавления маркера
