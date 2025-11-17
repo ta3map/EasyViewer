@@ -74,6 +74,7 @@ function signalViewerGUI(editMode)
     global lines_and_styles
     global auto_open_last_file
     global keyboardpressed previousKey
+    global plot_updating loading_text_handle % флаг обновления графика и handle текста
     global ica_flag pca_flag
     global autoSetNewFsFromFs % флаг автоматической установки newFs на основе Fs
     global autoSetTimeWindowsFromSweeps % флаг автоматической установки time_back/time_forward на основе свипов
@@ -107,6 +108,8 @@ function signalViewerGUI(editMode)
     pca_flag = false;
     previousKey = '';
     keyboardpressed = false;
+    plot_updating = false;
+    loading_text_handle = [];
     zoomState = struct( ...
         'await_points', false, ...
         'has_zoom', false, ...
@@ -262,7 +265,7 @@ function signalViewerGUI(editMode)
     timer('TimerFcn', @resetParametersCallback, 'StartDelay', 1, 'ExecutionMode', 'singleShot');
     
     % Создание фигуры и панелей
-    f = figure('Name', ['Easy Viewer v' EV_version], ...
+    f = figure('Name', 'Signal Viewer', ...
            'NumberTitle', 'off',...
            'MenuBar', 'none', ... % Отключение стандартного меню
            'ToolBar', 'none', ...
@@ -1235,8 +1238,8 @@ function signalViewerGUI(editMode)
     function keyPressFunction(src, event)
 %         disp('key pressed:')
 %         disp(event.Key)
-        % Если кнопка уже была нажата - блокируем исполнение
-        if keyboardpressed
+        % Если кнопка уже была нажата или идет обновление графика - блокируем исполнение
+        if keyboardpressed || plot_updating
            return;
         end
         
@@ -2219,6 +2222,11 @@ end
     function shiftTime(~, ~, direction, timeForwardEdit)
         
         fprintf('[%s] shiftTime: START, direction=%d, selectedCenter=%s\n', datestr(now, 'HH:MM:SS.FFF'), direction, selectedCenter);
+        
+        % Проверяем, не идет ли уже обновление графика
+        if plot_updating
+            return;
+        end
         
         % отключаем возможность использовать клавиатуру
 %         set(f, 'KeyPressFcn', '');

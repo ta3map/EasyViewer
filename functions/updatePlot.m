@@ -8,8 +8,28 @@ function updatePlot()
     global art_rem_window_ms stimShowFlag lines_and_styles
     global selectedCenter sweep_info sweep_inx % для работы со свипами
     global baseline_subtract_available % каналы с вычитанием базовой линии
+    global plot_updating loading_text_handle % флаг обновления и handle текста
     
     fprintf('[%s] updatePlot: START, chosen_time_interval=[%.3f, %.3f], selectedCenter=%s\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2), selectedCenter);
+    
+    % Устанавливаем флаг обновления
+    plot_updating = true;
+    
+    % Показываем "LOADING..." на графике
+    axes(multiax);
+    if isempty(loading_text_handle) || ~isvalid(loading_text_handle)
+        loading_text_handle = text(0.5, 0.5, 'LOADING...', ...
+            'HorizontalAlignment', 'center', ...
+            'VerticalAlignment', 'middle', ...
+            'Units', 'normalized', ...
+            'FontSize', 12, ...
+            'FontWeight', 'normal', ...
+            'Color', 'black', ...
+            'BackgroundColor', [0.8 0.8 0.8]);
+    else
+        set(loading_text_handle, 'Visible', 'on');
+    end
+    drawnow; % Принудительное обновление экрана
     
     % Сброс зума при обновлении графика
     resetZoom();
@@ -20,6 +40,10 @@ function updatePlot()
         xlabel('Time, s');
         ylabel('Channels');
         text(0.5, 0.5, 'No channels selected', 'HorizontalAlignment', 'center', 'Units', 'normalized');
+        plot_updating = false;
+        if ~isempty(loading_text_handle) && isvalid(loading_text_handle)
+            set(loading_text_handle, 'Visible', 'off');
+        end
         return;
     end
     
@@ -280,6 +304,9 @@ function updatePlot()
     % Ограничиваем значение диапазоном слайдера
     sliderValue = max(sliderMin, min(sliderMax, sliderValue));
     set(timeSlider, 'Value', sliderValue);
+
+    % Сбрасываем флаг обновления в самом конце
+    plot_updating = false;
 
     % очищаем память 
     clear local_lfp time_in_transformed data_res
