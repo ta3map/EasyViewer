@@ -4,13 +4,9 @@ function editStimulusTimesGUI()
     
     % Global variables
     global stims timeUnitFactor selectedUnit saveChannelSettingsFunc
+    global time matFilePath lastOpenedFiles
 
     % Check if stims exist
-    if isempty(stims)
-        fprintf('No stimulus times available to shift.\n');
-        return;
-    end
-
     % Identifier (tag) for GUI figure
     figTag = 'editStimulusTimesGUI';
     
@@ -29,14 +25,6 @@ function editStimulusTimesGUI()
                   'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', ...
                   'Tag', figTag, 'WindowStyle', 'modal');
 
-    % Prepare data for table
-    numStims = length(stims);
-    stimData = cell(numStims, 2);
-    for i = 1:numStims
-        stimData{i, 1} = stims(i) * timeUnitFactor; % Time in current units
-        stimData{i, 2} = true; % Selected by default
-    end
-
     % Create UI elements
     uicontrol('Style', 'text', 'Position', [20, 510, 410, 20], ...
               'String', ['Edit Stimulus Times (' selectedUnit '):'], ...
@@ -45,7 +33,7 @@ function editStimulusTimesGUI()
     % Table for stimulus times
     stimTable = uitable('Parent', hFig, ...
                         'Position', [20, 220, 410, 280], ...
-                        'Data', stimData, ...
+                        'Data', buildStimData(stims), ...
                         'ColumnName', {['Time (' selectedUnit ')'], 'Selected'}, ...
                         'ColumnFormat', {'numeric', 'logical'}, ...
                         'ColumnEditable', [true true], ...
@@ -57,6 +45,9 @@ function editStimulusTimesGUI()
     
     deleteButton = uicontrol('Style', 'pushbutton', 'Position', [150, 180, 120, 30], ...
                              'String', 'Delete Selected', 'Callback', @deleteSelected);
+    
+    addStimulusButton = uicontrol('Style', 'pushbutton', 'Position', [280, 180, 120, 30], ...
+                                  'String', 'Add Stimulus', 'Callback', @addStimulusTime);
 
     % Shift operation section
     uicontrol('Style', 'text', 'Position', [20, 140, 200, 20], ...
@@ -66,7 +57,7 @@ function editStimulusTimesGUI()
 
     % Action buttons
     uicontrol('Style', 'pushbutton', 'Position', [20, 70, 100, 30], ...
-              'String', 'Apply', 'Callback', @applyChanges);
+              'String', 'Import from Events', 'Callback', @importStimuliFromEvents);
 
     uicontrol('Style', 'pushbutton', 'Position', [130, 70, 100, 30], ...
               'String', 'Reset', 'Callback', @resetChanges);
@@ -74,11 +65,33 @@ function editStimulusTimesGUI()
     uicontrol('Style', 'pushbutton', 'Position', [240, 70, 100, 30], ...
               'String', 'Cancel', 'Callback', @cancelChanges);
 
+    uicontrol('Style', 'pushbutton', 'Position', [20, 30, 100, 30], ...
+              'String', 'Apply', 'Callback', @applyChanges);
+
     % Track selection state for toggle button and original data
     allSelected = true;
     originalStims = stims; % Keep original data for reset functionality
-    originalStimData = stimData; % Keep original table data for reset functionality
     currentShiftValue = 0; % Track current shift value
+
+    function data = buildStimData(stimArray)
+        numCurrentStims = length(stimArray);
+        data = cell(numCurrentStims, 2);
+        for idx = 1:numCurrentStims
+            data{idx, 1} = stimArray(idx) * timeUnitFactor;
+            data{idx, 2} = true;
+        end
+    end
+
+    function updateTableWithStims(stimArray)
+        set(stimTable, 'Data', buildStimData(stimArray));
+        if isempty(stimArray)
+            set(selectAllButton, 'String', 'Select All');
+            allSelected = false;
+        else
+            set(selectAllButton, 'String', 'Deselect All');
+            allSelected = true;
+        end
+    end
 
     function toggleSelectAll(~, ~)
         tableData = get(stimTable, 'Data');
@@ -158,13 +171,12 @@ function editStimulusTimesGUI()
         % Get all data from table
         tableData = get(stimTable, 'Data');
         
-        if isempty(tableData)
-            fprintf('No stimulus times to apply.\n');
-            return;
-        end
-        
         % Extract times from table and convert to seconds
-        newStimTimes = [tableData{:, 1}] / timeUnitFactor;
+        if isempty(tableData)
+            newStimTimes = [];
+        else
+            newStimTimes = [tableData{:, 1}] / timeUnitFactor;
+        end
         
         % Validate times (must be non-negative)
         if any(newStimTimes < 0)
@@ -192,18 +204,7 @@ function editStimulusTimesGUI()
         % Reset to original data
         stims_temp = originalStims;
         
-        % Regenerate table data
-        numStims = length(stims_temp);
-        stimData = cell(numStims, 2);
-        for i = 1:numStims
-            stimData{i, 1} = stims_temp(i) * timeUnitFactor; % Time in current units
-            stimData{i, 2} = true; % Selected by default
-        end
-        
-        % Update original stimData for reset functionality
-        originalStimData = stimData;
-        
-        set(stimTable, 'Data', stimData);
+        updateTableWithStims(stims_temp);
         set(shiftEdit, 'String', '0');
         currentShiftValue = 0; % Reset shift tracking
         
@@ -214,6 +215,101 @@ function editStimulusTimesGUI()
 
     function cancelChanges(~, ~)
         close(hFig);
+    end
+
+    function addStimulusTime(~, ~)
+        prompt = {['Enter stimulus time (' selectedUnit '):']};
+        answer = inputdlg(prompt, 'Add Stimulus', 1, {'0'});
+        if isempty(answer)
+            return;
+        end
+        
+        newTime = str2double(answer{1});
+        if isnan(newTime) || newTime < 0
+            fprintf('Invalid stimulus time.\n');
+            return;
+        end
+        
+        tableData = get(stimTable, 'Data');
+        tableData(end + 1, :) = {newTime, true};
+        set(stimTable, 'Data', tableData);
+        
+        set(selectAllButton, 'String', 'Deselect All');
+        allSelected = true;
+    end
+
+    function importStimuliFromEvents(~, ~)
+        if isempty(time)
+            fprintf('Cannot import stimuli: time vector is empty.\n');
+            return;
+        end
+        
+        initialDir = pwd;
+        if ~isempty(matFilePath)
+            initialDir = fileparts(matFilePath);
+        elseif ~isempty(lastOpenedFiles)
+            try
+                initialDir = fileparts(lastOpenedFiles{end});
+            catch
+                % fallback to pwd
+            end
+        end
+        
+        [fileName, filePath] = uigetfile({'*.ev;*.mean', 'Event files (*.ev, *.mean)'; ...
+                                          '*.ev', 'Event files (*.ev)'; ...
+                                          '*.mean', 'Mean files (*.mean)'}, ...
+                                         'Select events file', initialDir);
+        if isequal(fileName, 0)
+            return;
+        end
+        
+        fullPath = fullfile(filePath, fileName);
+        try
+            loadedData = load(fullPath, '-mat');
+        catch ME
+            fprintf('Error loading events file: %s\n', ME.message);
+            return;
+        end
+        
+        if ~isfield(loadedData, 'manlDet') || isempty(loadedData.manlDet)
+            fprintf('Selected file does not contain events.\n');
+            return;
+        end
+        
+        eventStruct = loadedData.manlDet;
+        if ~isstruct(eventStruct)
+            fprintf('Invalid events structure.\n');
+            return;
+        end
+        
+        eventIndices = round([eventStruct.t]);
+        eventIndices = eventIndices(~isnan(eventIndices));
+        validMask = eventIndices >= 1 & eventIndices <= numel(time);
+        eventIndices = eventIndices(validMask);
+        
+        if isempty(eventIndices)
+            fprintf('No valid events found in the selected file.\n');
+            return;
+        end
+        
+        stims = sort(time(eventIndices(:)));
+        updateTableWithStims(stims);
+        currentShiftValue = 0;
+        set(shiftEdit, 'String', '0');
+        
+        try
+            saveChannelSettingsFunc();
+        catch ME
+            fprintf('Error saving channel settings: %s\n', ME.message);
+        end
+        
+        try
+            updatePlot();
+        catch
+            % Ignore if updatePlot is unavailable
+        end
+        
+        fprintf('Imported %d stimuli from %s\n', numel(stims), fileName);
     end
 
 end 

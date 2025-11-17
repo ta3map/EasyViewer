@@ -106,6 +106,12 @@ function signalViewerGUI(editMode)
     pca_flag = false;
     previousKey = '';
     keyboardpressed = false;
+    zoomState = struct( ...
+        'await_points', false, ...
+        'has_zoom', false, ...
+        'points', zeros(0, 2), ...
+        'lines', gobjects(0));
+    zoomButton = [];
     
     % Инициализация настроек slope measurement
     slope_measurement_settings = struct();
@@ -506,6 +512,13 @@ function signalViewerGUI(editMode)
         'Position', getElementPosition('help_btn'),...
         'Callback', @showHelpMenu, 'Tag', 'help_btn');
 
+    zoomButton = uicontrol('Style', 'pushbutton', 'String', 'Zoom', ...
+        'Visible', 'on', ...
+        'Parent', f, ...
+        'Position', getElementPosition('zoom_btn'), ...
+        'Callback', @zoomButtonCallback, ...
+        'Tag', 'zoom_btn');
+
                 % Конец выпадающих меню
     %%
     % Таблица для отображения событий с расширенными колонками
@@ -568,6 +581,10 @@ function signalViewerGUI(editMode)
            
     f.WindowButtonDownFcn = @(src, event)ButtonDownFcn(multiax, f);
     function ButtonDownFcn(ax, fig)
+        if zoomState.await_points
+            handleZoomClick(ax);
+            return;
+        end
         % Проверяем, зажата ли клавиша Ctrl
         modifiers = get(fig, 'CurrentModifier');
         if ismember('control', modifiers) % Если зажата Ctrl
@@ -579,6 +596,63 @@ function signalViewerGUI(editMode)
             % Добавление события
             addEvent(eventAdd);
         end
+    end
+
+    function handleZoomClick(ax)
+        cp = get(ax, 'CurrentPoint');
+        x = cp(1, 1);
+        y = cp(1, 2);
+        
+        zoomState.points(end + 1, :) = [x y];
+        
+        yLim = get(ax, 'YLim');
+        xLim = get(ax, 'XLim');
+        
+        zoomState.lines(end + 1) = line(ax, [x x], yLim, ...
+            'Color', [0 0 0], ...
+            'LineStyle', '--', ...
+            'HitTest', 'off');
+        zoomState.lines(end + 1) = line(ax, xLim, [y y], ...
+            'Color', [0 0 0], ...
+            'LineStyle', '--', ...
+            'HitTest', 'off');
+        
+        if size(zoomState.points, 1) < 2
+            return;
+        end
+        
+        xs = sort(zoomState.points(:, 1));
+        ys = sort(zoomState.points(:, 2));
+        
+        if xs(1) == xs(2)
+            xs(2) = xs(2) + eps(xs(2) + 1);
+        end
+        if ys(1) == ys(2)
+            ys(2) = ys(2) + eps(ys(2) + 1);
+        end
+        
+        set(ax, 'XLim', xs);
+        set(ax, 'YLim', ys);
+        
+        zoomState.await_points = false;
+        zoomState.has_zoom = true;
+        zoomState.points = zeros(0, 2);
+        zoomState.lines = gobjects(0);
+        set(zoomButton, 'String', 'Reset Zoom');
+    end
+
+    function zoomButtonCallback(src, ~)
+        if zoomState.has_zoom || zoomState.await_points
+            zoomState.await_points = false;
+            zoomState.has_zoom = false;
+            zoomState.points = zeros(0, 2);
+            zoomState.lines = gobjects(0);
+            set(src, 'String', 'Zoom');
+            updatePlot();
+            return;
+        end
+        zoomState.await_points = true;
+        zoomState.points = zeros(0, 2);
     end
     
     % Функция для добавления маркера
@@ -990,6 +1064,7 @@ function signalViewerGUI(editMode)
         end
         help_menu_visible = not(help_menu_visible);
     end
+
     
     % Обратный вызов выпадающего списка Help
     function HelpMenuSelectionCallback(src, ~)
@@ -1383,9 +1458,9 @@ function signalViewerGUI(editMode)
     function updateLocalCoefs()
         ch_inxs = find(channelEnabled); % Индексы активированных каналов
         m_coef = np_flatten(scalingCoefficients(ch_inxs));% Обновленные коэффициенты масштабирования
-        ch_labels_l = channelNames(ch_inxs);
-        colors_in_l = colorsIn(ch_inxs);
-        widths_in_l = lineCoefficients(ch_inxs);
+    ch_labels_l = channelNames(ch_inxs);
+    colors_in_l = colorsIn(ch_inxs);
+    widths_in_l = lineCoefficients(ch_inxs);
     end
     % Функция для обновления данных на основе выбора в таблице
     function updateEventTable(~, ~)

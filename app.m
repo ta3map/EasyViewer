@@ -1,24 +1,17 @@
 function app()
 
-    % Easy Viewer:  visualization and analysis and electrophysiological data
-    % 
-    % 
-    % Author:       Azat Gainutdinov
-    %               ta3map@gmail.com
-    %               
-    % Date:         13.11.2025    
+    global EV_path EV_version EV_date EV_author EV_email EV_description
 
-
-    global EV_path EV_version EV_date
-
+    EV_path = pwd;
     EV_version = '1.12.11';
     EV_date = '14.11.2025';
+    EV_author = 'Azat Gainutdinov';
+    EV_email = 'ta3map@gmail.com';
+    EV_description = 'Visualization and analysis of electrophysiological data';
 
     clc
-    disp(['Easy Viewer version: ' EV_version])
-    
-    
-    EV_path = pwd;
+    disp(['Easy Viewer version: ' EV_version])  
+        
     disp('working directory:')
     fprintf('%s\n',EV_path);
     
