@@ -758,13 +758,7 @@ function signalViewerGUI(editMode)
 
     function zoomButtonCallback(src, ~)
         if zoomState.has_zoom || zoomState.await_points
-            zoomState.await_points = false;
-            zoomState.has_zoom = false;
-            zoomState.is_panning = false;
-            zoomState.points = zeros(0, 2);
-            zoomState.lines = gobjects(0);
-            set(src, 'String', 'Zoom');
-            set(f, 'Pointer', 'arrow');
+            resetZoom();
             updatePlot();
             return;
         end
@@ -1334,6 +1328,7 @@ function signalViewerGUI(editMode)
     end
     % Функция обратного вызова для timeForwardEdit
     function timeForwardEditCallback(src, ~)
+        fprintf('[%s] timeForwardEditCallback: START, selectedCenter=%s, stims_exist=%d\n', datestr(now, 'HH:MM:SS.FFF'), selectedCenter, stims_exist);
 %         disp('time edited')
         windowSize = str2double(get(src, 'String'))/timeUnitFactor;% time_forward - в секундах
         time_forward = windowSize;
@@ -1341,6 +1336,7 @@ function signalViewerGUI(editMode)
             fprintf('Invalid time window size.\n');
             return;
         end
+        fprintf('[%s] timeForwardEditCallback: windowSize=%.3f, stim_inx=%d\n', datestr(now, 'HH:MM:SS.FFF'), windowSize, stim_inx);
                 
         switch selectedCenter
             case 'event'
@@ -1350,8 +1346,10 @@ function signalViewerGUI(editMode)
                 end
             case 'stimulus'
                 if stims_exist
+                    fprintf('[%s] timeForwardEditCallback: BEFORE stimulus update, stim_inx=%d, numel(stims)=%d\n', datestr(now, 'HH:MM:SS.FFF'), stim_inx, numel(stims));
                     chosen_time_interval(1) = stims(stim_inx);
                     chosen_time_interval(2) = stims(stim_inx)+windowSize;
+                    fprintf('[%s] timeForwardEditCallback: AFTER stimulus update, stims(stim_inx)=%.3f, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), stims(stim_inx), chosen_time_interval(1), chosen_time_interval(2));
                 end
             case 'sweep'
                 if sweep_info.is_sweep_data && sweep_inx > 0 && sweep_inx <= sweep_info.sweep_count
@@ -1371,8 +1369,10 @@ function signalViewerGUI(editMode)
                 end
         end
         
+        fprintf('[%s] timeForwardEditCallback: BEFORE updatePlot, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2));
         saveChannelSettings();
         updatePlot(); % Обновление графика
+        fprintf('[%s] timeForwardEditCallback: AFTER updatePlot\n', datestr(now, 'HH:MM:SS.FFF'));
     end
 
     % Функция обратного вызова для выпадающего списка
@@ -1691,6 +1691,7 @@ function signalViewerGUI(editMode)
 
 
     function loadMatFile(filepath)
+        fprintf('[%s] loadMatFile: START\n', datestr(now, 'HH:MM:SS.FFF'));
         disp('loading mat file:')
         ica_flag = false;
         pca_flag = false;
@@ -1711,21 +1712,22 @@ function signalViewerGUI(editMode)
         disp(matFileName)       
         
         % Используем универсальную функцию загрузки
-        [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info] = load_zav_file(filepath, ...
+        fprintf('[%s] loadMatFile: BEFORE load_zav_file\n', datestr(now, 'HH:MM:SS.FFF'));
+        data = load_zav_file(filepath, ...
             'auto_set_time_windows', autoSetTimeWindowsFromSweeps, ...
             'auto_set_fs', autoSetNewFsFromFs);
+        [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
+        fprintf('[%s] loadMatFile: AFTER load_zav_file, numel(stims)=%d, sweep_info.is_sweep_data=%d, time_forward=%.3f, time_back=%.3f\n', datestr(now, 'HH:MM:SS.FFF'), numel(stims), sweep_info.is_sweep_data, time_forward, time_back);
         
-        % Получаем размеры для совместимости
-        [m, n, p] = size(lfp);
         N = size(lfp, 1);
         Fs = zavp.dwnSmplFrq;
         
         % Устанавливаем флаги
         stims_exist = ~isempty(stims);
         sweep_inx = 1;
+        fprintf('[%s] loadMatFile: stims_exist=%d\n', datestr(now, 'HH:MM:SS.FFF'), stims_exist);
         
         % Устанавливаем временные параметры
-        chosen_time_interval = [0, time_forward];
         shiftCoeff = 200;
         
         % Устанавливаем newFs
@@ -1736,18 +1738,47 @@ function signalViewerGUI(editMode)
         end
         
         % Автоматический выбор режима центра
-        if p > 1 && stims_exist
+        if stims_exist
             selectedCenter = 'stimulus';
+        elseif sweep_info.is_sweep_data
+            selectedCenter = 'sweep';
         else
             selectedCenter = 'time';
         end
-        stim_inx = 1;        
+        stim_inx = 1;
+        fprintf('[%s] loadMatFile: selectedCenter=%s, stim_inx=%d\n', datestr(now, 'HH:MM:SS.FFF'), selectedCenter, stim_inx);
+        
+        % Правильно устанавливаем chosen_time_interval в зависимости от выбранного режима
+        % Используем time_forward, который был установлен load_zav_file (или значение по умолчанию)
+        windowSize = time_forward;
+        switch selectedCenter
+            case 'stimulus'
+                if stims_exist && stim_inx > 0 && stim_inx <= numel(stims)
+                    chosen_time_interval(1) = stims(stim_inx);
+                    chosen_time_interval(2) = stims(stim_inx) + windowSize;
+                else
+                    chosen_time_interval = [0, windowSize];
+                end
+            case 'sweep'
+                if sweep_info.is_sweep_data && sweep_inx > 0 && sweep_inx <= sweep_info.sweep_count
+                    chosen_time_interval(1) = sweep_info.sweep_times(sweep_inx);
+                    chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
+                else
+                    chosen_time_interval = [0, windowSize];
+                end
+            case 'time'
+                chosen_time_interval = [0, windowSize];
+        end
+        fprintf('[%s] loadMatFile: AFTER setting chosen_time_interval=[%.3f, %.3f] based on selectedCenter=%s\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2), selectedCenter);
+        
         show_spikes = false;
         show_CSD = false;
         channelNames = hd.recChNames;
         numChannels = length(channelNames);
         
+        fprintf('[%s] loadMatFile: BEFORE resetMainWindowButtons, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2));
         resetMainWindowButtons()
+        fprintf('[%s] loadMatFile: AFTER resetMainWindowButtons, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2));
         
 
         
@@ -1756,12 +1787,16 @@ function signalViewerGUI(editMode)
         
             % Попытка загрузить настройки каналов
     % Сначала проверяются индивидуальные настройки, затем групповые
-    loadChannelSettings();    
+        fprintf('[%s] loadMatFile: BEFORE loadChannelSettings, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2));
+        loadChannelSettings();
+        fprintf('[%s] loadMatFile: AFTER loadChannelSettings, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2));
+        fprintf('[%s] loadMatFile: END\n', datestr(now, 'HH:MM:SS.FFF'));
     end
     
 
 
     function resetMainWindowButtons()
+        fprintf('[%s] resetMainWindowButtons: START, selectedCenter=%s, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), selectedCenter, chosen_time_interval(1), chosen_time_interval(2));
         
         % разрешение опций
         set(OptBtn, 'Enable', 'on');
@@ -1783,8 +1818,10 @@ function signalViewerGUI(editMode)
                 set(timeCenterPopup, 'Value', 4);
         end
         
+        fprintf('[%s] resetMainWindowButtons: BEFORE setting timeForwardEdit, time_forward=%.3f\n', datestr(now, 'HH:MM:SS.FFF'), time_forward);
         set(timeBackEdit, 'String', num2str(time_back*timeUnitFactor));% time window before
         set(timeForwardEdit, 'String', num2str(time_forward*timeUnitFactor));% time window after
+        fprintf('[%s] resetMainWindowButtons: AFTER setting timeForwardEdit, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2));
         set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
         set(FsCoeffEdit, 'String', num2str(newFs));
         
@@ -1929,7 +1966,24 @@ function loadSettingsFile()
         end
         if isfield(loadedSettings, 'time_forward')
             time_forward = loadedSettings.time_forward; % time window after (s)
-            chosen_time_interval = [0, time_forward];
+            % Правильно устанавливаем chosen_time_interval в зависимости от режима
+            switch selectedCenter
+                case 'stimulus'
+                    if stims_exist && stim_inx > 0 && stim_inx <= numel(stims)
+                        chosen_time_interval = [stims(stim_inx), stims(stim_inx) + time_forward];
+                    else
+                        chosen_time_interval = [0, time_forward];
+                    end
+                case 'sweep'
+                    if isfield(sweep_info, 'is_sweep_data') && sweep_info.is_sweep_data && sweep_inx > 0 && sweep_inx <= sweep_info.sweep_count
+                        chosen_time_interval = [sweep_info.sweep_times(sweep_inx), sweep_info.sweep_times(sweep_inx) + time_forward];
+                    else
+                        chosen_time_interval = [0, time_forward];
+                    end
+                otherwise
+                    chosen_time_interval = [0, time_forward];
+            end
+            fprintf('[%s] loadSettingsFile: AFTER loading time_forward=%.3f, chosen_time_interval=[%.3f, %.3f], selectedCenter=%s\n', datestr(now, 'HH:MM:SS.FFF'), time_forward, chosen_time_interval(1), chosen_time_interval(2), selectedCenter);
             set(timeForwardEdit, 'String', num2str(time_forward * timeUnitFactor));
         end
 
@@ -2160,6 +2214,8 @@ end
 
     function shiftTime(~, ~, direction, timeForwardEdit)
         
+        fprintf('[%s] shiftTime: START, direction=%d, selectedCenter=%s\n', datestr(now, 'HH:MM:SS.FFF'), direction, selectedCenter);
+        
         % отключаем возможность использовать клавиатуру
 %         set(f, 'KeyPressFcn', '');
         
@@ -2170,6 +2226,7 @@ end
         
 %         disp('changed position')
         windowSize = str2double(get(timeForwardEdit, 'String'))/timeUnitFactor;% должен быть в секундах
+        fprintf('[%s] shiftTime: windowSize=%.3f, stims_exist=%d, stim_inx=%d\n', datestr(now, 'HH:MM:SS.FFF'), windowSize, stims_exist, stim_inx);
         switch selectedCenter
             case 'event'
                 if events_exist
@@ -2194,6 +2251,7 @@ end
                 end
             case 'stimulus'
                 if stims_exist
+                    fprintf('[%s] shiftTime: BEFORE stimulus update, stim_inx=%d, numel(stims)=%d\n', datestr(now, 'HH:MM:SS.FFF'), stim_inx, numel(stims));
                     if direction == 1% движение вперед  
 %                         disp('stimulus forward')
                         stim_inx = stim_inx+1;                    
@@ -2207,6 +2265,7 @@ end
                     if stim_inx > 0
                         chosen_time_interval(1) = stims(stim_inx);
                         chosen_time_interval(2) = stims(stim_inx)+windowSize;
+                        fprintf('[%s] shiftTime: AFTER stimulus update, stim_inx=%d, stims(stim_inx)=%.3f, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), stim_inx, stims(stim_inx), chosen_time_interval(1), chosen_time_interval(2));
                     else
                         stim_inx = 1;
                     end
@@ -2249,7 +2308,9 @@ end
         end
         
         keyboardpressed = false;
+        fprintf('[%s] shiftTime: BEFORE updatePlot, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2));
         updatePlot(); % Обновление графика
+        fprintf('[%s] shiftTime: AFTER updatePlot\n', datestr(now, 'HH:MM:SS.FFF'));
         
         % Включаем callback нажатия клавиш
 %         set(f, 'KeyPressFcn', @keyPressFunction);

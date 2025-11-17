@@ -1,4 +1,4 @@
-function [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, events, event_comments, event_amplitudes, event_channels, event_widths, event_prominences, event_metadata] = load_zav_file(filepath, varargin)
+function data = load_zav_file(filepath, varargin)
 % LOAD_ZAV_FILE - Загрузка ZAV файлов с сохранением всех нюансов
 %
 % Входные параметры:
@@ -10,26 +10,32 @@ function [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, events,
 %       'auto_set_fs' - автоматически устанавливать newFs на основе Fs (по умолчанию true)
 %
 % Выходные параметры:
-%   lfp - матрица LFP данных
-%   spks - данные спайков
-%   hd - заголовок записи
-%   zavp - параметры ZAV
-%   lfpVar - вариация LFP
-%   chnlGrp - группы каналов
-%   time - временная ось
-%   stims - времена стимулов
-%   sweep_info - информация о свипах
-%   events - события (если загружались)
-%   event_comments - комментарии к событиям
-%   event_amplitudes - амплитуды событий
-%   event_channels - каналы событий
-%   event_widths - ширина пиков событий
-%   event_prominences - выраженность пиков событий
-%   event_metadata - метаданные событий
+%   data - структура с полями:
+%       lfp - матрица LFP данных
+%       spks - данные спайков
+%       hd - заголовок записи
+%       zavp - параметры ZAV
+%       lfpVar - вариация LFP
+%       chnlGrp - группы каналов
+%       time - временная ось
+%       stims - времена стимулов
+%       sweep_info - информация о свипах
+%       time_forward - временное окно вперед (секунды)
+%       time_back - временное окно назад (секунды)
+%       events - события (если загружались)
+%       event_comments - комментарии к событиям
+%       event_amplitudes - амплитуды событий
+%       event_channels - каналы событий
+%       event_widths - ширина пиков событий
+%       event_prominences - выраженность пиков событий
+%       event_metadata - метаданные событий
 %
 % Пример использования:
-%   [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info] = load_zav_file('data.mat');
-%   [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, events] = load_zav_file('data.mat', 'load_events', true);
+%   data = load_zav_file('data.mat');
+%   [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
+%   
+%   data = load_zav_file('data.mat', 'load_events', true);
+%   [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back, events] = struct2vars(data);
 
 % Парсинг входных параметров
 p = inputParser;
@@ -188,7 +194,8 @@ else
     fprintf('Использовано стандартное временное окно: %.3f с\n', time_forward);
 end
 
-chosen_time_interval = [0, time_forward];
+% chosen_time_interval теперь устанавливается в loadMatFile после выбора режима
+% chosen_time_interval = [0, time_forward];
 
 % Установка newFs на основе флага auto_set_fs
 if auto_set_fs
@@ -248,11 +255,32 @@ fprintf('\n');
 fprintf('\n=== ИТОГОВАЯ ИНФОРМАЦИЯ ===\n');
 fprintf('Размер данных LFP: %dx%dx%d\n', size(lfp));
 fprintf('Размер данных спайков: %dx%dx%d\n', size(spks));
-fprintf('Временной интервал: [%.3f, %.3f] с\n', chosen_time_interval);
+fprintf('Временное окно: forward=%.3f с, back=%.3f с\n', time_forward, time_back);
 fprintf('Стимулы: %s\n', ternary(stims_exist, 'да', 'нет'));
 fprintf('Свипы: %s\n', ternary(sweep_info.is_sweep_data, 'да', 'нет'));
 fprintf('События: %s\n', ternary(~isempty(events), 'да', 'нет'));
 fprintf('Файл успешно загружен!\n');
+
+% Собираем все данные в структуру
+data = struct();
+data.lfp = lfp;
+data.spks = spks;
+data.hd = hd;
+data.zavp = zavp;
+data.lfpVar = lfpVar;
+data.chnlGrp = chnlGrp;
+data.time = time;
+data.stims = stims;
+data.sweep_info = sweep_info;
+data.time_forward = time_forward;
+data.time_back = time_back;
+data.events = events;
+data.event_comments = event_comments;
+data.event_amplitudes = event_amplitudes;
+data.event_channels = event_channels;
+data.event_widths = event_widths;
+data.event_prominences = event_prominences;
+data.event_metadata = event_metadata;
 
 end
 

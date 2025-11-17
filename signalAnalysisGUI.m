@@ -1483,7 +1483,7 @@ updateCursorEditFields();
         if zoom_active
             % Если зум активен - сбрасываем
 
-            resetZoom();
+            resZoom();
         else
             % Если зум неактивен - начинаем выбор области
             % fprintf('DEBUG: Зум неактивен, вызываем startZoomSelection\n');
@@ -1634,9 +1634,9 @@ updateCursorEditFields();
         end
     end
 
-    function resetZoom()
+    function resZoom()
         % Сбрасываем зум
-        % fprintf('DEBUG: resetZoom вызвана\n');
+        % fprintf('DEBUG: resZoom вызвана\n');
         zoom_active = false;
         zoom_start_rel = 0;
         zoom_end_rel = 1;
@@ -1653,7 +1653,7 @@ updateCursorEditFields();
             set(zoomBtn, 'String', 'Zoom');
             % fprintf('DEBUG: Кнопка сброшена на: %s, zoom_active = %d\n', get(zoomBtn, 'String'), zoom_active);
         else
-            fprintf('ERROR: Zoom button not found in resetZoom!\n');
+            fprintf('ERROR: Zoom button not found in resZoom!\n');
         end
         
         fprintf('✓ Zoom reset (new optimal boundaries will be calculated)\n');
@@ -1681,7 +1681,7 @@ updateCursorEditFields();
         
         % Проверяем минимальный размер зума
         if new_range >= (original_xlim(2) - original_xlim(1))
-            resetZoom();
+            resZoom();
             return;
         end
         
@@ -3023,9 +3023,10 @@ updateCursorEditFields();
         % Загружаем новый файл используя универсальную функцию
         try
             % Используем универсальную функцию загрузки
-            [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info] = load_zav_file(filepath, ...
+            data = load_zav_file(filepath, ...
                 'auto_set_time_windows', true, ...
                 'auto_set_fs', true);
+            [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
             
             % Получаем размеры для совместимости
             [m, n, p] = size(lfp);
@@ -3562,7 +3563,8 @@ updateCursorEditFields();
             mean_signal_time = [];
             
             % Загружаем файл
-            [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info] = load_zav_file(filepath);
+            data = load_zav_file(filepath);
+            [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
             
             % Устанавливаем флаги
             stims_exist = ~isempty(stims);
@@ -3574,8 +3576,6 @@ updateCursorEditFields();
             sweep_inx = 1;
             
             % Устанавливаем временные параметры
-            time_back = 0.6;
-            time_forward = 0.6;
             chosen_time_interval = [0, time_forward];
             
             % Устанавливаем частоту дискретизации

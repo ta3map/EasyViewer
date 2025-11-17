@@ -11,7 +11,8 @@ fprintf('=== ПРИМЕР ЗАГРУЗКИ ZAV ФАЙЛА ===\n\n');
 % Пример 1: Базовая загрузка файла
 fprintf('1. Базовая загрузка файла:\n');
 try
-    [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info] = load_zav_file(filepath);
+    data = load_zav_file(filepath);
+    [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
     fprintf('✓ Файл успешно загружен!\n\n');
 catch ME
     fprintf('✗ Ошибка при загрузке: %s\n\n', ME.message);
@@ -21,7 +22,8 @@ end
 % Пример 2: Загрузка с событиями
 fprintf('2. Загрузка с событиями:\n');
 try
-    [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, events, event_comments, event_amplitudes, event_channels, event_widths, event_prominences, event_metadata] = load_zav_file(filepath, 'load_events', true);
+    data = load_zav_file(filepath, 'load_events', true);
+    [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back, events, event_comments, event_amplitudes, event_channels, event_widths, event_prominences, event_metadata] = struct2vars(data);
     if ~isempty(events)
         fprintf('✓ События загружены: %d штук\n', length(events));
     else
@@ -35,7 +37,7 @@ fprintf('\n');
 % Пример 3: Загрузка с настройками каналов
 fprintf('3. Загрузка с настройками каналов:\n');
 try
-    [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, events, event_comments, event_amplitudes, event_channels, event_widths, event_prominences, event_metadata, channelNames, channelEnabled, scalingCoefficients, colorsIn, lineCoefficients, mean_group_ch, csd_avaliable, filter_avaliable, filterSettings] = load_zav_file(filepath, 'load_events', true, 'load_settings', true);
+    [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back, events, event_comments, event_amplitudes, event_channels, event_widths, event_prominences, event_metadata, channelNames, channelEnabled, scalingCoefficients, colorsIn, lineCoefficients, mean_group_ch, csd_avaliable, filter_avaliable, filterSettings] = load_zav_file(filepath, 'load_events', true, 'load_settings', true);
     fprintf('✓ Настройки каналов загружены\n');
 catch ME
     fprintf('✗ Ошибка при загрузке настроек: %s\n', ME.message);

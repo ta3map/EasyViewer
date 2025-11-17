@@ -8,38 +8,11 @@ function updatePlot()
     global art_rem_window_ms stimShowFlag lines_and_styles
     global selectedCenter sweep_info sweep_inx % для работы со свипами
     global baseline_subtract_available % каналы с вычитанием базовой линии
-    global zoomState zoomButton % состояние зума и кнопка зума
+    
+    fprintf('[%s] updatePlot: START, chosen_time_interval=[%.3f, %.3f], selectedCenter=%s\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2), selectedCenter);
     
     % Сброс зума при обновлении графика
-    try
-        if ~isempty(zoomState) && isstruct(zoomState) && (zoomState.has_zoom || zoomState.await_points)
-            zoomState.await_points = false;
-            zoomState.has_zoom = false;
-            zoomState.is_panning = false;
-            zoomState.points = zeros(0, 2);
-            if isfield(zoomState, 'lines') && ~isempty(zoomState.lines)
-                valid_lines = ishandle(zoomState.lines);
-                delete(zoomState.lines(valid_lines));
-                zoomState.lines = gobjects(0);
-            end
-            
-            if ~isempty(zoomButton) && ishandle(zoomButton)
-                set(zoomButton, 'String', 'Zoom');
-            end
-            
-            if ~isempty(multiax) && ishandle(multiax)
-                f = get(multiax, 'Parent');
-                while ~strcmp(get(f, 'Type'), 'figure')
-                    f = get(f, 'Parent');
-                end
-                if ishandle(f)
-                    set(f, 'Pointer', 'arrow');
-                end
-            end
-        end
-    catch
-        % Игнорируем ошибки при сбросе зума
-    end
+    resetZoom();
     
     if isempty(ch_inxs)
         axes(multiax);
