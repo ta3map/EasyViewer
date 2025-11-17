@@ -87,6 +87,7 @@ function signalViewerGUI(editMode)
     global tableData
     
     global channelTable % отображаемые данные о каналах
+    global zoomState zoomButton % состояние зума и кнопка зума
     
     global channelNames % названия каналов
     global channelEnabled % вкл/выкл каналы
