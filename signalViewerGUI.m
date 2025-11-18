@@ -1723,6 +1723,7 @@ function signalViewerGUI(editMode)
 
     function loadMatFile(filepath)
         fprintf('[%s] loadMatFile: START\n', datestr(now, 'HH:MM:SS.FFF'));
+        closeChildWindows();
         disp('loading mat file:')
         ica_flag = false;
         pca_flag = false;
@@ -1823,6 +1824,11 @@ function signalViewerGUI(editMode)
         fprintf('[%s] loadMatFile: AFTER loadChannelSettings, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2));
         fprintf('[%s] loadMatFile: END\n', datestr(now, 'HH:MM:SS.FFF'));
     end
+    function closeChildWindows()
+        editStimFig = findall(0, 'Type', 'figure', 'Tag', 'editStimulusTimesGUI');
+        delete(editStimFig);
+    end
+
     
 
 

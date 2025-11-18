@@ -23,7 +23,7 @@ function editStimulusTimesGUI()
     hFig = figure('Name', 'Edit Stimulus Times', 'NumberTitle', 'off', ...
                   'Position', [100, 100, 450, 550], 'Resize', 'off', ...
                   'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', ...
-                  'Tag', figTag, 'WindowStyle', 'modal');
+                  'Tag', figTag, 'WindowStyle', 'normal');
 
     % Create UI elements
     uicontrol('Style', 'text', 'Position', [20, 510, 410, 20], ...
@@ -35,7 +35,7 @@ function editStimulusTimesGUI()
                         'Position', [20, 220, 410, 280], ...
                         'Data', buildStimData(stims), ...
                         'ColumnName', {['Time (' selectedUnit ')'], 'Selected'}, ...
-                        'ColumnFormat', {'numeric', 'logical'}, ...
+                        'ColumnFormat', {'char', 'logical'}, ...
                         'ColumnEditable', [true true], ...
                         'ColumnWidth', {280, 80});
 
@@ -53,7 +53,9 @@ function editStimulusTimesGUI()
     uicontrol('Style', 'text', 'Position', [20, 140, 200, 20], ...
               'String', ['Shift selected times by (' selectedUnit '):'], ...
               'HorizontalAlignment', 'left', 'FontWeight', 'bold');
-    shiftEdit = uicontrol('Style', 'edit', 'Position', [20, 120, 100, 20], 'String', '0', 'Callback', @performShift);
+    shiftEdit = uicontrol('Style', 'edit', 'Position', [20, 120, 100, 20], 'String', '0');
+    uicontrol('Style', 'pushbutton', 'Position', [130, 118, 80, 24], ...
+              'String', 'Check', 'Callback', @performShift);
 
     % Action buttons
     uicontrol('Style', 'pushbutton', 'Position', [20, 70, 100, 30], ...
@@ -67,6 +69,9 @@ function editStimulusTimesGUI()
 
     uicontrol('Style', 'pushbutton', 'Position', [20, 30, 100, 30], ...
               'String', 'Apply', 'Callback', @applyChanges);
+    
+    uicontrol('Style', 'pushbutton', 'Position', [130, 30, 100, 30], ...
+              'String', 'Close', 'Callback', @closeWindow);
 
     % Track selection state for toggle button and original data
     allSelected = true;
@@ -77,7 +82,7 @@ function editStimulusTimesGUI()
         numCurrentStims = length(stimArray);
         data = cell(numCurrentStims, 2);
         for idx = 1:numCurrentStims
-            data{idx, 1} = stimArray(idx) * timeUnitFactor;
+            data{idx, 1} = formatStimValue(stimArray(idx) * timeUnitFactor);
             data{idx, 2} = true;
         end
     end
@@ -156,12 +161,12 @@ function editStimulusTimesGUI()
         
         % Apply relative shift to selected rows
         for i = selectedIndices
-            currentTime = tableData{i, 1};
+            currentTime = toNumericTime(tableData{i, 1});
             newTime = currentTime + deltaShift;
             if newTime < 0
                 newTime = 0;
             end
-            tableData{i, 1} = newTime;
+            tableData{i, 1} = formatStimValue(newTime);
         end
         
         set(stimTable, 'Data', tableData);
@@ -175,7 +180,8 @@ function editStimulusTimesGUI()
         if isempty(tableData)
             newStimTimes = [];
         else
-            newStimTimes = [tableData{:, 1}] / timeUnitFactor;
+            numericTimes = cellfun(@toNumericTime, tableData(:, 1));
+            newStimTimes = numericTimes / timeUnitFactor;
         end
         
         % Validate times (must be non-negative)
@@ -196,8 +202,9 @@ function editStimulusTimesGUI()
         % Update plot
         updatePlot();
         
-        % Close GUI
-        close(hFig);
+        % Reset collective shift input
+        set(shiftEdit, 'String', '0');
+        currentShiftValue = 0;
     end
 
     function resetChanges(~, ~)
@@ -216,6 +223,26 @@ function editStimulusTimesGUI()
     function cancelChanges(~, ~)
         close(hFig);
     end
+    
+    function closeWindow(~, ~)
+        close(hFig);
+    end
+    
+    function strValue = formatStimValue(value)
+        strValue = sprintf('%.3f', value);
+    end
+    
+    function numericValue = toNumericTime(value)
+        if isnumeric(value)
+            numericValue = value;
+        else
+            numericValue = str2double(value);
+        end
+        
+        if isnan(numericValue)
+            numericValue = 0;
+        end
+    end
 
     function addStimulusTime(~, ~)
         prompt = {['Enter stimulus time (' selectedUnit '):']};
@@ -231,7 +258,7 @@ function editStimulusTimesGUI()
         end
         
         tableData = get(stimTable, 'Data');
-        tableData(end + 1, :) = {newTime, true};
+        tableData(end + 1, :) = {formatStimValue(newTime), true};
         set(stimTable, 'Data', tableData);
         
         set(selectAllButton, 'String', 'Deselect All');
