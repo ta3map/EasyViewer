@@ -22,7 +22,7 @@ function fileManagerGUI()
     
     state.dbPath = initDbPath();
     
-    fig = figure('Position', [100, 100, 945, 390], ...
+    fig = figure('Position', [100, 100, 850, 390], ...
         'Name', 'File Manager (SQL)', ...
         'NumberTitle', 'off', ...
         'MenuBar', 'none', ...
@@ -55,8 +55,13 @@ function fileManagerGUI()
         'String', 'Remove Selected File', ...
         'Callback', @removeSelectedFile);
     
+    addFieldBtn = uicontrol('Style', 'pushbutton', ...
+        'Position', [635, 350, 90, 25], ...
+        'String', 'Add Field', ...
+        'Callback', @addMetadataField);
+    
     openBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [635, 350, 100, 25], ...
+        'Position', [745, 315, 100, 63], ...
         'String', 'Open Selected File', ...
         'Callback', @openSelectedFile);
     
@@ -81,18 +86,13 @@ function fileManagerGUI()
         'String', 'Select Database', ...
         'Callback', @chooseDbPath);
     
-    fileTable = uitable('Position', [10, 10, 925, 300], ...
-        'ColumnWidth', {150, 665}, ...
+    fileTable = uitable('Position', [10, 10, 830, 300], ...
+        'ColumnWidth', {150, 570}, ...
         'ColumnName', {'File Name', 'Path'}, ...
         'ColumnEditable', [false, false]);
     fileTable.UserData = struct('row', []);
     fileTable.CellSelectionCallback = @handleCellSelection;
     fileTable.CellEditCallback = @handleCellEdit;
-    
-    addFieldBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [745, 350, 90, 25], ...
-        'String', 'Add Field', ...
-        'Callback', @addMetadataField);
     
     loadProjectsFromDb();
     
@@ -797,17 +797,40 @@ function launchFile(filePath)
     [~, ~, ext] = fileparts(filePath);
     global event_calling outside_calling_filepath
     global zav_calling wb table_calling events event_inx event_title_string
+    global lastOpenedFiles SettingsFilepath
+    
     outside_calling_filepath = filePath;
+    
+    if ~exist('lastOpenedFiles', 'var') || isempty(lastOpenedFiles)
+        lastOpenedFiles = {};
+    end
+    
+    lastOpenedFiles{end + 1} = filePath;
+    
+    try
+        save(SettingsFilepath, 'lastOpenedFiles', '-append');
+    catch ME
+        warning('Failed to save last opened file path: %s', ME.message);
+    end
+    
     fprintf('Please wait...\n');
     switch lower(ext)
         case '.ev'
             event_calling();
         case '.mat'
-            zav_calling();
+            global event_amplitudes event_channels event_widths event_prominences event_metadata event_comments events_exist
             events = [];
+            event_amplitudes = [];
+            event_channels = [];
+            event_widths = [];
+            event_prominences = [];
+            event_metadata = [];
+            event_comments = {};
             event_title_string = 'Events';
-            table_calling();
             event_inx = 1;
+            events_exist = false;
+            zav_calling();
+            table_calling();
         otherwise
             fprintf('Unknown extension: %s\n', ext);
     end

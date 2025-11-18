@@ -4,7 +4,7 @@ function editStimulusTimesGUI()
     
     % Global variables
     global stims timeUnitFactor selectedUnit saveChannelSettingsFunc
-    global time matFilePath lastOpenedFiles
+    global time matFilePath lastOpenedFiles events SettingsFilepath
 
     % Check if stims exist
     % Identifier (tag) for GUI figure
@@ -57,20 +57,35 @@ function editStimulusTimesGUI()
     uicontrol('Style', 'pushbutton', 'Position', [130, 118, 80, 24], ...
               'String', 'Check', 'Callback', @performShift);
 
+    % Import mode dropdown
+    importModeOptions = {'From file (add)', 'From memory (add)', 'From file (replace)', 'From memory (replace)'};
+    savedMode = loadImportMode();
+    savedModeIndex = find(strcmp(importModeOptions, savedMode), 1);
+    if isempty(savedModeIndex)
+        savedModeIndex = 1;
+    end
+    
+    uicontrol('Style', 'text', 'Position', [20, 100, 150, 20], ...
+              'String', 'Import mode:', 'HorizontalAlignment', 'left');
+    importModePopup = uicontrol('Style', 'popupmenu', 'Position', [20, 80, 200, 25], ...
+                                'String', importModeOptions, ...
+                                'Value', savedModeIndex, ...
+                                'Callback', @saveImportMode);
+    
     % Action buttons
-    uicontrol('Style', 'pushbutton', 'Position', [20, 70, 100, 30], ...
-              'String', 'Import from Events', 'Callback', @importStimuliFromEvents);
+    uicontrol('Style', 'pushbutton', 'Position', [230, 78, 100, 30], ...
+              'String', 'Import', 'Callback', @importStimuli);
 
-    uicontrol('Style', 'pushbutton', 'Position', [130, 70, 100, 30], ...
+    uicontrol('Style', 'pushbutton', 'Position', [20, 40, 100, 30], ...
               'String', 'Reset', 'Callback', @resetChanges);
 
-    uicontrol('Style', 'pushbutton', 'Position', [240, 70, 100, 30], ...
+    uicontrol('Style', 'pushbutton', 'Position', [130, 40, 100, 30], ...
               'String', 'Cancel', 'Callback', @cancelChanges);
 
-    uicontrol('Style', 'pushbutton', 'Position', [20, 30, 100, 30], ...
+    uicontrol('Style', 'pushbutton', 'Position', [240, 40, 100, 30], ...
               'String', 'Apply', 'Callback', @applyChanges);
     
-    uicontrol('Style', 'pushbutton', 'Position', [130, 30, 100, 30], ...
+    uicontrol('Style', 'pushbutton', 'Position', [350, 40, 80, 30], ...
               'String', 'Close', 'Callback', @closeWindow);
 
     % Track selection state for toggle button and original data
@@ -265,78 +280,132 @@ function editStimulusTimesGUI()
         allSelected = true;
     end
 
-    function importStimuliFromEvents(~, ~)
+    function importStimuli(~, ~)
         if isempty(time)
             fprintf('Cannot import stimuli: time vector is empty.\n');
             return;
         end
         
-        initialDir = pwd;
-        if ~isempty(matFilePath)
-            initialDir = fileparts(matFilePath);
-        elseif ~isempty(lastOpenedFiles)
-            try
-                initialDir = fileparts(lastOpenedFiles{end});
-            catch
-                % fallback to pwd
+        modeIndex = get(importModePopup, 'Value');
+        modeOptions = get(importModePopup, 'String');
+        selectedMode = modeOptions{modeIndex};
+        
+        isFromFile = contains(selectedMode, 'file');
+        isReplace = contains(selectedMode, 'replace');
+        
+        if isFromFile
+            initialDir = pwd;
+            if ~isempty(matFilePath)
+                initialDir = fileparts(matFilePath);
+            elseif ~isempty(lastOpenedFiles)
+                try
+                    initialDir = fileparts(lastOpenedFiles{end});
+                catch
+                    % fallback to pwd
+                end
             end
+            
+            [fileName, filePath] = uigetfile({'*.ev;*.mean', 'Event files (*.ev, *.mean)'; ...
+                                              '*.ev', 'Event files (*.ev)'; ...
+                                              '*.mean', 'Mean files (*.mean)'}, ...
+                                             'Select events file', initialDir);
+            if isequal(fileName, 0)
+                return;
+            end
+            
+            fullPath = fullfile(filePath, fileName);
+            try
+                loadedData = load(fullPath, '-mat');
+            catch ME
+                fprintf('Error loading events file: %s\n', ME.message);
+                return;
+            end
+            
+            if ~isfield(loadedData, 'manlDet') || isempty(loadedData.manlDet)
+                fprintf('Selected file does not contain events.\n');
+                return;
+            end
+            
+            eventStruct = loadedData.manlDet;
+            if ~isstruct(eventStruct)
+                fprintf('Invalid events structure.\n');
+                return;
+            end
+            
+            eventIndices = round([eventStruct.t]);
+            eventIndices = eventIndices(~isnan(eventIndices));
+            validMask = eventIndices >= 1 & eventIndices <= numel(time);
+            eventIndices = eventIndices(validMask);
+            
+            if isempty(eventIndices)
+                fprintf('No valid events found in the selected file.\n');
+                return;
+            end
+            
+            newStims = time(eventIndices(:));
+            sourceName = fileName;
+        else
+            if isempty(events)
+                fprintf('No events in memory. Please load events first.\n');
+                return;
+            end
+            
+            newStims = events(:);
+            sourceName = 'memory';
         end
         
-        [fileName, filePath] = uigetfile({'*.ev;*.mean', 'Event files (*.ev, *.mean)'; ...
-                                          '*.ev', 'Event files (*.ev)'; ...
-                                          '*.mean', 'Mean files (*.mean)'}, ...
-                                         'Select events file', initialDir);
-        if isequal(fileName, 0)
-            return;
+        if isReplace
+            newStimsSorted = sort(newStims);
+        else
+            tableData = get(stimTable, 'Data');
+            if isempty(tableData)
+                currentStims = [];
+            else
+                numericTimes = cellfun(@toNumericTime, tableData(:, 1));
+                currentStims = numericTimes / timeUnitFactor;
+            end
+            
+            allStims = [currentStims(:); newStims(:)];
+            allStims = unique(allStims);
+            newStimsSorted = sort(allStims);
         end
         
-        fullPath = fullfile(filePath, fileName);
-        try
-            loadedData = load(fullPath, '-mat');
-        catch ME
-            fprintf('Error loading events file: %s\n', ME.message);
-            return;
-        end
-        
-        if ~isfield(loadedData, 'manlDet') || isempty(loadedData.manlDet)
-            fprintf('Selected file does not contain events.\n');
-            return;
-        end
-        
-        eventStruct = loadedData.manlDet;
-        if ~isstruct(eventStruct)
-            fprintf('Invalid events structure.\n');
-            return;
-        end
-        
-        eventIndices = round([eventStruct.t]);
-        eventIndices = eventIndices(~isnan(eventIndices));
-        validMask = eventIndices >= 1 & eventIndices <= numel(time);
-        eventIndices = eventIndices(validMask);
-        
-        if isempty(eventIndices)
-            fprintf('No valid events found in the selected file.\n');
-            return;
-        end
-        
-        stims = sort(time(eventIndices(:)));
-        updateTableWithStims(stims);
+        updateTableWithStims(newStimsSorted);
         currentShiftValue = 0;
         set(shiftEdit, 'String', '0');
         
+        fprintf('Imported %d stimuli from %s (click Apply to save changes)\n', numel(newStims), sourceName);
+    end
+    
+    function saveImportMode(~, ~)
+        modeIndex = get(importModePopup, 'Value');
+        modeOptions = get(importModePopup, 'String');
+        selectedMode = modeOptions{modeIndex};
+        
         try
-            saveChannelSettingsFunc();
+            if exist(SettingsFilepath, 'file')
+                stimulus_import_mode = selectedMode;
+                save(SettingsFilepath, 'stimulus_import_mode', '-append');
+            else
+                warning('Settings file does not exist. Cannot save import mode.');
+            end
         catch ME
-            fprintf('Error saving channel settings: %s\n', ME.message);
+            warning('Failed to save import mode: %s', ME.message);
         end
-        
+    end
+    
+    function mode = loadImportMode()
+        mode = 'From file (add)';
         try
-            updatePlot();
+            if exist(SettingsFilepath, 'file')
+                data = load(SettingsFilepath, 'stimulus_import_mode');
+                if isfield(data, 'stimulus_import_mode')
+                    mode = data.stimulus_import_mode;
+                end
+            end
         catch
-            % Ignore if updatePlot is unavailable
+            mode = 'From file (add)';
         end
-        
-        fprintf('Imported %d stimuli from %s\n', numel(stims), fileName);
     end
 
 end 

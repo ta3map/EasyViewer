@@ -89,7 +89,8 @@ function signalViewerGUI(editMode)
             
             % Проверяем, не является ли элемент осью или панелью - для них оставляем относительные координаты
             if ~strcmp(tag, 'main_axes') && ~strcmp(tag, 'multiax') && ...
-               ~strcmp(tag, 'main_panel') && ~strcmp(tag, 'side_panel') && ~strcmp(tag, 'event_panel')
+               ~strcmp(tag, 'main_panel') && ~strcmp(tag, 'side_panel') && ~strcmp(tag, 'event_panel') && ...
+               ~strcmp(tag, 'stimulus_panel')
                 % Преобразуем относительные координаты в абсолютные на основе base_figure_position
                 base_pos = coordsData.base_figure_position;
                 pos = [
@@ -135,30 +136,33 @@ function signalViewerGUI(editMode)
     slope_measurement_settings.peak_polarity = 'positive';
 
     
-    lines_and_styles = struct(...
-        'stimulus_lines', struct(...
-            'Name', 'Line 1', ...
-            'LineColor', 'b', ...
-            'LineStyle', '-', ...
-            'LineWidth', 2, ...
-            'LabelText', 'stimuli', ...
-            'LabelColor', 'b', ...
-            'LabelFontSize', 10, ...
-            'LabelBackgroundColor', 'y', ...
-            'LabelFontWeight', 'normal' ...
-        ), ...
-        'events_lines', struct(...
-            'Name', 'Line 2', ...
-            'LineColor', 'r', ...
-            'LineStyle', '--', ...
-            'LineWidth', 2, ...
-            'LabelText', 'event', ...
-            'LabelColor', 'r', ...
-            'LabelFontSize', 10, ...
-            'LabelBackgroundColor', 'y', ...
-            'LabelFontWeight', 'bold' ...
-        )...
-    );
+    % Инициализируем lines_and_styles только если они не были загружены из настроек
+    if isempty(lines_and_styles) || ~isfield(lines_and_styles, 'stimulus_lines') || ~isfield(lines_and_styles, 'events_lines')
+        lines_and_styles = struct(...
+            'stimulus_lines', struct(...
+                'Name', 'Line 1', ...
+                'LineColor', 'b', ...
+                'LineStyle', '-', ...
+                'LineWidth', 2, ...
+                'LabelText', 'stimuli', ...
+                'LabelColor', 'b', ...
+                'LabelFontSize', 10, ...
+                'LabelBackgroundColor', 'y', ...
+                'LabelFontWeight', 'normal' ...
+            ), ...
+            'events_lines', struct(...
+                'Name', 'Line 2', ...
+                'LineColor', 'r', ...
+                'LineStyle', '--', ...
+                'LineWidth', 2, ...
+                'LabelText', 'event', ...
+                'LabelColor', 'r', ...
+                'LabelFontSize', 10, ...
+                'LabelBackgroundColor', 'y', ...
+                'LabelFontWeight', 'bold' ...
+            )...
+        );
+    end
 
 
     
@@ -328,6 +332,10 @@ function signalViewerGUI(editMode)
     % Панель событий                   
     event_panel_position_a = [.72 .01 .27 .31];
     eventPanel = uipanel('Parent', f, 'Position', getElementPosition('event_panel'), 'Tag', 'event_panel');
+    
+    % Панель стимулов
+    stimulusPanel = uipanel('Parent', f, 'Position', getElementPosition('stimulus_panel'), 'Tag', 'stimulus_panel');
+    editStimulusTimesBtn = uicontrol('Parent', stimulusPanel, 'Style', 'pushbutton', 'String', 'Edit stimulus times', 'Position', getElementPosition('edit_stimulus_times_btn'), 'Callback', @(~,~)editStimulusTimesGUI(), 'Tag', 'edit_stimulus_times_btn');
     
     set(f, 'SizeChangedFcn', @resizeComponents);
     % Сохраняем настройки после изменения размера окна
@@ -799,6 +807,9 @@ function signalViewerGUI(editMode)
                 warning('Error updating coordinates: %s', ME.message);
             end
         end
+        
+        % Закрываем все зависимые окна
+        closeChildWindows();
         
         % Закрытие всех фигур
         clear global
@@ -1825,8 +1836,50 @@ function signalViewerGUI(editMode)
         fprintf('[%s] loadMatFile: END\n', datestr(now, 'HH:MM:SS.FFF'));
     end
     function closeChildWindows()
-        editStimFig = findall(0, 'Type', 'figure', 'Tag', 'editStimulusTimesGUI');
-        delete(editStimFig);
+        % Список тегов окон для закрытия
+        windowTags = {
+            'editStimulusTimesGUI', ...
+            'EventDetection', ...
+            'SlopeMeasurement', ...
+            'ZScoreGUI', ...
+            'spectralDensityGUI', ...
+            'chCrossCorrelationGUI', ...
+            'eventCrossCorrelationGUI', ...
+            'ICA', ...
+            'PCA', ...
+            'performChannelOperations', ...
+            'fileManagerGUI', ...
+            'convertAbf2zavGUI', ...
+            'convertOEP2zavGUI', ...
+            'importLFP', ...
+            'RemovalArtifactsGUI', ...
+            'SubMeanFigSettings', ...
+            'SignalFiltering', ...
+            'OptionsMeanEvents', ...
+            'lineStyleGUI', ...
+            'CSDfigSettings', ...
+            'EventCreation', ...
+            'importEventsFromSimulusGUI', ...
+            'meanSignalResult'
+        };
+        
+        % Закрываем окна по тегам
+        for i = 1:length(windowTags)
+            figs = findall(0, 'Type', 'figure', 'Tag', windowTags{i});
+            if ~isempty(figs)
+                delete(figs);
+            end
+        end
+        
+        % Закрываем окна без тегов по имени
+        allFigs = findall(0, 'Type', 'figure');
+        for i = 1:length(allFigs)
+            figName = get(allFigs(i), 'Name');
+            % Закрываем окно конвертации NLX (без тега)
+            if strcmp(figName, 'Convert to ZAV')
+                delete(allFigs(i));
+            end
+        end
     end
 
     
@@ -2110,57 +2163,18 @@ end
                           'Yes', 'No', 'No');
         switch choice
             case 'Yes'
-                % Сброс настроек каналов к значениям по умолчанию
-                setStandardChannelSettings();
+                % Удаляем файл настроек каналов, если он существует
+                [path, name, ~] = fileparts(matFilePath);
+                channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
                 
-                % Специальные настройки для файлов со свипами
-                if sweep_info.is_sweep_data
-                    % Для данных со свипами устанавливаем временные окна на основе свипов
-                    time_back = 0;
-                    time_forward = sweep_info.sweep_duration; % длительность одного свипа в секундах
-                    chosen_time_interval = [0, time_forward];
-                    
-                    % Автоматически выбираем режим stimulus для свипов
-                    selectedCenter = 'stimulus';
-                    set(timeCenterPopup, 'Value', 2);
-                else
-                    % Для обычных данных используем стандартные значения
-                    time_back = 0.6;
-                    time_forward = 0.6;
-                    chosen_time_interval = [0, time_forward];
-                    
-                    % Выбираем режим time для обычных данных
-                    selectedCenter = 'time';
-                    set(timeCenterPopup, 'Value', 1);
+                if exist(channelSettingsFilePath, 'file')
+                    delete(channelSettingsFilePath);
+                    fprintf('Settings file deleted.\n');
                 end
                 
-                % Сброс других параметров к значениям по умолчанию
-                shiftCoeff = 200;
-                newFs = Fs; % используем исходную частоту дискретизации
+                % Переоткрываем файл - это загрузит настройки по умолчанию
+                loadMatFile(matFilePath);
                 
-                % Сброс настроек фильтрации
-                filterSettings.filterType = 'highpass';
-                filterSettings.freqLow = 10;
-                filterSettings.freqHigh = 50;
-                filterSettings.order = 4;
-                filterSettings.channelsToFilter = false(numChannels, 1);
-                
-                % Сброс настроек CSD
-                csd_smooth_coef = 5;
-                csd_contrast_coef = 99.9;
-                
-                % Обновление интерфейса
-                set(timeBackEdit, 'String', num2str(time_back*timeUnitFactor));
-                set(timeForwardEdit, 'String', num2str(time_forward*timeUnitFactor));
-                set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
-                set(FsCoeffEdit, 'String', num2str(newFs));
-                
-                % Обновление таблицы и графика
-                updateTable();
-                saveChannelSettings(); % Перезаписываем файл настроек
-                updatePlot();
-                
-                % Уведомление пользователя
                 fprintf('Channel settings have been reset to default values.\n');
                 
             case 'No'
@@ -2451,12 +2465,16 @@ function loadEvents(~, ~)
     
     loadedData = load(filepath, '-mat'); % Загружаем данные в структуру
     % Если не был загружен mat файл, инициируем поиск
-%     [~, matname, ~] = fileparts(matFilePath);
-    [~, evfilename, ~] = fileparts(filepath);
-    fileName = evfilename(1:19);    
-    firstMatFile = findFirstMatFile(path, fileName);
-    if ~isempty(firstMatFile)
-            loadMatFile(firstMatFile); % Загрузка .mat файла
+    if isfield(loadedData, 'viewer_data')
+        if isfield(loadedData.viewer_data, 'matFilePath') && ~isempty(loadedData.viewer_data.matFilePath)
+            if exist(loadedData.viewer_data.matFilePath, 'file')
+                if ~strcmp(loadedData.viewer_data.matFilePath, matFilePath)
+                    loadMatFile(loadedData.viewer_data.matFilePath);
+                else
+                    updatePlot();
+                end
+            end
+        end
     end
 
     
@@ -2602,6 +2620,7 @@ end
         
         clear viewer_data
         viewer_data.matFileName = matFileName;
+        viewer_data.matFilePath = matFilePath;
         viewer_data.autodetection_settings = autodetection_settings;
         viewer_data.add_event_settings = add_event_settings;
         viewer_data.EV_version = EV_version;
