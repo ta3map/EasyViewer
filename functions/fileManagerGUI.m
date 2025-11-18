@@ -318,14 +318,36 @@ function fileManagerGUI()
     end
     
     function loadFilesForProject(projectId)
-        files = fetchProjectFiles(projectId);
-        state.files = files;
-        state.selectedRow = [];
-        loadMetadataForProject(projectId);
-        updateTable(files);
+        dbPath = getDbPath();
+        if isempty(dbPath) || ~isfile(dbPath)
+            state.files = [];
+            state.selectedRow = [];
+            updateTable([]);
+            return
+        end
+        conn = openSqliteConnection(dbPath);
+        if isempty(conn)
+            state.files = [];
+            state.selectedRow = [];
+            updateTable([]);
+            return
+        end
+        try
+            files = fetchProjectFilesWithConn(conn, projectId);
+            state.files = files;
+            state.selectedRow = [];
+            loadMetadataForProjectWithConn(conn, projectId);
+            updateTable(files);
+        catch ME
+            warning('Failed to load project files: %s', ME.message);
+            state.files = [];
+            state.selectedRow = [];
+            updateTable([]);
+        end
+        closeJdbcResource(conn);
     end
     
-    function loadMetadataForProject(projectId)
+    function loadMetadataForProjectWithConn(conn, projectId)
         if isempty(state.files)
             state.metadataFields = {};
             state.metadataData = struct();
@@ -346,7 +368,7 @@ function fileManagerGUI()
         query = sprintf(['SELECT file_id, field_name, field_value ' ...
             'FROM file_metadata ' ...
             'WHERE file_id IN (%s)'], idsStr);
-        rows = sqlFetch(query);
+        rows = sqlFetchWithConn(conn, query);
         
         metadataMap = struct();
         allFields = {};
@@ -666,12 +688,12 @@ function projectId = insertProject(projectName)
     end
 end
 
-function files = fetchProjectFiles(projectId)
+function files = fetchProjectFilesWithConn(conn, projectId)
     query = sprintf(['SELECT f.id, f.file_name, f.file_path, pf.group_id ' ...
         'FROM project_files pf ' ...
         'JOIN files f ON f.id = pf.file_id ' ...
         'WHERE pf.project_id = %d ORDER BY f.created_at DESC'], projectId);
-    rows = sqlFetch(query);
+    rows = sqlFetchWithConn(conn, query);
     if isempty(rows)
         files = [];
         return
@@ -816,6 +838,15 @@ function rows = sqlFetch(query)
         rows = {};
         return
     end
+    rows = sqlFetchWithConn(conn, query);
+    closeJdbcResource(conn);
+end
+
+function rows = sqlFetchWithConn(conn, query)
+    rows = {};
+    if isempty(conn)
+        return
+    end
     stmt = [];
     rs = [];
     try
@@ -828,7 +859,6 @@ function rows = sqlFetch(query)
     end
     closeJdbcResource(rs);
     closeJdbcResource(stmt);
-    closeJdbcResource(conn);
 end
 
 function sqlExec(query)
@@ -899,31 +929,45 @@ function path = defaultDbPath()
 end
 
 function conn = openSqliteConnection(dbPath)
-    persistent driverInstance
+    persistent driverInstance driverLoaded
     conn = [];
     if isempty(dbPath)
         return
     end
     driverPath = fullfile(fileparts(mfilename('fullpath')), 'sqlite-jdbc.jar');
     driverPath = char(java.io.File(driverPath).getAbsolutePath());
-    if isempty(driverInstance)
+    
+    if isempty(driverLoaded) || ~driverLoaded || isempty(driverInstance)
         if ~jdbcDriverLoaded(driverPath)
             return
         end
-        fileUrl = java.io.File(driverPath).toURI().toURL();
-        urlArray = javaArray('java.net.URL', 1);
-        urlArray(1) = fileUrl;
-        driverLoader = java.net.URLClassLoader.newInstance(urlArray);
-        driverClass = driverLoader.loadClass('org.sqlite.JDBC');
-        driverInstance = driverClass.newInstance();
+        try
+            fileUrl = java.io.File(driverPath).toURI().toURL();
+            urlArray = javaArray('java.net.URL', 1);
+            urlArray(1) = fileUrl;
+            driverLoader = java.net.URLClassLoader.newInstance(urlArray);
+            driverClass = driverLoader.loadClass('org.sqlite.JDBC');
+            driverInstance = driverClass.newInstance();
+            driverLoaded = true;
+            fprintf('[%s] SQLite driver loaded via URLClassLoader\n', datestr(now, 'HH:MM:SS'));
+        catch ME
+            warning('Failed to load SQLite driver: %s', ME.message);
+            driverLoaded = false;
+            driverInstance = [];
+            return
+        end
     end
+    
     try
         dbUrl = ['jdbc:sqlite:' strrep(dbPath, '\', '/')];
         props = java.util.Properties();
         conn = driverInstance.connect(dbUrl, props);
     catch ME
         warning('SQLite connection error: %s', ME.message);
+        fprintf('[%s] Connection failed: %s\n', datestr(now, 'HH:MM:SS'), ME.message);
         conn = [];
+        driverLoaded = false;
+        driverInstance = [];
     end
 end
 
