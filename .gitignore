@@ -22,3 +22,7 @@ coverage.xml
 .mypy_cache
 .pytest_cache
 .hypothesis
+
+# Database files
+*.db
+database/

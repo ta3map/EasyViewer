@@ -15,11 +15,14 @@ function fileManagerGUI()
         state.currentProjectId = [];
         state.selectedRow = [];
         state.dbPath = '';
+        state.metadataFields = {};
+        state.metadataData = struct();
+        state.fieldNameMap = struct();
     end
     
     state.dbPath = initDbPath();
     
-    fig = figure('Position', [100, 100, 855, 390], ...
+    fig = figure('Position', [100, 100, 945, 390], ...
         'Name', 'File Manager (SQL)', ...
         'NumberTitle', 'off', ...
         'MenuBar', 'none', ...
@@ -78,12 +81,23 @@ function fileManagerGUI()
         'String', 'Select Database', ...
         'Callback', @chooseDbPath);
     
-    fileTable = uitable('Position', [10, 10, 835, 300], ...
+    fileTable = uitable('Position', [10, 10, 925, 300], ...
         'ColumnWidth', {150, 665}, ...
         'ColumnName', {'File Name', 'Path'}, ...
         'ColumnEditable', [false, false]);
     fileTable.UserData = struct('lastClick', now, 'row', []);
     fileTable.CellSelectionCallback = @handleCellSelection;
+    fileTable.CellEditCallback = @handleCellEdit;
+    
+    addFieldBtn = uicontrol('Style', 'pushbutton', ...
+        'Position', [745, 350, 90, 25], ...
+        'String', 'Add Field', ...
+        'Callback', @addMetadataField);
+    
+    syncBtn = uicontrol('Style', 'pushbutton', ...
+        'Position', [845, 350, 90, 25], ...
+        'String', 'Sync Metadata', ...
+        'Callback', @syncMetadata);
     
     loadProjectsFromDb();
     
@@ -95,6 +109,8 @@ function fileManagerGUI()
             state.projects = [];
             state.files = [];
             updateTable([]);
+            
+            promptCreateDatabase();
             return
         end
         
@@ -128,10 +144,24 @@ function fileManagerGUI()
         selectProjectByIndex(idx);
     end
     
+    function promptCreateDatabase()
+        choice = questdlg('No database found. Would you like to create a new database?', ...
+            'Database Not Found', 'Create Database', 'Select Database', 'Cancel', 'Create Database');
+        switch choice
+            case 'Create Database'
+                createNewDatabase();
+            case 'Select Database'
+                chooseDbPath();
+            case 'Cancel'
+        end
+    end
+    
     function createNewProject(~, ~)
         if isempty(state.dbPath) || ~isfile(state.dbPath)
-            msgbox('Please select a database first', 'Error', 'error');
-            return
+            promptCreateDatabase();
+            if isempty(state.dbPath) || ~isfile(state.dbPath)
+                return
+            end
         end
         prompt = {'Enter project name:'};
         dlgTitle = 'Create New Project';
@@ -291,10 +321,186 @@ function fileManagerGUI()
         files = fetchProjectFiles(projectId);
         state.files = files;
         state.selectedRow = [];
+        loadMetadataForProject(projectId);
         updateTable(files);
     end
     
-function addFilesToProject(~, ~)
+    function loadMetadataForProject(projectId)
+        if isempty(state.files)
+            state.metadataFields = {};
+            state.metadataData = struct();
+            state.fieldNameMap = struct();
+            return
+        end
+        
+        fileIds = [state.files.id];
+        if isempty(fileIds)
+            state.metadataFields = {};
+            state.metadataData = struct();
+            state.fieldNameMap = struct();
+            return
+        end
+        
+        idsStr = sprintf('%d,', fileIds);
+        idsStr = idsStr(1:end-1);
+        query = sprintf(['SELECT file_id, field_name, field_value ' ...
+            'FROM file_metadata ' ...
+            'WHERE file_id IN (%s)'], idsStr);
+        rows = sqlFetch(query);
+        
+        metadataMap = struct();
+        allFields = {};
+        fieldNameMap = struct();
+        
+        if ~isempty(rows)
+            for i = 1:size(rows, 1)
+                fileId = rows{i, 1};
+                originalFieldName = rows{i, 2};
+                fieldValue = rows{i, 3};
+                if isempty(fieldValue)
+                    fieldValue = '';
+                end
+                
+                safeFieldName = makeSafeFieldName(originalFieldName);
+                
+                if ~isfield(fieldNameMap, safeFieldName)
+                    fieldNameMap.(safeFieldName) = originalFieldName;
+                end
+                
+                fileIdStr = sprintf('f%d', fileId);
+                if ~isfield(metadataMap, fileIdStr)
+                    metadataMap.(fileIdStr) = struct();
+                end
+                metadataMap.(fileIdStr).(safeFieldName) = fieldValue;
+                
+                if ~any(strcmp(allFields, originalFieldName))
+                    allFields{end+1} = originalFieldName;
+                end
+            end
+        end
+        
+        state.metadataFields = allFields;
+        state.metadataData = metadataMap;
+        state.fieldNameMap = fieldNameMap;
+    end
+    
+    function addMetadataField(~, ~)
+        if isempty(state.currentProjectId)
+            msgbox('No project selected', 'Error', 'error');
+            return
+        end
+        if isempty(state.files)
+            msgbox('No files in project', 'Error', 'error');
+            return
+        end
+        
+        prompt = {'Enter field name:'};
+        dlgTitle = 'Add Metadata Field';
+        defaultAnswer = {''};
+        answer = inputdlg(prompt, dlgTitle, 1, defaultAnswer);
+        if isempty(answer)
+            return
+        end
+        originalFieldName = strtrim(answer{1});
+        if isempty(originalFieldName)
+            msgbox('Field name cannot be empty', 'Error', 'error');
+            return
+        end
+        
+        if any(strcmp(state.metadataFields, originalFieldName))
+            msgbox('Field already exists', 'Error', 'error');
+            return
+        end
+        
+        safeFieldName = makeSafeFieldName(originalFieldName);
+        
+        state.metadataFields{end+1} = originalFieldName;
+        if ~isfield(state.fieldNameMap, safeFieldName)
+            state.fieldNameMap.(safeFieldName) = originalFieldName;
+        end
+        
+        for i = 1:numel(state.files)
+            fileId = state.files(i).id;
+            fileIdStr = sprintf('f%d', fileId);
+            if ~isfield(state.metadataData, fileIdStr)
+                state.metadataData.(fileIdStr) = struct();
+            end
+            state.metadataData.(fileIdStr).(safeFieldName) = '';
+        end
+        
+        updateTable(state.files);
+    end
+    
+    function syncMetadata(~, ~)
+        if isempty(state.currentProjectId) || isempty(state.files)
+            return
+        end
+        
+        autoBackupDatabase();
+        
+        for i = 1:numel(state.files)
+            fileId = state.files(i).id;
+            fileIdStr = sprintf('f%d', fileId);
+            
+            if isfield(state.metadataData, fileIdStr)
+                fileMeta = state.metadataData.(fileIdStr);
+                safeFieldNames = fieldnames(fileMeta);
+                
+                for j = 1:numel(safeFieldNames)
+                    safeFieldName = safeFieldNames{j};
+                    originalFieldName = getOriginalFieldName(safeFieldName, state);
+                    fieldValue = fileMeta.(safeFieldName);
+                    if isempty(fieldValue)
+                        fieldValue = '';
+                    end
+                    saveFileMetadata(fileId, originalFieldName, fieldValue);
+                end
+            end
+        end
+        
+        msgbox('Metadata synchronized', 'Success', 'help');
+    end
+    
+    function handleCellEdit(src, event)
+        if isempty(event.Indices)
+            return
+        end
+        rowIdx = event.Indices(1);
+        colIdx = event.Indices(2);
+        
+        if rowIdx < 1 || rowIdx > numel(state.files)
+            return
+        end
+        
+        if colIdx <= 2
+            return
+        end
+        
+        metadataColIdx = colIdx - 2;
+        if metadataColIdx > numel(state.metadataFields)
+            return
+        end
+        
+        fileId = state.files(rowIdx).id;
+        originalFieldName = state.metadataFields{metadataColIdx};
+        safeFieldName = makeSafeFieldName(originalFieldName);
+        newValue = event.NewData;
+        if isempty(newValue)
+            newValue = '';
+        end
+        
+        fileIdStr = sprintf('f%d', fileId);
+        if ~isfield(state.metadataData, fileIdStr)
+            state.metadataData.(fileIdStr) = struct();
+        end
+        state.metadataData.(fileIdStr).(safeFieldName) = newValue;
+        
+        if ~isfield(state.fieldNameMap, safeFieldName)
+            state.fieldNameMap.(safeFieldName) = originalFieldName;
+        end
+    end
+    
+    function addFilesToProject(~, ~)
         if isempty(state.currentProjectId)
             disp('No project selected');
             return
@@ -358,11 +564,45 @@ function addFilesToProject(~, ~)
     function updateTable(files)
         if isempty(files)
             fileTable.Data = {};
+            fileTable.ColumnName = {'File Name', 'Path'};
+            fileTable.ColumnEditable = [false, false];
+            fileTable.ColumnWidth = {150, 665};
             return
         end
+        
         names = {files.name}';
         paths = {files.path}';
-        fileTable.Data = [names, paths];
+        
+        columnNames = {'File Name', 'Path'};
+        columnEditable = [false, false];
+        columnWidths = {150, 400};
+        
+        data = [names, paths];
+        
+        for i = 1:numel(state.metadataFields)
+            originalFieldName = state.metadataFields{i};
+            safeFieldName = makeSafeFieldName(originalFieldName);
+            columnNames{end+1} = originalFieldName;
+            columnEditable(end+1) = true;
+            columnWidths{end+1} = 120;
+            
+            values = cell(numel(files), 1);
+            for j = 1:numel(files)
+                fileId = files(j).id;
+                fileIdStr = sprintf('f%d', fileId);
+                if isfield(state.metadataData, fileIdStr) && isfield(state.metadataData.(fileIdStr), safeFieldName)
+                    values{j} = state.metadataData.(fileIdStr).(safeFieldName);
+                else
+                    values{j} = '';
+                end
+            end
+            data = [data, values];
+        end
+        
+        fileTable.ColumnName = columnNames;
+        fileTable.ColumnEditable = columnEditable;
+        fileTable.ColumnWidth = columnWidths;
+        fileTable.Data = data;
     end
 end
 
@@ -482,6 +722,57 @@ function unlinkFileFromProject(fileId, projectId)
         return
     end
     sqlExec(sprintf('DELETE FROM files WHERE id = %d', fileId));
+end
+
+    function safeName = makeSafeFieldName(originalName)
+        if isempty(originalName)
+            safeName = 'field';
+            return
+        end
+        
+        safeName = originalName;
+        safeName = regexprep(safeName, '[^a-zA-Z0-9_]', '_');
+        
+        if ~isempty(safeName) && ~isletter(safeName(1))
+            safeName = ['f_', safeName];
+        end
+        
+        if isempty(safeName)
+            safeName = 'field';
+        end
+    end
+    
+    function originalName = getOriginalFieldName(safeFieldName, stateVar)
+        if ~isfield(stateVar, 'fieldNameMap') || ~isfield(stateVar.fieldNameMap, safeFieldName)
+            originalName = safeFieldName;
+            return
+        end
+        originalName = stateVar.fieldNameMap.(safeFieldName);
+    end
+
+function saveFileMetadata(fileId, fieldName, fieldValue)
+    if isempty(fileId) || isempty(fieldName)
+        return
+    end
+    if isempty(fieldValue)
+        fieldValue = '';
+    end
+    
+    escapedFieldName = escapeSql(fieldName);
+    escapedFieldValue = escapeSql(fieldValue);
+    
+    exists = sqlFetch(sprintf(['SELECT id FROM file_metadata ' ...
+        'WHERE file_id = %d AND field_name = ''%s'' LIMIT 1'], fileId, escapedFieldName));
+    
+    if ~isempty(exists)
+        query = sprintf(['UPDATE file_metadata SET field_value = ''%s'', updated_at = CURRENT_TIMESTAMP ' ...
+            'WHERE file_id = %d AND field_name = ''%s'''], escapedFieldValue, fileId, escapedFieldName);
+    else
+        query = sprintf(['INSERT INTO file_metadata (file_id, field_name, field_value, updated_at) ' ...
+            'VALUES (%d, ''%s'', ''%s'', CURRENT_TIMESTAMP)'], fileId, escapedFieldName, escapedFieldValue);
+    end
+    
+    sqlExec(query);
 end
 
 function launchFile(filePath)
