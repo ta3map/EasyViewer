@@ -375,19 +375,24 @@ function rows = sqlFetch(query)
         rows = {};
         return
     end
-    conn = sqlite(dbPath, 'connect');
+    conn = openSqliteConnection(dbPath);
+    if isempty(conn)
+        rows = {};
+        return
+    end
+    stmt = [];
+    rs = [];
     try
-        rows = fetch(conn, query);
-        if istable(rows)
-            rows = table2cell(rows);
-        elseif isnumeric(rows) || islogical(rows)
-            rows = num2cell(rows);
-        end
+        stmt = conn.createStatement();
+        rs = stmt.executeQuery(query);
+        rows = jdbcResultToCell(rs);
     catch ME
         warning('SQL fetch error: %s', ME.message);
         rows = {};
     end
-    close(conn);
+    closeJdbcResource(rs);
+    closeJdbcResource(stmt);
+    closeJdbcResource(conn);
 end
 
 function sqlExec(query)
@@ -396,13 +401,19 @@ function sqlExec(query)
         warning('База данных не найдена: %s', dbPath);
         return
     end
-    conn = sqlite(dbPath, 'connect');
+    conn = openSqliteConnection(dbPath);
+    if isempty(conn)
+        return
+    end
+    stmt = [];
     try
-        exec(conn, query);
+        stmt = conn.createStatement();
+        stmt.executeUpdate(query);
     catch ME
         warning('SQL exec error: %s', ME.message);
     end
-    close(conn);
+    closeJdbcResource(stmt);
+    closeJdbcResource(conn);
 end
 
 function dbPath = getDbPath()
@@ -417,6 +428,156 @@ function path = defaultDbPath()
     currentFile = mfilename('fullpath');
     projectRoot = fileparts(fileparts(fileparts(currentFile)));
     path = fullfile(projectRoot, 'instance', 'app.db');
+end
+
+function conn = openSqliteConnection(dbPath)
+    persistent driverInstance
+    conn = [];
+    if isempty(dbPath)
+        return
+    end
+    driverPath = fullfile(fileparts(mfilename('fullpath')), 'sqlite-jdbc.jar');
+    driverPath = char(java.io.File(driverPath).getAbsolutePath());
+    if isempty(driverInstance)
+        if ~jdbcDriverLoaded(driverPath)
+            return
+        end
+        fileUrl = java.io.File(driverPath).toURI().toURL();
+        urlArray = javaArray('java.net.URL', 1);
+        urlArray(1) = fileUrl;
+        driverLoader = java.net.URLClassLoader.newInstance(urlArray);
+        driverClass = driverLoader.loadClass('org.sqlite.JDBC');
+        driverInstance = driverClass.newInstance();
+    end
+    try
+        dbUrl = ['jdbc:sqlite:' strrep(dbPath, '\', '/')];
+        props = java.util.Properties();
+        conn = driverInstance.connect(dbUrl, props);
+    catch ME
+        warning('SQLite connection error: %s', ME.message);
+        conn = [];
+    end
+end
+
+function loaded = jdbcDriverLoaded(driverPath)
+    loaded = false;
+    driverPath = char(driverPath);
+    if ~isfile(driverPath)
+        warning('JDBC драйвер не найден: %s', driverPath);
+        return
+    end
+    loaded = true;
+end
+
+function rows = jdbcResultToCell(resultSet)
+    rows = {};
+    if isempty(resultSet)
+        return
+    end
+    try
+        meta = resultSet.getMetaData();
+        colCount = double(meta.getColumnCount());
+        data = cell(0, colCount);
+        rowIdx = 1;
+        while resultSet.next()
+            row = cell(1, colCount);
+            for col = 1:colCount
+                value = getResultSetValue(resultSet, meta, col);
+                row{col} = value;
+            end
+            data(rowIdx, :) = row;
+            rowIdx = rowIdx + 1;
+        end
+        rows = data;
+    catch ME
+        warning('Ошибка чтения результата SQL: %s', ME.message);
+        rows = {};
+    end
+end
+
+function value = getResultSetValue(resultSet, meta, col)
+    value = [];
+    try
+        typeName = char(meta.getColumnTypeName(col));
+        switch lower(typeName)
+            case {'integer', 'int', 'bigint'}
+                val = resultSet.getLong(col);
+                if resultSet.wasNull()
+                    value = [];
+                else
+                    value = double(val);
+                end
+            case {'real', 'double', 'float', 'numeric'}
+                val = resultSet.getDouble(col);
+                if resultSet.wasNull()
+                    value = [];
+                else
+                    value = double(val);
+                end
+            case {'text', 'varchar', 'char'}
+                val = resultSet.getString(col);
+                if isempty(val) || resultSet.wasNull()
+                    value = [];
+                else
+                    value = char(val);
+                end
+            case {'blob'}
+                val = resultSet.getBytes(col);
+                if isempty(val) || resultSet.wasNull()
+                    value = [];
+                else
+                    value = val;
+                end
+            otherwise
+                val = resultSet.getString(col);
+                if isempty(val) || resultSet.wasNull()
+                    value = [];
+                else
+                    value = char(val);
+                end
+        end
+    catch
+        try
+            obj = resultSet.getObject(col);
+            if isempty(obj) || resultSet.wasNull()
+                value = [];
+            else
+                value = char(obj.toString());
+            end
+        catch
+            value = [];
+        end
+    end
+end
+
+function value = convertJdbcValue(javaValue)
+    if isempty(javaValue)
+        value = [];
+        return
+    end
+    if isa(javaValue, 'java.lang.Integer') || isa(javaValue, 'java.lang.Long') || isa(javaValue, 'java.lang.Short')
+        value = double(javaValue);
+    elseif isa(javaValue, 'java.math.BigDecimal')
+        value = double(javaValue.doubleValue());
+    elseif isa(javaValue, 'java.lang.Double')
+        value = double(javaValue);
+    elseif isa(javaValue, 'java.lang.Boolean')
+        value = logical(javaValue);
+    elseif isa(javaValue, 'java.lang.String')
+        value = char(javaValue);
+    else
+        value = char(javaValue.toString());
+    end
+end
+
+function closeJdbcResource(object)
+    if isempty(object)
+        return
+    end
+    try
+        object.close();
+    catch
+    end
 end
 
 function text = escapeSql(text)
