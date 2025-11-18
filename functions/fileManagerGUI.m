@@ -19,7 +19,7 @@ function fileManagerGUI()
     
     state.dbPath = initDbPath();
     
-    fig = figure('Position', [100, 100, 620, 390], ...
+    fig = figure('Position', [100, 100, 855, 390], ...
         'Name', 'File Manager (SQL)', ...
         'NumberTitle', 'off', ...
         'MenuBar', 'none', ...
@@ -29,53 +29,58 @@ function fileManagerGUI()
     
     uicontrol('Style', 'text', ...
         'Position', [10, 355, 70, 20], ...
-        'String', 'Проект:', ...
+        'String', 'Project:', ...
         'HorizontalAlignment', 'left');
     
     projectSelect = uicontrol('Style', 'popupmenu', ...
         'Position', [75, 350, 220, 25], ...
-        'String', {'Загрузка...'}, ...
+        'String', {'Loading...'}, ...
         'Callback', @switchProject);
     
-    refreshBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [305, 350, 80, 25], ...
-        'String', 'Обновить', ...
-        'Callback', @reloadProjects);
-    
+    newProjectBtn = uicontrol('Style', 'pushbutton', ...
+        'Position', [305, 350, 100, 25], ...
+        'String', 'Create New Project', ...
+        'Callback', @createNewProject);
+
     addBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [395, 350, 80, 25], ...
-        'String', 'Добавить', ...
+        'Position', [415, 350, 100, 25], ...
+        'String', 'Add Files to Project', ...
         'Callback', @addFilesToProject);
     
     deleteBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [485, 350, 60, 25], ...
-        'String', 'Удалить', ...
+        'Position', [525, 350, 100, 25], ...
+        'String', 'Remove Selected File', ...
         'Callback', @removeSelectedFile);
     
     openBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [555, 350, 55, 25], ...
-        'String', 'Открыть', ...
+        'Position', [635, 350, 100, 25], ...
+        'String', 'Open Selected File', ...
         'Callback', @openSelectedFile);
     
     uicontrol('Style', 'text', ...
         'Position', [10, 325, 60, 18], ...
-        'String', 'База:', ...
+        'String', 'Database:', ...
         'HorizontalAlignment', 'left');
     
     dbPathDisplay = uicontrol('Style', 'edit', ...
-        'Position', [65, 322, 380, 22], ...
+        'Position', [65, 322, 300, 22], ...
         'String', truncatePath(state.dbPath), ...
         'Enable', 'inactive', ...
         'HorizontalAlignment', 'left');
     
+    createDbBtn = uicontrol('Style', 'pushbutton', ...
+        'Position', [375, 322, 120, 22], ...
+        'String', 'Create New Database', ...
+        'Callback', @createNewDatabase);
+    
     dbBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [455, 322, 155, 22], ...
-        'String', 'Выбрать базу данных', ...
+        'Position', [505, 322, 120, 22], ...
+        'String', 'Select Database', ...
         'Callback', @chooseDbPath);
     
-    fileTable = uitable('Position', [10, 10, 600, 330], ...
-        'ColumnWidth', {150, 430}, ...
-        'ColumnName', {'Имя файла', 'Путь'}, ...
+    fileTable = uitable('Position', [10, 10, 835, 300], ...
+        'ColumnWidth', {150, 665}, ...
+        'ColumnName', {'File Name', 'Path'}, ...
         'ColumnEditable', [false, false]);
     fileTable.UserData = struct('lastClick', now, 'row', []);
     fileTable.CellSelectionCallback = @handleCellSelection;
@@ -84,8 +89,8 @@ function fileManagerGUI()
     
     function loadProjectsFromDb()
         if isempty(state.dbPath) || ~isfile(state.dbPath)
-            set(dbPathDisplay, 'String', 'Не выбран файл базы');
-            projectSelect.String = {'Нет проектов'};
+            set(dbPathDisplay, 'String', 'No database selected');
+            projectSelect.String = {'No projects'};
             projectSelect.Value = 1;
             state.projects = [];
             state.files = [];
@@ -95,7 +100,7 @@ function fileManagerGUI()
         
         projects = fetchProjects();
         if isempty(projects)
-            projectSelect.String = {'Нет проектов'};
+            projectSelect.String = {'No projects'};
             projectSelect.Value = 1;
             state.projects = [];
             state.currentProjectId = [];
@@ -123,9 +128,133 @@ function fileManagerGUI()
         selectProjectByIndex(idx);
     end
     
-    function reloadProjects(~, ~)
+    function createNewProject(~, ~)
+        if isempty(state.dbPath) || ~isfile(state.dbPath)
+            msgbox('Please select a database first', 'Error', 'error');
+            return
+        end
+        prompt = {'Enter project name:'};
+        dlgTitle = 'Create New Project';
+        defaultAnswer = {'New Project'};
+        answer = inputdlg(prompt, dlgTitle, 1, defaultAnswer);
+        if isempty(answer)
+            return
+        end
+        projectName = strtrim(answer{1});
+        if isempty(projectName)
+            msgbox('Project name cannot be empty', 'Error', 'error');
+            return
+        end
+        newProjectId = insertProject(projectName);
+        if isempty(newProjectId)
+            msgbox('Failed to create project', 'Error', 'error');
+            return
+        end
         state.selectedRow = [];
         loadProjectsFromDb();
+        match = find([state.projects.id] == newProjectId, 1);
+        if ~isempty(match)
+            projectSelect.Value = match;
+            selectProjectByIndex(match);
+        end
+    end
+    
+    function createNewDatabase(~, ~)
+        startDir = fileparts(state.dbPath);
+        if isempty(startDir) || ~isfolder(startDir)
+            startDir = fileparts(defaultDbPath());
+        end
+        [file, path] = uiputfile('*.db', 'Create New SQLite Database', startDir);
+        if isequal(file, 0)
+            return
+        end
+        newPath = fullfile(path, file);
+        
+        if ~isfolder(path)
+            msgbox('Selected directory does not exist', 'Error', 'error');
+            return
+        end
+        
+        conn = openSqliteConnection(newPath);
+        if isempty(conn)
+            msgbox('Failed to create database connection', 'Error', 'error');
+            return
+        end
+        
+        stmt = [];
+        try
+            stmt = conn.createStatement();
+            
+            stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS projects (' ...
+                'id INTEGER PRIMARY KEY, ' ...
+                'name TEXT NOT NULL, ' ...
+                'description TEXT, ' ...
+                'created_at DATETIME DEFAULT CURRENT_TIMESTAMP, ' ...
+                'updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)']);
+            
+            stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS groups (' ...
+                'id INTEGER PRIMARY KEY, ' ...
+                'project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE, ' ...
+                'name TEXT NOT NULL, ' ...
+                'created_at DATETIME DEFAULT CURRENT_TIMESTAMP)']);
+            
+            stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS group_metadata (' ...
+                'id INTEGER PRIMARY KEY, ' ...
+                'group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE, ' ...
+                'field_name TEXT NOT NULL, ' ...
+                'field_value TEXT, ' ...
+                'updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, ' ...
+                'UNIQUE(group_id, field_name))']);
+            
+            stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS files (' ...
+                'id INTEGER PRIMARY KEY, ' ...
+                'file_path TEXT NOT NULL, ' ...
+                'file_name TEXT NOT NULL, ' ...
+                'created_at DATETIME DEFAULT CURRENT_TIMESTAMP, ' ...
+                'UNIQUE(file_path, file_name))']);
+            
+            stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS project_files (' ...
+                'project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE, ' ...
+                'file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE, ' ...
+                'group_id INTEGER REFERENCES groups(id) ON DELETE SET NULL, ' ...
+                'created_at DATETIME DEFAULT CURRENT_TIMESTAMP, ' ...
+                'PRIMARY KEY (project_id, file_id))']);
+            
+            stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS file_metadata (' ...
+                'id INTEGER PRIMARY KEY, ' ...
+                'file_id INTEGER REFERENCES files(id) ON DELETE SET NULL, ' ...
+                'field_name TEXT NOT NULL, ' ...
+                'field_value TEXT, ' ...
+                'updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, ' ...
+                'UNIQUE(file_id, field_name))']);
+            
+            stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS analysis_results (' ...
+                'id INTEGER PRIMARY KEY, ' ...
+                'file_id INTEGER REFERENCES files(id) ON DELETE SET NULL, ' ...
+                'module_name TEXT NOT NULL, ' ...
+                'module_display_name TEXT, ' ...
+                'module_description TEXT, ' ...
+                'analysis_timestamp BIGINT NOT NULL, ' ...
+                'report_path TEXT NOT NULL, ' ...
+                'parameters_json TEXT, ' ...
+                'created_at DATETIME DEFAULT CURRENT_TIMESTAMP)']);
+            
+            closeJdbcResource(stmt);
+            closeJdbcResource(conn);
+            
+            state.dbPath = newPath;
+            FileManagerDbPath = newPath;
+            storeDbPath(newPath);
+            set(dbPathDisplay, 'String', truncatePath(newPath));
+            state.selectedRow = [];
+            loadProjectsFromDb();
+            
+            msgbox('Database created successfully', 'Success', 'help');
+        catch ME
+            closeJdbcResource(stmt);
+            closeJdbcResource(conn);
+            msgbox(sprintf('Failed to initialize database: %s', ME.message), 'Error', 'error');
+        end
     end
     
     function chooseDbPath(~, ~)
@@ -133,7 +262,7 @@ function fileManagerGUI()
         if isempty(startDir) || ~isfolder(startDir)
             startDir = fileparts(defaultDbPath());
         end
-        [file, path] = uigetfile('*.db', 'Выберите SQLite базу', startDir);
+        [file, path] = uigetfile('*.db', 'Select SQLite Database', startDir);
         if isequal(file, 0)
             return
         end
@@ -167,16 +296,17 @@ function fileManagerGUI()
     
 function addFilesToProject(~, ~)
         if isempty(state.currentProjectId)
-            disp('Проект не выбран');
+            disp('No project selected');
             return
         end
-        [fileNames, basePath] = uigetfile({'*.*', 'Все файлы'}, 'Выберите файлы', 'MultiSelect', 'on');
+        [fileNames, basePath] = uigetfile({'*.*', 'All files'}, 'Select files', 'MultiSelect', 'on');
         if isequal(fileNames, 0)
             return
         end
         if ischar(fileNames)
             fileNames = {fileNames};
         end
+        autoBackupDatabase();
         for k = 1:numel(fileNames)
             fullPath = fullfile(basePath, fileNames{k});
             ensureFileInProject(fullPath, state.currentProjectId);
@@ -192,6 +322,7 @@ function addFilesToProject(~, ~)
         if rowIdx < 1 || rowIdx > numel(state.files)
             return
         end
+        autoBackupDatabase();
         fileInfo = state.files(rowIdx);
         unlinkFileFromProject(fileInfo.id, state.currentProjectId);
         loadFilesForProject(state.currentProjectId);
@@ -281,6 +412,20 @@ function projects = fetchProjects()
     end
 end
 
+function projectId = insertProject(projectName)
+    projectId = [];
+    if isempty(projectName)
+        return
+    end
+    escapedName = escapeSql(projectName);
+    query = sprintf('INSERT INTO projects (name, created_at) VALUES (''%s'', CURRENT_TIMESTAMP)', escapedName);
+    sqlExec(query);
+    result = sqlFetch(sprintf('SELECT id FROM projects WHERE name = ''%s'' ORDER BY created_at DESC LIMIT 1', escapedName));
+    if ~isempty(result)
+        projectId = result{1};
+    end
+end
+
 function files = fetchProjectFiles(projectId)
     query = sprintf(['SELECT f.id, f.file_name, f.file_path, pf.group_id ' ...
         'FROM project_files pf ' ...
@@ -341,7 +486,7 @@ end
 
 function launchFile(filePath)
     if ~exist(filePath, 'file')
-        fprintf('Файл не найден: %s\n', filePath);
+        fprintf('File not found: %s\n', filePath);
         return
     end
     [~, ~, ext] = fileparts(filePath);
@@ -359,7 +504,7 @@ function launchFile(filePath)
             table_calling();
             event_inx = 1;
         otherwise
-            fprintf('Неизвестное расширение: %s\n', ext);
+            fprintf('Unknown extension: %s\n', ext);
     end
     fprintf('File loaded.\n');
     try
@@ -371,7 +516,7 @@ end
 function rows = sqlFetch(query)
     dbPath = getDbPath();
     if isempty(dbPath) || ~isfile(dbPath)
-        warning('База данных не найдена: %s', dbPath);
+        warning('Database not found: %s', dbPath);
         rows = {};
         return
     end
@@ -398,7 +543,7 @@ end
 function sqlExec(query)
     dbPath = getDbPath();
     if isempty(dbPath) || ~isfile(dbPath)
-        warning('База данных не найдена: %s', dbPath);
+        warning('Database not found: %s', dbPath);
         return
     end
     conn = openSqliteConnection(dbPath);
@@ -422,6 +567,38 @@ function dbPath = getDbPath()
         FileManagerDbPath = initDbPath();
     end
     dbPath = FileManagerDbPath;
+end
+
+function autoBackupDatabase()
+    dbPath = getDbPath();
+    if isempty(dbPath) || ~isfile(dbPath)
+        return
+    end
+    
+    [dbFolder, dbName, dbExt] = fileparts(dbPath);
+    if isempty(dbFolder)
+        return
+    end
+    
+    backupFolder = fullfile(dbFolder, 'backups');
+    if ~isfolder(backupFolder)
+        try
+            mkdir(backupFolder);
+        catch ME
+            warning('Failed to create backup folder: %s', ME.message);
+            return
+        end
+    end
+    
+    timestamp = datestr(now, 'yyyy-mm-dd_HH-MM-SS');
+    backupName = sprintf('%s_backup_%s%s', dbName, timestamp, dbExt);
+    backupPath = fullfile(backupFolder, backupName);
+    
+    try
+        copyfile(dbPath, backupPath, 'f');
+    catch ME
+        warning('Failed to create database backup: %s', ME.message);
+    end
 end
 
 function path = defaultDbPath()
@@ -463,7 +640,7 @@ function loaded = jdbcDriverLoaded(driverPath)
     loaded = false;
     driverPath = char(driverPath);
     if ~isfile(driverPath)
-        warning('JDBC драйвер не найден: %s', driverPath);
+        warning('JDBC driver not found: %s', driverPath);
         return
     end
     loaded = true;
@@ -490,7 +667,7 @@ function rows = jdbcResultToCell(resultSet)
         end
         rows = data;
     catch ME
-        warning('Ошибка чтения результата SQL: %s', ME.message);
+        warning('SQL result reading error: %s', ME.message);
         rows = {};
     end
 end
@@ -592,7 +769,7 @@ function projectId = readStoredProjectId()
     projectId = [];
     try
         if exist(SettingsFilepath, 'file')
-            data = load(SettingsFilepath, 'file_manager_project_id');
+            data = load(SettingsFilepath);
             if isfield(data, 'file_manager_project_id')
                 projectId = data.file_manager_project_id;
             end
@@ -613,7 +790,7 @@ function storeCurrentProjectId(projectId)
         data.file_manager_project_id = projectId;
         save(SettingsFilepath, '-struct', 'data');
     catch ME
-        warning('Не удалось сохранить выбранный проект: %s', ME.message);
+        warning('Failed to save selected project: %s', ME.message);
     end
 end
 
@@ -628,7 +805,7 @@ function storeDbPath(dbPath)
         data.file_manager_db_path = dbPath;
         save(SettingsFilepath, '-struct', 'data');
     catch ME
-        warning('Не удалось сохранить путь к базе: %s', ME.message);
+        warning('Failed to save database path: %s', ME.message);
     end
 end
 
