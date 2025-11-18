@@ -85,7 +85,7 @@ function fileManagerGUI()
         'ColumnWidth', {150, 665}, ...
         'ColumnName', {'File Name', 'Path'}, ...
         'ColumnEditable', [false, false]);
-    fileTable.UserData = struct('lastClick', now, 'row', []);
+    fileTable.UserData = struct('row', []);
     fileTable.CellSelectionCallback = @handleCellSelection;
     fileTable.CellEditCallback = @handleCellEdit;
     
@@ -93,11 +93,6 @@ function fileManagerGUI()
         'Position', [745, 350, 90, 25], ...
         'String', 'Add Field', ...
         'Callback', @addMetadataField);
-    
-    syncBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [845, 350, 90, 25], ...
-        'String', 'Sync Metadata', ...
-        'Callback', @syncMetadata);
     
     loadProjectsFromDb();
     
@@ -453,34 +448,31 @@ function fileManagerGUI()
         updateTable(state.files);
     end
     
-    function syncMetadata(~, ~)
-        if isempty(state.currentProjectId) || isempty(state.files)
+    function syncMetadataForFile(fileId)
+        if isempty(state.currentProjectId) || isempty(fileId)
             return
         end
         
         autoBackupDatabase();
         
-        for i = 1:numel(state.files)
-            fileId = state.files(i).id;
-            fileIdStr = sprintf('f%d', fileId);
-            
-            if isfield(state.metadataData, fileIdStr)
-                fileMeta = state.metadataData.(fileIdStr);
-                safeFieldNames = fieldnames(fileMeta);
-                
-                for j = 1:numel(safeFieldNames)
-                    safeFieldName = safeFieldNames{j};
-                    originalFieldName = getOriginalFieldName(safeFieldName, state);
-                    fieldValue = fileMeta.(safeFieldName);
-                    if isempty(fieldValue)
-                        fieldValue = '';
-                    end
-                    saveFileMetadata(fileId, originalFieldName, fieldValue);
-                end
-            end
+        fileIdStr = sprintf('f%d', fileId);
+        if ~isfield(state.metadataData, fileIdStr)
+            return
         end
         
-        msgbox('Metadata synchronized', 'Success', 'help');
+        fileMeta = state.metadataData.(fileIdStr);
+        safeFieldNames = fieldnames(fileMeta);
+        
+        fprintf('[%s] Saving metadata to database for file_id=%d\n', datestr(now, 'HH:MM:SS'), fileId);
+        for j = 1:numel(safeFieldNames)
+            safeFieldName = safeFieldNames{j};
+            originalFieldName = getOriginalFieldName(safeFieldName, state);
+            fieldValue = fileMeta.(safeFieldName);
+            if isempty(fieldValue)
+                fieldValue = '';
+            end
+            saveFileMetadata(fileId, originalFieldName, fieldValue);
+        end
     end
     
     function handleCellEdit(src, event)
@@ -520,6 +512,8 @@ function fileManagerGUI()
         if ~isfield(state.fieldNameMap, safeFieldName)
             state.fieldNameMap.(safeFieldName) = originalFieldName;
         end
+        
+        syncMetadataForFile(fileId);
     end
     
     function addFilesToProject(~, ~)
@@ -560,6 +554,9 @@ function fileManagerGUI()
         if isempty(state.selectedRow)
             return
         end
+        if ~isfield(state, 'files') || isempty(state.files)
+            return
+        end
         rowIdx = state.selectedRow;
         if rowIdx < 1 || rowIdx > numel(state.files)
             return
@@ -576,11 +573,6 @@ function fileManagerGUI()
         rowIdx = event.Indices(1);
         state.selectedRow = rowIdx;
         src.UserData.row = rowIdx;
-        nowTime = now;
-        if (nowTime - src.UserData.lastClick) * 24 * 60 * 60 < 0.4
-            openSelectedFile();
-        end
-        src.UserData.lastClick = nowTime;
     end
     
     function updateTable(files)
@@ -917,6 +909,21 @@ function autoBackupDatabase()
     
     try
         copyfile(dbPath, backupPath, 'f');
+        fprintf('[%s] Backup created: %s\n', datestr(now, 'HH:MM:SS'), backupName);
+        
+        backupPattern = fullfile(backupFolder, [dbName, '_backup_*', dbExt]);
+        backupFiles = dir(backupPattern);
+        if numel(backupFiles) > 3
+            [~, sortIdx] = sort([backupFiles.datenum], 'descend');
+            for i = 4:numel(backupFiles)
+                oldBackupPath = fullfile(backupFolder, backupFiles(sortIdx(i)).name);
+                try
+                    delete(oldBackupPath);
+                catch ME
+                    warning('Failed to delete old backup: %s', ME.message);
+                end
+            end
+        end
     catch ME
         warning('Failed to create database backup: %s', ME.message);
     end
