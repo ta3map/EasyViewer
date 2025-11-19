@@ -1466,6 +1466,14 @@ updateCursorEditFields();
         updateCursorEditFields();
     end
     
+    function refreshRelShift()
+        if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
+            rel_shift = stims(stim_inx);
+        else
+            rel_shift = chosen_time_interval(1);
+        end
+    end
+    
     function keyPressFunction(~, event)
         % Обработка нажатий клавиш для навигации
         switch event.Key
@@ -2487,15 +2495,6 @@ updateCursorEditFields();
         % original_ylim = metadata.original_ylim;
         % original_xlim = metadata.original_xlim;
         
-        % Вместо восстановления зума применяем оптимальные размеры осей
-        [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
-        
-        % Сохраняем оптимальные границы как original для возможного использования
-        original_xlim = optimal_xlim;
-        original_ylim = optimal_ylim;
-        
-        fprintf('DEBUG: Применены оптимальные границы ylim: %s, xlim: %s\n', mat2str(optimal_ylim), mat2str(optimal_xlim));
-        
         % Восстанавливаем режим навигации
         selectedCenter = metadata.selectedCenter;
         event_inx = metadata.event_inx;
@@ -2529,23 +2528,23 @@ updateCursorEditFields();
         % Обновляем видимость поля порога
         % updateOnsetThresholdVisibility();
         
-        % Обновляем edit fields с относительным временем
+        % Актуализируем rel_shift перед автоскейлом
+        refreshRelShift();
+        
+        % Применяем оптимальные размеры осей ДО обновления курсоров
+        [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
+        
+        % Сохраняем оптимальные границы как original для правильной работы зума
+        original_xlim = optimal_xlim;
+        original_ylim = optimal_ylim;
+        
+        fprintf('DEBUG: Применены оптимальные границы ylim: %s, xlim: %s\n', mat2str(optimal_ylim), mat2str(optimal_xlim));
+        
+        % Обновляем edit fields с относительным временем после автоскейла
         updateCursorEditFields();
         
-        % Обновляем кнопку зума (зум сброшен, поэтому всегда показываем "Zoom")
-        zoomBtn = findobj(signalFig, 'Style', 'pushbutton', 'Callback', @toggleZoom);
-        if ~isempty(zoomBtn)
-            set(zoomBtn, 'String', 'Zoom');
-        end
-        
-        % Зум сброшен, поэтому обновляем статус навигации без учета зума
-        % if zoom_active
-        %     updateNavigationStatus();
-        % end
-        
-        % Обновляем график и статус
-        updateNavigationStatus();
-        updatePlotAndCalculation();
+        % Сбрасываем зум и перерисовываем график через специальную функцию
+        resZoom();
                 
         % Сбрасываем флаг восстановления
         restoring_from_metadata = false;
@@ -3099,22 +3098,25 @@ updateCursorEditFields();
                 end
             end
             
-            % Обновляем edit fields для нового файла
-            updateCursorEditFields();
-            
             % Показываем оси после загрузки файла
             set(hPlotAxes, 'Visible', 'on');
             
-            % Обновляем отображение
-            updateNavigationStatus();
-            updatePlotAndCalculation();
+            % Обновляем rel_shift перед первым автоскейлом
+            refreshRelShift();
             
-            % Вычисляем и применяем оптимальные границы осей ПОСЛЕ обновления графика
+            % Вычисляем и применяем оптимальные границы осей ДО обновления курсоров и графика
             [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
             
             % Сохраняем как original для правильной работы зума
             original_xlim = optimal_xlim;
             original_ylim = optimal_ylim;
+            
+            % Обновляем поля ввода курсоров после автоскейла
+            updateCursorEditFields();
+            
+            % Обновляем отображение
+            updateNavigationStatus();
+            updatePlotAndCalculation();
             updateResultsTable();
             updateButtonStates();
             
@@ -3123,6 +3125,15 @@ updateCursorEditFields();
             
             % Загружаем позиции курсоров из настроек ПОСЛЕ загрузки файла
             loadCursorPositionsFromSettings();
+            
+            % После загрузки позиций курсоров обновляем rel_shift и повторно применяем автоскейл
+            refreshRelShift();
+            [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
+            original_xlim = optimal_xlim;
+            original_ylim = optimal_ylim;
+            updateCursorEditFields();
+            updateNavigationStatus();
+            updatePlotAndCalculation();
             
             fprintf('✓ File successfully loaded: %s\n', matFileName);
             fprintf('  Data size: %dx%dx%d\n', size(lfp));
