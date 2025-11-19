@@ -67,6 +67,11 @@ function fileManagerGUI()
         'String', 'Add Field', ...
         'Callback', @addMetadataField);
     
+    deleteFieldBtn = uicontrol('Style', 'pushbutton', ...
+        'Position', [635, 320, 90, 25], ...
+        'String', 'Delete Field', ...
+        'Callback', @deleteMetadataField);
+    
     openBtn = uicontrol('Style', 'pushbutton', ...
         'Position', [745, 315, 100, 63], ...
         'String', 'Open Selected File', ...
@@ -457,6 +462,54 @@ function fileManagerGUI()
             state.metadataData.(fileIdStr).(safeFieldName) = '';
         end
         
+        updateTable(state.files);
+    end
+    
+    function deleteMetadataField(~, ~)
+        if isempty(state.metadataFields)
+            msgbox('No metadata fields to delete', 'Error', 'error');
+            return
+        end
+        
+        colIdx = state.selectedColumn;
+        if isempty(colIdx) || colIdx <= 2
+            msgbox('Select a metadata column to delete', 'Error', 'error');
+            return
+        end
+        
+        fieldIdx = colIdx - 2;
+        if fieldIdx < 1 || fieldIdx > numel(state.metadataFields)
+            msgbox('Invalid metadata column', 'Error', 'error');
+            return
+        end
+        
+        fieldName = state.metadataFields{fieldIdx};
+        choice = questdlg(sprintf('Delete metadata field "%s"?', fieldName), ...
+            'Delete Field', 'Delete', 'Cancel', 'Cancel');
+        if ~strcmp(choice, 'Delete')
+            return
+        end
+        
+        autoBackupDatabase();
+        
+        safeFieldName = makeSafeFieldName(fieldName);
+        state.metadataFields(fieldIdx) = [];
+        if isfield(state.fieldNameMap, safeFieldName)
+            state.fieldNameMap = rmfield(state.fieldNameMap, safeFieldName);
+        end
+        
+        fileKeys = fieldnames(state.metadataData);
+        for i = 1:numel(fileKeys)
+            key = fileKeys{i};
+            if isfield(state.metadataData.(key), safeFieldName)
+                state.metadataData.(key) = rmfield(state.metadataData.(key), safeFieldName);
+            end
+        end
+        
+        deleteQuery = sprintf('DELETE FROM file_metadata WHERE field_name = ''%s''', escapeSql(fieldName));
+        sqlExec(deleteQuery);
+        
+        state.selectedColumn = [];
         updateTable(state.files);
     end
     
