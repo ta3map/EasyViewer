@@ -363,7 +363,7 @@ function settingsEditor()
                     end
                     
                     % Обновляем UI элементы в основном окне
-                    mainFig = findobj('Tag', 'EasyViwerFigure');
+                    mainFig = findobj('Tag', 'SignalViewerGUI');
                     if ~isempty(mainFig)
                         % Обновляем поля ввода временных окон
                         timeBackEdit_main = findobj(mainFig, 'Tag', 'timeBackEdit');
@@ -457,7 +457,7 @@ function settingsEditor()
             
             % Обновляем UI элементы в основном окне для синхронизации с новыми настройками
             % Получаем ссылки на UI элементы из основного окна
-            mainFig = findobj('Tag', 'EasyViwerFigure');
+            mainFig = findobj('Tag', 'SignalViewerGUI');
             if ~isempty(mainFig)
                 % Обновляем поля ввода временных окон
                 timeBackEdit_main = findobj(mainFig, 'Tag', 'timeBackEdit');
@@ -556,7 +556,7 @@ function settingsEditor()
             applyStimulusOffset();
             
             % Обновляем UI элементы в основном окне
-            mainFig = findobj('Tag', 'EasyViwerFigure');
+            mainFig = findobj('Tag', 'SignalViewerGUI');
             if ~isempty(mainFig)
                 % Обновляем поля ввода временных окон
                 timeBackEdit_main = findobj(mainFig, 'Tag', 'timeBackEdit');

@@ -9,9 +9,9 @@ function update_coords(coordsFile, mainFig)
     
     % Если фигура не передана, ищем по тегам
     if nargin < 2
-        f = findobj('Tag', 'EasyViwerFigure');
+        f = findobj('Tag', 'SignalViewerGUI');
         if isempty(f)
-            f = findobj('Tag', 'SlopeMeasurement');
+            f = findobj('Tag', 'SignalAnalysisGUI');
             if isempty(f)
                 error('Главная фигура не найдена. Запустите signalViewerGUI() или signalAnalysisGUI() сначала');
             end

@@ -17,28 +17,6 @@ function signalAnalysisGUI(editMode)
         error('Coordinates file not found: %s', coordsFile);
     end
     
-    % Вспомогательная функция для получения координат элемента
-    function pos = getElementPosition(tag)
-        if isfield(coordsData.elements, tag)
-            pos = coordsData.elements.(tag);
-            
-            % Проверяем, не является ли элемент осью или панелью - для них оставляем относительные координаты
-            if ~strcmp(tag, 'main_axes') && ~strcmp(tag, 'plot_container') && ...
-               ~strcmp(tag, 'main_panel') && ~strcmp(tag, 'side_panel') && ~strcmp(tag, 'event_panel')
-                % Преобразуем относительные координаты в абсолютные на основе base_figure_position
-                base_pos = coordsData.base_figure_position;
-                pos = [
-                    pos(1) * base_pos(3),  % x
-                    pos(2) * base_pos(4),  % y
-                    pos(3) * base_pos(3),  % width
-                    pos(4) * base_pos(4)   % height
-                ];
-            end
-        else
-            error('Coordinates for element %s not found in JSON file', tag);
-        end
-    end
-    
     % Signal Analysis GUI - анализ и измерение параметров сигнала
     
     % Глобальные переменные для доступа к данным
@@ -51,6 +29,8 @@ function signalAnalysisGUI(editMode)
     global original_xlim original_ylim
     global channel_data time_in
     global saveChannelSettingsFunc
+    global zav_calling event_calling table_calling outside_calling_filepath
+    global lastOpenedFiles auto_analysis_mode
     
     % Глобальные переменные настроек (загружены в app.m)
     global figure_position lastOpenedFiles add_event_settings
@@ -78,14 +58,36 @@ function signalAnalysisGUI(editMode)
     % Глобальные переменные для среднего сигнала
     global mean_signal_data mean_signal_time mean_results_active
     
-    % Глобальные переменные для работы с файлами
-    global lastOpenedFiles
-    
-    % Глобальная переменная для режима автоанализа
-    global auto_analysis_mode
+    % Вспомогательная функция для получения координат элемента
+    function pos = getElementPosition(tag)
+        if isfield(coordsData.elements, tag)
+            pos = coordsData.elements.(tag);
+            
+            % Проверяем, не является ли элемент осью или панелью - для них оставляем относительные координаты
+            if ~strcmp(tag, 'main_axes') && ~strcmp(tag, 'plot_container') && ...
+               ~strcmp(tag, 'main_panel') && ~strcmp(tag, 'side_panel') && ~strcmp(tag, 'event_panel')
+                % Преобразуем относительные координаты в абсолютные на основе base_figure_position
+                base_pos = coordsData.base_figure_position;
+                pos = [
+                    pos(1) * base_pos(3),  % x
+                    pos(2) * base_pos(4),  % y
+                    pos(3) * base_pos(3),  % width
+                    pos(4) * base_pos(4)   % height
+                ];
+            end
+        else
+            error('Coordinates for element %s not found in JSON file', tag);
+        end
+    end
     
     % Путь к файлу настроек (аналогично signalViewerGUI.m)
     SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
+    
+    % Callback-и для File Manager
+    zav_calling = @openFile;
+    event_calling = @loadEvents;
+    table_calling = @() [];
+    outside_calling_filepath = [];
     
     % Загрузка настроек единиц времени из основного приложения
     % Сначала проверяем, есть ли уже глобальные переменные из EasyView
@@ -245,7 +247,10 @@ end
     auto_analysis_mode = false;
     
     % Идентификатор (tag) для GUI фигуры
-    figTag = 'SlopeMeasurement';
+    figTag = 'SignalAnalysisGUI';
+    
+    % Закрываем окно просмотра сигналов при запуске анализа
+    delete(findobj('Type', 'figure', 'Tag', 'SignalViewerGUI'));
     
     % Определяем названия колонок как единый источник (доступны во всех функциях)
     table_column_names = {'Stimulus', 'Slope', 'Peak Time (rel)', 'Peak Time (abs)', 'Peak Amplitude', 'Peak Value (rel)', 'Onset Time (rel)', 'Onset Time (abs)', 'Peak - Onset', 'Baseline', 'Channel', 'Stim Time', 'Info'};
@@ -430,9 +435,10 @@ end
     uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Open File', ...
         'Position', getElementPosition('open_file_btn'), 'Callback', @openFile, 'Tag', 'open_file_btn');
     
-    % Кнопка загрузки событий
-    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Load Events', ...
-        'Position', getElementPosition('load_events_btn'), 'Callback', @loadEvents, 'Tag', 'load_events_btn');
+    % Кнопка File Manager (использует прежние координаты Load Events)
+    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'File Manager', ...
+        'Position', getElementPosition('load_events_btn'), ...
+        'Callback', @(~,~)fileManagerGUI(), 'Tag', 'file_manager_btn');
     
     % Кнопка групповых настроек
     uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Settings', ...
@@ -2993,19 +2999,23 @@ updateCursorEditFields();
     
     function openFile(~, ~)
         % Открывает новый файл для анализа (аналогично OpenZavLfpFile из signalViewerGUI.m)
-        
-        % Получение пути к последнему открытому файлу или использование стандартной директории
-        initialDir = pwd;
-        if ~isempty(lastOpenedFiles)
-            initialDir = fileparts(lastOpenedFiles{end});
+        if ~isempty(outside_calling_filepath)
+            filepath = outside_calling_filepath;
+            outside_calling_filepath = [];
+        else
+            % Получение пути к последнему открытому файлу или использование стандартной директории
+            initialDir = pwd;
+            if ~isempty(lastOpenedFiles)
+                initialDir = fileparts(lastOpenedFiles{end});
+            end
+            
+            [file, path] = uigetfile('*.mat', 'Load .mat File (ZAV or Heka format)', initialDir);
+            if isequal(file, 0)
+                disp('File selection canceled.');
+                return;
+            end
+            filepath = fullfile(path, file);
         end
-        
-        [file, path] = uigetfile('*.mat', 'Load .mat File (ZAV or Heka format)', initialDir);
-        if isequal(file, 0)
-            disp('File selection canceled.');
-            return;
-        end
-        filepath = fullfile(path, file);
         
         % Очищаем все предыдущие результаты и измерения
         slope_measurement_results = [];
@@ -3060,10 +3070,6 @@ updateCursorEditFields();
             end
             numChannels = length(channelNames);
             
-            % fprintf('DEBUG: openFile: channelNames = ');
-            % disp(channelNames);
-            % fprintf('DEBUG: openFile: numChannels = %d\n', numChannels);
-            
             % === КОНЕЦ ДОБАВЛЕННОГО КОДА ===
             
             % Обновление и сохранение списка последних открытых файлов
@@ -3082,9 +3088,7 @@ updateCursorEditFields();
             [~, matFileName, ~] = fileparts(matFilePath);
             
             % Загружаем настройки каналов (индивидуальные или групповые)
-            % fprintf('DEBUG: openFile: Вызываем loadChannelSettings() ПОСЛЕ установки matFilePath\n');
             loadChannelSettings();
-            % fprintf('DEBUG: openFile: После loadChannelSettings: numChannels = %d\n', numChannels);
             
             % Обновляем popup каналов
             if exist('hChannelPopup', 'var') && ishandle(hChannelPopup)
@@ -3098,19 +3102,19 @@ updateCursorEditFields();
             % Обновляем edit fields для нового файла
             updateCursorEditFields();
             
-            % Вычисляем и применяем оптимальные границы осей
-            [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
-            
-            % Сохраняем как original для правильной работы зума
-            original_xlim = optimal_xlim;
-            original_ylim = optimal_ylim;
-            
             % Показываем оси после загрузки файла
             set(hPlotAxes, 'Visible', 'on');
             
             % Обновляем отображение
             updateNavigationStatus();
             updatePlotAndCalculation();
+            
+            % Вычисляем и применяем оптимальные границы осей ПОСЛЕ обновления графика
+            [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
+            
+            % Сохраняем как original для правильной работы зума
+            original_xlim = optimal_xlim;
+            original_ylim = optimal_ylim;
             updateResultsTable();
             updateButtonStates();
             
@@ -3472,8 +3476,8 @@ updateCursorEditFields();
                     % Обновляем edit fields с новыми позициями
                     updateCursorEditFields();
                     
-                    % Обновляем график с новыми позициями курсоров
-                    updatePlotAndCalculation();
+                    % НЕ вызываем updatePlotAndCalculation() здесь, чтобы не перезаписывать границы осей
+                    % Границы осей уже применены в OpenFilePath() через calculateOptimalAxisLimits()
                 else
                     fprintf('ℹ️ Cursor positions not found in settings\n');
                 end
@@ -3529,8 +3533,8 @@ updateCursorEditFields();
                         
                         [file, path] = uigetfile('*.mat', 'Load .mat File (ZAV or Heka format)', initialDir);
                         if ~isequal(file, 0)
-                            filepath = fullfile(path, file);
-                            OpenFilePath(filepath);
+                            outside_calling_filepath = fullfile(path, file);
+                            openFile([], []);
                         end
                     case 'No'
                         fprintf('ℹ️ Manual file opening cancelled\n');
@@ -3538,7 +3542,8 @@ updateCursorEditFields();
                 return;
             end
             fprintf('🔄 Automatically opening last file: %s\n', lastFile);
-            OpenFilePath(lastFile)
+            outside_calling_filepath = lastFile;
+            openFile([], []);
         catch ME
             fprintf('❌ Error during automatic file opening: %s\n', ME.message);
             fprintf('ℹ️ Continuing with clean initialization\n');
@@ -3546,107 +3551,8 @@ updateCursorEditFields();
     end
 
     function OpenFilePath(filepath)
-        try
-            
-            
-            
-            % Очищаем все предыдущие результаты и измерения
-            slope_measurement_results = [];
-
-            % Сбрасываем выделения
-            selected_row_slope = [];
-            selected_measurement_row = [];
-            
-            % Сбрасываем средний сигнал
-            mean_results_active = false;
-            mean_signal_data = [];
-            mean_signal_time = [];
-            
-            % Загружаем файл
-            data = load_zav_file(filepath);
-            [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
-            
-            % Устанавливаем флаги
-            stims_exist = ~isempty(stims);
-            events_exist = false; % пока не загружаем события
-            
-            % Устанавливаем индексы
-            stim_inx = 1;
-            event_inx = 1;
-            sweep_inx = 1;
-            
-            % Устанавливаем временные параметры
-            chosen_time_interval = [0, time_forward];
-            
-            % Устанавливаем частоту дискретизации
-            Fs = zavp.dwnSmplFrq;
-            newFs = Fs;
-            
-            % Устанавливаем режим центра
-            if stims_exist && ~isempty(stims)
-                selectedCenter = 'stimulus';
-            else
-                selectedCenter = 'time';
-            end
-            
-            % Инициализируем переменные для настроек
-            if isfield(hd, 'recChNames') && iscell(hd.recChNames)
-                channelNames = hd.recChNames;
-            else
-                channelNames = {'Ch1'};
-            end
-            numChannels = length(channelNames);
-            
-            % Обновляем глобальные переменные
-            matFilePath = filepath;
-            [~, matFileName, ~] = fileparts(matFilePath);
-            
-            % Загружаем настройки каналов (индивидуальные или групповые)
-            loadChannelSettings();
-            
-            % Обновляем popup каналов
-            if exist('hChannelPopup', 'var') && ishandle(hChannelPopup)
-                if isfield(hd, 'recChNames') && iscell(hd.recChNames) && ~isempty(hd.recChNames)
-                    set(hChannelPopup, 'String', hd.recChNames, 'Value', 1);
-                else
-                    set(hChannelPopup, 'String', {'Ch1'}, 'Value', 1);
-                end
-            end
-            
-            % Обновляем edit fields для нового файла
-            updateCursorEditFields();
-            
-            % Вычисляем и применяем оптимальные границы осей
-            [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
-            
-            % Сохраняем как original для правильной работы зума
-            original_xlim = optimal_xlim;
-            original_ylim = optimal_ylim;
-            
-            % Показываем оси после загрузки файла
-            set(hPlotAxes, 'Visible', 'on');
-            
-            % Обновляем отображение
-            updateNavigationStatus();
-            updatePlotAndCalculation();
-            updateResultsTable();
-            updateButtonStates();
-            
-            % Обновляем состояние кнопки Replace
-            updateReplaceButtonState();
-            
-            % Загружаем позиции курсоров из настроек ПОСЛЕ загрузки файла
-            loadCursorPositionsFromSettings();
-            
-            fprintf('✓ Last file successfully loaded: %s\n', matFileName);
-            fprintf('  Data size: %dx%dx%d\n', size(lfp));
-            fprintf('  Sampling rate: %.1f Hz\n', Fs);
-            fprintf('  Duration: %.3f s\n', time(end));
-            
-        catch ME
-            fprintf('❌ Error auto-opening last file: %s\n', ME.message);
-            fprintf('ℹ️ Continuing with clean initialization\n');
-        end
+        outside_calling_filepath = filepath;
+        openFile([], []);
     end
 
     % === Функции для перетаскивания области зума ===
@@ -3760,7 +3666,7 @@ updateCursorEditFields();
 
     function loadEvents(~, ~)
         % Загружает события из файла используя универсальную функцию
-        global updatePlotFunc table_calling
+        global updatePlotFunc
         
         % Сохраняем текущие callback функции
         old_updatePlotFunc = [];
@@ -3776,8 +3682,20 @@ updateCursorEditFields();
         updatePlotFunc = @() updatePlotAndCalculation();
         table_calling = []; % В signalAnalysisGUI нет таблицы событий
         
+        % Определяем источник файла
+        if ~isempty(outside_calling_filepath)
+            filepath = outside_calling_filepath;
+            outside_calling_filepath = [];
+        else
+            filepath = [];
+        end
+        
         % Вызываем универсальную функцию загрузки
-        loadEventsFromFile();
+        if isempty(filepath)
+            loadEventsFromFile();
+        else
+            loadEventsFromFile(filepath, struct('skip_mode_change', true));
+        end
         
         % Восстанавливаем callback функции
         if ~isempty(old_updatePlotFunc)
