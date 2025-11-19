@@ -90,7 +90,7 @@ function fileManagerGUI()
         'ColumnWidth', {150, 570}, ...
         'ColumnName', {'File Name', 'Path'}, ...
         'ColumnEditable', [false, false]);
-    fileTable.UserData = struct('row', []);
+    fileTable.UserData = struct('row', [], 'vpos', [], 'hpos', []);
     fileTable.CellSelectionCallback = @handleCellSelection;
     fileTable.CellEditCallback = @handleCellEdit;
     
@@ -568,19 +568,118 @@ function fileManagerGUI()
         if isempty(event.Indices)
             state.selectedRow = [];
             src.UserData.row = [];
+            src.UserData.vpos = [];
+            src.UserData.hpos = [];
+            debugTableState('Selection cleared');
             return
         end
         rowIdx = event.Indices(1);
         state.selectedRow = rowIdx;
         src.UserData.row = rowIdx;
+        try
+            jScroll = findjobj(src);
+            if ~isempty(jScroll)
+                src.UserData.vpos = jScroll.getVerticalScrollBar.getValue();
+                src.UserData.hpos = jScroll.getHorizontalScrollBar.getValue();
+                debugTableState('Selection stored row=%d vpos=%d hpos=%d', rowIdx, src.UserData.vpos, src.UserData.hpos);
+            end
+        catch
+            debugTableState('Selection store failed (row=%d)', rowIdx);
+        end
     end
     
+    function storeTableState()
+        if ~ishandle(fileTable)
+            debugTableState('storeTableState skipped: table handle invalid');
+            return
+        end
+        if isempty(fileTable.UserData)
+            fileTable.UserData = struct('row', [], 'vpos', [], 'hpos', []);
+        end
+        currentRow = state.selectedRow;
+        if isempty(currentRow) && isfield(fileTable.UserData, 'row')
+            currentRow = fileTable.UserData.row;
+        end
+        if ~isempty(currentRow)
+            fileTable.UserData.row = currentRow;
+        end
+        try
+            jScroll = findjobj(fileTable);
+            if ~isempty(jScroll)
+                fileTable.UserData.vpos = jScroll.getVerticalScrollBar.getValue();
+                fileTable.UserData.hpos = jScroll.getHorizontalScrollBar.getValue();
+                debugTableState('Stored state row=%s vpos=%s hpos=%s', mat2str(currentRow), mat2str(fileTable.UserData.vpos), mat2str(fileTable.UserData.hpos));
+            end
+        catch
+            debugTableState('storeTableState failed for row=%s', mat2str(currentRow));
+        end
+    end
+
+    function restoreTableState()
+        if ~ishandle(fileTable)
+            debugTableState('restoreTableState skipped: table handle invalid');
+            return
+        end
+        userData = fileTable.UserData;
+        rowCount = size(fileTable.Data, 1);
+        if rowCount == 0
+            state.selectedRow = [];
+            fileTable.UserData.row = [];
+            fileTable.UserData.vpos = [];
+            fileTable.UserData.hpos = [];
+            debugTableState('restoreTableState: no rows');
+            return
+        end
+        if isempty(userData) || ~isfield(userData, 'row') || isempty(userData.row)
+            state.selectedRow = [];
+            debugTableState('restoreTableState: no stored row, rows=%d', rowCount);
+        else
+            state.selectedRow = min(max(1, userData.row), rowCount);
+            debugTableState('restoreTableState: target row=%d rows=%d', state.selectedRow, rowCount);
+        end
+        try
+            jScroll = findjobj(fileTable);
+            if ~isempty(jScroll)
+                if isfield(userData, 'vpos') && ~isempty(userData.vpos)
+                    jScroll.getVerticalScrollBar.setValue(userData.vpos);
+                    debugTableState('restoreTableState applied vpos=%d', userData.vpos);
+                end
+                if isfield(userData, 'hpos') && ~isempty(userData.hpos)
+                    jScroll.getHorizontalScrollBar.setValue(userData.hpos);
+                    debugTableState('restoreTableState applied hpos=%d', userData.hpos);
+                end
+                if ~isempty(state.selectedRow)
+                    jTable = jScroll.getViewport.getView();
+                    jTable.changeSelection(state.selectedRow-1, 0, false, false);
+                    debugTableState('restoreTableState applied selection row=%d', state.selectedRow);
+                end
+            end
+        catch
+            debugTableState('restoreTableState failed for row=%s', mat2str(state.selectedRow));
+        end
+    end
+
+    function debugTableState(fmt, varargin)
+        timestamp = datestr(now, 'HH:MM:SS');
+        try
+            message = sprintf(fmt, varargin{:});
+        catch
+            message = fmt;
+        end
+        fprintf('[%s][fileManagerGUI] %s\n', timestamp, message);
+    end
+
     function updateTable(files)
+        storeTableState();
         if isempty(files)
             fileTable.Data = {};
             fileTable.ColumnName = {'File Name', 'Path'};
             fileTable.ColumnEditable = [false, false];
             fileTable.ColumnWidth = {150, 665};
+            state.selectedRow = [];
+            fileTable.UserData.row = [];
+            fileTable.UserData.vpos = [];
+            fileTable.UserData.hpos = [];
             return
         end
         
@@ -617,6 +716,7 @@ function fileManagerGUI()
         fileTable.ColumnEditable = columnEditable;
         fileTable.ColumnWidth = columnWidths;
         fileTable.Data = data;
+        restoreTableState();
     end
 end
 
@@ -972,14 +1072,10 @@ function conn = openSqliteConnection(dbPath)
             return
         end
         try
-            fileUrl = java.io.File(driverPath).toURI().toURL();
-            urlArray = javaArray('java.net.URL', 1);
-            urlArray(1) = fileUrl;
-            driverLoader = java.net.URLClassLoader.newInstance(urlArray);
-            driverClass = driverLoader.loadClass('org.sqlite.JDBC');
-            driverInstance = driverClass.newInstance();
+            javaaddpath(driverPath);
+            driverInstance = javaObject('org.sqlite.JDBC');
             driverLoaded = true;
-            fprintf('[%s] SQLite driver loaded via URLClassLoader\n', datestr(now, 'HH:MM:SS'));
+            fprintf('[%s] SQLite driver loaded via javaaddpath\n', datestr(now, 'HH:MM:SS'));
         catch ME
             warning('Failed to load SQLite driver: %s', ME.message);
             driverLoaded = false;
