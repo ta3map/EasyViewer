@@ -13,11 +13,18 @@ function fileManagerGUI()
         state.projects = [];
         state.files = [];
         state.currentProjectId = [];
-        state.selectedRow = [];
+        clearSelection();
         state.dbPath = '';
         state.metadataFields = {};
         state.metadataData = struct();
         state.fieldNameMap = struct();
+    end
+    
+    if ~isfield(state, 'selectedColumn')
+        state.selectedColumn = [];
+    end
+    if ~isfield(state, 'selectedFileId')
+        state.selectedFileId = [];
     end
     
     state.dbPath = initDbPath();
@@ -90,7 +97,7 @@ function fileManagerGUI()
         'ColumnWidth', {150, 570}, ...
         'ColumnName', {'File Name', 'Path'}, ...
         'ColumnEditable', [false, false]);
-    fileTable.UserData = struct('row', [], 'vpos', [], 'hpos', []);
+    fileTable.UserData = struct('row', [], 'col', [], 'vpos', [], 'hpos', []);
     fileTable.CellSelectionCallback = @handleCellSelection;
     fileTable.CellEditCallback = @handleCellEdit;
     
@@ -103,6 +110,7 @@ function fileManagerGUI()
             projectSelect.Value = 1;
             state.projects = [];
             state.files = [];
+            clearSelection();
             updateTable([]);
             
             promptCreateDatabase();
@@ -115,6 +123,7 @@ function fileManagerGUI()
             projectSelect.Value = 1;
             state.projects = [];
             state.currentProjectId = [];
+            clearSelection();
             updateTable([]);
             return
         end
@@ -175,7 +184,7 @@ function fileManagerGUI()
             msgbox('Failed to create project', 'Error', 'error');
             return
         end
-        state.selectedRow = [];
+        clearSelection();
         loadProjectsFromDb();
         match = find([state.projects.id] == newProjectId, 1);
         if ~isempty(match)
@@ -271,7 +280,7 @@ function fileManagerGUI()
             FileManagerDbPath = newPath;
             storeDbPath(newPath);
             set(dbPathDisplay, 'String', truncatePath(newPath));
-            state.selectedRow = [];
+            clearSelection();
             loadProjectsFromDb();
             
             msgbox('Database created successfully', 'Success', 'help');
@@ -292,12 +301,12 @@ function fileManagerGUI()
             return
         end
         newPath = fullfile(path, file);
-        state.dbPath = newPath;
-        FileManagerDbPath = newPath;
-        storeDbPath(newPath);
-        set(dbPathDisplay, 'String', truncatePath(newPath));
-        state.selectedRow = [];
-        loadProjectsFromDb();
+            state.dbPath = newPath;
+            FileManagerDbPath = newPath;
+            storeDbPath(newPath);
+            set(dbPathDisplay, 'String', truncatePath(newPath));
+            clearSelection();
+            loadProjectsFromDb();
     end
     
     function selectProjectByIndex(idx)
@@ -316,27 +325,30 @@ function fileManagerGUI()
         dbPath = getDbPath();
         if isempty(dbPath) || ~isfile(dbPath)
             state.files = [];
-            state.selectedRow = [];
+            clearSelection();
             updateTable([]);
             return
         end
         conn = openSqliteConnection(dbPath);
         if isempty(conn)
             state.files = [];
-            state.selectedRow = [];
+            clearSelection();
             updateTable([]);
             return
         end
         try
             files = fetchProjectFilesWithConn(conn, projectId);
             state.files = files;
-            state.selectedRow = [];
+            state.selectedRow = resolveRowBySelectedId(files);
+            if isempty(state.selectedRow)
+                clearSelection();
+            end
             loadMetadataForProjectWithConn(conn, projectId);
             updateTable(files);
         catch ME
             warning('Failed to load project files: %s', ME.message);
             state.files = [];
-            state.selectedRow = [];
+            clearSelection();
             updateTable([]);
         end
         closeJdbcResource(conn);
@@ -566,25 +578,34 @@ function fileManagerGUI()
     
     function handleCellSelection(src, event)
         if isempty(event.Indices)
-            state.selectedRow = [];
+            clearSelection();
             src.UserData.row = [];
+            src.UserData.col = [];
             src.UserData.vpos = [];
             src.UserData.hpos = [];
             debugTableState('Selection cleared');
             return
         end
         rowIdx = event.Indices(1);
+        colIdx = event.Indices(2);
         state.selectedRow = rowIdx;
+        state.selectedColumn = colIdx;
+        if rowIdx >= 1 && rowIdx <= numel(state.files)
+            state.selectedFileId = state.files(rowIdx).id;
+        else
+            state.selectedFileId = [];
+        end
         src.UserData.row = rowIdx;
+        src.UserData.col = colIdx;
         try
             jScroll = findjobj(src);
             if ~isempty(jScroll)
                 src.UserData.vpos = jScroll.getVerticalScrollBar.getValue();
                 src.UserData.hpos = jScroll.getHorizontalScrollBar.getValue();
-                debugTableState('Selection stored row=%d vpos=%d hpos=%d', rowIdx, src.UserData.vpos, src.UserData.hpos);
+                debugTableState('Selection stored row=%d col=%d vpos=%d hpos=%d', rowIdx, colIdx, src.UserData.vpos, src.UserData.hpos);
             end
         catch
-            debugTableState('Selection store failed (row=%d)', rowIdx);
+            debugTableState('Selection store failed (row=%d col=%d)', rowIdx, colIdx);
         end
     end
     
@@ -594,7 +615,7 @@ function fileManagerGUI()
             return
         end
         if isempty(fileTable.UserData)
-            fileTable.UserData = struct('row', [], 'vpos', [], 'hpos', []);
+            fileTable.UserData = struct('row', [], 'col', [], 'vpos', [], 'hpos', []);
         end
         currentRow = state.selectedRow;
         if isempty(currentRow) && isfield(fileTable.UserData, 'row')
@@ -603,15 +624,23 @@ function fileManagerGUI()
         if ~isempty(currentRow)
             fileTable.UserData.row = currentRow;
         end
+        currentCol = state.selectedColumn;
+        if isempty(currentCol) && isfield(fileTable.UserData, 'col')
+            currentCol = fileTable.UserData.col;
+        end
+        if ~isempty(currentCol)
+            fileTable.UserData.col = currentCol;
+        end
         try
             jScroll = findjobj(fileTable);
             if ~isempty(jScroll)
                 fileTable.UserData.vpos = jScroll.getVerticalScrollBar.getValue();
                 fileTable.UserData.hpos = jScroll.getHorizontalScrollBar.getValue();
-                debugTableState('Stored state row=%s vpos=%s hpos=%s', mat2str(currentRow), mat2str(fileTable.UserData.vpos), mat2str(fileTable.UserData.hpos));
+                debugTableState('Stored state row=%s col=%s vpos=%s hpos=%s', ...
+                    mat2str(currentRow), mat2str(currentCol), mat2str(fileTable.UserData.vpos), mat2str(fileTable.UserData.hpos));
             end
         catch
-            debugTableState('storeTableState failed for row=%s', mat2str(currentRow));
+            debugTableState('storeTableState failed for row=%s col=%s', mat2str(currentRow), mat2str(currentCol));
         end
     end
 
@@ -622,20 +651,33 @@ function fileManagerGUI()
         end
         userData = fileTable.UserData;
         rowCount = size(fileTable.Data, 1);
+        colCount = size(fileTable.Data, 2);
         if rowCount == 0
-            state.selectedRow = [];
+            clearSelection();
             fileTable.UserData.row = [];
+            fileTable.UserData.col = [];
             fileTable.UserData.vpos = [];
             fileTable.UserData.hpos = [];
             debugTableState('restoreTableState: no rows');
             return
         end
         if isempty(userData) || ~isfield(userData, 'row') || isempty(userData.row)
-            state.selectedRow = [];
+            clearSelection();
             debugTableState('restoreTableState: no stored row, rows=%d', rowCount);
         else
             state.selectedRow = min(max(1, userData.row), rowCount);
-            debugTableState('restoreTableState: target row=%d rows=%d', state.selectedRow, rowCount);
+            targetCol = [];
+            if isfield(userData, 'col') && ~isempty(userData.col)
+                targetCol = min(max(1, userData.col), max(1, colCount));
+            end
+            state.selectedColumn = targetCol;
+            if ~isempty(state.files) && state.selectedRow >= 1 && state.selectedRow <= numel(state.files)
+                state.selectedFileId = state.files(state.selectedRow).id;
+            else
+                state.selectedFileId = [];
+            end
+            debugTableState('restoreTableState: target row=%d col=%s rows=%d cols=%d', ...
+                state.selectedRow, mat2str(state.selectedColumn), rowCount, colCount);
         end
         try
             jScroll = findjobj(fileTable);
@@ -650,12 +692,19 @@ function fileManagerGUI()
                 end
                 if ~isempty(state.selectedRow)
                     jTable = jScroll.getViewport.getView();
-                    jTable.changeSelection(state.selectedRow-1, 0, false, false);
-                    debugTableState('restoreTableState applied selection row=%d', state.selectedRow);
+                    colIdx = state.selectedColumn;
+                    if isempty(colIdx)
+                        colIdx = 1;
+                    end
+                    colIdx = min(max(1, colIdx), max(1, colCount));
+                    jTable.changeSelection(state.selectedRow-1, colIdx-1, false, false);
+                    fileTable.UserData.col = colIdx;
+                    debugTableState('restoreTableState applied selection row=%d col=%d', state.selectedRow, colIdx);
                 end
             end
         catch
-            debugTableState('restoreTableState failed for row=%s', mat2str(state.selectedRow));
+            debugTableState('restoreTableState failed for row=%s col=%s', ...
+                mat2str(state.selectedRow), mat2str(state.selectedColumn));
         end
     end
 
@@ -676,8 +725,9 @@ function fileManagerGUI()
             fileTable.ColumnName = {'File Name', 'Path'};
             fileTable.ColumnEditable = [false, false];
             fileTable.ColumnWidth = {150, 665};
-            state.selectedRow = [];
+            clearSelection();
             fileTable.UserData.row = [];
+            fileTable.UserData.col = [];
             fileTable.UserData.vpos = [];
             fileTable.UserData.hpos = [];
             return
@@ -717,6 +767,27 @@ function fileManagerGUI()
         fileTable.ColumnWidth = columnWidths;
         fileTable.Data = data;
         restoreTableState();
+    end
+
+    function clearSelection()
+        state.selectedRow = [];
+        state.selectedColumn = [];
+        state.selectedFileId = [];
+    end
+
+    function rowIdx = resolveRowBySelectedId(files)
+        rowIdx = [];
+        if isempty(files)
+            return
+        end
+        if ~isfield(state, 'selectedFileId') || isempty(state.selectedFileId)
+            return
+        end
+        ids = [files.id];
+        match = find(ids == state.selectedFileId, 1);
+        if ~isempty(match)
+            rowIdx = match;
+        end
     end
 end
 
