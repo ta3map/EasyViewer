@@ -475,7 +475,7 @@ function fileManagerGUI()
         fileMeta = state.metadataData.(fileIdStr);
         safeFieldNames = fieldnames(fileMeta);
         
-        fprintf('[%s] Saving metadata to database for file_id=%d\n', datestr(now, 'HH:MM:SS'), fileId);
+        debugState('fileManagerGUI', 'Saving metadata to database for file_id=%d', fileId);
         for j = 1:numel(safeFieldNames)
             safeFieldName = safeFieldNames{j};
             originalFieldName = getOriginalFieldName(safeFieldName, state);
@@ -583,7 +583,7 @@ function fileManagerGUI()
             src.UserData.col = [];
             src.UserData.vpos = [];
             src.UserData.hpos = [];
-            debugTableState('Selection cleared');
+            debugState('fileManagerGUI', 'Selection cleared');
             return
         end
         rowIdx = event.Indices(1);
@@ -602,16 +602,16 @@ function fileManagerGUI()
             if ~isempty(jScroll)
                 src.UserData.vpos = jScroll.getVerticalScrollBar.getValue();
                 src.UserData.hpos = jScroll.getHorizontalScrollBar.getValue();
-                debugTableState('Selection stored row=%d col=%d vpos=%d hpos=%d', rowIdx, colIdx, src.UserData.vpos, src.UserData.hpos);
+                debugState('fileManagerGUI', 'Selection stored row=%d col=%d vpos=%d hpos=%d', rowIdx, colIdx, src.UserData.vpos, src.UserData.hpos);
             end
         catch
-            debugTableState('Selection store failed (row=%d col=%d)', rowIdx, colIdx);
+            debugState('fileManagerGUI', 'Selection store failed (row=%d col=%d)', rowIdx, colIdx);
         end
     end
     
     function storeTableState()
         if ~ishandle(fileTable)
-            debugTableState('storeTableState skipped: table handle invalid');
+            debugState('fileManagerGUI', 'storeTableState skipped: table handle invalid');
             return
         end
         if isempty(fileTable.UserData)
@@ -636,17 +636,17 @@ function fileManagerGUI()
             if ~isempty(jScroll)
                 fileTable.UserData.vpos = jScroll.getVerticalScrollBar.getValue();
                 fileTable.UserData.hpos = jScroll.getHorizontalScrollBar.getValue();
-                debugTableState('Stored state row=%s col=%s vpos=%s hpos=%s', ...
+                debugState('fileManagerGUI', 'Stored state row=%s col=%s vpos=%s hpos=%s', ...
                     mat2str(currentRow), mat2str(currentCol), mat2str(fileTable.UserData.vpos), mat2str(fileTable.UserData.hpos));
             end
         catch
-            debugTableState('storeTableState failed for row=%s col=%s', mat2str(currentRow), mat2str(currentCol));
+            debugState('fileManagerGUI', 'storeTableState failed for row=%s col=%s', mat2str(currentRow), mat2str(currentCol));
         end
     end
 
     function restoreTableState()
         if ~ishandle(fileTable)
-            debugTableState('restoreTableState skipped: table handle invalid');
+            debugState('fileManagerGUI', 'restoreTableState skipped: table handle invalid');
             return
         end
         userData = fileTable.UserData;
@@ -658,12 +658,12 @@ function fileManagerGUI()
             fileTable.UserData.col = [];
             fileTable.UserData.vpos = [];
             fileTable.UserData.hpos = [];
-            debugTableState('restoreTableState: no rows');
+            debugState('fileManagerGUI', 'restoreTableState: no rows');
             return
         end
         if isempty(userData) || ~isfield(userData, 'row') || isempty(userData.row)
             clearSelection();
-            debugTableState('restoreTableState: no stored row, rows=%d', rowCount);
+            debugState('fileManagerGUI', 'restoreTableState: no stored row, rows=%d', rowCount);
         else
             state.selectedRow = min(max(1, userData.row), rowCount);
             targetCol = [];
@@ -676,7 +676,7 @@ function fileManagerGUI()
             else
                 state.selectedFileId = [];
             end
-            debugTableState('restoreTableState: target row=%d col=%s rows=%d cols=%d', ...
+            debugState('fileManagerGUI', 'restoreTableState: target row=%d col=%s rows=%d cols=%d', ...
                 state.selectedRow, mat2str(state.selectedColumn), rowCount, colCount);
         end
         try
@@ -684,11 +684,11 @@ function fileManagerGUI()
             if ~isempty(jScroll)
                 if isfield(userData, 'vpos') && ~isempty(userData.vpos)
                     jScroll.getVerticalScrollBar.setValue(userData.vpos);
-                    debugTableState('restoreTableState applied vpos=%d', userData.vpos);
+                    debugState('fileManagerGUI', 'restoreTableState applied vpos=%d', userData.vpos);
                 end
                 if isfield(userData, 'hpos') && ~isempty(userData.hpos)
                     jScroll.getHorizontalScrollBar.setValue(userData.hpos);
-                    debugTableState('restoreTableState applied hpos=%d', userData.hpos);
+                    debugState('fileManagerGUI', 'restoreTableState applied hpos=%d', userData.hpos);
                 end
                 if ~isempty(state.selectedRow)
                     jTable = jScroll.getViewport.getView();
@@ -699,23 +699,13 @@ function fileManagerGUI()
                     colIdx = min(max(1, colIdx), max(1, colCount));
                     jTable.changeSelection(state.selectedRow-1, colIdx-1, false, false);
                     fileTable.UserData.col = colIdx;
-                    debugTableState('restoreTableState applied selection row=%d col=%d', state.selectedRow, colIdx);
+                    debugState('fileManagerGUI', 'restoreTableState applied selection row=%d col=%d', state.selectedRow, colIdx);
                 end
             end
         catch
-            debugTableState('restoreTableState failed for row=%s col=%s', ...
+            debugState('fileManagerGUI', 'restoreTableState failed for row=%s col=%s', ...
                 mat2str(state.selectedRow), mat2str(state.selectedColumn));
         end
-    end
-
-    function debugTableState(fmt, varargin)
-        timestamp = datestr(now, 'HH:MM:SS');
-        try
-            message = sprintf(fmt, varargin{:});
-        catch
-            message = fmt;
-        end
-        fprintf('[%s][fileManagerGUI] %s\n', timestamp, message);
     end
 
     function updateTable(files)
@@ -962,7 +952,7 @@ end
 
 function launchFile(filePath)
     if ~exist(filePath, 'file')
-        fprintf('File not found: %s\n', filePath);
+        debugState('fileManagerGUI', 'File not found: %s', filePath);
         return
     end
     [~, ~, ext] = fileparts(filePath);
@@ -984,7 +974,7 @@ function launchFile(filePath)
         warning('Failed to save last opened file path: %s', ME.message);
     end
     
-    fprintf('Please wait...\n');
+    debugState('fileManagerGUI', 'Please wait...');
     switch lower(ext)
         case '.ev'
             event_calling();
@@ -1003,9 +993,9 @@ function launchFile(filePath)
             zav_calling();
             table_calling();
         otherwise
-            fprintf('Unknown extension: %s\n', ext);
+            debugState('fileManagerGUI', 'Unknown extension: %s', ext);
     end
-    fprintf('File loaded.\n');
+    debugState('fileManagerGUI', 'File loaded.');
     try
         close(wb);
     catch
@@ -1103,7 +1093,7 @@ function autoBackupDatabase()
     
     try
         copyfile(dbPath, backupPath, 'f');
-        fprintf('[%s] Backup created: %s\n', datestr(now, 'HH:MM:SS'), backupName);
+        debugState('fileManagerGUI', 'Backup created: %s', backupName);
         
         backupPattern = fullfile(backupFolder, [dbName, '_backup_*', dbExt]);
         backupFiles = dir(backupPattern);
@@ -1146,7 +1136,7 @@ function conn = openSqliteConnection(dbPath)
             javaaddpath(driverPath);
             driverInstance = javaObject('org.sqlite.JDBC');
             driverLoaded = true;
-            fprintf('[%s] SQLite driver loaded via javaaddpath\n', datestr(now, 'HH:MM:SS'));
+            debugState('fileManagerGUI', 'SQLite driver loaded via javaaddpath');
         catch ME
             warning('Failed to load SQLite driver: %s', ME.message);
             driverLoaded = false;
@@ -1161,7 +1151,7 @@ function conn = openSqliteConnection(dbPath)
         conn = driverInstance.connect(dbUrl, props);
     catch ME
         warning('SQLite connection error: %s', ME.message);
-        fprintf('[%s] Connection failed: %s\n', datestr(now, 'HH:MM:SS'), ME.message);
+        debugState('fileManagerGUI', 'Connection failed: %s', ME.message);
         conn = [];
         driverLoaded = false;
         driverInstance = [];
