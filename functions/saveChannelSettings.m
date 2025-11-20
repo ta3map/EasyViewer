@@ -40,5 +40,9 @@ function saveChannelSettings(varargin)
         };
     end
 
-    save(channelSettingsFilePath, varsToSave{:}, '-append');
+    if exist(channelSettingsFilePath, 'file') == 2
+        save(channelSettingsFilePath, varsToSave{:}, '-append');
+    else
+        save(channelSettingsFilePath, varsToSave{:});
+    end
 end

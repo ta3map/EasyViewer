@@ -1676,19 +1676,21 @@ function signalViewerGUI(editMode)
         end
         filepath = fullfile(path, file);
         
-        loadMatFile(filepath)
-        
-        % Очистка таблицы событий
+        % Очистка таблицы событий ДО загрузки файла
         events = [];
         event_amplitudes = [];
         event_channels = [];
         event_widths = [];
         event_prominences = [];
         event_metadata = [];
+        event_comments = {};
         event_title_string = 'Events';
-        UpdateEventTable();
         event_inx = 1;
+        events_exist = false;
         
+        loadMatFile(filepath)
+        
+        UpdateEventTable();
         set(eventDeleteEdit, 'String', num2str(event_inx));   
         
         saveSettings();
