@@ -2,12 +2,13 @@ function autoEventDetectionGUI()
     % Загрузка настроек
     global autodetection_settings events_exist event_inx
     global table_calling event_title_string
+    global timeUnitFactor selectedUnit
     
     settings = autodetection_settings;
     
     global events event_comments hd events_detected matFilePath evfilename eventDeleteEdit
     global hMinPeakProminence hDetectionType hChPos hChNeg hMaxPeakWidth
-    global hMinPeakDistance hSmoothCoefWindow hDetectionMode hOnsetThreshold hOnsetSearchWindow
+    global hMinPeakDistance hDetectionMode hOnsetThreshold hOnsetSearchWindow
     global hSourceType selectedCenter timeCenterPopup windowSize chosen_time_interval
     
     % Переменные для хранения результатов детекции в области видимости GUI
@@ -53,14 +54,11 @@ function autoEventDetectionGUI()
     hChNeg = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(3), 130, 20], 'String', hd.recChNames, 'Callback', @changeDetectionType);
 
     % Окошко для ввода MinPeakDistance
-    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(4), 150, 30], 'String', 'Minimal Time Between Peaks (s):');
-    hMinPeakDistance = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(4), 130, 20], 'String', '3');
+    hMinPeakDistance_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(4), 150, 30], 'String', ['Minimal Time Between Peaks (' selectedUnit '):']);
+    hMinPeakDistance = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(4), 130, 20], 'String', num2str(3*timeUnitFactor));
 
-    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(5), 150, 20], 'String', 'Smooth coefficient (ms):');
-    hSmoothCoefWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(5), 130, 20], 'String', '20');
-
-    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(6), 150, 20], 'String', 'Max peak width (ms):');
-    hMaxPeakWidth = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(6), 130, 20], 'String', '50');
+    hMaxPeakWidth_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(6), 150, 20], 'String', ['Max peak width (' selectedUnit '):']);
+    hMaxPeakWidth = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(6), 130, 20], 'String', num2str(0.05*timeUnitFactor));
     
     % Окно выбора режима детекции
     uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(7), 150, 20], 'String', 'Detection Mode:');
@@ -71,8 +69,8 @@ function autoEventDetectionGUI()
     hOnsetThreshold = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(8), 130, 20], 'visible', 'off', 'String', '10');
 
     % Окошко для ввода Onset Search Window
-    hOnsetSearchWindow_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(9), 150, 20], 'visible', 'off', 'String', 'Onset Search Window (s):');
-    hOnsetSearchWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(9), 130, 20], 'visible', 'off', 'String', '1');
+    hOnsetSearchWindow_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(9), 150, 20], 'visible', 'off', 'String', ['Onset Search Window (' selectedUnit '):']);
+    hOnsetSearchWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(9), 130, 20], 'visible', 'off', 'String', num2str(1*timeUnitFactor));
 
     ax1 = axes('Position', [0.40    0.27    0.25    0.65]);
     ax2 = axes('Position', [0.70    0.27    0.25    0.65]);
@@ -97,11 +95,12 @@ function autoEventDetectionGUI()
                       
         set(hMinPeakProminence, 'String', num2str(settings.MinPeakProminence));
 
-        set(hMinPeakDistance, 'String', num2str(settings.MinPeakDistance));
-        set(hSmoothCoefWindow, 'String', num2str(settings.SmoothCoef));
+        set(hMinPeakDistance, 'String', num2str(settings.MinPeakDistance*timeUnitFactor));
+        set(hMinPeakDistance_text, 'String', ['Minimal Time Between Peaks (' selectedUnit '):']);
 
         set(hOnsetThreshold, 'String', num2str(settings.OnsetThreshold));
-        set(hOnsetSearchWindow, 'String', num2str(settings.OnsetSearchWindow));
+        set(hOnsetSearchWindow, 'String', num2str(settings.OnsetSearchWindow*timeUnitFactor));
+        set(hOnsetSearchWindow_text, 'String', ['Onset Search Window (' selectedUnit '):']);
         
         if isfield(settings, 'SourceTypeIndex')
             if ~isempty(settings.SourceTypeIndex)
@@ -115,11 +114,12 @@ function autoEventDetectionGUI()
         
         if isfield(settings, 'MaxPeakWidth')
             if ~isempty(settings.MaxPeakWidth)
-                set(hMaxPeakWidth, 'String', num2str(settings.MaxPeakWidth));
+                set(hMaxPeakWidth, 'String', num2str(settings.MaxPeakWidth*timeUnitFactor));
             else
-                set(hMaxPeakWidth, 'String', 50);
+                set(hMaxPeakWidth, 'String', num2str(0.05*timeUnitFactor));
             end
         end
+        set(hMaxPeakWidth_text, 'String', ['Max peak width (' selectedUnit '):']);
         
         % Вызовите функции изменения режима/типа детекции, если необходимо
         changeDetectionType()
@@ -186,18 +186,17 @@ function autoEventDetectionGUI()
         params.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
         params.ChPos = get(hChPos, 'Value');
         params.ChNeg = get(hChNeg, 'Value');
-        params.MinPeakDistance = str2double(get(hMinPeakDistance, 'String'));
+        params.MinPeakDistance = str2double(get(hMinPeakDistance, 'String')) / timeUnitFactor;
         params.OnsetThreshold = str2double(get(hOnsetThreshold, 'String'));
-        params.OnsetSearchWindow = str2double(get(hOnsetSearchWindow, 'String'));
+        params.OnsetSearchWindow = str2double(get(hOnsetSearchWindow, 'String')) / timeUnitFactor;
         DetectionModes = get(hDetectionMode, 'String');
         params.DetectionMode = DetectionModes{get(hDetectionMode, 'Value')};
         DetectionTypes = get(hDetectionType, 'String');
         params.DetectionType = DetectionTypes{get(hDetectionType, 'Value')};
-        params.smooth_coef = str2double(get(hSmoothCoefWindow, 'String'));
         SourceTypes = get(hSourceType, 'String');
         params.SourceType = SourceTypes{get(hSourceType, 'Value')};
         params.detect = false;
-        params.max_peak_width = str2double(get(hMaxPeakWidth, 'String'));
+        params.max_peak_width = str2double(get(hMaxPeakWidth, 'String')) / timeUnitFactor;
                
         [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected] = autoEventDetection(params);
         
@@ -210,22 +209,37 @@ function autoEventDetectionGUI()
 
     function checkDetectionCallback(~, ~)
         
+        % Показываем "Detecting ..." на осях
+        axes(ax1);
+        set(ax1, 'visible', 'on');
+        cla;
+        text(0.5, 0.5, 'Detecting ...', 'HorizontalAlignment', 'center', ...
+             'VerticalAlignment', 'middle', 'FontSize', 14, 'Units', 'normalized');
+        axis off;
+        
+        axes(ax2);
+        set(ax2, 'visible', 'on');
+        cla;
+        text(0.5, 0.5, 'Detecting ...', 'HorizontalAlignment', 'center', ...
+             'VerticalAlignment', 'middle', 'FontSize', 14, 'Units', 'normalized');
+        axis off;
+        drawnow;
+        
         % Сбор значений параметров и упаковка их в структуру
         params.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
         params.ChPos = get(hChPos, 'Value');
         params.ChNeg = get(hChNeg, 'Value');
-        params.MinPeakDistance = str2double(get(hMinPeakDistance, 'String'));
+        params.MinPeakDistance = str2double(get(hMinPeakDistance, 'String')) / timeUnitFactor;
         params.OnsetThreshold = str2double(get(hOnsetThreshold, 'String'));
-        params.OnsetSearchWindow = str2double(get(hOnsetSearchWindow, 'String'));
+        params.OnsetSearchWindow = str2double(get(hOnsetSearchWindow, 'String')) / timeUnitFactor;
         DetectionModes = get(hDetectionMode, 'String');
         params.DetectionMode = DetectionModes{get(hDetectionMode, 'Value')};
         DetectionTypes = get(hDetectionType, 'String');
         params.DetectionType = DetectionTypes{get(hDetectionType, 'Value')};
-        params.smooth_coef = str2double(get(hSmoothCoefWindow, 'String'));
         SourceTypes = get(hSourceType, 'String');
         params.SourceType = SourceTypes{get(hSourceType, 'Value')};
         params.detect = true;
-        params.max_peak_width = str2double(get(hMaxPeakWidth, 'String'));
+        params.max_peak_width = str2double(get(hMaxPeakWidth, 'String')) / timeUnitFactor;
         
         [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected] = autoEventDetection(params);
         
@@ -257,18 +271,17 @@ function autoEventDetectionGUI()
         set(ax1, 'visible', 'on')
         
         cla, hold on
-        localTimeUnitFactor = 1/60; % секунды в минуты
-%         stem(time_res*localTimeUnitFactor, Trace_out, 'Marker', '|')
-        stairs(time_res*localTimeUnitFactor, Trace_out)
+%         stem(time_res*timeUnitFactor, Trace_out, 'Marker', '|')
+        stairs(time_res*timeUnitFactor, Trace_out)
         
-        xlabel('Time, min');
+        xlabel(['Time, ' selectedUnit]);
 %         ylim([0, max(Trace_out)])
         
         yline(chosen_th, 'k:')
         
-        xlim([time_res(1), time_res(end)]*localTimeUnitFactor)
+        xlim([time_res(1), time_res(end)]*timeUnitFactor)
 
-        Lines(events_detected*localTimeUnitFactor, [], 'r',':');
+        Lines(events_detected*timeUnitFactor, [], 'r',':');
         
         numEvents = numel(events_detected);
         if params.detect
@@ -395,21 +408,20 @@ end
 
 function saveSettings()
     global hMinPeakProminence hDetectionType hChPos hChNeg hMaxPeakWidth
-    global hMinPeakDistance hSmoothCoefWindow hDetectionMode hOnsetThreshold hOnsetSearchWindow
+    global hMinPeakDistance hDetectionMode hOnsetThreshold hOnsetSearchWindow
     global autodetection_settings SettingsFilepath
-    global hSourceType 
+    global hSourceType timeUnitFactor 
     
     settings.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
     settings.DetectionTypeIndex = get(hDetectionType, 'Value');
     settings.ChPos = get(hChPos, 'Value');
     settings.ChNeg = get(hChNeg, 'Value');
-    settings.MinPeakDistance = str2double(get(hMinPeakDistance, 'String'));
-    settings.SmoothCoef = str2double(get(hSmoothCoefWindow, 'String'));
+    settings.MinPeakDistance = str2double(get(hMinPeakDistance, 'String')) / timeUnitFactor;
     settings.DetectionModeIndex = get(hDetectionMode, 'Value');
     settings.OnsetThreshold = str2double(get(hOnsetThreshold, 'String'));
-    settings.OnsetSearchWindow = str2double(get(hOnsetSearchWindow, 'String'));
+    settings.OnsetSearchWindow = str2double(get(hOnsetSearchWindow, 'String')) / timeUnitFactor;
     settings.SourceTypeIndex = get(hSourceType, 'Value');
-    settings.MaxPeakWidth = str2double(get(hMaxPeakWidth, 'String'));
+    settings.MaxPeakWidth = str2double(get(hMaxPeakWidth, 'String')) / timeUnitFactor;
     
     autodetection_settings = settings;
     % сохраняем фактор в глобальные настройки              
@@ -425,7 +437,6 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     
     % Распаковка параметров из структуры
     DetectionType = params.DetectionType;
-    smooth_coef = params.smooth_coef;
     OnsetSearchWindow = params.OnsetSearchWindow;
     MinPeakProminence = params.MinPeakProminence;
     ChPos = params.ChPos;
@@ -472,7 +483,8 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
             NegTrace = resample(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
             PosTrace = resample(double(data_in(:, ChPos)), lfp_frq , raw_frq)';           
             Reversion = PosTrace - NegTrace;
-            Reversion = medfilt1(Reversion, smooth_coef);
+%             Reversion = medfilt1(Reversion, smooth_coef);
+%             baseline = medfilt1(Reversion, 1000);
             baseline = medfilt1(Reversion, 1000);
             Filtered_Reversion = Reversion;
             Filtered_Reversion(Filtered_Reversion<baseline) = baseline(Filtered_Reversion<baseline);
@@ -483,10 +495,12 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
             Trace_out = -(NegTrace.*PosTrace);        
         case 'one channel negative'
             NegTrace = resample(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
-            Trace_out = -medfilt1(NegTrace, smooth_coef);
+%             Trace_out = -medfilt1(NegTrace, smooth_coef);
+            Trace_out = -NegTrace;
         case 'one channel positive'
             PosTrace = resample(double(data_in(:, ChPos)), lfp_frq , raw_frq)'; 
-            Trace_out = medfilt1(PosTrace, smooth_coef);
+%             Trace_out = medfilt1(PosTrace, smooth_coef);
+            Trace_out = PosTrace;
     end
     Trace_out(isnan(Trace_out)) = nanmean(Trace_out);
     Trace_out = Trace_out - mean(Trace_out);
