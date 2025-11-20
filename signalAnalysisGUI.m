@@ -515,7 +515,7 @@ end
     % Кнопка File Manager (использует прежние координаты Load Events)
     uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'File Manager', ...
         'Position', getElementPosition('load_events_btn'), ...
-        'Callback', @(~,~)fileManagerGUI(), 'Tag', 'file_manager_btn');
+        'Callback', @(~,~)fileManagerGUI(), 'Tag', 'load_events_btn');
     
     % Кнопка групповых настроек
     uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Settings', ...
@@ -856,7 +856,7 @@ updateCursorEditFields();
         spacing = 5;
         buttonWidth = min(editPos(4), 22);
         buttonPos = [editPos(1) + editPos(3) + spacing, editPos(2), buttonWidth, editPos(4)];
-        uicontrol(signalFig, ...
+        magnetBtn = uicontrol(signalFig, ...
             'Style', 'pushbutton', ...
             'String', '★', ...
             'Position', buttonPos, ...
@@ -867,6 +867,66 @@ updateCursorEditFields();
             unitPos = get(unitHandle, 'Position');
             unitPos(1) = buttonPos(1) + buttonPos(3) + spacing;
             set(unitHandle, 'Position', unitPos);
+        end
+        registerMagnetButton(magnetBtn, editHandle, unitHandle, spacing, buttonWidth);
+    end
+    
+    function registerMagnetButton(buttonHandle, editHandle, unitHandle, spacingPx, buttonWidthPx)
+        if ~ishandle(signalFig) || ~ishandle(buttonHandle) || ~ishandle(editHandle)
+            return;
+        end
+        editPos = get(editHandle, 'Position');
+        editHeight = max(editPos(4), 1);
+        magnetButtons = getappdata(signalFig, 'magnetButtons');
+        info = struct(...
+            'button', buttonHandle, ...
+            'edit', editHandle, ...
+            'unit', unitHandle, ...
+            'spacingRatio', spacingPx / editHeight, ...
+            'widthRatio', buttonWidthPx / editHeight);
+        if isempty(magnetButtons)
+            magnetButtons = info;
+        else
+            magnetButtons = [magnetButtons, info];
+        end
+        setappdata(signalFig, 'magnetButtons', magnetButtons);
+    end
+    
+    function updateMagnetButtonPositions()
+        if ~ishandle(signalFig)
+            return;
+        end
+        magnetButtons = getappdata(signalFig, 'magnetButtons');
+        if isempty(magnetButtons)
+            return;
+        end
+        keepMask = true(1, numel(magnetButtons));
+        for idx = 1:numel(magnetButtons)
+            entry = magnetButtons(idx);
+            if ~ishandle(entry.button) || ~ishandle(entry.edit)
+                keepMask(idx) = false;
+                continue;
+            end
+            applyMagnetLayout(entry);
+        end
+        magnetButtons = magnetButtons(keepMask);
+        setappdata(signalFig, 'magnetButtons', magnetButtons);
+    end
+    
+    function applyMagnetLayout(entry)
+        editPos = get(entry.edit, 'Position');
+        editHeight = editPos(4);
+        if editHeight <= 0
+            return;
+        end
+        spacing = entry.spacingRatio * editHeight;
+        buttonWidth = entry.widthRatio * editHeight;
+        buttonPos = [editPos(1) + editPos(3) + spacing, editPos(2), buttonWidth, editHeight];
+        set(entry.button, 'Position', buttonPos);
+        if isfield(entry, 'unit') && ~isempty(entry.unit) && ishandle(entry.unit)
+            unitPos = get(entry.unit, 'Position');
+            unitPos(1) = buttonPos(1) + buttonPos(3) + spacing;
+            set(entry.unit, 'Position', unitPos);
         end
     end
     
@@ -1084,7 +1144,17 @@ updateCursorEditFields();
         onset_value = NaN;
         measurement_metadata = struct();
         
-        [channel_data, time_in] = getCurrentData();
+        [display_channel_data, display_time_in] = getCurrentData();
+        channel_data = display_channel_data;
+        time_in = display_time_in;
+        
+        if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
+            calc_channel_data = display_channel_data;
+            calc_time_in = display_time_in;
+        else
+            calc_interval = getMeasurementInterval();
+            [calc_channel_data, calc_time_in] = getCurrentData(calc_interval);
+        end
         
         % Получаем параметры для расчета
         baseline_start = slope_measurement_settings.baseline_start;
@@ -1104,14 +1174,14 @@ updateCursorEditFields();
             baseline_data_struct.baseline_end = baseline_rel.end;
             baseline_data_struct.peak_start = peak_rel.start;
             baseline_data_struct.peak_end = peak_rel.end;
-            time_in_rel = time_in;
+            time_in_rel = calc_time_in;
         else
             % В обычном режиме используем абсолютные координаты с вычитанием rel_shift
             baseline_data_struct.baseline_start = baseline_start - rel_shift;
             baseline_data_struct.baseline_end = baseline_end - rel_shift;
             baseline_data_struct.peak_start = peak_start - rel_shift;
             baseline_data_struct.peak_end = peak_end - rel_shift;
-            time_in_rel = time_in - rel_shift;
+            time_in_rel = calc_time_in - rel_shift;
         end
         
         baseline_data_struct.slope_percent = slope_percent;
@@ -1119,7 +1189,7 @@ updateCursorEditFields();
         
         % Расчет slope с использованием calculateMeasurementByType
         
-        [slope_value, measurement_metadata] = calculateMeasurementByType(channel_data, time_in_rel, ...
+        [slope_value, measurement_metadata] = calculateMeasurementByType(calc_channel_data, time_in_rel, ...
             baseline_data_struct.peak_start, baseline_data_struct.peak_end, 'Slope', baseline_data_struct);
         
         % Добавляем rel_shift в метаданные для возможности получения абсолютного времени
@@ -1166,6 +1236,30 @@ updateCursorEditFields();
         end
     end
 
+    function interval = getMeasurementInterval()
+        % Определяет временной интервал, необходимый для расчетов
+        measurement_points = [
+            slope_measurement_settings.baseline_start, ...
+            slope_measurement_settings.baseline_end, ...
+            slope_measurement_settings.peak_start, ...
+            slope_measurement_settings.peak_end, ...
+            chosen_time_interval(1) - time_back, ...
+            chosen_time_interval(1) + time_forward];
+        measurement_points = measurement_points(isfinite(measurement_points));
+        if isempty(measurement_points)
+            interval = [chosen_time_interval(1), chosen_time_interval(2)];
+            return;
+        end
+        calc_start = min(measurement_points);
+        calc_end = max(measurement_points);
+        calc_start = max(calc_start, time(1));
+        calc_end = min(calc_end, time(end));
+        if calc_start == calc_end
+            calc_end = calc_start + eps(calc_start + 1);
+        end
+        interval = [calc_start, calc_end];
+    end
+    
     function updatePlotVisualization()
         % Обновляет график и визуализацию без пересчета результатов
         
@@ -2882,7 +2976,7 @@ updateCursorEditFields();
     
 
 
-    function [channel_data, time_in] = getCurrentData()
+    function [channel_data, time_in] = getCurrentData(custom_interval)
         % Получает текущие данные для измерений
         
         % Проверяем, нужно ли использовать средний сигнал
@@ -2895,11 +2989,22 @@ updateCursorEditFields();
                 channel_data = smooth1(channel_data(:), analysis_smooth_span, analysis_smooth_method);
             end
         else
-            % Получаем данные текущего временного интервала
-            plot_time_interval = chosen_time_interval;
-            plot_time_interval(1) = plot_time_interval(1) - time_back;
+            if nargin < 1 || isempty(custom_interval)
+                data_interval = chosen_time_interval;
+                data_interval(1) = data_interval(1) - time_back;
+                data_interval(2) = chosen_time_interval(1) + time_forward;
+                store_raw_data = true;
+            else
+                data_interval = custom_interval;
+                store_raw_data = false;
+            end
             
-            cond = time >= plot_time_interval(1) & time < plot_time_interval(2);
+            cond = time >= data_interval(1) & time < data_interval(2);
+            if ~any(cond)
+                channel_data = [];
+                time_in = [];
+                return;
+            end
             local_lfp = lfp(cond, :);
             
             % Вычитание средних каналов если нужно
@@ -2923,7 +3028,9 @@ updateCursorEditFields();
                 channel_data = smooth1(channel_data(:), analysis_smooth_span, analysis_smooth_method);
             end
             
-            setappdata(hPlotAxes, 'analysis_raw_data', raw_channel_data);
+            if store_raw_data
+                setappdata(hPlotAxes, 'analysis_raw_data', raw_channel_data);
+            end
         end
     end
     
@@ -4347,6 +4454,7 @@ updateCursorEditFields();
             
             % Используем figure_position для правильного вычисления коэффициентов масштабирования
             ResizeElements(signalFig, coordsFile, figure_position);
+            updateMagnetButtonPositions();
         catch ME
             warning('Ошибка при масштабировании элементов: %s', ME.message);
         end
