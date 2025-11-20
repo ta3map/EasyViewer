@@ -3,7 +3,7 @@ function app()
     global EV_path EV_version EV_date EV_author EV_email EV_description
 
     EV_path = pwd;
-    EV_version = '1.13.03';
+    EV_version = '1.13.04';
     EV_date = '20.11.2025';
     EV_author = 'Azat Gainutdinov';
     EV_email = 'ta3map@gmail.com';
