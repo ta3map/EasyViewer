@@ -25,7 +25,7 @@ function signalAnalysisGUI(editMode)
     global filterSettings filter_avaliable mean_group_ch
     global selectedCenter events stims sweep_info event_inx stim_inx sweep_inx events_exist stims_exist
     global stimShowFlag art_rem_window_ms
-    global SettingsFilepath
+    global SettingsFilepath channelSettings
     global original_xlim original_ylim
     global channel_data time_in
     global saveChannelSettingsFunc
@@ -135,9 +135,6 @@ if ~exist('selectedUnit', 'var') || isempty(selectedUnit)
     selectedUnit = 's';
 else
 end
-
-    % Загружаем сохраненные параметры сглаживания
-    loadSmoothingSettingsFromFile();
     
     % Глобальная переменная для метаданных измерений
     global current_measurement_metadata
@@ -150,7 +147,8 @@ end
     % Глобальные переменные для UI элементов
     global hBaselineStartEdit hBaselineEndEdit hPeakStartEdit hPeakEndEdit
     global hPlotAxes hNavigationStatus hReplaceBtn
-    global hSmoothEnableCheckbox hSmoothSpanEdit hSmoothMethodPopup
+    global hSmoothEnableCheckbox hSmoothSpanEdit hSmoothMethodPopup hSmoothShowRawCheckbox
+    global hTimeWindowText hTimeBackEdit hTimeForwardEdit
     
     % Инициализация флага показа стимулов
     stimShowFlag = true;
@@ -290,6 +288,10 @@ end
         'Resize', 'on', ...
         'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', ...
         'Position', figure_position);
+    if isempty(getappdata(signalFig, 'analysis_show_raw_signal'))
+        setappdata(signalFig, 'analysis_show_raw_signal', false);
+    end
+    loadSmoothingSettingsFromFile();
     
     % Применяем начальное масштабирование элементов сразу после создания окна
     % (аналогично signalViewerGUI.m)
@@ -369,8 +371,9 @@ end
     hBaselineStartEdit = uicontrol(signalFig, 'Style', 'edit', ...
         'Position', getElementPosition('baseline_start_edit'), ...
         'String', '0', 'Callback', @baselineStartCallback, 'Tag', 'baseline_start_edit');
-    uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('baseline_start_unit'), ...
+    hBaselineStartUnit = uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('baseline_start_unit'), ...
         'String', selectedUnit, 'HorizontalAlignment', 'left', 'Tag', 'baseline_start_unit');
+    addMagnetButton(hBaselineStartEdit, hBaselineStartUnit, 'baseline_start_magnet', @baselineStartCallback);
     
     % Baseline конец
     uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('baseline_end_label'), ...
@@ -378,8 +381,9 @@ end
     hBaselineEndEdit = uicontrol(signalFig, 'Style', 'edit', ...
         'Position', getElementPosition('baseline_end_edit'), ...
         'String', '0', 'Callback', @baselineEndCallback, 'Tag', 'baseline_end_edit');
-    uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('baseline_end_unit'), ...
+    hBaselineEndUnit = uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('baseline_end_unit'), ...
         'String', selectedUnit, 'HorizontalAlignment', 'left', 'Tag', 'baseline_end_unit');
+    addMagnetButton(hBaselineEndEdit, hBaselineEndUnit, 'baseline_end_magnet', @baselineEndCallback);
     
     % Разделитель peak
     uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('peak_separator'), ...
@@ -392,8 +396,9 @@ end
     hPeakStartEdit = uicontrol(signalFig, 'Style', 'edit', ...
         'Position', getElementPosition('peak_start_edit'), ...
         'String', '0', 'Callback', @peakStartCallback, 'Tag', 'peak_start_edit');
-    uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('peak_start_unit'), ...
+    hPeakStartUnit = uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('peak_start_unit'), ...
         'String', selectedUnit, 'HorizontalAlignment', 'left', 'Tag', 'peak_start_unit');
+    addMagnetButton(hPeakStartEdit, hPeakStartUnit, 'peak_start_magnet', @peakStartCallback);
     
     % Peak конец
     uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('peak_end_label'), ...
@@ -401,8 +406,9 @@ end
     hPeakEndEdit = uicontrol(signalFig, 'Style', 'edit', ...
         'Position', getElementPosition('peak_end_edit'), ...
         'String', '0', 'Callback', @peakEndCallback, 'Tag', 'peak_end_edit');
-    uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('peak_end_unit'), ...
+    hPeakEndUnit = uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('peak_end_unit'), ...
         'String', selectedUnit, 'HorizontalAlignment', 'left', 'Tag', 'peak_end_unit');
+    addMagnetButton(hPeakEndEdit, hPeakEndUnit, 'peak_end_magnet', @peakEndCallback);
     
     % Разделитель результатов
     uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('results_separator'), ...
@@ -455,7 +461,33 @@ end
         'String', smoothingMethodDisplay, ...
         'Value', getSmoothingMethodIndex(analysis_smooth_method), ...
         'Callback', @changeSmoothingMethod, 'Tag', 'smoothing_method_popup');
+    
+    uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('smoothing_show_raw_label'), ...
+        'String', 'Show Raw:', 'HorizontalAlignment', 'left', 'Tag', 'smoothing_show_raw_label');
+    hSmoothShowRawCheckbox = uicontrol(signalFig, 'Style', 'checkbox', ...
+        'Position', getElementPosition('smoothing_show_raw_checkbox'), ...
+        'Value', getShowRawFlag(), 'Callback', @toggleShowRawSignal, 'Tag', 'smoothing_show_raw_checkbox');
     updateSmoothingControls();
+    
+    % Выбор временного окна
+    hTimeWindowText = uicontrol(signalFig, 'Style', 'text', ...
+        'Position', getElementPosition('time_window_text'), ...
+        'String', ['Time Window, ' selectedUnit ':'], ...
+        'HorizontalAlignment', 'left', 'Tag', 'time_window_text');
+    uicontrol(signalFig, 'Style', 'text', ...
+        'Position', getElementPosition('before_text'), ...
+        'String', 'before', 'HorizontalAlignment', 'left', 'Tag', 'before_text');
+    hTimeBackEdit = uicontrol(signalFig, 'Style', 'edit', ...
+        'Position', getElementPosition('time_back_edit'), ...
+        'String', sprintf('%.3f', time_back * timeUnitFactor), ...
+        'Callback', @timeBackEditCallback, 'Tag', 'time_back_edit');
+    uicontrol(signalFig, 'Style', 'text', ...
+        'Position', getElementPosition('after_text'), ...
+        'String', 'after', 'HorizontalAlignment', 'left', 'Tag', 'after_text');
+    hTimeForwardEdit = uicontrol(signalFig, 'Style', 'edit', ...
+        'Position', getElementPosition('time_forward_edit'), ...
+        'String', sprintf('%.3f', time_forward * timeUnitFactor), ...
+        'Callback', @timeForwardEditCallback, 'Tag', 'time_forward_edit');
     
     % Разделитель навигации
     uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('navigation_separator'), ...
@@ -730,6 +762,15 @@ updateCursorEditFields();
         set(hBaselineEndEdit, 'String', sprintf('%.3f', (slope_measurement_settings.baseline_end - rel_shift) * timeUnitFactor));
         set(hPeakStartEdit, 'String', sprintf('%.3f', (slope_measurement_settings.peak_start - rel_shift) * timeUnitFactor));
         set(hPeakEndEdit, 'String', sprintf('%.3f', (slope_measurement_settings.peak_end - rel_shift) * timeUnitFactor));
+        if exist('hTimeBackEdit', 'var') && ishandle(hTimeBackEdit)
+            set(hTimeBackEdit, 'String', sprintf('%.3f', time_back * timeUnitFactor));
+        end
+        if exist('hTimeForwardEdit', 'var') && ishandle(hTimeForwardEdit)
+            set(hTimeForwardEdit, 'String', sprintf('%.3f', time_forward * timeUnitFactor));
+        end
+        if exist('hTimeWindowText', 'var') && ishandle(hTimeWindowText)
+            set(hTimeWindowText, 'String', ['Time Window, ' selectedUnit ':']);
+        end
     end
     
     function channelCallback(src, ~)
@@ -805,6 +846,49 @@ updateCursorEditFields();
             % Сохраняем позиции курсоров в настройки
             saveCurrentMarkerPositions();
         end
+    end
+    
+    function addMagnetButton(editHandle, unitHandle, tagName, callbackHandle)
+        if ~ishandle(editHandle)
+            return;
+        end
+        editPos = get(editHandle, 'Position');
+        spacing = 5;
+        buttonWidth = min(editPos(4), 22);
+        buttonPos = [editPos(1) + editPos(3) + spacing, editPos(2), buttonWidth, editPos(4)];
+        uicontrol(signalFig, ...
+            'Style', 'pushbutton', ...
+            'String', '★', ...
+            'Position', buttonPos, ...
+            'Tag', tagName, ...
+            'Callback', @(~, ~)magnetPickTime(editHandle, callbackHandle), ...
+            'TooltipString', 'Выбрать точку на графике');
+        if nargin >= 2 && ~isempty(unitHandle) && ishandle(unitHandle)
+            unitPos = get(unitHandle, 'Position');
+            unitPos(1) = buttonPos(1) + buttonPos(3) + spacing;
+            set(unitHandle, 'Position', unitPos);
+        end
+    end
+    
+    function magnetPickTime(targetEditHandle, callbackHandle)
+        if ~ishandle(hPlotAxes) || strcmp(get(hPlotAxes, 'Visible'), 'off')
+            fprintf('❌ Сначала загрузите данные для анализа\n');
+            return;
+        end
+        figure(signalFig);
+        axes(hPlotAxes);
+        try
+            [x, ~] = ginput(1);
+        catch
+            fprintf('❌ Выбор точки отменен\n');
+            return;
+        end
+        if isempty(x) || ~isfinite(x)
+            fprintf('❌ Выбор точки отменен\n');
+            return;
+        end
+        set(targetEditHandle, 'String', sprintf('%.3f', x));
+        callbackHandle(targetEditHandle, []);
     end
     
     function onsetMethodCallback(src, ~)
@@ -885,6 +969,43 @@ updateCursorEditFields();
         updatePlotAndCalculation();
     end
     
+    function timeBackEditCallback(src, ~)
+        new_before = str2double(get(src, 'String')) / timeUnitFactor;
+        if isnan(new_before) || new_before < 0
+            set(src, 'String', sprintf('%.3f', time_back * timeUnitFactor));
+            return;
+        end
+        time_back = new_before;
+        refreshRelShift();
+        [original_xlim, original_ylim] = calculateOptimalAxisLimits(true);
+        saveChannelSettings('time_back');
+        updateNavigationStatus();
+        updateCursorEditFields();
+        updatePlotAndCalculation();
+    end
+    
+    function timeForwardEditCallback(src, ~)
+        new_after = str2double(get(src, 'String')) / timeUnitFactor;
+        if isnan(new_after) || new_after <= 0
+            set(src, 'String', sprintf('%.3f', time_forward * timeUnitFactor));
+            return;
+        end
+        time_forward = new_after;
+        refreshRelShift();
+        [original_xlim, original_ylim] = calculateOptimalAxisLimits(true);
+        saveChannelSettings('time_forward');
+        updateNavigationStatus();
+        updateCursorEditFields();
+        updatePlotAndCalculation();
+    end
+    
+    function toggleShowRawSignal(src, ~)
+        flag = logical(get(src, 'Value'));
+        setappdata(signalFig, 'analysis_show_raw_signal', flag);
+        saveSmoothingSettings();
+        updatePlotAndCalculation();
+    end
+    
     function method_index = getOnsetMethodIndex(method_name)
         % Вспомогательная функция для определения индекса метода в popupmenu
         method_map = containers.Map({'derivative', 'second_derivative', 'threshold_crossing', 'inverted_peak'}, {1, 2, 3, 4});
@@ -905,6 +1026,15 @@ updateCursorEditFields();
         end
     end
     
+    function flag = getShowRawFlag()
+        flag = false;
+        if ishandle(signalFig)
+            val = getappdata(signalFig, 'analysis_show_raw_signal');
+            if ~isempty(val)
+                flag = logical(val);
+            end
+        end
+    end
     
     function updatePlotAndCalculation()
         % Координирует вычисление результатов и обновление графика
@@ -1061,7 +1191,16 @@ updateCursorEditFields();
         cla(hPlotAxes);
         hold on;
         
-        plot(time_display, channel_data, 'b-', 'LineWidth', 1);
+        if analysis_smooth_enabled && ~mean_results_active && getShowRawFlag()
+            raw_data = getappdata(hPlotAxes, 'analysis_raw_data');
+            if ~isempty(raw_data)
+                plot(time_display, raw_data, 'Color', [0.6 0.6 0.6], ...
+                    'LineWidth', 0.75, 'LineStyle', '--');
+            end
+        end
+        
+        plot(time_display, channel_data, 'LineWidth', 1, ...
+            'Color', colorsIn{slope_measurement_settings.channel});
         
         % Проверяем границы осей
         xlims = xlim;
@@ -1220,14 +1359,17 @@ updateCursorEditFields();
     end
     
     function updateSmoothingControls()
-        if exist('hSmoothEnableCheckbox', 'var') && ishandle(hSmoothEnableCheckbox)
+        if exist('hSmoothEnableCheckbox', 'var') && ~isempty(hSmoothEnableCheckbox) && ishandle(hSmoothEnableCheckbox)
             set(hSmoothEnableCheckbox, 'Value', analysis_smooth_enabled);
         end
-        if exist('hSmoothSpanEdit', 'var') && ishandle(hSmoothSpanEdit)
+        if exist('hSmoothSpanEdit', 'var') && ~isempty(hSmoothSpanEdit) && ishandle(hSmoothSpanEdit)
             set(hSmoothSpanEdit, 'String', num2str(analysis_smooth_span));
         end
-        if exist('hSmoothMethodPopup', 'var') && ishandle(hSmoothMethodPopup)
+        if exist('hSmoothMethodPopup', 'var') && ~isempty(hSmoothMethodPopup) && ishandle(hSmoothMethodPopup)
             set(hSmoothMethodPopup, 'Value', getSmoothingMethodIndex(analysis_smooth_method));
+        end
+        if exist('hSmoothShowRawCheckbox', 'var') && ~isempty(hSmoothShowRawCheckbox) && all(ishandle(hSmoothShowRawCheckbox))
+            set(hSmoothShowRawCheckbox, 'Value', getShowRawFlag());
         end
     end
     
@@ -1811,7 +1953,6 @@ updateCursorEditFields();
         
         % Обновляем только позиции линий без пересчета параметров
         updateLinePositions();
-        updateMeasurementCursorPositions();
     end
     
     % === Функции для работы с таблицей результатов ===
@@ -2749,6 +2890,10 @@ updateCursorEditFields();
             % Используем средний сигнал
             channel_data = mean_signal_data;
             time_in = mean_signal_time;
+            
+            if analysis_smooth_enabled && analysis_smooth_span >= 5
+                channel_data = smooth1(channel_data(:), analysis_smooth_span, analysis_smooth_method);
+            end
         else
             % Получаем данные текущего временного интервала
             plot_time_interval = chosen_time_interval;
@@ -2771,11 +2916,14 @@ updateCursorEditFields();
                 Fs_fascor = Fs/1000;
                 channel_data = removeStimArtifact(channel_data, stims, time_in, art_rem_window_ms*Fs_fascor*0.5);
             end
-            
-        end
         
-        if analysis_smooth_enabled && analysis_smooth_span >= 5
-            channel_data = smooth1(channel_data(:), analysis_smooth_span, analysis_smooth_method);
+            raw_channel_data = channel_data;
+            
+            if analysis_smooth_enabled && analysis_smooth_span >= 5
+                channel_data = smooth1(channel_data(:), analysis_smooth_span, analysis_smooth_method);
+            end
+            
+            setappdata(hPlotAxes, 'analysis_raw_data', raw_channel_data);
         end
     end
     
@@ -3356,7 +3504,8 @@ updateCursorEditFields();
                 mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
                 csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
                 filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
-                
+                channelSettings = loadedSettings.channelSettings;
+
                 % fprintf('DEBUG: loadSettingsFile: Загружено каналов: %d\n', length(channelNames));
             else % неактуально с 1.10.00  
                 % fprintf('DEBUG: loadSettingsFile: Старый формат настроек\n');
@@ -3369,7 +3518,8 @@ updateCursorEditFields();
                 scalingCoefficients = [updatedData{:, 3}];
                 colorsIn = updatedData(:, 4)';
                 lineCoefficients = [updatedData{:, 5}];
-                
+                channelSettings = updatedData;
+
                 mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
                 csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
                 filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
@@ -3625,6 +3775,9 @@ updateCursorEditFields();
                         analysis_smooth_method = 'moving';
                     end
                 end
+                if isfield(loadedSettings, 'analysis_show_raw_signal')
+                    setappdata(signalFig, 'analysis_show_raw_signal', logical(loadedSettings.analysis_show_raw_signal));
+                end
             end
         catch
         end
@@ -3634,7 +3787,8 @@ updateCursorEditFields();
     function saveSmoothingSettings()
         try
             if exist('SettingsFilepath', 'var') && ~isempty(SettingsFilepath)
-                vars = {'analysis_smooth_enabled', 'analysis_smooth_span', 'analysis_smooth_method'};
+                analysis_show_raw_signal = getShowRawFlag();
+                vars = {'analysis_smooth_enabled', 'analysis_smooth_span', 'analysis_smooth_method', 'analysis_show_raw_signal'};
                 if exist(SettingsFilepath, 'file')
                     save(SettingsFilepath, vars{:}, '-append');
                 else
@@ -3779,9 +3933,7 @@ updateCursorEditFields();
         zoom_y_min = new_ylim(1);
         zoom_y_max = new_ylim(2);
         
-        % Обновляем позиции линий
-        updateLinePositions();
-        updateMeasurementCursorPositions();
+        % Обновляем позиции линий только после окончания перетаскивания
     end
     
     function stopPanZoom(~, ~)
@@ -3791,6 +3943,10 @@ updateCursorEditFields();
         
         % Обновляем статус навигации
         updateNavigationStatus();
+        
+        % После отпускания кнопки обновляем линии и график
+        updateLinePositions();
+        updatePlotAndCalculation();
     end
     
     function applyAutoscale(~, ~)
