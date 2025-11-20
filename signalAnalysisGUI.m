@@ -46,6 +46,7 @@ function signalAnalysisGUI(editMode)
     
     % Глобальные переменные для slope measurement
     global slope_measurement_settings
+    global analysis_smooth_enabled analysis_smooth_span analysis_smooth_method
     global slope_measurement_results
     global selected_row_slope % для отслеживания выделенной строки в таблице
     
@@ -89,6 +90,19 @@ function signalAnalysisGUI(editMode)
     table_calling = @() [];
     outside_calling_filepath = [];
     
+    % Инициализация параметров сглаживания
+    if ~exist('analysis_smooth_enabled', 'var') || isempty(analysis_smooth_enabled)
+        analysis_smooth_enabled = false;
+    end
+    if ~exist('analysis_smooth_span', 'var') || isempty(analysis_smooth_span) || ~isnumeric(analysis_smooth_span) || numel(analysis_smooth_span) ~= 1
+        analysis_smooth_span = 5;
+    end
+    if ~exist('analysis_smooth_method', 'var') || isempty(analysis_smooth_method)
+        analysis_smooth_method = 'moving';
+    elseif ~any(strcmp(analysis_smooth_method, {'moving', 'median'}))
+        analysis_smooth_method = 'moving';
+    end
+    
     % Загрузка настроек единиц времени из основного приложения
     % Сначала проверяем, есть ли уже глобальные переменные из EasyView
     if ~exist('timeUnitFactor', 'var') || isempty(timeUnitFactor)
@@ -121,6 +135,9 @@ if ~exist('selectedUnit', 'var') || isempty(selectedUnit)
     selectedUnit = 's';
 else
 end
+
+    % Загружаем сохраненные параметры сглаживания
+    loadSmoothingSettingsFromFile();
     
     % Глобальная переменная для метаданных измерений
     global current_measurement_metadata
@@ -133,6 +150,7 @@ end
     % Глобальные переменные для UI элементов
     global hBaselineStartEdit hBaselineEndEdit hPeakStartEdit hPeakEndEdit
     global hPlotAxes hNavigationStatus hReplaceBtn
+    global hSmoothEnableCheckbox hSmoothSpanEdit hSmoothMethodPopup
     
     % Инициализация флага показа стимулов
     stimShowFlag = true;
@@ -411,6 +429,33 @@ end
         'String', 'Onset:', 'HorizontalAlignment', 'left', 'Tag', 'onset_text');
     hOnsetCheckbox = uicontrol(signalFig, 'Style', 'checkbox', 'Position', getElementPosition('onset_checkbox'), ...
         'Value', slope_measurement_settings.show_onset, 'Callback', @onsetVisibilityCallback, 'Tag', 'onset_checkbox');
+    
+    % Блок сглаживания
+    uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('smoothing_separator'), ...
+        'String', '────── Smoothing ──────', ...
+        'HorizontalAlignment', 'center', 'FontWeight', 'bold', 'Tag', 'smoothing_separator');
+    
+    uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('smoothing_label'), ...
+        'String', 'Enable:', 'HorizontalAlignment', 'left', 'Tag', 'smoothing_label');
+    hSmoothEnableCheckbox = uicontrol(signalFig, 'Style', 'checkbox', 'Position', getElementPosition('smoothing_checkbox'), ...
+        'Value', analysis_smooth_enabled, 'Callback', @toggleSmoothing, 'Tag', 'smoothing_checkbox');
+    
+    uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('smoothing_span_label'), ...
+        'String', 'Kernel:', 'HorizontalAlignment', 'left', 'Tag', 'smoothing_span_label');
+    hSmoothSpanEdit = uicontrol(signalFig, 'Style', 'edit', ...
+        'Position', getElementPosition('smoothing_span_edit'), ...
+        'String', num2str(analysis_smooth_span), ...
+        'Callback', @changeSmoothingSpan, 'Tag', 'smoothing_span_edit');
+    
+    uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('smoothing_method_label'), ...
+        'String', 'Method:', 'HorizontalAlignment', 'left', 'Tag', 'smoothing_method_label');
+    smoothingMethodDisplay = {'Moving', 'Median'};
+    hSmoothMethodPopup = uicontrol(signalFig, 'Style', 'popupmenu', ...
+        'Position', getElementPosition('smoothing_method_popup'), ...
+        'String', smoothingMethodDisplay, ...
+        'Value', getSmoothingMethodIndex(analysis_smooth_method), ...
+        'Callback', @changeSmoothingMethod, 'Tag', 'smoothing_method_popup');
+    updateSmoothingControls();
     
     % Разделитель навигации
     uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('navigation_separator'), ...
@@ -813,6 +858,33 @@ updateCursorEditFields();
         updatePlotAndCalculation();
     end
     
+    function toggleSmoothing(src, ~)
+        analysis_smooth_enabled = logical(get(src, 'Value'));
+        saveSmoothingSettings();
+        updatePlotAndCalculation();
+    end
+    
+    function changeSmoothingSpan(src, ~)
+        new_span = round(str2double(get(src, 'String')));
+        if isnan(new_span) || ~isfinite(new_span)
+            set(src, 'String', num2str(analysis_smooth_span));
+            return;
+        end
+        analysis_smooth_span = new_span;
+        set(src, 'String', num2str(analysis_smooth_span));
+        saveSmoothingSettings();
+        updatePlotAndCalculation();
+    end
+    
+    function changeSmoothingMethod(src, ~)
+        methods = {'moving', 'median'};
+        selection = get(src, 'Value');
+        selection = max(1, min(numel(methods), selection));
+        analysis_smooth_method = methods{selection};
+        saveSmoothingSettings();
+        updatePlotAndCalculation();
+    end
+    
     function method_index = getOnsetMethodIndex(method_name)
         % Вспомогательная функция для определения индекса метода в popupmenu
         method_map = containers.Map({'derivative', 'second_derivative', 'threshold_crossing', 'inverted_peak'}, {1, 2, 3, 4});
@@ -820,6 +892,16 @@ updateCursorEditFields();
             method_index = method_map(method_name);
         else
             method_index = 1; % по умолчанию
+        end
+    end
+    
+    function method_index = getSmoothingMethodIndex(method_name)
+        methods = {'moving', 'median'};
+        idx = find(strcmp(methods, method_name), 1);
+        if isempty(idx)
+            method_index = 1;
+        else
+            method_index = idx;
         end
     end
     
@@ -1135,6 +1217,18 @@ updateCursorEditFields();
         
     % Добавляем возможность перетаскивания для диапазонов
     makeDraggable();
+    end
+    
+    function updateSmoothingControls()
+        if exist('hSmoothEnableCheckbox', 'var') && ishandle(hSmoothEnableCheckbox)
+            set(hSmoothEnableCheckbox, 'Value', analysis_smooth_enabled);
+        end
+        if exist('hSmoothSpanEdit', 'var') && ishandle(hSmoothSpanEdit)
+            set(hSmoothSpanEdit, 'String', num2str(analysis_smooth_span));
+        end
+        if exist('hSmoothMethodPopup', 'var') && ishandle(hSmoothMethodPopup)
+            set(hSmoothMethodPopup, 'Value', getSmoothingMethodIndex(analysis_smooth_method));
+        end
     end
     
     function makeDraggable()
@@ -2677,7 +2771,11 @@ updateCursorEditFields();
                 Fs_fascor = Fs/1000;
                 channel_data = removeStimArtifact(channel_data, stims, time_in, art_rem_window_ms*Fs_fascor*0.5);
             end
-
+            
+        end
+        
+        if analysis_smooth_enabled && analysis_smooth_span >= 5
+            channel_data = smooth1(channel_data(:), analysis_smooth_span, analysis_smooth_method);
         end
     end
     
@@ -3497,6 +3595,53 @@ updateCursorEditFields();
             end
         catch ME
             fprintf('❌ Error loading cursor positions: %s\n', ME.message);
+        end
+    end
+    
+    function loadSmoothingSettingsFromFile()
+        try
+            if exist(SettingsFilepath, 'file')
+                loadedSettings = load(SettingsFilepath, '-mat');
+                if isfield(loadedSettings, 'analysis_smooth_enabled')
+                    analysis_smooth_enabled = logical(loadedSettings.analysis_smooth_enabled);
+                end
+                if isfield(loadedSettings, 'analysis_smooth_span')
+                    spanCandidate = loadedSettings.analysis_smooth_span;
+                    if isnumeric(spanCandidate) && ~isempty(spanCandidate)
+                        spanCandidate = spanCandidate(1);
+                        if isfinite(spanCandidate)
+                            analysis_smooth_span = round(spanCandidate);
+                        end
+                    end
+                end
+                if isfield(loadedSettings, 'analysis_smooth_method')
+                    methodCandidate = loadedSettings.analysis_smooth_method;
+                    if isstring(methodCandidate)
+                        methodCandidate = char(methodCandidate);
+                    end
+                    if ischar(methodCandidate) && any(strcmp(methodCandidate, {'moving', 'median'}))
+                        analysis_smooth_method = methodCandidate;
+                    else
+                        analysis_smooth_method = 'moving';
+                    end
+                end
+            end
+        catch
+        end
+        updateSmoothingControls();
+    end
+    
+    function saveSmoothingSettings()
+        try
+            if exist('SettingsFilepath', 'var') && ~isempty(SettingsFilepath)
+                vars = {'analysis_smooth_enabled', 'analysis_smooth_span', 'analysis_smooth_method'};
+                if exist(SettingsFilepath, 'file')
+                    save(SettingsFilepath, vars{:}, '-append');
+                else
+                    save(SettingsFilepath, vars{:});
+                end
+            end
+        catch
         end
     end
 
