@@ -33,11 +33,11 @@ function fileManagerGUI()
     
     state.dbPath = initDbPath();
     
-    macroDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'macros');
-    if exist(macroDir, 'dir')
+    moduleDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'modules');
+    if exist(moduleDir, 'dir')
         currentPath = strsplit(path, pathsep); %#ok<PATHNM>
-        if ~any(strcmp(currentPath, macroDir))
-            addpath(macroDir);
+        if ~any(strcmp(currentPath, moduleDir))
+            addpath(moduleDir);
         end
     end
     
@@ -89,16 +89,19 @@ function fileManagerGUI()
         'String', 'Open Selected File', ...
         'Callback', @openSelectedFile);
     
-    macroList = listMacrosInDir();
-    macroSelect = uicontrol('Style', 'popupmenu', ...
+    moduleList = listModulesInDir();
+    if isempty(moduleList)
+        moduleList = {'autoMeanStimulus'};
+    end
+    moduleSelect = uicontrol('Style', 'popupmenu', ...
         'Position', [610, 250, 120, 25], ...
-        'String', macroList, ...
-        'Callback', @(~,~)[]);
+        'String', moduleList, ...
+        'Callback', @moduleSelectionChanged);
     
-    autoMeanBtn = uicontrol('Style', 'pushbutton', ...
+    runModuleBtn = uicontrol('Style', 'pushbutton', ...
         'Position', [745, 250, 100, 25], ...
-        'String', 'Launch Macro', ...
-        'Callback', @callMacrosCallback);
+        'String', 'Launch Module', ...
+        'Callback', @callModulesCallback);
     
     uicontrol('Style', 'text', ...
         'Position', [10, 325, 60, 18], ...
@@ -674,22 +677,22 @@ function fileManagerGUI()
         launchFile(state.files(rowIdx).path);
     end
     
-    function callMacrosCallback(~, ~)
+    function callModulesCallback(~, ~)
         if ~isfield(state, 'selectedRows') || isempty(state.selectedRows)
             return
         end
         rows = state.selectedRows(:)';
-        macroName = get(macroSelect, 'String');
-        macroIdx = get(macroSelect, 'Value');
-        macroAction = macroName{macroIdx};
+        moduleName = get(moduleSelect, 'String');
+        moduleIdx = get(moduleSelect, 'Value');
+        moduleAction = moduleName{moduleIdx};
         for idx = 1:numel(rows)
             rowIdx = rows(idx);
             if rowIdx < 1 || rowIdx > numel(state.files)
                 continue
             end
             filePath = state.files(rowIdx).path;
-            debugState('fileManagerGUI', 'Macro %s %d/%d: %s', macroAction, idx, numel(rows), filePath);
-            result = callMacros(macroAction, filePath);
+            debugState('fileManagerGUI', 'Module %s %d/%d: %s', moduleAction, idx, numel(rows), filePath);
+            result = callModules(moduleAction, filePath);
             if ~isempty(result) && isstruct(result)
                 logAnalysisResult(state.files(rowIdx).id, result);
                 updateAnalysisTable(state.files(rowIdx).id);
@@ -697,7 +700,7 @@ function fileManagerGUI()
         end
     end
     
-    function result = callMacros(action, filePath)
+    function result = callModules(action, filePath)
         result = [];
         if nargin < 2
             filePath = '';
@@ -706,25 +709,25 @@ function fileManagerGUI()
             macroFunc = str2func(action);
             result = macroFunc(filePath);
         catch ME
-            debugState('fileManagerGUI', 'Macro call failed: %s (%s)', action, ME.message);
+            debugState('fileManagerGUI', 'Module call failed: %s (%s)', action, ME.message);
         end
     end
     
-    function macros = listMacrosInDir()
-        macros = {'autoMeanStimulus'};
-        if ~exist(macroDir, 'dir')
+    function modules = listModulesInDir()
+        modules = {};
+        if ~exist(moduleDir, 'dir')
             return
         end
-        macroFiles = dir(fullfile(macroDir, '*.m'));
-        if isempty(macroFiles)
+        moduleFiles = dir(fullfile(moduleDir, '*.m'));
+        if isempty(moduleFiles)
             return
         end
-        names = cell(1, numel(macroFiles));
-        for k = 1:numel(macroFiles)
-            [~, base] = fileparts(macroFiles(k).name);
+        names = cell(1, numel(moduleFiles));
+        for k = 1:numel(moduleFiles)
+            [~, base] = fileparts(moduleFiles(k).name);
             names{k} = base;
         end
-        macros = unique(names);
+        modules = unique(names);
     end
 
     function logAnalysisResult(fileId, result)
@@ -768,6 +771,19 @@ function fileManagerGUI()
             analysisTable.UserData.multi = 1;
             return
         end
+        if ~ishandle(moduleSelect)
+            moduleName = 'autoMeanStimulus';
+        else
+            modules = get(moduleSelect, 'String');
+            if isempty(modules)
+                moduleName = 'autoMeanStimulus';
+            elseif iscell(modules)
+                moduleIdx = min(get(moduleSelect, 'Value'), numel(modules));
+                moduleName = modules{moduleIdx};
+            else
+                moduleName = modules;
+            end
+        end
         if numel(fileId) > 1
             idsStr = sprintf('%d,', fileId);
             idsStr(end) = [];
@@ -776,7 +792,8 @@ function fileManagerGUI()
             whereClause = sprintf('file_id = %d', fileId);
         end
         query = sprintf(['SELECT file_id, report_path, module_name FROM analysis_results ' ...
-            'WHERE %s ORDER BY analysis_timestamp DESC'], whereClause);
+            'WHERE %s AND module_name = ''%s'' ORDER BY analysis_timestamp DESC'], ...
+            whereClause, escapeSql(moduleName));
         rows = sqlFetch(query);
         if isempty(rows)
             analysisTable.Data = {};
@@ -907,6 +924,14 @@ function fileManagerGUI()
             pathStr = normalizePath(value{1});
         else
             pathStr = char(value);
+        end
+    end
+    
+    function moduleSelectionChanged(~, ~)
+        if isfield(state, 'selectedFileIds') && ~isempty(state.selectedFileIds)
+            updateAnalysisTable(state.selectedFileIds);
+        else
+            updateAnalysisTable([]);
         end
     end
     

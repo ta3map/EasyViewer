@@ -63,7 +63,9 @@ function updatePlot()
         cond3 = stims >= plot_time_interval(1) & stims < plot_time_interval(2); 
         stims_x = stims(cond3)*timeUnitFactor;
         % Убираем артефакт из LFP
-        data = removeStimArtifact(data, stims(cond3), time_in, art_rem_window_ms);
+        win_r = round(art_rem_window_ms * (Fs/1000));
+        debugState('updatePlot', 'Stim artifact removal: Fs=%dHz, window=%.3f ms (~%d samples)', Fs, art_rem_window_ms, win_r);
+        data = removeStimArtifact(data, stims(cond3), time_in, win_r);
     
     else
         cond3 = [];

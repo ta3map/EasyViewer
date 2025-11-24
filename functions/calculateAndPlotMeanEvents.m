@@ -89,7 +89,8 @@ end
 
 % Убираем артефакт стимуляции в окне усреднения
 if params.remove_artifact
-    win_r = art_rem_window_ms * (Fs/1000);
+    win_r = round(art_rem_window_ms * (Fs/1000));
+    debugState('calculateAndPlotMeanEvents', 'Stim artifact removal: Fs=%dHz, window=%.3f ms (~%d samples)', Fs, art_rem_window_ms, win_r);
     params.lfp = removeStimArtifact(params.lfp, stims, time, win_r);
     
     if params.show_spikes
