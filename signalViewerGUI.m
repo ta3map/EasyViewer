@@ -170,7 +170,6 @@ function signalViewerGUI(editMode)
     
     stimShowFlag = true;
     
-    art_rem_window_ms = 0;
     
     csd_smooth_coef = 5;
     
@@ -1737,7 +1736,8 @@ function signalViewerGUI(editMode)
 
 
 
-    function loadMatFile(filepath)
+    function metadata = loadMatFile(filepath)
+        metadata = struct('hd', [], 'stims', [], 'filePath', '');
         fprintf('[%s] loadMatFile: START\n', datestr(now, 'HH:MM:SS.FFF'));
         closeChildWindows();
         disp('loading mat file:')
@@ -1838,6 +1838,7 @@ function signalViewerGUI(editMode)
         fprintf('[%s] loadMatFile: BEFORE loadChannelSettings, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2));
         loadChannelSettings();
         fprintf('[%s] loadMatFile: AFTER loadChannelSettings, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2));
+        metadata = struct('hd', hd, 'stims', stims, 'filePath', filepath);
         fprintf('[%s] loadMatFile: END\n', datestr(now, 'HH:MM:SS.FFF'));
     end
     function closeChildWindows()

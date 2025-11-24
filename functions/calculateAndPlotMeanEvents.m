@@ -1,6 +1,9 @@
-function calculateAndPlotMeanEvents(sourceType)
+function [mean_f, calculation_result] = calculateAndPlotMeanEvents(sourceType, opts)
 if nargin < 1
     sourceType = 'events'; % обратная совместимость
+end
+if nargin < 2
+    opts = struct();
 end
 fprintf('Please wait...\n');
 % Инициализация переменных
@@ -72,24 +75,35 @@ params.timeUnitFactor = timeUnitFactor;
 params.lfpVar = lfpVar;
 params.mean_group_ch = mean_group_ch;
 params.t_profile = t_mean_profile;
+params.remove_artifact = strcmp(sourceType, 'stimuli') && art_rem_window_ms > 0;
+if isfield(opts, 'autoScale')
+    params.autoScale = logical(opts.autoScale);
+else
+    params.autoScale = false;
+end
+if isfield(opts, 'xLimits')
+    params.customXLimits = opts.xLimits;
+else
+    params.customXLimits = [];
+end
 
-% Убираем артефакт стимуляции
-if params.show_spikes
-    if art_rem_window_ms > 0
-        win_r = art_rem_window_ms  * (Fs/1000);
-        params.lfp = removeStimArtifact(params.lfp, stims, time, win_r);
-
+% Убираем артефакт стимуляции в окне усреднения
+if params.remove_artifact
+    win_r = art_rem_window_ms * (Fs/1000);
+    params.lfp = removeStimArtifact(params.lfp, stims, time, win_r);
+    
+    if params.show_spikes
         stim_inxs = ClosestIndex(stims, time); % Индекс стимулов
-        for ch = 1:size(spks, 1)        
-            for i = 1:length(stim_inxs) 
+        for ch = 1:size(spks, 1)
+            for i = 1:length(stim_inxs)
                 start_inx = stim_inxs(i) - win_r;
-                start_inx(start_inx<1) = 1;
+                start_inx(start_inx < 1) = 1;
                 end_inx = stim_inxs(i) + win_r;
                 cond5 = params.spks(ch).tStamp/1000 >= time(start_inx) & params.spks(ch).tStamp/1000 < time(end_inx);
                 params.spks(ch).tStamp = params.spks(ch).tStamp(~cond5);
                 params.spks(ch).ampl = params.spks(ch).ampl(~cond5);
             end
-        end        
+        end
     end
 end
 
@@ -102,7 +116,11 @@ end
 close(wb);
 
 [mean_f, calculation_result] = plotMeanEvents(params);
-Xlims = [-time_back, time_forward]*timeUnitFactor;
+if ~isempty(params.customXLimits)
+    Xlims = params.customXLimits;
+else
+    Xlims = [-time_back, time_forward]*timeUnitFactor;
+end
 xlim(Xlims)
 
 numChannels = numel(ch_inxs);
@@ -123,7 +141,7 @@ colors_in_selected = colors_in(ch_inxs);
     end
 
 Ylims = [min(chRangesOffsets)-shiftCoeff*0.5, max(chRangesOffsets)+shiftCoeff*0.5];
-ylim(Ylims)
+%ylim(Ylims)
 
 
 

@@ -128,6 +128,7 @@ function [f, calculation_result] = plotMeanEvents(params)
 
     pl_meanData = pl_meanData(:, ch_enabled);
     pl_ch_labels = ch_labels(ch_enabled);
+    autoScale = isfield(params, 'autoScale') && logical(params.autoScale);
     pl_shiftCoeff = shiftCoeff;
     pl_widths_in = widths_in(ch_enabled);
     pl_colors_in = colors_in(ch_enabled);     
@@ -139,11 +140,9 @@ function [f, calculation_result] = plotMeanEvents(params)
         
      % Initialize offsets array
     offsets = zeros(1, numChannels);
-    % Plot each column with specified parameters
     for p = 1:numChannels
-        % Determine the offset
-        offsets(p) = -(p-1) * shiftCoeff;
-    end    
+        offsets(p) = -(p-1) * pl_shiftCoeff;
+    end
     
     if show_CSD        % режим показа CSD
         
@@ -176,7 +175,7 @@ function [f, calculation_result] = plotMeanEvents(params)
         
         title(csd_profile_ax,  ['CSD (t=', num2str(t_profile, 3) ' sec)']);       
         
-        ylim([offsets(end)-shiftCoeff, offsets(1)+shiftCoeff])
+        ylim([offsets(end)-pl_shiftCoeff, offsets(1)+pl_shiftCoeff])
         xline(0, 'r--')
         axis off
         
@@ -210,7 +209,7 @@ if not(isempty(ev_hists))  && not(show_CSD)      % режим показа MUA (
     
     title(mua_profile_ax, ['MUA (unit/sec, t=', num2str(t_profile, 3) ' sec)']);       
     
-    ylim([offsets(end)-shiftCoeff, offsets(1)+shiftCoeff])
+    ylim([offsets(end)-pl_shiftCoeff, offsets(1)+pl_shiftCoeff])
     xline(0, 'r--')
     axis off
     
@@ -233,7 +232,23 @@ end
         title([titlename, ', ', num2str(numEvents), ' events'], 'interpreter', 'none')
     end        
 
-    ylim([offsets(end)-shiftCoeff, offsets(1)+shiftCoeff])
+    if autoScale
+        debugState('plotMeanEvents', 'Auto scale enabled');
+        shiftedData = pl_meanData + offsets;
+        dataRange = [min(shiftedData(:)), max(shiftedData(:))];
+        span = diff(dataRange);
+        if span <= 0
+            span = max(abs(dataRange));
+            if span == 0
+                span = 1;
+            end
+        end
+        pad = span * 0.05;
+        debugState('plotMeanEvents', 'Auto scale range: [%f, %f] span=%f pad=%f', dataRange(1), dataRange(2), span, pad);
+        ylim([dataRange(1) - pad, dataRange(2) + pad]);
+    else
+        ylim([offsets(end)-pl_shiftCoeff, offsets(1)+pl_shiftCoeff]);
+    end
     xlim([start_time, end_time]*timeUnitFactor)
     
     calculation_result = struct();
@@ -254,7 +269,7 @@ end
     calculation_result.ev_hists = ev_hists;
     calculation_result.timeAxis = timeAxis/timeUnitFactor;
     calculation_result.ch_labels = ch_labels;
-    calculation_result.shiftCoeff = shiftCoeff;
+    calculation_result.shiftCoeff = pl_shiftCoeff;
     calculation_result.widths_in = widths_in;
     calculation_result.colors_in = colors_in;
 

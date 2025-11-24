@@ -18,6 +18,7 @@ function fileManagerGUI()
         state.metadataFields = {};
         state.metadataData = struct();
         state.fieldNameMap = struct();
+        state.selectedRows = [];
     end
     
     if ~isfield(state, 'selectedColumn')
@@ -26,8 +27,19 @@ function fileManagerGUI()
     if ~isfield(state, 'selectedFileId')
         state.selectedFileId = [];
     end
+    if ~isfield(state, 'selectedRows')
+        state.selectedRows = [];
+    end
     
     state.dbPath = initDbPath();
+    
+    macroDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'macros');
+    if exist(macroDir, 'dir')
+        currentPath = strsplit(path, pathsep); %#ok<PATHNM>
+        if ~any(strcmp(currentPath, macroDir))
+            addpath(macroDir);
+        end
+    end
     
     fig = figure('Position', [100, 100, 850, 390], ...
         'Name', 'File Manager (SQL)', ...
@@ -77,6 +89,17 @@ function fileManagerGUI()
         'String', 'Open Selected File', ...
         'Callback', @openSelectedFile);
     
+    macroList = listMacrosInDir();
+    macroSelect = uicontrol('Style', 'popupmenu', ...
+        'Position', [610, 250, 120, 25], ...
+        'String', macroList, ...
+        'Callback', @(~,~)[]);
+    
+    autoMeanBtn = uicontrol('Style', 'pushbutton', ...
+        'Position', [745, 250, 100, 25], ...
+        'String', 'Launch Macro', ...
+        'Callback', @callMacrosCallback);
+    
     uicontrol('Style', 'text', ...
         'Position', [10, 325, 60, 18], ...
         'String', 'Database:', ...
@@ -98,10 +121,32 @@ function fileManagerGUI()
         'String', 'Select Database', ...
         'Callback', @chooseDbPath);
     
-    fileTable = uitable('Position', [10, 10, 830, 300], ...
-        'ColumnWidth', {150, 570}, ...
-        'ColumnName', {'File Name', 'Path'}, ...
-        'ColumnEditable', [false, false]);
+    fileTable = uitable('Position', [10, 10, 581, 300], ...
+        'ColumnWidth', {60, 120, 400}, ...
+        'ColumnName', {'File ID', 'File Name', 'Path'}, ...
+        'ColumnEditable', [false, false, false]);
+    analysisTable = uitable('Position', [610, 10, 230, 184], ...
+        'ColumnWidth', {60, 110, 60}, ...
+        'ColumnName', {'File ID', 'Report Path', 'Module'}, ...
+        'ColumnEditable', [false, false, false], ...
+        'Data', cell(0, 3));
+    analysisTable.UserData = struct('row', 1, 'multi', 1);
+    analysisTable.CellSelectionCallback = @handleAnalysisSelection;
+    
+    openAnalysisBtn = uicontrol('Style', 'pushbutton', ...
+        'Position', [610, 204, 100, 25], ...
+        'String', 'Open Result', ...
+        'Callback', @openSelectedAnalysis);
+    
+    openAnalysisFolderBtn = uicontrol('Style', 'pushbutton', ...
+        'Position', [740, 204, 100, 25], ...
+        'String', 'Open Folder', ...
+        'Callback', @openAnalysisFolder);
+    
+    deleteAnalysisBtn = uicontrol('Style', 'pushbutton', ...
+        'Position', [610, 170, 230, 25], ...
+        'String', 'Delete Result', ...
+        'Callback', @deleteSelectedAnalysis);
     fileTable.UserData = struct('row', [], 'col', [], 'vpos', [], 'hpos', []);
     fileTable.CellSelectionCallback = @handleCellSelection;
     fileTable.CellEditCallback = @handleCellEdit;
@@ -629,6 +674,270 @@ function fileManagerGUI()
         launchFile(state.files(rowIdx).path);
     end
     
+    function callMacrosCallback(~, ~)
+        if ~isfield(state, 'selectedRows') || isempty(state.selectedRows)
+            return
+        end
+        rows = state.selectedRows(:)';
+        macroName = get(macroSelect, 'String');
+        macroIdx = get(macroSelect, 'Value');
+        macroAction = macroName{macroIdx};
+        for idx = 1:numel(rows)
+            rowIdx = rows(idx);
+            if rowIdx < 1 || rowIdx > numel(state.files)
+                continue
+            end
+            filePath = state.files(rowIdx).path;
+            debugState('fileManagerGUI', 'Macro %s %d/%d: %s', macroAction, idx, numel(rows), filePath);
+            result = callMacros(macroAction, filePath);
+            if ~isempty(result) && isstruct(result)
+                logAnalysisResult(state.files(rowIdx).id, result);
+                updateAnalysisTable(state.files(rowIdx).id);
+            end
+        end
+    end
+    
+    function result = callMacros(action, filePath)
+        result = [];
+        if nargin < 2
+            filePath = '';
+        end
+        try
+            macroFunc = str2func(action);
+            result = macroFunc(filePath);
+        catch ME
+            debugState('fileManagerGUI', 'Macro call failed: %s (%s)', action, ME.message);
+        end
+    end
+    
+    function macros = listMacrosInDir()
+        macros = {'autoMeanStimulus'};
+        if ~exist(macroDir, 'dir')
+            return
+        end
+        macroFiles = dir(fullfile(macroDir, '*.m'));
+        if isempty(macroFiles)
+            return
+        end
+        names = cell(1, numel(macroFiles));
+        for k = 1:numel(macroFiles)
+            [~, base] = fileparts(macroFiles(k).name);
+            names{k} = base;
+        end
+        macros = unique(names);
+    end
+
+    function logAnalysisResult(fileId, result)
+        if isempty(fileId) || isempty(result)
+            return
+        end
+        try
+            paramsJson = '';
+            if isfield(result, 'parameters') && ~isempty(result.parameters)
+                paramsJson = jsonencode(result.parameters);
+            end
+            moduleName = valueOrDefault(result, 'module_name', 'macro');
+            moduleDisplay = valueOrDefault(result, 'module_display_name', moduleName);
+            moduleDesc = valueOrDefault(result, 'module_description', '');
+            reportPath = valueOrDefault(result, 'report_path', '');
+            analysisTs = round(posixtime(datetime('now'))*1000);
+            query = sprintf(['INSERT INTO analysis_results (file_id, module_name, module_display_name, module_description, ' ...
+                'analysis_timestamp, report_path, parameters_json, created_at) VALUES (%d, ''%s'', ''%s'', ''%s'', %d, ''%s'', ''%s'', CURRENT_TIMESTAMP)'], ...
+                fileId, escapeSql(moduleName), escapeSql(moduleDisplay), escapeSql(moduleDesc), analysisTs, escapeSql(reportPath), escapeSql(paramsJson));
+            sqlExec(query);
+        catch ME
+            debugState('fileManagerGUI', 'Failed to log analysis result: %s', ME.message);
+        end
+    end
+
+    function val = valueOrDefault(structVar, fieldName, defaultVal)
+        if isfield(structVar, fieldName) && ~isempty(structVar.(fieldName))
+            val = structVar.(fieldName);
+        else
+            val = defaultVal;
+        end
+    end
+    
+    function updateAnalysisTable(fileId)
+        if ~exist('analysisTable', 'var') || ~ishandle(analysisTable)
+            return
+        end
+        if isempty(fileId)
+            analysisTable.Data = {};
+            analysisTable.UserData.row = 1;
+            analysisTable.UserData.multi = 1;
+            return
+        end
+        if numel(fileId) > 1
+            idsStr = sprintf('%d,', fileId);
+            idsStr(end) = [];
+            whereClause = sprintf('file_id IN (%s)', idsStr);
+        else
+            whereClause = sprintf('file_id = %d', fileId);
+        end
+        query = sprintf(['SELECT file_id, report_path, module_name FROM analysis_results ' ...
+            'WHERE %s ORDER BY analysis_timestamp DESC'], whereClause);
+        rows = sqlFetch(query);
+        if isempty(rows)
+            analysisTable.Data = {};
+            analysisTable.UserData.row = 1;
+            analysisTable.UserData.multi = 1;
+        else
+            analysisTable.Data = rows;
+            analysisTable.UserData.row = min(analysisTable.UserData.row, size(rows, 1));
+            analysisTable.UserData.multi = analysisTable.UserData.row;
+        end
+    end
+
+    function openSelectedAnalysis(~, ~)
+        if ~ishandle(analysisTable)
+            return
+        end
+        data = analysisTable.Data;
+        if isempty(data)
+            return
+        end
+        selected = getSelectedAnalysisRows(size(data, 1));
+        reportPath = normalizePath(data{selected(1), 2});
+        if isempty(reportPath)
+            return
+        end
+        if exist(reportPath, 'file')
+            winopen(reportPath);
+        else
+            msgbox(sprintf('File not found: %s', reportPath), 'Error', 'error');
+        end
+    end
+    
+    function openAnalysisFolder(~, ~)
+        if ~ishandle(analysisTable)
+            return
+        end
+        data = analysisTable.Data;
+        if isempty(data)
+            return
+        end
+        selected = getSelectedAnalysisRows(size(data, 1));
+        reportPath = normalizePath(data{selected(1), 2});
+        if isempty(reportPath)
+            return
+        end
+        if exist(reportPath, 'file')
+            folder = fileparts(reportPath);
+            if exist(folder, 'dir')
+                winopen(folder);
+            else
+                msgbox(sprintf('Folder not found: %s', folder), 'Error', 'error');
+            end
+        else
+            msgbox(sprintf('File not found: %s', reportPath), 'Error', 'error');
+        end
+    end
+    
+    function deleteSelectedAnalysis(~, ~)
+        if ~ishandle(analysisTable)
+            return
+        end
+        data = analysisTable.Data;
+        if isempty(data)
+            return
+        end
+        selectedRows = getSelectedAnalysisRows(size(data, 1));
+        if isempty(selectedRows)
+            return
+        end
+        try
+            reportPaths = cellfun(@(v) normalizePath(v), data(selectedRows, 2), 'UniformOutput', false);
+            validPaths = reportPaths(~cellfun(@isempty, reportPaths));
+            if isempty(validPaths)
+                return
+            end
+            choice = questdlg(sprintf('Delete %d selected analysis result(s)?', numel(validPaths)), ...
+                'Confirm Delete', 'Delete', 'Cancel', 'Cancel');
+            if ~strcmp(choice, 'Delete')
+                return
+            end
+            deleteFiles(validPaths);
+            deleteRecords(validPaths);
+            if isfield(state, 'selectedFileIds') && ~isempty(state.selectedFileIds)
+                updateAnalysisTable(state.selectedFileIds);
+            else
+                updateAnalysisTable([]);
+            end
+        catch ME
+            msgbox(sprintf('Failed to delete result: %s', ME.message), 'Error', 'error');
+        end
+    end
+    
+    function deleteFiles(paths)
+        for i = 1:numel(paths)
+            deleteIfExists(paths{i});
+            metaPath = replaceFileExt(paths{i}, '.meta');
+            deleteIfExists(metaPath);
+        end
+    end
+    
+    function deleteRecords(paths)
+        if isempty(paths)
+            return
+        end
+        escaped = cellfun(@(p) ['''' escapeSql(p) ''''], paths, 'UniformOutput', false);
+        inClause = strjoin(escaped, ',');
+        query = sprintf('DELETE FROM analysis_results WHERE report_path IN (%s)', inClause);
+        sqlExec(query);
+    end
+    
+    function deleteIfExists(pathStr)
+        if exist(pathStr, 'file')
+            delete(pathStr);
+        end
+    end
+    
+    function newPath = replaceFileExt(pathStr, newExt)
+        [folder, name, ~] = fileparts(pathStr);
+        newPath = fullfile(folder, [name, newExt]);
+    end
+
+    function pathStr = normalizePath(value)
+        if isempty(value)
+            pathStr = '';
+        elseif isstring(value)
+            pathStr = char(value);
+        elseif iscell(value)
+            pathStr = normalizePath(value{1});
+        else
+            pathStr = char(value);
+        end
+    end
+    
+    function handleAnalysisSelection(src, event)
+        if isempty(event.Indices)
+            src.UserData.row = 1;
+            src.UserData.multi = 1;
+            return
+        end
+        rows = unique(event.Indices(:, 1));
+        src.UserData.row = rows(1);
+        src.UserData.multi = rows;
+    end
+    
+    function rows = getSelectedAnalysisRows(maxRows)
+        rows = [];
+        if ~ishandle(analysisTable)
+            return
+        end
+        ud = analysisTable.UserData;
+        if isfield(ud, 'multi') && ~isempty(ud.multi)
+            rows = ud.multi;
+        elseif isfield(ud, 'row') && ~isempty(ud.row)
+            rows = ud.row;
+        end
+        rows = rows(rows >= 1 & rows <= maxRows);
+        if isempty(rows)
+            rows = min(max(1, ud.row), maxRows);
+        end
+    end
+    
     function handleCellSelection(src, event)
         if isempty(event.Indices)
             clearSelection();
@@ -639,14 +948,20 @@ function fileManagerGUI()
             debugState('fileManagerGUI', 'Selection cleared');
             return
         end
-        rowIdx = event.Indices(1);
-        colIdx = event.Indices(2);
+        rows = unique(event.Indices(:, 1));
+        rowIdx = rows(1);
+        colIdx = event.Indices(1, 2);
         state.selectedRow = rowIdx;
+        state.selectedRows = rows(:)';
+        state.selectedFileIds = arrayfun(@(idx) state.files(idx).id, state.selectedRows(state.selectedRows >= 1 & state.selectedRows <= numel(state.files)));
         state.selectedColumn = colIdx;
         if rowIdx >= 1 && rowIdx <= numel(state.files)
             state.selectedFileId = state.files(rowIdx).id;
+            updateAnalysisTable(state.selectedFileIds);
         else
             state.selectedFileId = [];
+            state.selectedFileIds = [];
+            updateAnalysisTable([]);
         end
         src.UserData.row = rowIdx;
         src.UserData.col = colIdx;
@@ -765,9 +1080,9 @@ function fileManagerGUI()
         storeTableState();
         if isempty(files)
             fileTable.Data = {};
-            fileTable.ColumnName = {'File Name', 'Path'};
-            fileTable.ColumnEditable = [false, false];
-            fileTable.ColumnWidth = {150, 665};
+            fileTable.ColumnName = {'File ID', 'File Name', 'Path'};
+            fileTable.ColumnEditable = [false, false, false];
+            fileTable.ColumnWidth = {60, 150, 400};
             clearSelection();
             fileTable.UserData.row = [];
             fileTable.UserData.col = [];
@@ -776,14 +1091,15 @@ function fileManagerGUI()
             return
         end
         
+        ids = num2cell([files.id]');
         names = {files.name}';
         paths = {files.path}';
         
-        columnNames = {'File Name', 'Path'};
-        columnEditable = [false, false];
-        columnWidths = {150, 400};
+        columnNames = {'File ID', 'File Name', 'Path'};
+        columnEditable = [false, false, false];
+        columnWidths = {60, 120, 400};
         
-        data = [names, paths];
+        data = [ids, names, paths];
         
         for i = 1:numel(state.metadataFields)
             originalFieldName = state.metadataFields{i};
@@ -816,6 +1132,11 @@ function fileManagerGUI()
         state.selectedRow = [];
         state.selectedColumn = [];
         state.selectedFileId = [];
+        state.selectedRows = [];
+        state.selectedFileIds = [];
+        if exist('analysisTable', 'var')
+            updateAnalysisTable([]);
+        end
     end
 
     function rowIdx = resolveRowBySelectedId(files)
@@ -1003,17 +1324,16 @@ function saveFileMetadata(fileId, fieldName, fieldValue)
     sqlExec(query);
 end
 
-function launchFile(filePath)
+function metadata = launchFile(filePath)
+    metadata = [];
     if ~exist(filePath, 'file')
         debugState('fileManagerGUI', 'File not found: %s', filePath);
         return
     end
     [~, ~, ext] = fileparts(filePath);
-    global event_calling outside_calling_filepath
+    global event_calling
     global zav_calling wb table_calling events event_inx event_title_string
     global lastOpenedFiles SettingsFilepath
-    
-    outside_calling_filepath = filePath;
     
     if ~exist('lastOpenedFiles', 'var') || isempty(lastOpenedFiles)
         lastOpenedFiles = {};
@@ -1028,22 +1348,23 @@ function launchFile(filePath)
     end
     
     debugState('fileManagerGUI', 'Please wait...');
+    global event_amplitudes event_channels event_widths event_prominences event_metadata event_comments events_exist
+    events = [];
+    event_amplitudes = [];
+    event_channels = [];
+    event_widths = [];
+    event_prominences = [];
+    event_metadata = [];
+    event_comments = {};
+    event_title_string = 'Events';
+    event_inx = 1;
+    events_exist = false;
+    
     switch lower(ext)
         case '.ev'
-            event_calling();
+            metadata = event_calling();
         case '.mat'
-            global event_amplitudes event_channels event_widths event_prominences event_metadata event_comments events_exist
-            events = [];
-            event_amplitudes = [];
-            event_channels = [];
-            event_widths = [];
-            event_prominences = [];
-            event_metadata = [];
-            event_comments = {};
-            event_title_string = 'Events';
-            event_inx = 1;
-            events_exist = false;
-            zav_calling();
+            metadata = zav_calling(filePath);
             table_calling();
         otherwise
             debugState('fileManagerGUI', 'Unknown extension: %s', ext);
