@@ -107,11 +107,16 @@ function updatePlot()
 
     numChannels = size(data_res, 2);
     
-    % Вычитание первого семпла для каналов с включенным baseline subtraction
+    % Вычитание медианы первых 10% сигнала для каналов с включенным baseline subtraction
     baseline_subtract_active = baseline_subtract_available(ch_inxs);
+    baseline_medians = zeros(1, numChannels); % Сохраняем вычтенную базовую линию для каждого канала
     for ch = 1:numChannels
         if baseline_subtract_active(ch)
-            data_res(:, ch) = data_res(:, ch) - data_res(1, ch);
+            numPoints = size(data_res, 1);
+            baselineLength = max(1, round(numPoints * 0.1));
+            baselineMedian = median(data_res(1:baselineLength, ch));
+            baseline_medians(ch) = baselineMedian; % Сохраняем вычтенную медиану
+            data_res(:, ch) = data_res(:, ch) - baselineMedian;
         end
     end
     
@@ -156,6 +161,17 @@ function updatePlot()
     y_tick_min_pixel_size = 25;     % Минимальный размер тиков по Y в пикселях
 
     [chRanges, chRangesOffsets, chRangeIndexes] = calculateChRanges(offsets, shiftCoeff, data_res, numChannels, m_coef, y_pixel_size, y_tick_min_pixel_size);
+    
+    % Корректируем значения chRanges для каналов с вычитанием базовой линии
+    % Добавляем обратно вычтенную базовую линию, чтобы показать реальные значения
+    for ch_inx = 1:numChannels
+        if baseline_subtract_active(ch_inx)
+            ch_mask = chRangeIndexes == ch_inx;
+            % baseline_medians уже в масштабе данных, нужно добавить обратно с учетом m_coef
+            chRanges(ch_mask) = chRanges(ch_mask) + baseline_medians(ch_inx) / m_coef(ch_inx);
+        end
+    end
+    
     rangesTimeTicks = time_in_transformed(1)+zeros(size(chRangesOffsets)) + 0.02*(time_in_transformed(end) - time_in_transformed(1));    
     rangesTimeLabels = time_in_transformed(1)+zeros(size(chRangesOffsets)) + 0.005*(time_in_transformed(end) - time_in_transformed(1)); 
     ch_inx = 0;

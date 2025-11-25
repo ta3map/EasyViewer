@@ -508,15 +508,48 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     
     time_res = linspace(time(1),time(end),numel(Trace_out));
     
-    if detect         
+    if detect
+        fprintf('=== DEBUG: Detection parameters ===\n');
+        fprintf('MinPeakProminence: %.3f\n', MinPeakProminence);
+        fprintf('MinPeakDistance: %.6f sec (%.6f samples at %d Hz)\n', MinPeakDistance, MinPeakDistance*lfp_frq, lfp_frq);
+        fprintf('MaxPeakWidth: %.6f sec (%.6f samples at %d Hz)\n', max_peak_width, max_peak_width*lfp_frq, lfp_frq);
+        fprintf('DetectionMode: %s\n', DetectionMode);
+        fprintf('DetectionType: %s\n', DetectionType);
+        fprintf('SourceType: %s\n', SourceType);
+        fprintf('ChPos: %d, ChNeg: %d\n', ChPos, ChNeg);
+        fprintf('\n=== DEBUG: Trace_out statistics ===\n');
+        fprintf('Trace_out length: %d samples\n', numel(Trace_out));
+        fprintf('Trace_out min: %.3f\n', min(Trace_out));
+        fprintf('Trace_out max: %.3f\n', max(Trace_out));
+        fprintf('Trace_out mean: %.3f\n', mean(Trace_out));
+        fprintf('Trace_out std: %.3f\n', std(Trace_out));
+        fprintf('Trace_out median: %.3f\n', median(Trace_out));
+        fprintf('Trace_out 99.9%% quantile: %.3f\n', quantile(Trace_out, 0.999));
+        fprintf('\n');
+        
         [peaks,peak_times,widths,prominences] = findpeaks(Trace_out, time_res, 'MinPeakHeight',MinPeakProminence, 'MinPeakDistance', MinPeakDistance,'WidthReference','halfheight');
         
+        fprintf('=== DEBUG: After findpeaks ===\n');
+        fprintf('Found %d peaks\n', length(peaks));
+        if ~isempty(peaks)
+            fprintf('Peak amplitudes range: [%.3f, %.3f]\n', min(peaks), max(peaks));
+            fprintf('Peak widths range: [%.6f, %.6f] sec\n', min(widths), max(widths));
+            fprintf('Peak prominences range: [%.3f, %.3f]\n', min(prominences), max(prominences));
+        end
+        fprintf('\n');
+        
         % убираем слишком широкие пики
-        wide_peaks_mask = widths > max_peak_width/lfp_frq;
+        wide_peaks_mask = widths > max_peak_width;
+        num_wide_peaks = sum(wide_peaks_mask);
         peak_times(wide_peaks_mask) = [];
         peaks(wide_peaks_mask) = [];
         widths(wide_peaks_mask) = [];
         prominences(wide_peaks_mask) = [];
+        
+        fprintf('=== DEBUG: After width filtering ===\n');
+        fprintf('Removed %d peaks (too wide, > %.6f sec)\n', num_wide_peaks, max_peak_width);
+        fprintf('Remaining peaks: %d\n', length(peaks));
+        fprintf('\n');
         
         peak_locs_inx = ClosestIndex(peak_times, time_res);
 
@@ -527,11 +560,18 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
                 widths_detected = widths';
                 
             case 'onsets'
+                fprintf('=== DEBUG: Onset detection ===\n');
+                fprintf('OnsetThreshold: %.3f\n', onset_threshold);
+                fprintf('OnsetSearchWindow: %.6f sec (%.6f samples at %d Hz)\n', OnsetSearchWindow, OnsetSearchWindow*lfp_frq, lfp_frq);
+                fprintf('Starting with %d peaks\n', length(peak_locs_inx));
+                
                 % onset of peaks by Khazipov method
                 onset_locs_inx = zeros(size(peak_locs_inx));
-                sig_part_window_inx = ClosestIndex(OnsetSearchWindow, time_res);
+                sig_part_window_inx = round(OnsetSearchWindow * lfp_frq);
                 o_i = 0;
                 valid_onsets = false(size(peak_locs_inx));
+                num_out_of_bounds = 0;
+                num_no_onset_found = 0;
                 
                 for i = 1:length(peak_locs_inx)
                     peak_loc_inx = peak_locs_inx(i);
@@ -546,12 +586,22 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
                         if not(isempty(onset_l))
                             onset_locs_inx(o_i) = start_inx + onset_l(1);
                             valid_onsets(i) = true;
+                        else
+                            num_no_onset_found = num_no_onset_found + 1;
                         end
+                    else
+                        num_out_of_bounds = num_out_of_bounds + 1;
                     end                    
                 end
                 onset_locs_inx(onset_locs_inx == 0) = [];
                 onset_times = time_res(onset_locs_inx)';
                 events_detected = onset_times;
+                
+                fprintf('Out of bounds (window extends beyond signal): %d peaks\n', num_out_of_bounds);
+                fprintf('No onset found (diff < threshold): %d peaks\n', num_no_onset_found);
+                fprintf('Valid onsets found: %d\n', sum(valid_onsets));
+                fprintf('Final events_detected: %d\n', length(events_detected));
+                fprintf('\n');
                 
                 % Для onsets используем амплитуды соответствующих пиков
                 amplitudes_detected = peaks(valid_onsets)';
@@ -596,6 +646,10 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
                 end
             end
         end
+        
+        fprintf('=== DEBUG: Final results ===\n');
+        fprintf('Total events detected: %d\n', length(events_detected));
+        fprintf('===================================\n\n');
         
     else
         events_detected = [];
