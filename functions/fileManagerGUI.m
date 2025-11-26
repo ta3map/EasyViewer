@@ -93,8 +93,14 @@ function fileManagerGUI()
     if isempty(moduleList)
         moduleList = {'autoMeanStimulus'};
     end
+    filterByModuleCheckbox = uicontrol('Style', 'checkbox', ...
+        'Position', [610, 265, 120, 20], ...
+        'String', 'Filter by module', ...
+        'Value', 1, ...
+        'Callback', @filterByModuleChanged);
+    
     moduleSelect = uicontrol('Style', 'popupmenu', ...
-        'Position', [610, 278, 120, 25], ...
+        'Position', [610, 280, 120, 25], ...
         'String', moduleList, ...
         'Callback', @moduleSelectionChanged);
     
@@ -125,17 +131,17 @@ function fileManagerGUI()
         'Callback', @chooseDbPath);
     
     openAnalysisBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [610, 240, 100, 25], ...
+        'Position', [610, 235, 100, 25], ...
         'String', 'Open Result', ...
         'Callback', @openSelectedAnalysis);
     
     openAnalysisFolderBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [740, 240, 100, 25], ...
+        'Position', [740, 235, 100, 25], ...
         'String', 'Open Folder', ...
         'Callback', @openAnalysisFolder);
     
     deleteAnalysisBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [610, 210, 230, 25], ...
+        'Position', [610, 205, 230, 25], ...
         'String', 'Delete Result', ...
         'Callback', @deleteSelectedAnalysis);
 
@@ -777,18 +783,9 @@ function fileManagerGUI()
             analysisTable.UserData.multi = 1;
             return
         end
-        if ~ishandle(moduleSelect)
-            moduleName = 'autoMeanStimulus';
-        else
-            modules = get(moduleSelect, 'String');
-            if isempty(modules)
-                moduleName = 'autoMeanStimulus';
-            elseif iscell(modules)
-                moduleIdx = min(get(moduleSelect, 'Value'), numel(modules));
-                moduleName = modules{moduleIdx};
-            else
-                moduleName = modules;
-            end
+        filterByModule = true;
+        if exist('filterByModuleCheckbox', 'var') && ishandle(filterByModuleCheckbox)
+            filterByModule = get(filterByModuleCheckbox, 'Value');
         end
         if numel(fileId) > 1
             idsStr = sprintf('%d,', fileId);
@@ -797,9 +794,27 @@ function fileManagerGUI()
         else
             whereClause = sprintf('file_id = %d', fileId);
         end
-        query = sprintf(['SELECT file_id, report_path, module_name FROM analysis_results ' ...
-            'WHERE %s AND module_name = ''%s'' ORDER BY analysis_timestamp DESC'], ...
-            whereClause, escapeSql(moduleName));
+        if filterByModule
+            if ~ishandle(moduleSelect)
+                moduleName = 'autoMeanStimulus';
+            else
+                modules = get(moduleSelect, 'String');
+                if isempty(modules)
+                    moduleName = 'autoMeanStimulus';
+                elseif iscell(modules)
+                    moduleIdx = min(get(moduleSelect, 'Value'), numel(modules));
+                    moduleName = modules{moduleIdx};
+                else
+                    moduleName = modules;
+                end
+            end
+            query = sprintf(['SELECT file_id, report_path, module_name FROM analysis_results ' ...
+                'WHERE %s AND module_name = ''%s'' ORDER BY analysis_timestamp DESC'], ...
+                whereClause, escapeSql(moduleName));
+        else
+            query = sprintf(['SELECT file_id, report_path, module_name FROM analysis_results ' ...
+                'WHERE %s ORDER BY analysis_timestamp DESC'], whereClause);
+        end
         rows = sqlFetch(query);
         if isempty(rows)
             analysisTable.Data = {};
@@ -959,6 +974,14 @@ function fileManagerGUI()
     end
     
     function moduleSelectionChanged(~, ~)
+        if isfield(state, 'selectedFileIds') && ~isempty(state.selectedFileIds)
+            updateAnalysisTable(state.selectedFileIds);
+        else
+            updateAnalysisTable([]);
+        end
+    end
+    
+    function filterByModuleChanged(~, ~)
         if isfield(state, 'selectedFileIds') && ~isempty(state.selectedFileIds)
             updateAnalysisTable(state.selectedFileIds);
         else

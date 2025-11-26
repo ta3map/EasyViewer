@@ -47,34 +47,17 @@ function metadataAnalysis(metaPaths, fileIds)
     
     debugState('metadataAnalysis', 'Selected %d field(s) for analysis', numel(selectedFields));
     
-    savePath = chooseSavePath();
-    if isempty(savePath)
+    [file, path] = uiputfile('*.mat', 'Save Metadata Analysis', 'metadata_analysis.mat');
+    if isequal(file, 0)
         debugState('metadataAnalysis', 'Save cancelled by user');
         return
     end
     
+    savePath = fullfile(path, file);
     debugState('metadataAnalysis', 'Save path selected: %s', savePath);
     
-    [~, ~, ext] = fileparts(savePath);
-    if strcmpi(ext, '.h5') || strcmpi(ext, '.hdf5')
-        debugState('metadataAnalysis', 'Saving directly to HDF5 file (streaming)');
-        success = saveToHDF5Direct(metaPaths, fileIds, selectedFields, savePath);
-    elseif strcmpi(ext, '.mat')
-        debugState('metadataAnalysis', 'Saving directly to MAT file (streaming)');
-        success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath);
-    else
-        collectedData = collectDataFromFiles(metaPaths, fileIds, selectedFields);
-        if isempty(collectedData)
-            debugState('metadataAnalysis', 'No data collected from files');
-            msgbox('No data collected from files', 'Error', 'error');
-            return
-        end
-        
-        debugState('metadataAnalysis', 'Collected data from %d file(s)', numel(collectedData.fileIds));
-        
-        debugState('metadataAnalysis', 'Creating and saving table directly to file');
-        success = createAndSaveTable(collectedData, selectedFields, savePath);
-    end
+    debugState('metadataAnalysis', 'Saving directly to MAT file (streaming)');
+    success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath);
     if ~success
         debugState('metadataAnalysis', 'Failed to create and save table');
         msgbox('Failed to create and save table', 'Error', 'error');
@@ -431,234 +414,6 @@ function flatTable = createFlatTable(collectedData, selectedFields)
     flatTable = table(tableData{:}, 'VariableNames', columnNames);
 end
 
-function savePath = chooseSavePath()
-    choice = questdlg('Select save format:', 'Save Metadata Analysis', 'HDF5 File', 'MAT File', 'Excel File', 'HDF5 File');
-    
-    if strcmp(choice, 'Cancel')
-        savePath = '';
-        return
-    end
-    
-    if strcmp(choice, 'HDF5 File')
-        [file, path] = uiputfile({'*.h5', 'HDF5 Files (*.h5)'; '*.hdf5', 'HDF5 Files (*.hdf5)'}, ...
-            'Save Metadata Analysis', 'metadata_analysis.h5');
-    elseif strcmp(choice, 'MAT File')
-        [file, path] = uiputfile('*.mat', 'Save Metadata Analysis', 'metadata_analysis.mat');
-    else
-        [file, path] = uiputfile({'*.xlsx', 'Excel Files (*.xlsx)'; '*.xls', 'Excel Files (*.xls)'}, ...
-            'Save Metadata Analysis', 'metadata_analysis.xlsx');
-    end
-    
-    if isequal(file, 0)
-        savePath = '';
-        return
-    end
-    
-    savePath = fullfile(path, file);
-end
-
-function success = saveToHDF5Direct(metaPaths, fileIds, selectedFields, savePath)
-    success = false;
-    
-    if isempty(metaPaths) || isempty(selectedFields)
-        return
-    end
-    
-    numFiles = numel(metaPaths);
-    
-    try
-        if exist(savePath, 'file')
-            delete(savePath);
-        end
-        
-        debugState('metadataAnalysis', 'Creating HDF5 file: %s', savePath);
-        
-        datasetsCreated = false;
-        fieldInfo = cell(numel(selectedFields), 1);
-        totalRows = 0;
-        
-        h5create(savePath, '/FileID', [Inf], 'ChunkSize', [1000]);
-        
-        for fileIdx = 1:numFiles
-            metaPath = metaPaths{fileIdx};
-            fileId = fileIds(fileIdx);
-            
-            debugState('metadataAnalysis', 'Processing file %d/%d: %s', fileIdx, numFiles, metaPath);
-            
-            if ~exist(metaPath, 'file')
-                debugState('metadataAnalysis', 'File not found, skipping: %s', metaPath);
-                continue
-            end
-            
-            try
-                meta = load(metaPath, '-mat');
-            catch ME
-                debugState('metadataAnalysis', 'Failed to load file, skipping: %s (%s)', metaPath, ME.message);
-                continue
-            end
-            
-            fileRows = 0;
-            fileData = cell(numel(selectedFields), 1);
-            
-            for fieldIdx = 1:numel(selectedFields)
-                fieldPath = selectedFields{fieldIdx};
-                value = getFieldValue(meta, fieldPath);
-                
-                if isempty(value)
-                    continue
-                end
-                
-                dims = size(value);
-                if isscalar(value)
-                    rows = 1;
-                elseif numel(dims) == 2
-                    if dims(1) == 1 || dims(2) == 1
-                        rows = max(dims);
-                    else
-                        rows = dims(2);
-                    end
-                else
-                    rows = numel(value);
-                end
-                
-                fileRows = max(fileRows, rows);
-                
-                if isempty(fieldInfo{fieldIdx})
-                    fieldInfo{fieldIdx} = struct('isText', false, 'isMatrix', false, 'matrixDim', 0);
-                    if ischar(value) || isstring(value) || (iscell(value) && all(cellfun(@(x) ischar(x) || isstring(x), value(:))))
-                        fieldInfo{fieldIdx}.isText = true;
-                    end
-                    if numel(dims) == 2 && dims(1) > 1 && dims(2) > 1
-                        fieldInfo{fieldIdx}.isMatrix = true;
-                        fieldInfo{fieldIdx}.matrixDim = dims(1);
-                    end
-                end
-                
-                fileData{fieldIdx} = value;
-            end
-            
-            if fileRows == 0
-                clear meta;
-                continue
-            end
-            
-            if ~datasetsCreated
-                for fieldIdx = 1:numel(selectedFields)
-                    info = fieldInfo{fieldIdx};
-                    fieldName = selectedFields{fieldIdx};
-                    safeName = strrep(fieldName, '.', '_');
-                    
-                    if info.isMatrix && info.matrixDim > 1
-                        for subIdx = 1:info.matrixDim
-                            datasetPath = sprintf('/%s_%d', safeName, subIdx);
-                            if info.isText
-                                h5create(savePath, datasetPath, [Inf], 'Datatype', 'string', 'ChunkSize', [1000]);
-                            else
-                                h5create(savePath, datasetPath, [Inf], 'ChunkSize', [1000]);
-                            end
-                        end
-                    else
-                        datasetPath = sprintf('/%s', safeName);
-                        if info.isText
-                            h5create(savePath, datasetPath, [Inf], 'Datatype', 'string', 'ChunkSize', [1000]);
-                        else
-                            h5create(savePath, datasetPath, [Inf], 'ChunkSize', [1000]);
-                        end
-                    end
-                end
-                datasetsCreated = true;
-            end
-            
-            h5write(savePath, '/FileID', repmat(fileId, fileRows, 1), [totalRows + 1], [fileRows]);
-            
-            for fieldIdx = 1:numel(selectedFields)
-                value = fileData{fieldIdx};
-                info = fieldInfo{fieldIdx};
-                fieldName = selectedFields{fieldIdx};
-                safeName = strrep(fieldName, '.', '_');
-                
-                if isempty(value)
-                    continue
-                end
-                
-                if info.isMatrix && info.matrixDim > 1
-                    for subIdx = 1:info.matrixDim
-                        datasetPath = sprintf('/%s_%d', safeName, subIdx);
-                        dims = size(value);
-                        if numel(dims) == 2 && dims(1) >= subIdx
-                            rowData = value(subIdx, 1:min(dims(2), fileRows))';
-                            if info.isText
-                                if iscell(rowData)
-                                    rowData = string(rowData);
-                                else
-                                    rowData = string(rowData);
-                                end
-                            end
-                            h5write(savePath, datasetPath, rowData, [totalRows + 1], [numel(rowData)]);
-                        end
-                    end
-                else
-                    datasetPath = sprintf('/%s', safeName);
-                    
-                    if isscalar(value)
-                        rowData = value;
-                        if info.isText
-                            if ischar(value) || isstring(value)
-                                rowData = string(value);
-                            else
-                                rowData = string(num2str(value));
-                            end
-                        end
-                        h5write(savePath, datasetPath, rowData, [totalRows + 1], [1]);
-                    else
-                        dims = size(value);
-                        if ischar(value) || isstring(value) || (iscell(value) && all(cellfun(@(x) ischar(x) || isstring(x), value(:))))
-                            if ischar(value)
-                                value = cellstr(value);
-                            elseif isstring(value)
-                                value = cellstr(value);
-                            end
-                            if iscell(value)
-                                value = value(:);
-                            end
-                            rowData = string(value(1:min(numel(value), fileRows)));
-                        else
-                            value = value(:);
-                            rowData = value(1:min(numel(value), fileRows));
-                            if info.isText
-                                rowData = string(num2str(rowData));
-                            end
-                        end
-                        h5write(savePath, datasetPath, rowData, [totalRows + 1], [numel(rowData)]);
-                    end
-                end
-            end
-            
-            totalRows = totalRows + fileRows;
-            clear meta fileData;
-        end
-        
-        if totalRows > 0
-            h5writeatt(savePath, '/', 'numRows', int64(totalRows));
-            h5writeatt(savePath, '/', 'numFields', int64(numel(selectedFields)));
-            for i = 1:numel(selectedFields)
-                h5writeatt(savePath, '/', sprintf('field_%d', i), selectedFields{i});
-            end
-            success = true;
-            debugState('metadataAnalysis', 'Successfully saved %d rows to HDF5 file', totalRows);
-        end
-    catch ME
-        debugState('metadataAnalysis', 'Failed to save HDF5 file: %s', ME.message);
-    end
-end
-
-function success = createAndSaveTable(collectedData, selectedFields, savePath)
-    success = false;
-    
-    [~, ~, ext] = fileparts(savePath);
-    success = saveToExcelStreaming(collectedData, selectedFields, savePath);
-end
-
 function success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath)
     success = false;
     
@@ -694,29 +449,17 @@ function success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath)
                 end
                 
                 if isempty(fieldInfo{fieldIdx})
-                    dims = size(value);
-                    fieldInfo{fieldIdx} = struct('isText', false, 'isMatrix', false, 'matrixDim', 0, 'maxSize', 0);
+                    fieldInfo{fieldIdx} = struct('isText', false, 'maxSize', 0);
                     if ischar(value) || isstring(value) || (iscell(value) && all(cellfun(@(x) ischar(x) || isstring(x), value(:))))
                         fieldInfo{fieldIdx}.isText = true;
                     end
-                    if numel(dims) == 2 && dims(1) > 1 && dims(2) > 1
-                        fieldInfo{fieldIdx}.isMatrix = true;
-                        fieldInfo{fieldIdx}.matrixDim = dims(1);
-                    end
                 end
                 
-                dims = size(value);
                 if isscalar(value)
                     fieldInfo{fieldIdx}.maxSize = max(fieldInfo{fieldIdx}.maxSize, 1);
-                elseif numel(dims) == 2
-                    if dims(1) == 1 || dims(2) == 1
-                        fieldInfo{fieldIdx}.maxSize = max(fieldInfo{fieldIdx}.maxSize, max(dims));
-                    else
-                        fieldInfo{fieldIdx}.maxSize = max(fieldInfo{fieldIdx}.maxSize, dims(2));
-                        fieldInfo{fieldIdx}.matrixDim = max(fieldInfo{fieldIdx}.matrixDim, dims(1));
-                    end
                 else
-                    fieldInfo{fieldIdx}.maxSize = max(fieldInfo{fieldIdx}.maxSize, numel(value));
+                    flattenedSize = numel(value);
+                    fieldInfo{fieldIdx}.maxSize = max(fieldInfo{fieldIdx}.maxSize, flattenedSize);
                 end
                 
                 globalMaxSize = max(globalMaxSize, fieldInfo{fieldIdx}.maxSize);
@@ -726,7 +469,7 @@ function success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath)
         
         for fieldIdx = 1:numel(selectedFields)
             if isempty(fieldInfo{fieldIdx})
-                fieldInfo{fieldIdx} = struct('isText', false, 'isMatrix', false, 'matrixDim', 0, 'maxSize', 0);
+                fieldInfo{fieldIdx} = struct('isText', false, 'maxSize', 0);
             end
         end
         
@@ -820,11 +563,15 @@ function flatTable = createFlatTableWithStructure(collectedData, selectedFields,
     numFiles = numel(collectedData.fileIds);
     numFields = numel(selectedFields);
     
+    debugState('metadataAnalysis', 'createFlatTableWithStructure: numFiles=%d, numFields=%d, globalMaxSize=%d', numFiles, numFields, globalMaxSize);
+    
     fileIdColumn = [];
     for fileIdx = 1:numFiles
         fileId = collectedData.fileIds(fileIdx);
         fileIdColumn = [fileIdColumn; repmat(fileId, globalMaxSize, 1)];
     end
+    
+    debugState('metadataAnalysis', 'createFlatTableWithStructure: fileIdColumn size=%d', numel(fileIdColumn));
     
     columnNames = {'File ID'};
     columnData = cell(0, 1);
@@ -832,127 +579,125 @@ function flatTable = createFlatTableWithStructure(collectedData, selectedFields,
     for fieldIdx = 1:numFields
         fieldName = selectedFields{fieldIdx};
         info = fieldInfo{fieldIdx};
+        axisColumnName = [fieldName, 'Axis'];
         
-        if info.isMatrix && info.matrixDim > 1
-            for subIdx = 1:info.matrixDim
-                subColumnName = sprintf('%s.%d', fieldName, subIdx);
-                columnNames{end+1} = subColumnName;
-                
-                if info.isText
-                    fieldColumn = cell(numel(fileIdColumn), 1);
-                else
-                    fieldColumn = nan(numel(fileIdColumn), 1);
-                end
-                
-                rowIdx = 1;
-                for fileIdx = 1:numFiles
-                    fileValues = collectedData.values{fileIdx};
-                    value = fileValues{fieldIdx};
-                    
-                    if isempty(value)
-                        actualSize = 0;
-                    else
-                        dims = size(value);
-                        if numel(dims) == 2 && dims(1) >= subIdx
-                            actualSize = min(dims(2), globalMaxSize);
-                            if actualSize > 0
-                                if info.isText
-                                    rowData = value(subIdx, 1:actualSize);
-                                    if iscell(rowData)
-                                        for vIdx = 1:actualSize
-                                            fieldColumn{rowIdx + vIdx - 1} = char(rowData{vIdx});
-                                        end
-                                    else
-                                        for vIdx = 1:actualSize
-                                            fieldColumn{rowIdx + vIdx - 1} = num2str(rowData(vIdx));
-                                        end
-                                    end
-                                else
-                                    fieldColumn(rowIdx:rowIdx+actualSize-1) = value(subIdx, 1:actualSize)';
-                                end
-                            end
-                        else
-                            actualSize = 0;
-                        end
-                    end
-                    
-                    rowIdx = rowIdx + globalMaxSize;
-                end
-                
-                columnData{end+1} = fieldColumn;
-            end
+        debugState('metadataAnalysis', 'createFlatTableWithStructure: Processing field %d/%d: %s (isText=%d, maxSize=%d)', fieldIdx, numFields, fieldName, info.isText, info.maxSize);
+        
+        columnNames{end+1} = fieldName;
+        columnNames{end+1} = axisColumnName;
+        
+        if info.isText
+            fieldColumn = cell(numel(fileIdColumn), 1);
         else
-            columnNames{end+1} = fieldName;
-            
-            if info.isText
-                fieldColumn = cell(numel(fileIdColumn), 1);
-            else
-                fieldColumn = nan(numel(fileIdColumn), 1);
-            end
-            
-            rowIdx = 1;
-            for fileIdx = 1:numFiles
+            fieldColumn = nan(numel(fileIdColumn), 1);
+        end
+        axisColumn = nan(numel(fileIdColumn), 1);
+        
+        debugState('metadataAnalysis', 'createFlatTableWithStructure: Created columns for field %s, sizes: fieldColumn=%d, axisColumn=%d', fieldName, numel(fieldColumn), numel(axisColumn));
+        
+        rowIdx = 1;
+        for fileIdx = 1:numFiles
+            try
                 fileValues = collectedData.values{fileIdx};
                 value = fileValues{fieldIdx};
                 
+                debugState('metadataAnalysis', 'createFlatTableWithStructure: File %d/%d, field %s, rowIdx=%d, value empty=%d', fileIdx, numFiles, fieldName, rowIdx, isempty(value));
+                
                 if isempty(value)
                     actualSize = 0;
+                    debugState('metadataAnalysis', 'createFlatTableWithStructure: Value is empty');
                 elseif isscalar(value)
-                    actualSize = 1;
+                    actualSize = globalMaxSize;
+                    endIdx = min(rowIdx + actualSize - 1, numel(fieldColumn));
+                    debugState('metadataAnalysis', 'createFlatTableWithStructure: Scalar value, actualSize=%d, endIdx=%d, fieldColumn size=%d', actualSize, endIdx, numel(fieldColumn));
+                    
                     if rowIdx <= numel(fieldColumn)
                         if info.isText
                             if ischar(value) || isstring(value)
-                                fieldColumn{rowIdx} = char(value);
+                                scalarValue = char(value);
                             else
-                                fieldColumn{rowIdx} = num2str(value);
+                                scalarValue = num2str(value);
+                            end
+                            for vIdx = rowIdx:endIdx
+                                if vIdx <= numel(fieldColumn)
+                                    fieldColumn{vIdx} = scalarValue;
+                                end
                             end
                         else
-                            fieldColumn(rowIdx) = value;
+                            debugState('metadataAnalysis', 'createFlatTableWithStructure: Setting scalar numeric value, rowIdx=%d, endIdx=%d', rowIdx, endIdx);
+                            fieldColumn(rowIdx:endIdx) = value;
                         end
+                        debugState('metadataAnalysis', 'createFlatTableWithStructure: Setting axis column for scalar, rowIdx=%d, endIdx=%d, axisColumn size=%d', rowIdx, endIdx, numel(axisColumn));
+                        axisColumn(rowIdx:endIdx) = 1;
+                    else
+                        debugState('metadataAnalysis', 'createFlatTableWithStructure: WARNING - rowIdx (%d) > fieldColumn size (%d)', rowIdx, numel(fieldColumn));
                     end
                 else
                     dims = size(value);
-                    if ischar(value) || isstring(value) || (iscell(value) && all(cellfun(@(x) ischar(x) || isstring(x), value(:))))
+                    
+                    if info.isText
+                        dimsChar = size(value);
                         if ischar(value)
-                            value = cellstr(value);
-                        elseif isstring(value)
-                            value = cellstr(value);
-                        end
-                        if iscell(value)
-                            value = value(:);
-                        end
-                        actualSize = min(numel(value), globalMaxSize);
-                        if actualSize > 0 && rowIdx <= numel(fieldColumn)
-                            endIdx = min(rowIdx + actualSize - 1, numel(fieldColumn));
-                            for vIdx = 1:min(actualSize, endIdx - rowIdx + 1)
-                                if rowIdx + vIdx - 1 <= numel(fieldColumn)
-                                    fieldColumn{rowIdx + vIdx - 1} = char(value{vIdx});
-                                end
+                            if dimsChar(1) == 1 && dimsChar(2) > 1
+                                flattened = {char(value)};
+                                actualSize = 1;
+                            else
+                                flattened = cellstr(value);
+                                flattened = flattened(:);
+                                actualSize = min(numel(flattened), globalMaxSize);
                             end
+                        elseif isstring(value)
+                            flattened = cellstr(value);
+                            flattened = flattened(:);
+                            actualSize = min(numel(flattened), globalMaxSize);
+                        else
+                            flattened = value(:);
+                            actualSize = min(numel(flattened), globalMaxSize);
                         end
                     else
-                        value = value(:);
-                        actualSize = min(numel(value), globalMaxSize);
-                        if actualSize > 0 && rowIdx <= numel(fieldColumn)
-                            endIdx = min(rowIdx + actualSize - 1, numel(fieldColumn));
-                            if info.isText
-                                for vIdx = 1:min(actualSize, endIdx - rowIdx + 1)
-                                    if rowIdx + vIdx - 1 <= numel(fieldColumn)
-                                        fieldColumn{rowIdx + vIdx - 1} = num2str(value(vIdx));
-                                    end
+                        flattened = value(:);
+                        actualSize = min(numel(flattened), globalMaxSize);
+                    end
+                    
+                    debugState('metadataAnalysis', 'createFlatTableWithStructure: Non-scalar value, dims=%s, flattened size=%d, actualSize=%d, rowIdx=%d, fieldColumn size=%d', mat2str(dims), numel(flattened), actualSize, rowIdx, numel(fieldColumn));
+                    
+                    if actualSize > 0 && rowIdx <= numel(fieldColumn)
+                        endIdx = min(rowIdx + actualSize - 1, numel(fieldColumn));
+                        debugState('metadataAnalysis', 'createFlatTableWithStructure: endIdx=%d', endIdx);
+                        
+                        if info.isText
+                            debugState('metadataAnalysis', 'createFlatTableWithStructure: Text processing, dims=%s, flattened size=%d, actualSize=%d', mat2str(dimsChar), numel(flattened), actualSize);
+                            numToCopy = min([actualSize, endIdx - rowIdx + 1, numel(flattened)]);
+                            debugState('metadataAnalysis', 'createFlatTableWithStructure: numToCopy=%d, rowIdx=%d, endIdx=%d, fieldColumn size=%d', numToCopy, rowIdx, endIdx, numel(fieldColumn));
+                            for vIdx = 1:numToCopy
+                                if rowIdx + vIdx - 1 <= numel(fieldColumn) && vIdx <= numel(flattened)
+                                    fieldColumn{rowIdx + vIdx - 1} = char(flattened{vIdx});
                                 end
-                            else
-                                fieldColumn(rowIdx:endIdx) = value(1:min(actualSize, endIdx - rowIdx + 1));
                             end
+                        else
+                            debugState('metadataAnalysis', 'createFlatTableWithStructure: Numeric processing, setting fieldColumn(rowIdx:endIdx), rowIdx=%d, endIdx=%d, flattened size=%d', rowIdx, endIdx, numel(flattened));
+                            fieldColumn(rowIdx:endIdx) = flattened(1:min(actualSize, endIdx - rowIdx + 1));
                         end
+                        
+                        debugState('metadataAnalysis', 'createFlatTableWithStructure: Generating axis indices, dims=%s, actualSize=%d', mat2str(dims), actualSize);
+                        axisIndices = generateAxisIndices(dims, actualSize);
+                        debugState('metadataAnalysis', 'createFlatTableWithStructure: Generated axis indices, size=%d, setting axisColumn(rowIdx:endIdx), rowIdx=%d, endIdx=%d, axisColumn size=%d', numel(axisIndices), rowIdx, endIdx, numel(axisColumn));
+                        axisColumn(rowIdx:endIdx) = axisIndices(1:min(actualSize, endIdx - rowIdx + 1));
+                    else
+                        debugState('metadataAnalysis', 'createFlatTableWithStructure: Skipping - actualSize=%d or rowIdx (%d) > fieldColumn size (%d)', actualSize, rowIdx, numel(fieldColumn));
                     end
                 end
-                
-                rowIdx = rowIdx + globalMaxSize;
+            catch ME
+                debugState('metadataAnalysis', 'createFlatTableWithStructure: ERROR at file %d/%d, field %s, rowIdx=%d: %s', fileIdx, numFiles, fieldName, rowIdx, ME.message);
+                debugState('metadataAnalysis', 'createFlatTableWithStructure: Stack trace: %s', getReport(ME));
+                rethrow(ME);
             end
             
-            columnData{end+1} = fieldColumn;
+            rowIdx = rowIdx + globalMaxSize;
         end
+        
+        columnData{end+1} = fieldColumn;
+        columnData{end+1} = axisColumn;
     end
     
     totalRows = numel(fileIdColumn);
@@ -975,278 +720,31 @@ function flatTable = createFlatTableWithStructure(collectedData, selectedFields,
     flatTable = table(tableData{:}, 'VariableNames', columnNames);
 end
 
-
-function success = saveToExcelStreaming(collectedData, selectedFields, savePath)
-    success = false;
+function indices = generateAxisIndices(dims, numElements)
+    debugState('metadataAnalysis', 'generateAxisIndices: dims=%s, numElements=%d', mat2str(dims), numElements);
     
-    if isempty(collectedData.fileIds)
-        return
-    end
-    
-    numFiles = numel(collectedData.fileIds);
-    numFields = numel(selectedFields);
-    
-    debugState('metadataAnalysis', 'Analyzing field sizes');
-    fieldInfo = analyzeFieldSizes(collectedData, selectedFields, numFiles, numFields);
-    globalMaxSize = getGlobalMaxSize(fieldInfo);
-    
-    if globalMaxSize == 0
-        return
-    end
-    
-    debugState('metadataAnalysis', 'Global max size: %d, files: %d', globalMaxSize, numFiles);
-    
-    try
-        maxRowsPerBatch = 10000;
-        maxRowsPerSheet = 1048576;
-        
-        totalRows = numFiles * globalMaxSize;
-        numSheets = ceil(totalRows / maxRowsPerSheet);
-        
-        debugState('metadataAnalysis', 'Total rows: %d, will create %d sheet(s)', totalRows, numSheets);
-        
-        for sheetIdx = 1:numSheets
-            sheetStartRow = (sheetIdx - 1) * maxRowsPerSheet + 1;
-            sheetEndRow = min(sheetIdx * maxRowsPerSheet, totalRows);
-            sheetName = sprintf('Sheet%d', sheetIdx);
-            
-            debugState('metadataAnalysis', 'Creating sheet %d/%d: rows %d-%d', sheetIdx, numSheets, sheetStartRow, sheetEndRow);
-            
-            fileStartIdx = ceil(sheetStartRow / globalMaxSize);
-            fileEndIdx = min(ceil(sheetEndRow / globalMaxSize), numFiles);
-            
-            sheetTable = createTableBatch(collectedData, selectedFields, fieldInfo, globalMaxSize, ...
-                fileStartIdx, fileEndIdx, sheetStartRow, sheetEndRow);
-            
-            if ~isempty(sheetTable)
-                writetable(sheetTable, savePath, 'Sheet', sheetName);
-                clear sheetTable;
-            end
-        end
-        
-        success = true;
-    catch ME
-        debugState('metadataAnalysis', 'Failed to save Excel file: %s', ME.message);
-    end
-end
-
-function fieldInfo = analyzeFieldSizes(collectedData, selectedFields, numFiles, numFields)
-    fieldInfo = cell(numFields, 1);
-    
-    for fieldIdx = 1:numFields
-        fieldMaxSize = 0;
-        fieldIsMatrix = false;
-        matrixDim = 0;
-        fieldIsText = false;
-        
-        for fileIdx = 1:numFiles
-            fileValues = collectedData.values{fileIdx};
-            value = fileValues{fieldIdx};
-            if isempty(value)
-                continue
-            end
-            
-            if ischar(value) || isstring(value) || iscellstr(value)
-                fieldIsText = true;
-            end
-            
-            dims = size(value);
-            if isscalar(value)
-                fieldMaxSize = max(fieldMaxSize, 1);
-            elseif numel(dims) == 2
-                if dims(1) == 1 || dims(2) == 1
-                    fieldMaxSize = max(fieldMaxSize, max(dims));
+    if numel(dims) == 2 && dims(1) > 1 && dims(2) > 1
+        debugState('metadataAnalysis', 'generateAxisIndices: Matrix case, dims(1)=%d, dims(2)=%d', dims(1), dims(2));
+        indices = zeros(numElements, 1);
+        idx = 1;
+        for col = 1:dims(2)
+            for row = 1:dims(1)
+                if idx <= numElements
+                    indices(idx) = col;
+                    idx = idx + 1;
                 else
-                    fieldMaxSize = max(fieldMaxSize, dims(2));
-                    if ~fieldIsMatrix
-                        fieldIsMatrix = true;
-                        matrixDim = dims(1);
-                    else
-                        matrixDim = max(matrixDim, dims(1));
-                    end
-                end
-            else
-                fieldMaxSize = max(fieldMaxSize, numel(value));
-            end
-        end
-        
-        fieldInfo{fieldIdx} = struct('maxSize', fieldMaxSize, 'isMatrix', fieldIsMatrix, ...
-            'matrixDim', matrixDim, 'isText', fieldIsText);
-    end
-end
-
-function globalMaxSize = getGlobalMaxSize(fieldInfo)
-    globalMaxSize = 0;
-    for i = 1:numel(fieldInfo)
-        globalMaxSize = max(globalMaxSize, fieldInfo{i}.maxSize);
-    end
-end
-
-function batchTable = createTableBatch(collectedData, selectedFields, fieldInfo, globalMaxSize, ...
-    fileStartIdx, fileEndIdx, sheetStartRow, sheetEndRow)
-    
-    numFiles = fileEndIdx - fileStartIdx + 1;
-    numFields = numel(selectedFields);
-    
-    fileIdColumn = [];
-    for fileIdx = fileStartIdx:fileEndIdx
-        fileId = collectedData.fileIds(fileIdx);
-        fileIdColumn = [fileIdColumn; repmat(fileId, globalMaxSize, 1)];
-    end
-    
-    batchStartRow = (fileStartIdx - 1) * globalMaxSize + 1;
-    batchEndRow = fileEndIdx * globalMaxSize;
-    
-    actualStartRow = max(1, sheetStartRow - batchStartRow + 1);
-    actualEndRow = min(numel(fileIdColumn), sheetEndRow - batchStartRow + 1);
-    
-    if actualStartRow > actualEndRow || actualStartRow > numel(fileIdColumn)
-        batchTable = [];
-        return
-    end
-    
-    fileIdColumn = fileIdColumn(actualStartRow:actualEndRow);
-    
-    columnNames = {'File ID'};
-    columnData = cell(0, 1);
-    
-    for fieldIdx = 1:numFields
-        fieldName = selectedFields{fieldIdx};
-        info = fieldInfo{fieldIdx};
-        
-        if info.isMatrix && info.matrixDim > 1
-            for subIdx = 1:info.matrixDim
-                subColumnName = sprintf('%s.%d', fieldName, subIdx);
-                columnNames{end+1} = subColumnName;
-                
-                if info.isText
-                    fieldColumn = cell(numel(fileIdColumn), 1);
-                else
-                    fieldColumn = nan(numel(fileIdColumn), 1);
-                end
-                
-                rowIdx = 1;
-                for fileIdx = fileStartIdx:fileEndIdx
-                    fileValues = collectedData.values{fileIdx};
-                    value = fileValues{fieldIdx};
-                    
-                    if isempty(value)
-                        actualSize = 0;
-                    else
-                        dims = size(value);
-                        if numel(dims) == 2 && dims(1) >= subIdx
-                            actualSize = min(dims(2), globalMaxSize);
-                            if actualSize > 0 && rowIdx <= numel(fieldColumn)
-                                endIdx = min(rowIdx + actualSize - 1, numel(fieldColumn));
-                                if info.isText
-                                    rowData = value(subIdx, 1:min(actualSize, endIdx - rowIdx + 1));
-                                    if iscell(rowData)
-                                        for vIdx = 1:min(actualSize, endIdx - rowIdx + 1)
-                                            if rowIdx + vIdx - 1 <= numel(fieldColumn)
-                                                fieldColumn{rowIdx + vIdx - 1} = char(rowData{vIdx});
-                                            end
-                                        end
-                                    else
-                                        for vIdx = 1:min(actualSize, endIdx - rowIdx + 1)
-                                            if rowIdx + vIdx - 1 <= numel(fieldColumn)
-                                                fieldColumn{rowIdx + vIdx - 1} = num2str(rowData(vIdx));
-                                            end
-                                        end
-                                    end
-                                else
-                                    fieldColumn(rowIdx:endIdx) = value(subIdx, 1:min(actualSize, endIdx - rowIdx + 1))';
-                                end
-                            end
-                        else
-                            actualSize = 0;
-                        end
-                    end
-                    
-                    rowIdx = rowIdx + globalMaxSize;
-                    if rowIdx > numel(fieldColumn)
-                        break
-                    end
-                end
-                
-                columnData{end+1} = fieldColumn;
-            end
-        else
-            columnNames{end+1} = fieldName;
-            
-            if info.isText
-                fieldColumn = cell(numel(fileIdColumn), 1);
-            else
-                fieldColumn = nan(numel(fileIdColumn), 1);
-            end
-            
-            rowIdx = 1;
-            for fileIdx = fileStartIdx:fileEndIdx
-                fileValues = collectedData.values{fileIdx};
-                value = fileValues{fieldIdx};
-                
-                if isempty(value)
-                    actualSize = 0;
-                elseif isscalar(value)
-                    actualSize = 1;
-                    if rowIdx <= numel(fieldColumn)
-                        if info.isText
-                            if ischar(value) || isstring(value)
-                                fieldColumn{rowIdx} = char(value);
-                            else
-                                fieldColumn{rowIdx} = num2str(value);
-                            end
-                        else
-                            fieldColumn(rowIdx) = value;
-                        end
-                    end
-                else
-                    dims = size(value);
-                    if ischar(value) || isstring(value) || (iscell(value) && all(cellfun(@(x) ischar(x) || isstring(x), value(:))))
-                        if ischar(value)
-                            value = cellstr(value);
-                        elseif isstring(value)
-                            value = cellstr(value);
-                        end
-                        if iscell(value)
-                            value = value(:);
-                        end
-                        actualSize = min(numel(value), globalMaxSize);
-                        if actualSize > 0 && rowIdx <= numel(fieldColumn)
-                            endIdx = min(rowIdx + actualSize - 1, numel(fieldColumn));
-                            for vIdx = 1:min(actualSize, endIdx - rowIdx + 1)
-                                if rowIdx + vIdx - 1 <= numel(fieldColumn)
-                                    fieldColumn{rowIdx + vIdx - 1} = char(value{vIdx});
-                                end
-                            end
-                        end
-                    else
-                        value = value(:);
-                        actualSize = min(numel(value), globalMaxSize);
-                        if actualSize > 0 && rowIdx <= numel(fieldColumn)
-                            endIdx = min(rowIdx + actualSize - 1, numel(fieldColumn));
-                            if info.isText
-                                for vIdx = 1:min(actualSize, endIdx - rowIdx + 1)
-                                    if rowIdx + vIdx - 1 <= numel(fieldColumn)
-                                        fieldColumn{rowIdx + vIdx - 1} = num2str(value(vIdx));
-                                    end
-                                end
-                            else
-                                fieldColumn(rowIdx:endIdx) = value(1:min(actualSize, endIdx - rowIdx + 1));
-                            end
-                        end
-                    end
-                end
-                
-                rowIdx = rowIdx + globalMaxSize;
-                if rowIdx > numel(fieldColumn)
+                    debugState('metadataAnalysis', 'generateAxisIndices: WARNING - idx (%d) > numElements (%d)', idx, numElements);
                     break
                 end
             end
-            
-            columnData{end+1} = fieldColumn;
+            if idx > numElements
+                break
+            end
         end
+        debugState('metadataAnalysis', 'generateAxisIndices: Generated %d indices', numel(indices));
+    else
+        debugState('metadataAnalysis', 'generateAxisIndices: Vector/scalar case, creating ones');
+        indices = ones(numElements, 1);
+        debugState('metadataAnalysis', 'generateAxisIndices: Generated %d indices', numel(indices));
     end
-    
-    tableData = [{fileIdColumn}, columnData];
-    batchTable = table(tableData{:}, 'VariableNames', columnNames);
 end
