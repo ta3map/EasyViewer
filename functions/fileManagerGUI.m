@@ -96,7 +96,7 @@ function fileManagerGUI()
     filterByModuleCheckbox = uicontrol('Style', 'checkbox', ...
         'Position', [610, 265, 120, 20], ...
         'String', 'Filter by module', ...
-        'Value', 1, ...
+        'Value', 0, ...
         'Callback', @filterByModuleChanged);
     
     moduleSelect = uicontrol('Style', 'popupmenu', ...
@@ -706,7 +706,6 @@ function fileManagerGUI()
             debugState('fileManagerGUI', 'Module %s %d/%d: %s', moduleAction, idx, numel(rows), filePath);
             result = callModules(moduleAction, filePath);
             if ~isempty(result) && isstruct(result)
-                logAnalysisResult(state.files(rowIdx).id, result);
                 updateAnalysisTable(state.files(rowIdx).id);
             end
         end
@@ -742,36 +741,6 @@ function fileManagerGUI()
         modules = unique(names);
     end
 
-    function logAnalysisResult(fileId, result)
-        if isempty(fileId) || isempty(result)
-            return
-        end
-        try
-            paramsJson = '';
-            if isfield(result, 'parameters') && ~isempty(result.parameters)
-                paramsJson = jsonencode(result.parameters);
-            end
-            moduleName = valueOrDefault(result, 'module_name', 'macro');
-            moduleDisplay = valueOrDefault(result, 'module_display_name', moduleName);
-            moduleDesc = valueOrDefault(result, 'module_description', '');
-            reportPath = valueOrDefault(result, 'report_path', '');
-            analysisTs = round(posixtime(datetime('now'))*1000);
-            query = sprintf(['INSERT INTO analysis_results (file_id, module_name, module_display_name, module_description, ' ...
-                'analysis_timestamp, report_path, parameters_json, created_at) VALUES (%d, ''%s'', ''%s'', ''%s'', %d, ''%s'', ''%s'', CURRENT_TIMESTAMP)'], ...
-                fileId, escapeSql(moduleName), escapeSql(moduleDisplay), escapeSql(moduleDesc), analysisTs, escapeSql(reportPath), escapeSql(paramsJson));
-            sqlExec(query);
-        catch ME
-            debugState('fileManagerGUI', 'Failed to log analysis result: %s', ME.message);
-        end
-    end
-
-    function val = valueOrDefault(structVar, fieldName, defaultVal)
-        if isfield(structVar, fieldName) && ~isempty(structVar.(fieldName))
-            val = structVar.(fieldName);
-        else
-            val = defaultVal;
-        end
-    end
     
     function updateAnalysisTable(fileId)
         if ~exist('analysisTable', 'var') || ~ishandle(analysisTable)
@@ -944,10 +913,23 @@ function fileManagerGUI()
         if isempty(paths)
             return
         end
-        escaped = cellfun(@(p) ['''' escapeSql(p) ''''], paths, 'UniformOutput', false);
-        inClause = strjoin(escaped, ',');
-        query = sprintf('DELETE FROM analysis_results WHERE report_path IN (%s)', inClause);
-        sqlExec(query);
+        dbPath = getDbPath();
+        if isempty(dbPath) || ~isfile(dbPath)
+            return
+        end
+        conn = openSqliteConnection(dbPath);
+        if isempty(conn)
+            return
+        end
+        try
+            escaped = cellfun(@(p) ['''' escapeSql(p) ''''], paths, 'UniformOutput', false);
+            inClause = strjoin(escaped, ',');
+            query = sprintf('DELETE FROM analysis_results WHERE report_path IN (%s)', inClause);
+            sqlExecWithConn(conn, query);
+        catch ME
+            warning('Failed to delete records: %s', ME.message);
+        end
+        closeJdbcResource(conn);
     end
     
     function deleteIfExists(pathStr)
@@ -1247,24 +1229,6 @@ function shortPath = truncatePath(fullPath)
     shortPath = ['...', fullPath(end-maxLen+4:end)];
 end
 
-function path = initDbPath()
-    global FileManagerDbPath
-    stored = readStoredDbPath();
-    if ~isempty(stored) && isfile(stored)
-        FileManagerDbPath = stored;
-        path = stored;
-        return
-    end
-    defaultPath = defaultDbPath();
-    if isfile(defaultPath)
-        FileManagerDbPath = defaultPath;
-        storeDbPath(defaultPath);
-        path = defaultPath;
-    else
-        FileManagerDbPath = '';
-        path = '';
-    end
-end
 
 function projects = fetchProjects()
     rows = sqlFetch('SELECT id, name FROM projects ORDER BY created_at DESC');
@@ -1455,69 +1419,6 @@ function metadata = launchFile(filePath)
     end
 end
 
-function rows = sqlFetch(query)
-    dbPath = getDbPath();
-    if isempty(dbPath) || ~isfile(dbPath)
-        warning('Database not found: %s', dbPath);
-        rows = {};
-        return
-    end
-    conn = openSqliteConnection(dbPath);
-    if isempty(conn)
-        rows = {};
-        return
-    end
-    rows = sqlFetchWithConn(conn, query);
-    closeJdbcResource(conn);
-end
-
-function rows = sqlFetchWithConn(conn, query)
-    rows = {};
-    if isempty(conn)
-        return
-    end
-    stmt = [];
-    rs = [];
-    try
-        stmt = conn.createStatement();
-        rs = stmt.executeQuery(query);
-        rows = jdbcResultToCell(rs);
-    catch ME
-        warning('SQL fetch error: %s', ME.message);
-        rows = {};
-    end
-    closeJdbcResource(rs);
-    closeJdbcResource(stmt);
-end
-
-function sqlExec(query)
-    dbPath = getDbPath();
-    if isempty(dbPath) || ~isfile(dbPath)
-        warning('Database not found: %s', dbPath);
-        return
-    end
-    conn = openSqliteConnection(dbPath);
-    if isempty(conn)
-        return
-    end
-    stmt = [];
-    try
-        stmt = conn.createStatement();
-        stmt.executeUpdate(query);
-    catch ME
-        warning('SQL exec error: %s', ME.message);
-    end
-    closeJdbcResource(stmt);
-    closeJdbcResource(conn);
-end
-
-function dbPath = getDbPath()
-    global FileManagerDbPath
-    if isempty(FileManagerDbPath)
-        FileManagerDbPath = initDbPath();
-    end
-    dbPath = FileManagerDbPath;
-end
 
 function autoBackupDatabase()
     dbPath = getDbPath();
@@ -1566,178 +1467,6 @@ function autoBackupDatabase()
     end
 end
 
-function path = defaultDbPath()
-    currentFile = mfilename('fullpath');
-    projectRoot = fileparts(fileparts(fileparts(currentFile)));
-    path = fullfile(projectRoot, 'instance', 'app.db');
-end
-
-function conn = openSqliteConnection(dbPath)
-    persistent driverInstance driverLoaded
-    conn = [];
-    if isempty(dbPath)
-        return
-    end
-    driverPath = fullfile(fileparts(mfilename('fullpath')), 'sqlite-jdbc.jar');
-    driverPath = char(java.io.File(driverPath).getAbsolutePath());
-    
-    if isempty(driverLoaded) || ~driverLoaded || isempty(driverInstance)
-        if ~jdbcDriverLoaded(driverPath)
-            return
-        end
-        try
-            javaaddpath(driverPath);
-            driverInstance = javaObject('org.sqlite.JDBC');
-            driverLoaded = true;
-            debugState('fileManagerGUI', 'SQLite driver loaded via javaaddpath');
-        catch ME
-            warning('Failed to load SQLite driver: %s', ME.message);
-            driverLoaded = false;
-            driverInstance = [];
-            return
-        end
-    end
-    
-    try
-        dbUrl = ['jdbc:sqlite:' strrep(dbPath, '\', '/')];
-        props = java.util.Properties();
-        conn = driverInstance.connect(dbUrl, props);
-    catch ME
-        warning('SQLite connection error: %s', ME.message);
-        debugState('fileManagerGUI', 'Connection failed: %s', ME.message);
-        conn = [];
-        driverLoaded = false;
-        driverInstance = [];
-    end
-end
-
-function loaded = jdbcDriverLoaded(driverPath)
-    loaded = false;
-    driverPath = char(driverPath);
-    if ~isfile(driverPath)
-        warning('JDBC driver not found: %s', driverPath);
-        return
-    end
-    loaded = true;
-end
-
-function rows = jdbcResultToCell(resultSet)
-    rows = {};
-    if isempty(resultSet)
-        return
-    end
-    try
-        meta = resultSet.getMetaData();
-        colCount = double(meta.getColumnCount());
-        data = cell(0, colCount);
-        rowIdx = 1;
-        while resultSet.next()
-            row = cell(1, colCount);
-            for col = 1:colCount
-                value = getResultSetValue(resultSet, meta, col);
-                row{col} = value;
-            end
-            data(rowIdx, :) = row;
-            rowIdx = rowIdx + 1;
-        end
-        rows = data;
-    catch ME
-        warning('SQL result reading error: %s', ME.message);
-        rows = {};
-    end
-end
-
-function value = getResultSetValue(resultSet, meta, col)
-    value = [];
-    try
-        typeName = char(meta.getColumnTypeName(col));
-        switch lower(typeName)
-            case {'integer', 'int', 'bigint'}
-                val = resultSet.getLong(col);
-                if resultSet.wasNull()
-                    value = [];
-                else
-                    value = double(val);
-                end
-            case {'real', 'double', 'float', 'numeric'}
-                val = resultSet.getDouble(col);
-                if resultSet.wasNull()
-                    value = [];
-                else
-                    value = double(val);
-                end
-            case {'text', 'varchar', 'char'}
-                val = resultSet.getString(col);
-                if isempty(val) || resultSet.wasNull()
-                    value = [];
-                else
-                    value = char(val);
-                end
-            case {'blob'}
-                val = resultSet.getBytes(col);
-                if isempty(val) || resultSet.wasNull()
-                    value = [];
-                else
-                    value = val;
-                end
-            otherwise
-                val = resultSet.getString(col);
-                if isempty(val) || resultSet.wasNull()
-                    value = [];
-                else
-                    value = char(val);
-                end
-        end
-    catch
-        try
-            obj = resultSet.getObject(col);
-            if isempty(obj) || resultSet.wasNull()
-                value = [];
-            else
-                value = char(obj.toString());
-            end
-        catch
-            value = [];
-        end
-    end
-end
-
-function value = convertJdbcValue(javaValue)
-    if isempty(javaValue)
-        value = [];
-        return
-    end
-    if isa(javaValue, 'java.lang.Integer') || isa(javaValue, 'java.lang.Long') || isa(javaValue, 'java.lang.Short')
-        value = double(javaValue);
-    elseif isa(javaValue, 'java.math.BigDecimal')
-        value = double(javaValue.doubleValue());
-    elseif isa(javaValue, 'java.lang.Double')
-        value = double(javaValue);
-    elseif isa(javaValue, 'java.lang.Boolean')
-        value = logical(javaValue);
-    elseif isa(javaValue, 'java.lang.String')
-        value = char(javaValue);
-    else
-        value = char(javaValue.toString());
-    end
-end
-
-function closeJdbcResource(object)
-    if isempty(object)
-        return
-    end
-    try
-        object.close();
-    catch
-    end
-end
-
-function text = escapeSql(text)
-    if isempty(text)
-        return
-    end
-    text = strrep(text, '''', '''''');
-end
 
 function projectId = readStoredProjectId()
     global SettingsFilepath
@@ -1769,32 +1498,3 @@ function storeCurrentProjectId(projectId)
     end
 end
 
-function storeDbPath(dbPath)
-    global SettingsFilepath
-    try
-        if exist(SettingsFilepath, 'file')
-            data = load(SettingsFilepath);
-        else
-            data = struct();
-        end
-        data.file_manager_db_path = dbPath;
-        save(SettingsFilepath, '-struct', 'data');
-    catch ME
-        warning('Failed to save database path: %s', ME.message);
-    end
-end
-
-function path = readStoredDbPath()
-    global SettingsFilepath
-    path = '';
-    try
-        if exist(SettingsFilepath, 'file')
-            data = load(SettingsFilepath, 'file_manager_db_path');
-            if isfield(data, 'file_manager_db_path')
-                path = data.file_manager_db_path;
-            end
-        end
-    catch
-        path = '';
-    end
-end

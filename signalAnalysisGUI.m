@@ -2572,6 +2572,19 @@ updateCursorEditFields();
             fprintf('  Metadata: %s\n', meta_path);
             fprintf('  Total records: %d\n', length(slope_measurement_results));
             
+            % Сохраняем результат анализа в базу данных
+            if ~isempty(matFilePath)
+                result = struct( ...
+                    'module_name', 'signalAnalysis', ...
+                    'module_display_name', 'Signal Analysis', ...
+                    'module_description', 'Анализ сигнала с измерениями slope, peak, onset', ...
+                    'report_path', excel_path, ...
+                    'parameters', struct('total_records', length(slope_measurement_results), ...
+                                         'meta_path', meta_path));
+                logAnalysisResult(matFilePath, result);
+                fprintf('  Analysis result saved to database\n');
+            end
+            
         catch ME
             fprintf('❌ Error saving: %s\n', ME.message);
         end
@@ -3349,9 +3362,14 @@ updateCursorEditFields();
         end
     end
     
-    function openFile(~, ~)
+    function metadata = openFile(varargin)
         % Открывает новый файл для анализа (аналогично OpenZavLfpFile из signalViewerGUI.m)
-        if ~isempty(outside_calling_filepath)
+        metadata = struct('hd', [], 'stims', [], 'filePath', '');
+        
+        % Определяем filepath из аргументов или глобальной переменной
+        if nargin > 0 && ~isempty(varargin{1}) && (ischar(varargin{1}) || isstring(varargin{1}))
+            filepath = char(varargin{1});
+        elseif ~isempty(outside_calling_filepath)
             filepath = outside_calling_filepath;
             outside_calling_filepath = [];
         else
@@ -3493,9 +3511,15 @@ updateCursorEditFields();
             fprintf('  Sampling rate: %.1f Hz\n', Fs);
             fprintf('  Duration: %.3f s\n', time(end));
             
+            % Возвращаем метаданные для совместимости с launchFile
+            metadata.hd = hd;
+            metadata.stims = stims;
+            metadata.filePath = filepath;
+            
         catch ME
             fprintf('❌ Error loading file: %s\n', ME.message);
             % Восстанавливаем предыдущие данные если загрузка не удалась
+            metadata = struct('hd', [], 'stims', [], 'filePath', '');
             return;
         end
     end

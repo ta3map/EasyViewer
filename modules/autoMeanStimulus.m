@@ -17,5 +17,7 @@ function result = autoMeanStimulus(filePath)
         'report_path', imagePath, ...
         'data_path', dataPath, ...
         'parameters', opts);
+    
+    logAnalysisResult(filePath, result);
 end
 
