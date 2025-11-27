@@ -697,28 +697,46 @@ function fileManagerGUI()
         moduleName = get(moduleSelect, 'String');
         moduleIdx = get(moduleSelect, 'Value');
         moduleAction = moduleName{moduleIdx};
+        
+        % Показываем GUI для редактирования параметров модуля один раз перед обработкой всех файлов
+        try
+            editModuleParamsGUI(moduleAction);
+        catch ME
+            debugState('fileManagerGUI', 'Failed to open parameter editor: %s', ME.message);
+            % Продолжаем выполнение с параметрами по умолчанию
+        end
+        
+        % Обработка всех выбранных файлов
         for idx = 1:numel(rows)
             rowIdx = rows(idx);
             if rowIdx < 1 || rowIdx > numel(state.files)
                 continue
             end
             filePath = state.files(rowIdx).path;
+            fileId = state.files(rowIdx).id;
             debugState('fileManagerGUI', 'Module %s %d/%d: %s', moduleAction, idx, numel(rows), filePath);
-            result = callModules(moduleAction, filePath);
+            result = callModules(moduleAction, filePath, fileId);
             if ~isempty(result) && isstruct(result)
                 updateAnalysisTable(state.files(rowIdx).id);
             end
         end
     end
     
-    function result = callModules(action, filePath)
+    function result = callModules(action, filePath, fileId)
         result = [];
         if nargin < 2
             filePath = '';
         end
+        if nargin < 3
+            fileId = [];
+        end
         try
             macroFunc = str2func(action);
-            result = macroFunc(filePath);
+            if nargin(macroFunc) >= 2
+                result = macroFunc(filePath, fileId);
+            else
+                result = macroFunc(filePath);
+            end
         catch ME
             debugState('fileManagerGUI', 'Module call failed: %s (%s)', action, ME.message);
         end

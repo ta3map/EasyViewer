@@ -48,7 +48,15 @@ function [f, calculation_result] = plotMeanEvents(params)
     meanData = zeros(round(meanWindow * Fs), size(lfp, 2));
     numEvents = length(timePoints);
     
-    lfp(:, mean_group_ch) = lfp(:, mean_group_ch) - nanmean(lfp(:, mean_group_ch), 2); % вычитание выбранных средних каналов
+    removeBaseline = isfield(params, 'removeBaseline') && logical(params.removeBaseline);
+    
+    if removeBaseline
+        lfp(:, mean_group_ch) = lfp(:, mean_group_ch) - nanmean(lfp(:, mean_group_ch), 2); % вычитание выбранных средних каналов
+    end
+    
+    ch_enabled = false(length(ch_labels), 1);    
+    ch_enabled(activeChannels) = true;
+    originalEventsData = {}; % Сохраняем данные каждого события отдельно
     
     for i = 1:numEvents
         % Вычисление индексов окна вокруг временной точки
@@ -56,9 +64,20 @@ function [f, calculation_result] = plotMeanEvents(params)
         windowStart = max(eventIdx - round(meanWindow * Fs / 2), 1);
         windowEnd = min(windowStart + round(meanWindow * Fs) - 1, N);
 
-        if windowEnd < size(lfp, 1)                  
+        if windowEnd < size(lfp, 1)
+            eventDataRaw = lfp(windowStart:windowEnd, :);
+            if removeBaseline
+                eventDataProcessed = eventDataRaw - nanmedian(eventDataRaw);
+            else
+                eventDataProcessed = eventDataRaw;
+            end
+            
             % Добавление данных в среднее
-            meanData = meanData + lfp(windowStart:windowEnd, :) - nanmedian(lfp(windowStart:windowEnd, :));
+            meanData = meanData + eventDataProcessed;
+            
+            % Сохраняем обработанные данные события для возможной детекции
+            eventDataScaled = eventDataProcessed(:, ch_enabled) .* scalingCoefficients(ch_enabled);
+            originalEventsData{end+1} = eventDataScaled;
         end
     end
 
@@ -119,9 +138,6 @@ function [f, calculation_result] = plotMeanEvents(params)
 
     start_time = -meanWindow / 2;
     end_time = meanWindow / 2;
-    
-    ch_enabled = false(length(ch_labels), 1);    
-    ch_enabled(activeChannels) = true;
 
     timeAxis = linspace(start_time, end_time, size(meanData, 1))*timeUnitFactor;% время в секундах
     pl_meanData =  meanData.* scalingCoefficients;
@@ -135,13 +151,41 @@ function [f, calculation_result] = plotMeanEvents(params)
     
     numChannels = size(pl_meanData, 2);
     
-    ax = axes('Position', [0.13,0.11,0.72,0.82]); % основная ось
+    % Используем tiledlayout для основной оси
+    if isfield(params, 'tiledlayout')
+        t = params.tiledlayout;
+        % Проверяем размер tiledlayout и используем соответствующий размер тайла
+        gridSize = t.GridSize;
+        if gridSize(1) >= 2
+            % Если есть минимум 2 строки, используем [2, 1]
+            ax = nexttile(t, [2, 1]);
+        else
+            % Если только 1 строка, используем [1, 1]
+            ax = nexttile(t);
+        end
+    else
+        ax = axes('Position', [0.13,0.11,0.72,0.82]); % fallback для обратной совместимости
+    end
     hold on  
         
      % Initialize offsets array
     offsets = zeros(1, numChannels);
     for p = 1:numChannels
         offsets(p) = -(p-1) * pl_shiftCoeff;
+    end
+    
+    showOriginalTraces = isfield(params, 'showOriginalTraces') && logical(params.showOriginalTraces);
+    allOriginalData = [];
+    if showOriginalTraces && not(show_CSD)
+        for i = 1:length(originalEventsData)
+            eventData = originalEventsData{i};
+            allOriginalData = [allOriginalData; eventData];
+            
+            for chIdx = 1:numChannels
+                plot(timeAxis, eventData(:, chIdx) + offsets(chIdx), ...
+                    'Color', [0.7 0.7 0.7], 'LineWidth', 0.3);
+            end
+        end
     end
     
     if show_CSD        % режим показа CSD
@@ -235,7 +279,12 @@ end
     if autoScale
         debugState('plotMeanEvents', 'Auto scale enabled');
         shiftedData = pl_meanData + offsets;
-        dataRange = [min(shiftedData(:)), max(shiftedData(:))];
+        if showOriginalTraces && not(isempty(allOriginalData))
+            shiftedOriginalData = allOriginalData + repmat(offsets, size(allOriginalData, 1), 1);
+            dataRange = [min([shiftedData(:); shiftedOriginalData(:)]), max([shiftedData(:); shiftedOriginalData(:)])];
+        else
+            dataRange = [min(shiftedData(:)), max(shiftedData(:))];
+        end
         span = diff(dataRange);
         if span <= 0
             span = max(abs(dataRange));
@@ -268,9 +317,19 @@ end
     calculation_result.ch_inxs = ch_inxs;
     calculation_result.ev_hists = ev_hists;
     calculation_result.timeAxis = timeAxis/timeUnitFactor;
+    calculation_result.timeAxisScaled = timeAxis;
+    calculation_result.timeUnitFactor = timeUnitFactor;
     calculation_result.ch_labels = ch_labels;
     calculation_result.shiftCoeff = pl_shiftCoeff;
     calculation_result.widths_in = widths_in;
     calculation_result.colors_in = colors_in;
+    calculation_result.originalEventsData = originalEventsData;
+    
+    % Вычисляем медиану для каждого канала как базовую линию
+    baseline_medians = zeros(1, numChannels);
+    for ch = 1:numChannels
+        baseline_medians(ch) = median(pl_meanData(:, ch));
+    end
+    calculation_result.baseline_medians = baseline_medians;
 
 end

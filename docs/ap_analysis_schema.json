@@ -1,0 +1,248 @@
+{
+  "parameters": {
+    "channel_idx": {
+      "type": "number",
+      "default": 0,
+      "title": "Индекс канала",
+      "description": "Индекс канала для анализа (пустое = все каналы)"
+    },
+    "sweep_idx": {
+      "type": "number", 
+      "default": null,
+      "title": "Индекс свипа",
+      "description": "Индекс свипа для анализа (пустое = все свипы)"
+    },
+    "v_rest": {
+      "type": "number",
+      "default": -70.0,
+      "minimum": -120.0,
+      "maximum": -20.0,
+      "title": "Потенциал покоя",
+      "description": "Потенциал покоя в мВ для расчета амплитуды и overshoot"
+    },
+    "stimulus_times": {
+      "type": "array",
+      "default": null,
+      "title": "Времена стимулов",
+      "description": "Времена стимулов в секундах для расчета латентности (разделите запятыми)",
+      "items": {"type": "number"}
+    },
+    "min_spike_interval": {
+      "type": "number",
+      "default": 2.0,
+      "minimum": 0.1,
+      "maximum": 50.0,
+      "title": "Минимальный интервал",
+      "description": "Минимальный интервал между спайками в мс (refractory period)"
+    },
+    "min_spike_amplitude": {
+      "type": "number",
+      "default": 20.0,
+      "minimum": 5.0,
+      "maximum": 100.0,
+      "title": "Минимальная амплитуда",
+      "description": "Минимальная амплитуда спайка для валидации (мВ)"
+    },
+    "repolarization_window_ms": {
+      "type": "number",
+      "default": 1.0,
+      "minimum": 0.1,
+      "maximum": 200.0,
+      "title": "Окно реполяризации",
+      "description": "Окно поиска реполяризации для последнего спайка в мс"
+    },
+    "threshold_percentage": {
+      "type": "number",
+      "default": 1.0,
+      "minimum": 0.01,
+      "maximum": 100.0,
+      "title": "Процент порога",
+      "description": "Процент от максимальной производной для определения порога спайка (%)"
+    },
+    "min_spikes_for_adaptation": {
+      "type": "integer",
+      "default": 5,
+      "minimum": 2,
+      "maximum": 50,
+      "title": "Минимум спайков для адаптации",
+      "description": "Минимальное количество спайков для анализа частотной адаптации"
+    },
+    "enable_preprocessing": {
+      "type": "boolean",
+      "default": false,
+      "title": "Включить предобработку",
+      "description": "Включить сглаживание сигнала и другие методы предобработки"
+    },
+    "smoothing_params": {
+      "type": "object",
+      "default": null,
+      "title": "Параметры сглаживания",
+      "description": "Параметры сглаживания сигнала",
+      "properties": {
+        "smooth_window": {
+          "type": "string",
+          "default": "2.0ms",
+          "title": "Окно сглаживания",
+          "description": "Окно сглаживания (например, '2.0ms', '5.0ms')"
+        },
+        "smooth_order": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 5,
+          "title": "Порядок сглаживания",
+          "description": "Порядок полинома для сглаживания"
+        },
+        "apply_smoothing": {
+          "type": "boolean",
+          "default": false,
+          "title": "Применить сглаживание",
+          "description": "Включить сглаживание сигнала"
+        }
+      }
+    },
+    "bridge_compensation": {
+      "type": "object",
+      "default": null,
+      "title": "Bridge-компенсация",
+      "description": "Параметры bridge-компенсации для фильтрации скачков производной",
+      "properties": {
+        "derivative_threshold": {
+          "type": "number",
+          "default": 15.0,
+          "minimum": 1.0,
+          "maximum": 100.0,
+          "title": "Порог производной",
+          "description": "Порог для фильтрации скачков производной (dV/dt)"
+        },
+        "apply_compensation": {
+          "type": "boolean",
+          "default": false,
+          "title": "Применить компенсацию",
+          "description": "Включить bridge-компенсацию"
+        }
+      }
+    },
+    "ljp_compensation": {
+      "type": "object",
+      "default": null,
+      "title": "LJP компенсация",
+      "description": "Параметры компенсации liquid junction potential",
+      "properties": {
+        "cl_pipette": {
+          "type": "number",
+          "default": 140.0,
+          "minimum": 0.0,
+          "maximum": 200.0,
+          "title": "Концентрация Cl⁻ в пипетке",
+          "description": "Концентрация Cl⁻ в пипетке (mM)"
+        },
+        "cl_cytoplasm": {
+          "type": "number",
+          "default": 4.0,
+          "minimum": 0.0,
+          "maximum": 50.0,
+          "title": "Концентрация Cl⁻ в цитоплазме",
+          "description": "Концентрация Cl⁻ в цитоплазме (mM)"
+        },
+        "temperature": {
+          "type": "number",
+          "default": 37.0,
+          "minimum": 20.0,
+          "maximum": 45.0,
+          "title": "Температура",
+          "description": "Температура в °C"
+        },
+        "apply_compensation": {
+          "type": "boolean",
+          "default": false,
+          "title": "Применить компенсацию",
+          "description": "Включить LJP компенсацию"
+        }
+      }
+    },
+    "amplitude_shift": {
+      "type": "object",
+      "default": null,
+      "title": "Сдвиг амплитуды",
+      "description": "Параметры сдвига амплитуды сигнала",
+      "properties": {
+        "shift_value": {
+          "type": "number",
+          "default": 0.0,
+          "minimum": -100.0,
+          "maximum": 100.0,
+          "title": "Значение сдвига",
+          "description": "Значение сдвига амплитуды в мВ"
+        },
+        "apply_shift": {
+          "type": "boolean",
+          "default": false,
+          "title": "Применить сдвиг",
+          "description": "Включить сдвиг амплитуды"
+        }
+      }
+    },
+    "baseline_normalization": {
+      "type": "object",
+      "default": null,
+      "title": "Нормализация базовой линии",
+      "description": "Параметры нормализации базовой линии",
+      "properties": {
+        "target_amplitude": {
+          "type": "number",
+          "default": 0.0,
+          "minimum": -100.0,
+          "maximum": 100.0,
+          "title": "Целевая амплитуда",
+          "description": "Целевая амплитуда базовой линии в мВ"
+        },
+        "baseline_time_range": {
+          "type": "array",
+          "default": [0.0, 0.05],
+          "items": {"type": "number"},
+          "minItems": 2,
+          "maxItems": 2,
+          "title": "Временной диапазон",
+          "description": "Временной диапазон для определения базовой линии в секундах [начало, конец]"
+        },
+        "apply_normalization": {
+          "type": "boolean",
+          "default": false,
+          "title": "Применить нормализацию",
+          "description": "Включить нормализацию базовой линии"
+        }
+      }
+    },
+    "detection_window": {
+      "type": "object",
+      "default": null,
+      "title": "Окно детекции",
+      "description": "Параметры временного окна для детекции спайков",
+      "properties": {
+        "время_начала_сек": {
+          "type": "number",
+          "default": 0.0,
+          "minimum": 0.0,
+          "maximum": 1000.0,
+          "title": "Время начала",
+          "description": "Время начала детекции в секундах"
+        },
+        "время_конца_сек": {
+          "type": "number",
+          "default": null,
+          "minimum": 0.0,
+          "maximum": 1000.0,
+          "title": "Время окончания",
+          "description": "Время окончания детекции в секундах (None = до конца)"
+        },
+        "apply_окно_детекции": {
+          "type": "boolean",
+          "default": false,
+          "title": "Применить окно",
+          "description": "Включить ограничение по времени"
+        }
+      }
+    }
+  }
+}

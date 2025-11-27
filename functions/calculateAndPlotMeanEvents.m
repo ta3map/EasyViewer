@@ -53,7 +53,29 @@ channelSettings = get(channelTable, 'Data');
 params.sourceType = sourceType;
 params.figure = figure('Name', figureName, 'Tag', 'meanSignalResult'); % Создание нового окна для графика;
 params.figure.Position = [32, 64, 1024, 768];
-params.meanWindow = 2;% s
+
+% Создаем tiledlayout с опциональным размером через opts
+% По умолчанию 1x1, но можно задать больше для таблиц и scatter-графиков
+if isfield(opts, 'tiledlayoutSize') && ~isempty(opts.tiledlayoutSize)
+    tiledRows = opts.tiledlayoutSize(1);
+    tiledCols = opts.tiledlayoutSize(2);
+else
+    tiledRows = 1;
+    tiledCols = 1;
+end
+t = tiledlayout(params.figure, tiledRows, tiledCols, 'TileSpacing', 'compact', 'Padding', 'compact');
+params.tiledlayout = t;
+% Определяем временное окно для усреднения на основе xLimits
+if isfield(opts, 'meanWindow')
+    params.meanWindow = opts.meanWindow;
+elseif isfield(opts, 'xLimits') && ~isempty(opts.xLimits)
+    % Если заданы xLimits, вычисляем окно из них (xLimits в масштабированных единицах)
+    % Переводим в секунды и берем максимальное расстояние от нуля
+    xLimitsSeconds = opts.xLimits / timeUnitFactor;
+    params.meanWindow = max(abs(xLimitsSeconds(1)), abs(xLimitsSeconds(2))) * 2;
+else
+    params.meanWindow = 2; % значение по умолчанию
+end
 params.hd = hd;
 params.channelSettings = channelSettings;
 params.Fs = Fs;
@@ -85,6 +107,16 @@ if isfield(opts, 'xLimits')
     params.customXLimits = opts.xLimits;
 else
     params.customXLimits = [];
+end
+if isfield(opts, 'showOriginalTraces')
+    params.showOriginalTraces = logical(opts.showOriginalTraces);
+else
+    params.showOriginalTraces = false;
+end
+if isfield(opts, 'removeBaseline')
+    params.removeBaseline = logical(opts.removeBaseline);
+else
+    params.removeBaseline = false;
 end
 
 % Убираем артефакт стимуляции в окне усреднения
@@ -123,12 +155,27 @@ else
     Xlims = [-time_back, time_forward]*timeUnitFactor;
 end
 xlim(Xlims)
+% Сохраняем пределы X в calcResult для использования в других функциях
+calculation_result.xLimits = Xlims;
 
 numChannels = numel(ch_inxs);
 y_pixel_size = 768;             % Размер по Y в пикселях
 y_tick_min_pixel_size = 32;     % Минимальный размер тиков по Y в пикселях
 [chRanges, chRangesOffsets, chRangeIndexes] = calculateChRanges(offsets, shiftCoeff, calculation_result.meanData, ...
     numChannels, calculation_result.scalingCoefficients(ch_inxs), y_pixel_size, y_tick_min_pixel_size);
+
+% Корректируем значения chRanges и смещаем обозначения к базовой линии (медиане) каждого канала
+if isfield(calculation_result, 'baseline_medians')
+    baseline_medians = calculation_result.baseline_medians;
+    for ch_inx = 1:numChannels
+        ch_mask = chRangeIndexes == ch_inx;
+        % baseline_medians уже в масштабе данных, нужно добавить обратно с учетом m_coef
+        chRanges(ch_mask) = chRanges(ch_mask) + baseline_medians(ch_inx) / calculation_result.scalingCoefficients(ch_inxs(ch_inx));
+        % Смещаем обозначения по Y к медиане канала
+        chRangesOffsets(ch_mask) = chRangesOffsets(ch_mask) + baseline_medians(ch_inx);
+    end
+end
+
 rangesTimeTicks = Xlims(1)+zeros(size(chRangesOffsets)) + 0.02*(Xlims(end) - Xlims(1));    
 rangesTimeLabels = Xlims(1)+zeros(size(chRangesOffsets)) + 0.005*(Xlims(end) - Xlims(1)); 
 colors_in = channelSettings(:, 4)';
@@ -137,12 +184,29 @@ colors_in_selected = colors_in(ch_inxs);
     for color = colors_in_selected
         ch_inx = ch_inx+1;
         group_index = ch_inx == chRangeIndexes;
-        text(rangesTimeTicks(group_index), chRangesOffsets(group_index), num2str(chRanges(group_index)', '%.2f'), 'color', color{:}, 'backgroundcolor', 'w')
+        text(rangesTimeTicks(group_index), chRangesOffsets(group_index), num2str(chRanges(group_index)', '%.2f'), 'color', color{:}, 'BackgroundColor', 'none')
         scatter(rangesTimeLabels(group_index), chRangesOffsets(group_index), [], 'Marker', '_', 'MarkerEdgeColor', color{:})
     end
 
-Ylims = [min(chRangesOffsets)-shiftCoeff*0.5, max(chRangesOffsets)+shiftCoeff*0.5];
-%ylim(Ylims)
+% Вычисляем и применяем пределы Y с учетом смещения к медиане
+ax = findobj(mean_f, 'Type', 'axes', '-not', 'Tag', 'legend');
+if ~isempty(ax)
+    ax = ax(1);
+    if isfield(calculation_result, 'baseline_medians')
+        % Учитываем смещение данных и обозначений
+        baseline_medians = calculation_result.baseline_medians;
+        minOffset = min(offsets);
+        maxOffset = max(offsets);
+        minBaseline = min(baseline_medians);
+        maxBaseline = max(baseline_medians);
+        % Учитываем смещенные обозначения и позиции медиан каналов
+        Ylims = [min([chRangesOffsets(:); minOffset + minBaseline]) - shiftCoeff*0.2, ...
+                 max([chRangesOffsets(:); maxOffset + maxBaseline]) + shiftCoeff*0.2];
+    else
+        Ylims = [min(chRangesOffsets)-shiftCoeff*0.5, max(chRangesOffsets)+shiftCoeff*0.5];
+    end
+    ylim(ax, Ylims);
+end
 
 
 

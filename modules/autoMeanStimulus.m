@@ -1,23 +1,54 @@
-function result = autoMeanStimulus(filePath)
-    global zav_calling
+function result = autoMeanStimulus(filePath, fileId)
+    global zav_calling autodetection_settings timeUnitFactor
+    
     metadata = zav_calling(filePath);
-    opts = struct('autoScale', true, 'xLimits', [-100, 300]);
+    
+    % Загрузка параметров из JSON файла
+    params = loadModuleParams('autoMeanStimulus', timeUnitFactor);
+    
+    % Подготовка opts для calculateAndPlotMeanEvents
+    % tiledlayoutSize: [4, 1] - основной график (2 строки), таблица (1 строка), scatter (1 строка)
+    opts = struct('autoScale', params.autoScale, 'xLimits', params.xLimits, 'showOriginalTraces', params.showOriginalTraces, 'tiledlayoutSize', [4, 1]);
     [meanFig, calcResult] = calculateAndPlotMeanEvents('stimuli', opts);
+
+    % Подготовка detParams для detectPeaksInMeanData
+    detParams = struct('Polarity', params.Polarity, ...
+        'MinPeakProminence', params.MinPeakProminence, ...
+        'MinPeakDistance', params.MinPeakDistance, ...
+        'MaxPeakWidth', params.MaxPeakWidth, ...
+        'SmoothingKernel_s', params.SmoothingKernel, ...
+        'UseOriginalData', params.UseOriginalData); 
+
+    % Детекция пиков
+    events = detectPeaksInMeanData(calcResult, params);
+        
+    % Добавляем графики и таблицы
     figure(meanFig);
+    meanFig = plotEvents(meanFig, events, calcResult);
+    addResultsTable(meanFig, events, calcResult);
+    plotEventsScatter(meanFig, events, calcResult);
+    
     [folder, baseName, ~] = fileparts(metadata.filePath);
-    imagePath = fullfile(folder, [baseName, '_auto_mean.png']);
+    figureFormat = params.figureFormat;
+    if strcmpi(figureFormat, 'png')
+        figPath = fullfile(folder, [baseName, '_auto_mean.png']);
+        saveas(meanFig, figPath, 'png');
+    else
+        figPath = fullfile(folder, [baseName, '_auto_mean.fig']);
+        savefig(meanFig, figPath);
+    end
     dataPath = fullfile(folder, [baseName, '_auto_mean.meta']);
     save(dataPath, '-struct', 'calcResult');
-    saveas(meanFig, imagePath, 'png');
     
     result = struct( ...
         'module_name', 'autoMeanStimulus', ...
         'module_display_name', 'Auto Mean Stimulus', ...
         'module_description', 'Автоусреднение стимулов', ...
-        'report_path', imagePath, ...
+        'report_path', figPath, ...
         'data_path', dataPath, ...
-        'parameters', opts);
+        'parameters', params, ...
+        'events', events);
     
-    logAnalysisResult(filePath, result);
+    logAnalysisResult(fileId, result);
 end
 
