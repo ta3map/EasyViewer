@@ -44,16 +44,21 @@ function addResultsTable(fig, events, calcResult)
     % Инициализация данных таблицы
     summaryData = cell(0, numChannels + 1);
     
-    % Общая строка: Total / Before Zero / After Zero
+    % Строка: Total / Before Zero / After Zero по каналам
     totalRow = {'Total / Before Zero / After Zero'};
-    if events.numEvents > 0
-        totalRow{end+1} = sprintf('%d / %d / %d', events.numEvents, events.numEventsBeforeZero, events.numEventsAfterZero);
+    if events.numEvents > 0 && numChannels > 0
+        for i = 1:numChannels
+            chIdx = uniqueChannels(i);
+            chMask = events.channels == chIdx;
+            chTotal = sum(chMask);
+            chBeforeZero = sum(chMask & events.times < 0);
+            chAfterZero = sum(chMask & events.times > 0);
+            totalRow{end+1} = sprintf('%d / %d / %d', chTotal, chBeforeZero, chAfterZero);
+        end
     else
-        totalRow{end+1} = '0 / 0 / 0';
-    end
-    % Для остальных каналов - пусто или общее значение
-    for i = 2:numChannels
-        totalRow{end+1} = '';
+        for i = 1:numChannels
+            totalRow{end+1} = '0 / 0 / 0';
+        end
     end
     summaryData(end+1, :) = totalRow;
     

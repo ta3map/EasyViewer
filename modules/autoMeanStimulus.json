@@ -8,7 +8,7 @@
     "showOriginalTraces": true
   },
   "detection": {
-    "Polarity": "negative",
+    "Polarity": "positive",
     "MinPeakProminence": 5,
     "UseOriginalData": true,
     "MinPeakDistance_s": 0.05,
