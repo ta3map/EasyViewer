@@ -227,10 +227,12 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
             channelName = strrep(channelNames{current_channel_global_index}, '_', ' ');
             
             if useStreamingMUA
-                % Потоковая детекция MUA - обрабатываем данные по частям
+                % Потоковая детекция MUA - обрабатываем данные по частям сразу
                 debugState('oep_to_zav_streaming', 'Using streaming MUA detection for channel: %s', channelName);
                 
-                dataChunks = {};
+                % Инициализация для потоковой детекции
+                muaState = detectMUA_streaming([], hd, mua_std_coef, true, Fs);
+                
                 muaChunksProcessed = 0;
                 
                 for streamIdx = 1:length(allStreams)
@@ -264,14 +266,16 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
                         
                         dataChunk = reshape(dataMap.Data, [numChannelsInStream, chunkLength]);
                         channelChunk = double(dataChunk(current_channel_global_index, :))';
-                        dataChunks{end+1} = channelChunk;
+                        
+                        % Обрабатываем чанк через функцию
+                        muaState = detectMUA_streaming(channelChunk, hd, mua_std_coef, true, Fs, muaState);
                         
                         muaChunksProcessed = muaChunksProcessed + 1;
                         
-                        % Update progress for MUA data collection
+                        % Update progress
                         chunksProgress = muaChunksProcessed / totalMuaChunksPerChannel;
-                        currentStep = (chIdx - 1) * 3 + 1; % MUA loading step
-                        progressMsg = sprintf('Step %d/%d: MUA - Loading chunks - Channel %d/%d (%s)\n%d / %d (%.1f%%)', ...
+                        currentStep = (chIdx - 1) * 3 + 1; % MUA loading+detection step
+                        progressMsg = sprintf('Step %d/%d: MUA - Processing chunks - Channel %d/%d (%s)\n%d / %d (%.1f%%)', ...
                             currentStep, totalSteps, chIdx, numChannels, channelName, muaChunksProcessed, totalMuaChunksPerChannel, chunksProgress * 100);
                         waitbar(chunksProgress, hWaitBar, progressMsg);
                         
@@ -279,23 +283,23 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
                     end
                 end
                 
-                % Detect MUA using streaming version
-                currentStep = (chIdx - 1) * 3 + 2; % MUA detection step
-                progressMsg = sprintf('Step %d/%d: MUA - Detecting spikes - Channel %d/%d (%s)...', ...
+                % Финализация: удаление TTL артефактов и формирование результата
+                currentStep = (chIdx - 1) * 3 + 2; % MUA finalization step
+                progressMsg = sprintf('Step %d/%d: MUA - Finalizing - Channel %d/%d (%s)...', ...
                     currentStep, totalSteps, chIdx, numChannels, channelName);
-                waitbar(0.5, hWaitBar, progressMsg);
+                waitbar(0.9, hWaitBar, progressMsg);
                 
-                disp(['Detecting MUA (streaming) for channel: ', channelName]);
-                [tStamp, ampl, shape] = detectMUA_streaming(dataChunks, hd, mua_std_coef, true, Fs);
+                [tStamp, ampl, shape] = detectMUA_streaming([], hd, mua_std_coef, true, Fs, muaState, 'finalize');
                 
-                progressMsg = sprintf('Step %d/%d: MUA - Spikes detected - Channel %d/%d (%s) - Complete', ...
+                progressMsg = sprintf('Step %d/%d: MUA - Complete - Channel %d/%d (%s)', ...
                     currentStep, totalSteps, chIdx, numChannels, channelName);
                 waitbar(1, hWaitBar, progressMsg);
+                
                 spks(chIdx).tStamp = double(tStamp);
                 spks(chIdx).ampl = double(-ampl);
                 spks(chIdx).shape = shape;
                 
-                clear dataChunks tStamp ampl shape;
+                clear muaState tStamp ampl shape;
             else
                 % Классическая детекция MUA - загружаем весь канал
                 debugState('oep_to_zav_streaming', 'Using full-channel MUA detection for channel: %s', channelName);
