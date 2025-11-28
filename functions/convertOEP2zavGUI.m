@@ -278,19 +278,13 @@ function convertOEP2zavGUI
             active_folder = path;
         end
 
-        % Показываем окно прогресса
-        hWaitBar = waitbar(0, 'Converting...', 'Name', 'OEP to ZAV Conversion');
-
-        % Обновление окна прогресса
-        waitbar(0.1, hWaitBar, 'Loading data...');
+        % Создаем окно прогресса
+        hWaitBar = waitbar(0, 'Initializing conversion...', 'Name', 'OEP to ZAV Conversion');
 
         try
             % Получаем метаданные для частоты дискретизации
             metadataTable = readOpenEphysMetadata(recPath);
             Fs = metadataTable.Sample_Rate{1}; % Оригинальная частота дискретизации (Hz)
-
-            % Обновляем прогресс
-            waitbar(0.3, hWaitBar, 'Starting conversion...');
 
             % Вызов функции конвертации с потоковым чтением
             fprintf('\n[convertOEP2zavGUI] Calling oep_to_zav_streaming (NEW STREAMING VERSION)...\n');
@@ -305,13 +299,10 @@ function convertOEP2zavGUI
                 error('oep_to_zav_streaming function not found in path!');
             end
             
-            oep_to_zav_streaming(recPath, zavFilePath, Fs, newFs, detectMua, mua_std_coef, doResample, availableChannels, selectedChannelIndices, useStreamingMUA);
+            oep_to_zav_streaming(recPath, zavFilePath, Fs, newFs, detectMua, mua_std_coef, doResample, availableChannels, selectedChannelIndices, useStreamingMUA, hWaitBar);
             
             debugState('convertOEP2zavGUI', 'oep_to_zav_streaming completed');
             fprintf('[convertOEP2zavGUI] oep_to_zav_streaming completed successfully\n');
-
-            % Обновление окна прогресса
-            waitbar(0.9, hWaitBar, 'Finalizing...');
 
             % Сохраняем информацию о последней открытой папке
             lastOpenedFolders = {recPath};
@@ -321,14 +312,12 @@ function convertOEP2zavGUI
                 save(SettingsFilepath, 'lastOpenedFolders');
             end
 
-            % Обновление окна прогресса
-            waitbar(1, hWaitBar, 'Conversion completed!');
-            pause(1); % Пауза для отображения завершения
-
             disp('Conversion completed successfully.');
-
+            
             % Закрываем окно прогресса
-            close(hWaitBar);
+            if isvalid(hWaitBar)
+                close(hWaitBar);
+            end
 
             % Закрываем окно GUI после успешной конвертации
             close(fig);
@@ -342,7 +331,7 @@ function convertOEP2zavGUI
             disp(['Error during conversion: ', ME.message]);
             warndlg(['An error occurred during conversion: ', ME.message], 'Conversion Error');
             % Закрываем окно прогресса при ошибке
-            if isvalid(hWaitBar)
+            if exist('hWaitBar', 'var') && isvalid(hWaitBar)
                 close(hWaitBar);
             end
         end
