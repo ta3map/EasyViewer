@@ -1,0 +1,139 @@
+{
+
+    "CommonTable": {
+    "Date": "2025.11.27",
+    "Experimenter": "KarinaT",
+    "ExpMode": "invivo3",
+        "ProjectName": "IOS через кожу",
+        "ProjectSponsor": "RNF 24-75-10054",
+        "AnimalLine": "Wistar",
+        "Animalbirth": "2025-10-28",
+        "AnimalAge": "30",
+        "AnimalGender": "female",
+        "AnimalWeight": "60",
+        "anesthesia": "Уретан",
+        "anest_conc": "1.5",
+        "anest_time": "12:04",
+        "Comment": "-",
+        "IsHisto": false
+    },
+    "electroTable": [
+        {
+            "recId": "electro_20251127_132241",
+            "ElectrodesSetup": "[{\"ids\":\"1\",\"material\":\"Ag/Cl\",\"purpose\":\"Регистрирующий\",\"electrodeName\":\"-\",\"loc\":\"Skin\",\"depth\":\"\",\"angle\":\"\",\"resistance\":\"\"},{\"ids\":\"2\",\"material\":\"Ag/Cl\",\"purpose\":\"Регистрирующий\",\"electrodeName\":\"-\",\"loc\":\"Barrel Cortex\",\"depth\":\"\",\"angle\":\"\",\"resistance\":\"\"},{\"ids\":\"-\",\"material\":\"Ag/Cl\",\"purpose\":\"Земляной\",\"electrodeName\":\"-\",\"loc\":\"Skin\",\"depth\":\"\",\"angle\":\"\",\"resistance\":\"\"}]",
+            "FilePath": "E:\\CheetahData\\Sd_skin\\2025-11-27",
+            "RecType": "control",
+            "Substance": "-",
+            "SubstanceConc": "",
+            "ApplicationTime": "-",
+            "recComment": "-"
+        },
+        {
+            "recId": "electro_20251127_142901",
+            "ElectrodesSetup": "[{\"ids\":\"1\",\"material\":\"Ag/Cl\",\"purpose\":\"Регистрирующий\",\"electrodeName\":\"-\",\"loc\":\"Skin\",\"depth\":\"\",\"angle\":\"\",\"resistance\":\"\"},{\"ids\":\"2\",\"material\":\"Ag/Cl\",\"purpose\":\"Регистрирующий\",\"electrodeName\":\"-\",\"loc\":\"Barrel Cortex\",\"depth\":\"\",\"angle\":\"\",\"resistance\":\"\"},{\"ids\":\"-\",\"material\":\"Ag/Cl\",\"purpose\":\"Земляной\",\"electrodeName\":\"-\",\"loc\":\"Skin\",\"depth\":\"\",\"angle\":\"\",\"resistance\":\"\"}]",
+            "FilePath": "E:\\CheetahData\\Sd_skin\\2025-11-27",
+            "RecType": "exp",
+            "Substance": "KCl",
+            "SubstanceConc": "100",
+            "ApplicationTime": "08:10; ",
+            "recComment": "00:57 - pipette insertion time; "
+        },
+        {
+            "recId": "electro_20251127_150611",
+            "ElectrodesSetup": "[{\"ids\":\"1\",\"material\":\"Ag/Cl\",\"purpose\":\"Регистрирующий\",\"electrodeName\":\"-\",\"loc\":\"Skin\",\"depth\":\"\",\"angle\":\"\",\"resistance\":\"\"},{\"ids\":\"2\",\"material\":\"Ag/Cl\",\"purpose\":\"Регистрирующий\",\"electrodeName\":\"-\",\"loc\":\"Barrel Cortex\",\"depth\":\"\",\"angle\":\"\",\"resistance\":\"\"},{\"ids\":\"-\",\"material\":\"Ag/Cl\",\"purpose\":\"Земляной\",\"electrodeName\":\"-\",\"loc\":\"Skin\",\"depth\":\"\",\"angle\":\"\",\"resistance\":\"\"}]",
+            "FilePath": "E:\\CheetahData\\Sd_skin\\2025-11-27",
+            "RecType": "exp",
+            "Substance": "",
+            "SubstanceConc": "",
+            "ApplicationTime": "150618 (02:02)",
+            "recComment": "grnd was broken"
+        },
+        {
+            "recId": "electro_20251127_154148",
+            "ElectrodesSetup": "[{\"ids\":\"1\",\"material\":\"Ag/Cl\",\"purpose\":\"Регистрирующий\",\"electrodeName\":\"-\",\"loc\":\"Skin\",\"depth\":\"\",\"angle\":\"\",\"resistance\":\"\"},{\"ids\":\"2\",\"material\":\"Ag/Cl\",\"purpose\":\"Регистрирующий\",\"electrodeName\":\"-\",\"loc\":\"Barrel Cortex\",\"depth\":\"\",\"angle\":\"\",\"resistance\":\"\"},{\"ids\":\"-\",\"material\":\"Ag/Cl\",\"purpose\":\"Земляной\",\"electrodeName\":\"-\",\"loc\":\"Skin\",\"depth\":\"\",\"angle\":\"\",\"resistance\":\"\"}]",
+            "FilePath": "E:\\CheetahData\\Sd_skin\\2025-11-27\\",
+            "RecType": "exp",
+            "Substance": "",
+            "SubstanceConc": "",
+            "ApplicationTime": "155037 (10:00), 155845 (18:00), 160319 (22:35)",
+            "recComment": "05:06 - pipette insertion time; "
+        },
+        {
+            "recId": "electro_20251127_162424",
+            "ElectrodesSetup": "[{\"ids\":\"1\",\"material\":\"Ag/Cl\",\"purpose\":\"Регистрирующий\",\"electrodeName\":\"-\",\"loc\":\"Skin\",\"depth\":\"\",\"angle\":\"\",\"resistance\":\"\"},{\"ids\":\"2\",\"material\":\"Ag/Cl\",\"purpose\":\"Регистрирующий\",\"electrodeName\":\"-\",\"loc\":\"Barrel Cortex\",\"depth\":\"\",\"angle\":\"\",\"resistance\":\"\"},{\"ids\":\"-\",\"material\":\"Ag/Cl\",\"purpose\":\"Земляной\",\"electrodeName\":\"-\",\"loc\":\"Skin\",\"depth\":\"\",\"angle\":\"\",\"resistance\":\"\"}]",
+            "FilePath": "E:\\CheetahData\\Sd_skin\\2025-11-27\\",
+            "RecType": "exp",
+            "Substance": "",
+            "SubstanceConc": "",
+            "ApplicationTime": "163020 (11:30)",
+            "recComment": "05:50 - pipette insertion time; "
+        },
+        {
+            "recId": "electro_20251127_171107",
+            "ElectrodesSetup": "[{\"ids\":\"1\",\"material\":\"Ag/Cl\",\"purpose\":\"Регистрирующий\",\"electrodeName\":\"-\",\"loc\":\"Skin\",\"depth\":\"\",\"angle\":\"\",\"resistance\":\"\"},{\"ids\":\"2\",\"material\":\"Ag/Cl\",\"purpose\":\"Регистрирующий\",\"electrodeName\":\"-\",\"loc\":\"Barrel Cortex\",\"depth\":\"\",\"angle\":\"\",\"resistance\":\"\"},{\"ids\":\"-\",\"material\":\"Ag/Cl\",\"purpose\":\"Земляной\",\"electrodeName\":\"-\",\"loc\":\"Skin\",\"depth\":\"\",\"angle\":\"\",\"resistance\":\"\"}]",
+            "FilePath": "E:\\CheetahData\\Sd_skin\\2025-11-27\\",
+            "RecType": "exp",
+            "Substance": "",
+            "SubstanceConc": "",
+            "ApplicationTime": "172058 (16:00), 173110 (26:00), 174321 (38:10), 175546 (nearby 50:00 - rat died)",
+            "recComment": "05:07 - pipette insertion time; "
+        }
+    ],
+    "IOSTable": [
+        {
+            "recId": "ios_20251127_132241",
+            "IOSSetup": "[{\"ledNum\":\"1\",\"color\":\"IR (Infrared)\",\"wavelength\":\"\",\"mode\":\"Pulse\"}]",
+            "FilePath": "D:\\OIS\\sd\\2025-11-27",
+            "IOSDuAnimalion": "100",
+            "IOSPeriod": "900",
+            "IOSpowervoltage": "6.75",
+            "IOSpowercurrent": "0.759"
+        },
+        {
+            "recId": "ios_20251127_143149",
+            "IOSSetup": "[{\"ledNum\":\"1\",\"color\":\"IR (Infrared)\",\"wavelength\":\"\",\"mode\":\"Pulse\"}]",
+            "FilePath": "D:\\OIS\\sd\\2025-11-27",
+            "IOSDuAnimalion": "100",
+            "IOSPeriod": "900",
+            "IOSpowervoltage": "6.75",
+            "IOSpowercurrent": "0.759"
+        },
+        {
+            "recId": "ios_20251127_150648",
+            "IOSSetup": "[{\"ledNum\":\"1\",\"color\":\"IR (Infrared)\",\"wavelength\":\"\",\"mode\":\"Pulse\"}]",
+            "FilePath": "D:\\OIS\\sd\\2025-11-27",
+            "IOSDuAnimalion": "",
+            "IOSPeriod": "",
+            "IOSpowervoltage": "",
+            "IOSpowercurrent": ""
+        },
+        {
+            "recId": "ios_20251127_154430",
+            "IOSSetup": "[{\"ledNum\":\"1\",\"color\":\"IR (Infrared)\",\"wavelength\":\"\",\"mode\":\"Pulse\"}]",
+            "FilePath": "D:\\OIS\\sd\\2025-11-27",
+            "IOSDuAnimalion": "",
+            "IOSPeriod": "",
+            "IOSpowervoltage": "",
+            "IOSpowercurrent": ""
+        },
+        {
+            "recId": "ios_20251127_163022",
+            "IOSSetup": "[{\"ledNum\":\"1\",\"color\":\"IR (Infrared)\",\"wavelength\":\"\",\"mode\":\"Pulse\"}]",
+            "FilePath": "D:\\OIS\\sd\\2025-11-27",
+            "IOSDuAnimalion": "",
+            "IOSPeriod": "",
+            "IOSpowervoltage": "",
+            "IOSpowercurrent": ""
+        },
+        {
+            "recId": "ios_20251127_172144",
+            "IOSSetup": "[{\"ledNum\":\"1\",\"color\":\"IR (Infrared)\",\"wavelength\":\"\",\"mode\":\"Pulse\"}]",
+            "FilePath": "D:\\OIS\\sd\\2025-11-27",
+            "IOSDuAnimalion": "",
+            "IOSPeriod": "",
+            "IOSpowervoltage": "",
+            "IOSpowercurrent": ""
+        }
+    ],
+    "ExperimentID": "20251127KarinaT113839"
+}
