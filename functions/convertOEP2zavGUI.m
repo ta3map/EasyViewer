@@ -14,13 +14,14 @@ function convertOEP2zavGUI
     global SettingsFilepath zav_calling
 
     % Инициализация переменных
-    persistent recPath zavFilePath newFs detectMua mua_std_coef doResample selectedChannels availableChannels active_folder
+    persistent recPath zavFilePath newFs detectMua mua_std_coef doResample useStreamingMUA selectedChannels availableChannels active_folder
 
     % Значения по умолчанию
     mua_std_coef = 3;
     newFs = 1000; % Гц
     detectMua = true;
     doResample = true;
+    useStreamingMUA = true; % По умолчанию используем потоковую детекцию
     selectedChannels = {}; % Пустой означает все каналы
     availableChannels = {};
     recPath = '';
@@ -69,6 +70,10 @@ function convertOEP2zavGUI
     detectMuaToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Detect MUA', ...
         'Position', [leftMargin, topMargin - (btnHeight + spacing) + 30 - shiftdown, btnWidth, btnHeight], 'Value', detectMua, 'Callback', @detectMuaCallback);
 
+    % Checkbox для потоковой детекции MUA
+    useStreamingMUAToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Streaming MUA (low memory)', ...
+        'Position', [leftMargin + btnWidth + spacing, topMargin - (btnHeight + spacing) + 30 - shiftdown, 200, btnHeight], 'Value', useStreamingMUA, 'Callback', @useStreamingMUACallback);
+
     % Поле для ввода коэффициента порога MUA    
     uicontrol('Parent', fig, 'Style', 'text', 'String', 'MUA Threshold (n*STD):', ...
         'Position', [leftMargin, topMargin - (btnHeight + spacing) - shiftdown, 150, btnHeight], 'HorizontalAlignment', 'right');    
@@ -91,9 +96,16 @@ function convertOEP2zavGUI
     % Панель для выбора каналов
     channelPanel = uipanel('Parent', fig, 'Title', 'Select Channels', 'Position', [0.05, 0.1, 0.9, 0.45]);
 
+    % Кнопки для выбора/отмены всех каналов
+    btnSelectAll = uicontrol('Parent', channelPanel, 'Style', 'pushbutton', 'String', 'Select All', ...
+        'Units', 'normalized', 'Position', [0.02, 0.92, 0.15, 0.06], 'Callback', @selectAllChannels);
+    
+    btnDeselectAll = uicontrol('Parent', channelPanel, 'Style', 'pushbutton', 'String', 'Deselect All', ...
+        'Units', 'normalized', 'Position', [0.18, 0.92, 0.15, 0.06], 'Callback', @deselectAllChannels);
+
     % Таблица для отображения списка каналов с галочками
     channelTable = uitable('Parent', channelPanel, 'Data', {}, 'ColumnName', {'Use', 'Channel Name'}, ...
-        'ColumnEditable', [true, false], 'Units', 'normalized', 'Position', [0, 0, 1, 1], 'CellEditCallback', @channelSelectionCallback);
+        'ColumnEditable', [true, false], 'Units', 'normalized', 'Position', [0, 0, 1, 0.92], 'CellEditCallback', @channelSelectionCallback);
     
     % Checkbox для открытия файла    
     openafterConvToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Open after conversion', ...
@@ -127,31 +139,43 @@ function convertOEP2zavGUI
     end
 
     function extractChannels()
-        % Загрузка данных для получения информации о каналах и частоте дискретизации
+        % Загрузка только метаданных для получения информации о каналах и частоте дискретизации
         try
-            recordedData = readOpenEphysSession(recPath);
-            Fs = recordedData.Sample_Rate{1}; % Оригинальная частота дискретизации (Hz)
-            set(FsOrigLabel, 'String', ['Fs (Hz): ', num2str(Fs)]);
-
-            % Получение имен каналов
-            channelNames = recordedData.Channel_Names{1}';
-            availableChannels = channelNames;
-            numChannels = numel(availableChannels);
-
-            % Подготавливаем данные для таблицы
-            channelData = cell(numChannels, 2);
-            for i = 1:numChannels
-                channelData{i, 1} = true; % По умолчанию все каналы выбраны
-                channelData{i, 2} = availableChannels{i};
+            metadataTable = readOpenEphysMetadata(recPath);
+            
+            % Берем первый поток для отображения частоты дискретизации
+            if ~isempty(metadataTable) && ~isempty(metadataTable.Sample_Rate{1})
+                Fs = metadataTable.Sample_Rate{1}; % Оригинальная частота дискретизации (Hz)
+                set(FsOrigLabel, 'String', ['Fs (Hz): ', num2str(Fs)]);
+            else
+                set(FsOrigLabel, 'String', 'Fs (Hz): N/A');
             end
 
-            % Обновляем таблицу каналов
-            set(channelTable, 'Data', channelData);
-            % Инициализируем выбранные каналы
-            selectedChannels = availableChannels; % Все каналы выбраны
+            % Получение имен каналов из первого потока
+            if ~isempty(metadataTable) && ~isempty(metadataTable.Channel_Names{1})
+                channelNames = metadataTable.Channel_Names{1}';
+                availableChannels = channelNames;
+                numChannels = numel(availableChannels);
+
+                % Подготавливаем данные для таблицы
+                channelData = cell(numChannels, 2);
+                for i = 1:numChannels
+                    channelData{i, 1} = true; % По умолчанию все каналы выбраны
+                    channelData{i, 2} = availableChannels{i};
+                end
+
+                % Обновляем таблицу каналов
+                set(channelTable, 'Data', channelData);
+                % Инициализируем выбранные каналы
+                selectedChannels = availableChannels; % Все каналы выбраны
+            else
+                availableChannels = {};
+                selectedChannels = {};
+                set(channelTable, 'Data', {});
+            end
         catch ME
-            disp(['Error loading OEP data: ', ME.message]);
-            warndlg(['An error occurred while loading OEP data: ', ME.message], 'Loading Error');
+            disp(['Error loading OEP metadata: ', ME.message]);
+            warndlg(['An error occurred while loading OEP metadata: ', ME.message], 'Loading Error');
             set(recPathLabel, 'String', 'No folder selected');
             recPath = '';
             availableChannels = {};
@@ -168,8 +192,36 @@ function convertOEP2zavGUI
         selectedChannels = availableChannels(selectedChannelIndices);
     end
 
+    function selectAllChannels(~, ~)
+        % Выбираем все каналы
+        channelData = get(channelTable, 'Data');
+        if ~isempty(channelData)
+            for i = 1:size(channelData, 1)
+                channelData{i, 1} = true;
+            end
+            set(channelTable, 'Data', channelData);
+            selectedChannels = availableChannels;
+        end
+    end
+
+    function deselectAllChannels(~, ~)
+        % Отменяем выбор всех каналов
+        channelData = get(channelTable, 'Data');
+        if ~isempty(channelData)
+            for i = 1:size(channelData, 1)
+                channelData{i, 1} = false;
+            end
+            set(channelTable, 'Data', channelData);
+            selectedChannels = {};
+        end
+    end
+
     function detectMuaCallback(source, ~)
         detectMua = get(source, 'Value');
+    end
+
+    function useStreamingMUACallback(source, ~)
+        useStreamingMUA = get(source, 'Value');
     end
 
     function openafterConvCallback(source, ~)
@@ -233,15 +285,30 @@ function convertOEP2zavGUI
         waitbar(0.1, hWaitBar, 'Loading data...');
 
         try
-            % Загрузка данных
-            recordedData = readOpenEphysSession(recPath);
-            Fs = recordedData.Sample_Rate{1}; % Оригинальная частота дискретизации (Hz)
+            % Получаем метаданные для частоты дискретизации
+            metadataTable = readOpenEphysMetadata(recPath);
+            Fs = metadataTable.Sample_Rate{1}; % Оригинальная частота дискретизации (Hz)
 
             % Обновляем прогресс
             waitbar(0.3, hWaitBar, 'Starting conversion...');
 
-            % Вызов функции конвертации
-            oep_to_zav(recordedData, zavFilePath, Fs, newFs, detectMua, mua_std_coef, doResample, availableChannels, selectedChannelIndices);
+            % Вызов функции конвертации с потоковым чтением
+            fprintf('\n[convertOEP2zavGUI] Calling oep_to_zav_streaming (NEW STREAMING VERSION)...\n');
+            debugState('convertOEP2zavGUI', 'Calling oep_to_zav_streaming...');
+            debugState('convertOEP2zavGUI', 'recPath: %s', recPath);
+            debugState('convertOEP2zavGUI', 'zavFilePath: %s', zavFilePath);
+            debugState('convertOEP2zavGUI', 'Fs: %f, newFs: %f, detectMua: %d, doResample: %d, useStreamingMUA: %d', ...
+                Fs, newFs, detectMua, doResample, useStreamingMUA);
+            
+            % Проверяем, что функция существует
+            if ~exist('oep_to_zav_streaming', 'file')
+                error('oep_to_zav_streaming function not found in path!');
+            end
+            
+            oep_to_zav_streaming(recPath, zavFilePath, Fs, newFs, detectMua, mua_std_coef, doResample, availableChannels, selectedChannelIndices, useStreamingMUA);
+            
+            debugState('convertOEP2zavGUI', 'oep_to_zav_streaming completed');
+            fprintf('[convertOEP2zavGUI] oep_to_zav_streaming completed successfully\n');
 
             % Обновление окна прогресса
             waitbar(0.9, hWaitBar, 'Finalizing...');
