@@ -6,7 +6,9 @@ function params = editModuleParamsGUI(moduleName)
     params = struct();
     
     % Загрузка JSON файла
-    [moduleFolder, ~, ~] = fileparts(mfilename('fullpath'));
+    [functionFolder, ~, ~] = fileparts(mfilename('fullpath'));
+    projectRoot = fileparts(functionFolder);
+    moduleFolder = fullfile(projectRoot, 'modules');
     jsonPath = fullfile(moduleFolder, [moduleName, '.json']);
     
     if ~exist(jsonPath, 'file')

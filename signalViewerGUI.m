@@ -413,7 +413,9 @@ function signalViewerGUI(editMode)
         '', ...
         'ICA', ...
         'PCA', ...
-        'Data operations'};
+        'Data operations', ...
+        '', ...
+        'compare average data'};
     
     % Создание выпадающего списка
     analysis_menu = uicontrol('Style', 'listbox',...
@@ -429,17 +431,18 @@ function signalViewerGUI(editMode)
     
     % Список действий
     file_functions = {'open ZAV(.mat) file', ...
+        '', ...
         'open event (.ev) file',...
+        '', ...
         'save ZAV(.mat) file', ...
+        '', ...
         'file manager', ...
+        '', ...
         'open figure', ...
-        'convert ABF', ...
-        'convert NLX', ...
-        'convert Open Ephys', ...
-        'save figure snapshot', ...
-        'compare average data', ...
-        'import events from stimulus',...
-        'import data from ZAV(.mat) file'};
+        '', ...
+        'Import', ...
+        '', ...
+        'save figure snapshot'};
         
     % Создание выпадающего списка
     file_menu = uicontrol('Style', 'listbox',...
@@ -877,6 +880,8 @@ function signalViewerGUI(editMode)
                 PCAazGUI();
             case analysis_functions{13}
                 performChannelOperations();
+            case analysis_functions{15}
+                dataComparerApp();
             case ''
                 dont_close_menu = true;
         end    
@@ -885,6 +890,29 @@ function signalViewerGUI(editMode)
             resetGraphParameters()
         end
     end
+    
+    function showImportFormatDialog()
+        formats = {'ABF', 'NLX', 'Open Ephys', 'ZAV (.mat)'};
+        [selection, ok] = listdlg('ListString', formats, ...
+            'SelectionMode', 'single', ...
+            'PromptString', 'Select format to import:', ...
+            'Name', 'Import Format', ...
+            'ListSize', [200 120]);
+        
+        if ok && ~isempty(selection)
+            switch selection
+                case 1
+                    convertAbf2zavGUI();
+                case 2
+                    convertNlx2zavGUI();
+                case 3
+                    convertOEP2zavGUI();
+                case 4
+                    importLFP();
+            end
+        end
+    end
+    
     % Обратный вызов выпадающего списка
     function FileMenuSelectionCallback(src, ~)
         val = src.Value;
@@ -895,33 +923,21 @@ function signalViewerGUI(editMode)
             case file_functions{1}
                 % загрузка файла
                 OpenZavLfpFile([], []);
-            case file_functions{2}
+            case file_functions{3}
                 % загрузка события
                 loadEvents([], []);
-            case file_functions{3}
+            case file_functions{5}
                 saveMatFile(matFilePath);
-            case file_functions{4}
+            case file_functions{7}
                 % открытие менеджера файлов
                 fileManagerBtnClb([], []);
-            case file_functions{5}
-                openFigureWithFileDialog();
-            case file_functions{6}
-                convertAbf2zavGUI()
-            case file_functions{7}
-                % конвертация в ZAV формат
-                convertNlx2zavGUI();
-            case file_functions{8}    
-                convertOEP2zavGUI();
             case file_functions{9}
+                openFigureWithFileDialog();
+            case file_functions{11}
+                showImportFormatDialog();
+            case file_functions{13}
                 % save figure snapshot
                 saveMainAxisAs();
-            case file_functions{10}
-                % сравнение средних данных
-                dataComparerApp();
-            case file_functions{11}
-                importEventsFromSimulus();
-            case file_functions{12}
-                importLFP();
             case ''
                 dont_close_menu = true;
         end

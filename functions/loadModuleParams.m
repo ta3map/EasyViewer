@@ -3,7 +3,9 @@ function params = loadModuleParams(moduleName, timeUnitFactor)
     % moduleName - имя модуля (без расширения)
     % timeUnitFactor - множитель для параметров с суффиксом _s
     
-    [moduleFolder, ~, ~] = fileparts(mfilename('fullpath'));
+    [functionFolder, ~, ~] = fileparts(mfilename('fullpath'));
+    projectRoot = fileparts(functionFolder);
+    moduleFolder = fullfile(projectRoot, 'modules');
     jsonPath = fullfile(moduleFolder, [moduleName, '.json']);
     jsonText = fileread(jsonPath);
     jsonParams = jsondecode(jsonText);
