@@ -58,6 +58,18 @@ function [f, calculation_result] = plotMeanEvents(params)
     ch_enabled(activeChannels) = true;
     originalEventsData = {}; % Сохраняем данные каждого события отдельно
     
+    % Проверяем, нужно ли показывать waitbar
+    showWaitbar = true; % по умолчанию показываем
+    if isfield(params, 'showWaitbar')
+        showWaitbar = logical(params.showWaitbar);
+    end
+    
+    % Создаем waitbar для обработки событий (если нужно)
+    wb = [];
+    if showWaitbar
+        wb = waitbar(0, 'Processing events...', 'Name', 'Calculating mean events');
+    end
+    
     for i = 1:numEvents
         % Вычисление индексов окна вокруг временной точки
         eventIdx = round(timePoints(i) * Fs);
@@ -78,6 +90,11 @@ function [f, calculation_result] = plotMeanEvents(params)
             % Сохраняем обработанные данные события для возможной детекции
             eventDataScaled = eventDataProcessed(:, ch_enabled) .* scalingCoefficients(ch_enabled);
             originalEventsData{end+1} = eventDataScaled;
+        end
+        
+        % Обновляем waitbar (если он создан)
+        if showWaitbar && ~isempty(wb)
+            waitbar(i / numEvents, wb, sprintf('Processing event %d of %d', i, numEvents));
         end
     end
 
@@ -122,13 +139,21 @@ function [f, calculation_result] = plotMeanEvents(params)
                 end
                 evs(i, :, :) = ch_hists;
             end
-            disp(['event #' num2str(i) ' of ' num2str(numEvents)])
+            % Обновляем waitbar (если он создан)
+            if showWaitbar && ~isempty(wb)
+                waitbar(i / numEvents, wb, sprintf('Processing spikes: event %d of %d', i, numEvents));
+            end
         end
         if exist('evs')
             ev_hists = squeeze(mean(evs,1));
         else
             ev_hists = [];
         end
+    end
+    
+    % Закрываем waitbar (если он создан)
+    if showWaitbar && ~isempty(wb)
+        close(wb);
     end
 
 

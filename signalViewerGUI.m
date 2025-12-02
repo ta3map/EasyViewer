@@ -1272,18 +1272,18 @@ function signalViewerGUI(editMode)
         end
         
         if has_events && ~has_stims
-            calculateAndPlotMeanEvents('events');
+            calculateAndPlotMeanEvents('events', struct('removeBaseline', true));
         elseif ~has_events && has_stims
-            calculateAndPlotMeanEvents('stimuli');
+            calculateAndPlotMeanEvents('stimuli', struct('removeBaseline', true));
         else
             choice = questdlg('Select data source for mean calculation:', ...
                 'Mean Calculation', ...
                 'Events', 'Stimuli', 'Cancel', 'Events');
             switch choice
                 case 'Events'
-                    calculateAndPlotMeanEvents('events');
+                    calculateAndPlotMeanEvents('events', struct('removeBaseline', true));
                 case 'Stimuli'
-                    calculateAndPlotMeanEvents('stimuli');
+                    calculateAndPlotMeanEvents('stimuli', struct('removeBaseline', true));
                 case 'Cancel'
                     return;
             end

@@ -5,6 +5,10 @@ function editStimulusTimesGUI()
     % Global variables
     global stims timeUnitFactor selectedUnit saveChannelSettingsFunc
     global time matFilePath lastOpenedFiles events SettingsFilepath
+    global matFileName EV_version autodetection_settings add_event_settings
+    global event_comments event_amplitudes event_channels event_widths
+    global event_prominences event_metadata events_exist
+    global table_calling updatePlotFunc
 
     % Check if stims exist
     % Identifier (tag) for GUI figure
@@ -21,7 +25,7 @@ function editStimulusTimesGUI()
     
     % Initialize GUI
     hFig = figure('Name', 'Edit Stimulus Times', 'NumberTitle', 'off', ...
-                  'Position', [100, 100, 450, 550], 'Resize', 'off', ...
+                  'Position', [100, 100, 450, 580], 'Resize', 'off', ...
                   'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', ...
                   'Tag', figTag, 'WindowStyle', 'normal');
 
@@ -76,16 +80,31 @@ function editStimulusTimesGUI()
     uicontrol('Style', 'pushbutton', 'Position', [230, 78, 100, 30], ...
               'String', 'Import', 'Callback', @importStimuli);
 
-    uicontrol('Style', 'pushbutton', 'Position', [20, 40, 100, 30], ...
+    % Export mode dropdown
+    exportModeOptions = {'To file', 'To memory (add)', 'To memory (replace)'};
+    savedExportMode = loadExportMode();
+    savedExportModeIndex = find(strcmp(exportModeOptions, savedExportMode), 1);
+    if isempty(savedExportModeIndex)
+        savedExportModeIndex = 1;
+    end
+    
+    uicontrol('Style', 'text', 'Position', [20, 60, 150, 20], ...
+              'String', 'Export mode:', 'HorizontalAlignment', 'left');
+    exportModePopup = uicontrol('Style', 'popupmenu', 'Position', [20, 40, 200, 25], ...
+                                'String', exportModeOptions, ...
+                                'Value', savedExportModeIndex, ...
+                                'Callback', @saveExportMode);
+    
+    uicontrol('Style', 'pushbutton', 'Position', [230, 38, 100, 30], ...
+              'String', 'Export', 'Callback', @exportStimuli);
+
+    uicontrol('Style', 'pushbutton', 'Position', [20, 10, 100, 25], ...
               'String', 'Reset', 'Callback', @resetChanges);
 
-    uicontrol('Style', 'pushbutton', 'Position', [130, 40, 100, 30], ...
-              'String', 'Cancel', 'Callback', @cancelChanges);
-
-    uicontrol('Style', 'pushbutton', 'Position', [240, 40, 100, 30], ...
+    uicontrol('Style', 'pushbutton', 'Position', [130, 10, 100, 25], ...
               'String', 'Apply', 'Callback', @applyChanges);
     
-    uicontrol('Style', 'pushbutton', 'Position', [350, 40, 80, 30], ...
+    uicontrol('Style', 'pushbutton', 'Position', [240, 10, 100, 25], ...
               'String', 'Close', 'Callback', @closeWindow);
 
     % Track selection state for toggle button and original data
@@ -235,10 +254,6 @@ function editStimulusTimesGUI()
         allSelected = true;
     end
 
-    function cancelChanges(~, ~)
-        close(hFig);
-    end
-    
     function closeWindow(~, ~)
         close(hFig);
     end
@@ -405,6 +420,192 @@ function editStimulusTimesGUI()
             end
         catch
             mode = 'From file (add)';
+        end
+    end
+
+    function saveExportMode(~, ~)
+        modeIndex = get(exportModePopup, 'Value');
+        modeOptions = get(exportModePopup, 'String');
+        selectedMode = modeOptions{modeIndex};
+        
+        try
+            if exist(SettingsFilepath, 'file')
+                stimulus_export_mode = selectedMode;
+                save(SettingsFilepath, 'stimulus_export_mode', '-append');
+            else
+                warning('Settings file does not exist. Cannot save export mode.');
+            end
+        catch ME
+            warning('Failed to save export mode: %s', ME.message);
+        end
+    end
+    
+    function mode = loadExportMode()
+        mode = 'To file';
+        try
+            if exist(SettingsFilepath, 'file')
+                data = load(SettingsFilepath, 'stimulus_export_mode');
+                if isfield(data, 'stimulus_export_mode')
+                    mode = data.stimulus_export_mode;
+                end
+            end
+        catch
+            mode = 'To file';
+        end
+    end
+
+    function exportStimuli(~, ~)
+        if isempty(time)
+            fprintf('Cannot export stimuli: time vector is empty.\n');
+            return;
+        end
+        
+        tableData = get(stimTable, 'Data');
+        if isempty(tableData)
+            fprintf('No stimuli to export.\n');
+            return;
+        end
+        
+        numericTimes = cellfun(@toNumericTime, tableData(:, 1));
+        stimTimes = numericTimes / timeUnitFactor;
+        
+        if isempty(stimTimes)
+            fprintf('No valid stimulus times to export.\n');
+            return;
+        end
+        
+        modeIndex = get(exportModePopup, 'Value');
+        modeOptions = get(exportModePopup, 'String');
+        selectedMode = modeOptions{modeIndex};
+        
+        isToFile = strcmp(selectedMode, 'To file');
+        isReplace = contains(selectedMode, 'replace');
+        
+        if isToFile
+            [path, name, ~] = fileparts(matFilePath);
+            defaultFileName = fullfile(path, [name '_stimuli.ev']);
+            
+            [file, path] = uiputfile('*.ev', 'Save Stimuli as Events', defaultFileName);
+            if isequal(file, 0)
+                fprintf('Export canceled.\n');
+                return;
+            end
+            
+            filepath = fullfile(path, file);
+            
+            clear manlDet
+            numStims = numel(stimTimes);
+            manlDet(numStims) = struct('t', [], 'ch', [], 'subT', [], 'subCh', [], 'sw', [], ...
+                                       'amplitude', [], 'channels', [], 'width', [], 'prominence', [], 'metadata', []);
+            
+            for i = 1:numStims
+                manlDet(i).t = ClosestIndex(stimTimes(i), time);
+                manlDet(i).ch = 1;
+                manlDet(i).channels = 1;
+                manlDet(i).subT = [];
+                manlDet(i).subCh = 2;
+                manlDet(i).sw = 1;
+                manlDet(i).amplitude = NaN;
+                manlDet(i).width = NaN;
+                manlDet(i).prominence = NaN;
+                manlDet(i).metadata = struct('source', 'stimulus_export');
+            end
+            
+            event_comments = repmat({'Stimulus'}, numStims, 1);
+            
+            clear viewer_data
+            viewer_data.matFileName = matFileName;
+            viewer_data.matFilePath = matFilePath;
+            if exist('autodetection_settings', 'var') && ~isempty(autodetection_settings)
+                viewer_data.autodetection_settings = autodetection_settings;
+            end
+            if exist('add_event_settings', 'var') && ~isempty(add_event_settings)
+                viewer_data.add_event_settings = add_event_settings;
+            end
+            if exist('EV_version', 'var') && ~isempty(EV_version)
+                viewer_data.EV_version = EV_version;
+            end
+            
+            save(filepath, 'manlDet', 'event_comments', 'viewer_data');
+            fprintf('Exported %d stimuli to %s\n', numStims, file);
+        else
+            if isReplace
+                events = sort(stimTimes(:));
+                event_comments = repmat({'Stimulus'}, numel(events), 1);
+                event_amplitudes = NaN(numel(events), 1);
+                event_channels = ones(numel(events), 1);
+                event_widths = NaN(numel(events), 1);
+                event_prominences = NaN(numel(events), 1);
+                event_metadata = repmat(struct('source', 'stimulus_export'), numel(events), 1);
+                events_exist = true;
+            else
+                if isempty(events)
+                    events = sort(stimTimes(:));
+                    event_comments = repmat({'Stimulus'}, numel(events), 1);
+                    event_amplitudes = NaN(numel(events), 1);
+                    event_channels = ones(numel(events), 1);
+                    event_widths = NaN(numel(events), 1);
+                    event_prominences = NaN(numel(events), 1);
+                    event_metadata = repmat(struct('source', 'stimulus_export'), numel(events), 1);
+                else
+                    existingEvents = events(:);
+                    existingComments = event_comments;
+                    existingAmplitudes = event_amplitudes;
+                    existingChannels = event_channels;
+                    existingWidths = event_widths;
+                    existingProminences = event_prominences;
+                    existingMetadata = event_metadata;
+                    
+                    allEvents = [existingEvents; stimTimes(:)];
+                    [sortedEvents, sortIdx] = sort(allEvents);
+                    [uniqueEvents, uniqueIdx] = unique(sortedEvents);
+                    
+                    events = uniqueEvents(:);
+                    
+                    newComments = repmat({'Stimulus'}, numel(stimTimes), 1);
+                    allComments = [existingComments; newComments];
+                    event_comments = allComments(sortIdx(uniqueIdx));
+                    
+                    newAmplitudes = NaN(numel(stimTimes), 1);
+                    allAmplitudes = [existingAmplitudes; newAmplitudes];
+                    event_amplitudes = allAmplitudes(sortIdx(uniqueIdx));
+                    
+                    newChannels = ones(numel(stimTimes), 1);
+                    allChannels = [existingChannels; newChannels];
+                    event_channels = allChannels(sortIdx(uniqueIdx));
+                    
+                    newWidths = NaN(numel(stimTimes), 1);
+                    allWidths = [existingWidths; newWidths];
+                    event_widths = allWidths(sortIdx(uniqueIdx));
+                    
+                    newProminences = NaN(numel(stimTimes), 1);
+                    allProminences = [existingProminences; newProminences];
+                    event_prominences = allProminences(sortIdx(uniqueIdx));
+                    
+                    newMetadata = repmat(struct('source', 'stimulus_export'), numel(stimTimes), 1);
+                    allMetadata = [existingMetadata; newMetadata];
+                    event_metadata = allMetadata(sortIdx(uniqueIdx));
+                end
+                events_exist = true;
+            end
+            
+            if exist('table_calling', 'var') && ~isempty(table_calling)
+                try
+                    table_calling();
+                catch ME
+                    warning('Failed to update event table: %s', ME.message);
+                end
+            end
+            
+            if exist('updatePlotFunc', 'var') && ~isempty(updatePlotFunc)
+                try
+                    updatePlotFunc();
+                catch ME
+                    warning('Failed to update plot: %s', ME.message);
+                end
+            end
+            
+            fprintf('Exported %d stimuli to memory (%s)\n', numel(stimTimes), selectedMode);
         end
     end
 

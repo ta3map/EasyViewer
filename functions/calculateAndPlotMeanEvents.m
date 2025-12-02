@@ -97,7 +97,18 @@ params.timeUnitFactor = timeUnitFactor;
 params.lfpVar = lfpVar;
 params.mean_group_ch = mean_group_ch;
 params.t_profile = t_mean_profile;
-params.remove_artifact = strcmp(sourceType, 'stimuli') && art_rem_window_ms > 0;
+% Определение параметров удаления артефакта: приоритет у параметров из opts
+if isfield(opts, 'removeArtifact')
+    params.remove_artifact = strcmp(sourceType, 'stimuli') && logical(opts.removeArtifact);
+    if isfield(opts, 'artifactWindow_ms')
+        artifact_window_ms = opts.artifactWindow_ms;
+    else
+        artifact_window_ms = art_rem_window_ms;
+    end
+else
+    params.remove_artifact = strcmp(sourceType, 'stimuli') && art_rem_window_ms > 0;
+    artifact_window_ms = art_rem_window_ms;
+end
 if isfield(opts, 'autoScale')
     params.autoScale = logical(opts.autoScale);
 else
@@ -121,8 +132,8 @@ end
 
 % Убираем артефакт стимуляции в окне усреднения
 if params.remove_artifact
-    win_r = round(art_rem_window_ms * (Fs/1000));
-    debugState('calculateAndPlotMeanEvents', 'Stim artifact removal: Fs=%dHz, window=%.3f ms (~%d samples)', Fs, art_rem_window_ms, win_r);
+    win_r = round(artifact_window_ms * (Fs/1000));
+    debugState('calculateAndPlotMeanEvents', 'Stim artifact removal: Fs=%dHz, window=%.3f ms (~%d samples)', Fs, artifact_window_ms, win_r);
     params.lfp = removeStimArtifact(params.lfp, stims, time, win_r);
     
     if params.show_spikes

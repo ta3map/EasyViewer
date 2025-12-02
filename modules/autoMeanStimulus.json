@@ -5,7 +5,10 @@
       -500,
       500
     ],
-    "showOriginalTraces": true
+    "showOriginalTraces": true,
+    "removeBaseline": false,
+    "removeArtifact": true,
+    "artifactWindow_ms": 1
   },
   "detection": {
     "Polarity": "positive",

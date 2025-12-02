@@ -1,7 +1,11 @@
-function [lfp, spks, stims, lfpVar, sweep_info] = sweepProcessData(p, spks, n, m, lfp, Fs, zavp, lfpVar)
+function [lfp, spks, stims, lfpVar, sweep_info] = sweepProcessData(p, spks, n, m, lfp, Fs, zavp, lfpVar, hWaitBar)
 
-    % Показываем окно прогресса
-    hWaitBar = waitbar(0, 'Opening...', 'Name', 'Opening file with sweeps');
+    % Используем переданный waitbar или создаем новый
+    closeWaitBar = false;
+    if nargin < 9 || isempty(hWaitBar)
+        hWaitBar = waitbar(0, 'Processing sweeps...', 'Name', 'Opening file with sweeps');
+        closeWaitBar = true;
+    end
     
     sps_exist = ~isempty(spks);
     
@@ -37,12 +41,16 @@ function [lfp, spks, stims, lfpVar, sweep_info] = sweepProcessData(p, spks, n, m
                 spks_new(ch).shape  = [spks_new(ch).shape; spks(ch, i).shape];
             end
         end
-        current_message = sprintf('%d sweep of %d', i, p);
-        % disp(current_message);
-        waitbar(i/p, hWaitBar, current_message);
+        current_message = sprintf('Processing sweep %d of %d', i, p);
+        if ~isempty(hWaitBar) && isvalid(hWaitBar)
+            waitbar(i/p, hWaitBar, current_message);
+        end
     end
     
-    close(hWaitBar);
+    % Закрываем waitbar только если мы его создали
+    if closeWaitBar && ~isempty(hWaitBar) && isvalid(hWaitBar)
+        close(hWaitBar);
+    end
     
     lfp  = lfp_new;
     spks = spks_new;

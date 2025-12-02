@@ -63,8 +63,12 @@ end
 
 fprintf('Loading file: %s\n', filename);
 
+% Создаем waitbar для отображения прогресса загрузки
+hWaitBar = waitbar(0, 'Initializing...', 'Name', 'Loading file');
+
 % Проверяем, является ли файл Heka форматом
 if detectHekaFormat(filepath)
+    waitbar(0.1, hWaitBar, 'Heka format detected, converting to ZAV...');
     fprintf('Heka format detected, converting to ZAV...\n');
     [lfp, spks, hd, zavp, lfpVar, chnlGrp] = hekaToZav(filepath);
     % Создаем структуру d для совместимости с остальным кодом
@@ -75,6 +79,7 @@ if detectHekaFormat(filepath)
     d.lfpVar = lfpVar;
     d.chnlGrp = chnlGrp;
 else
+    waitbar(0.1, hWaitBar, 'Loading data in ZAV format...');
     fprintf('Loading data in ZAV format...\n');
     d = load(filepath); % Загружаем данные в структуру как обычно
 end
@@ -148,15 +153,18 @@ end
 
 % Обработка свипов
 if p > 1 % случай со свипами
+    waitbar(0.3, hWaitBar, sprintf('Processing %d sweeps...', p));
     fprintf('Sweeps detected (count: %d)\n', p);
-    [lfp, spks, stims, lfpVar, sweep_info] = sweepProcessData(p, spks, n, m, lfp, Fs, zavp, lfpVar);
+    [lfp, spks, stims, lfpVar, sweep_info] = sweepProcessData(p, spks, n, m, lfp, Fs, zavp, lfpVar, hWaitBar);
     stims_exist = ~isempty(stims);
     
     % Сохраняем информацию о свипах
     sweep_inx = 1; % по умолчанию показываем первый свип
     
     fprintf('Duration of one sweep: %.3f s\n', m/Fs);
+    waitbar(0.7, hWaitBar, 'Sweeps processed, finalizing...');
 else
+    waitbar(0.5, hWaitBar, 'Processing regular data...');
     fprintf('Regular data without sweeps\n');
     if isfield(zavp, 'realStim') 
         stims = zavp.realStim(:).r(:) * zavp.siS;  
@@ -176,6 +184,7 @@ else
 end
 
 % Создание временной оси
+waitbar(0.8, hWaitBar, 'Creating time axis...');
 N = size(lfp, 1);
 time = (0:N-1) / Fs; % в секундах
 fprintf('Total recording duration: %.3f s\n', time(end));
@@ -226,6 +235,7 @@ event_metadata = [];
 
 % Загрузка событий если требуется
 if load_events
+    waitbar(0.85, hWaitBar, 'Loading events...');
     fprintf('Loading events...\n');
     [events, event_comments, event_amplitudes, event_channels, event_widths, event_prominences, event_metadata] = load_events_from_file(filepath, time);
     if ~isempty(events)
@@ -235,6 +245,7 @@ end
 
 % Загрузка настроек каналов если требуется
 if load_settings
+    waitbar(0.9, hWaitBar, 'Loading channel settings...');
     fprintf('Loading channel settings...\n');
     [channelNames, channelEnabled, scalingCoefficients, colorsIn, lineCoefficients, mean_group_ch, csd_avaliable, filter_avaliable, filterSettings] = load_channel_settings(filepath, hd.recChNames);
     fprintf('Channel settings loaded\n');
@@ -260,6 +271,12 @@ fprintf('Stimuli: %s\n', ternary(stims_exist, 'yes', 'no'));
 fprintf('Sweeps: %s\n', ternary(sweep_info.is_sweep_data, 'yes', 'no'));
 fprintf('Events: %s\n', ternary(~isempty(events), 'yes', 'no'));
 fprintf('File successfully loaded!\n');
+
+% Закрываем waitbar
+waitbar(1, hWaitBar, 'Loading complete!');
+if ~isempty(hWaitBar) && isvalid(hWaitBar)
+    close(hWaitBar);
+end
 
 % Собираем все данные в структуру
 data = struct();

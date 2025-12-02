@@ -8,7 +8,13 @@ function result = autoMeanStimulus(filePath, fileId)
     
     % Подготовка opts для calculateAndPlotMeanEvents
     % tiledlayoutSize: [4, 1] - основной график (2 строки), таблица (1 строка), scatter (1 строка)
-    opts = struct('autoScale', params.autoScale, 'xLimits', params.xLimits, 'showOriginalTraces', params.showOriginalTraces, 'tiledlayoutSize', [4, 1]);
+    opts = struct('autoScale', params.autoScale, 'xLimits', params.xLimits, 'showOriginalTraces', params.showOriginalTraces, 'removeBaseline', params.removeBaseline, 'tiledlayoutSize', [4, 1]);
+    if isfield(params, 'removeArtifact')
+        opts.removeArtifact = params.removeArtifact;
+        if isfield(params, 'artifactWindow_ms')
+            opts.artifactWindow_ms = params.artifactWindow_ms;
+        end
+    end
     [meanFig, calcResult] = calculateAndPlotMeanEvents('stimuli', opts);
 
     % Подготовка detParams для detectPeaksInMeanData
