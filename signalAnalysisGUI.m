@@ -1,5 +1,5 @@
 function signalAnalysisGUI(editMode)
-    disp('Signal Analysis Started')
+    debugState('signalAnalysisGUI', 'Signal Analysis Started')
 
     % Проверяем режим редактирования
     if nargin < 1
@@ -786,7 +786,7 @@ updateCursorEditFields();
         % Обновляем график
         updatePlotAndCalculation();
         
-        fprintf('✓ Channel changed, optimal axis sizes applied\n');
+        debugState('channelCallback', '✓ Channel changed, optimal axis sizes applied');
     end
     
     function polarityCallback(src, ~)
@@ -932,7 +932,7 @@ updateCursorEditFields();
     
     function magnetPickTime(targetEditHandle, callbackHandle)
         if ~ishandle(hPlotAxes) || strcmp(get(hPlotAxes, 'Visible'), 'off')
-            fprintf('❌ Сначала загрузите данные для анализа\n');
+            debugState('magnetPickTime', '❌ Сначала загрузите данные для анализа');
             return;
         end
         figure(signalFig);
@@ -940,11 +940,11 @@ updateCursorEditFields();
         try
             [x, ~] = ginput(1);
         catch
-            fprintf('❌ Выбор точки отменен\n');
+            debugState('magnetPickTime', '❌ Выбор точки отменен');
             return;
         end
         if isempty(x) || ~isfinite(x)
-            fprintf('❌ Выбор точки отменен\n');
+            debugState('magnetPickTime', '❌ Выбор точки отменен');
             return;
         end
         set(targetEditHandle, 'String', sprintf('%.3f', x));
@@ -1838,12 +1838,12 @@ updateCursorEditFields();
     function startZoomSelection()
         % Начинаем выбор области для зума
         axes(hPlotAxes);
-        fprintf('Select zoom area: click any two points to define the area\n');
+        debugState('startZoomSelection', 'Select zoom area: click any two points to define the area');
         
         % Собираем две точки для зума (с координатами X и Y)
         [x1, y1] = ginput(1);
         if isempty(x1)
-            fprintf('Zoom cancelled\n');
+            debugState('startZoomSelection', 'Zoom cancelled');
             return;
         end
         
@@ -1853,13 +1853,13 @@ updateCursorEditFields();
         current_ylim = ylim(hPlotAxes);
         hTempLineV = line([x1, x1], current_ylim, 'Color', 'r', 'LineStyle', '--', 'LineWidth', 2);
         hTempLineH = line(current_xlim, [y1, y1], 'Color', 'r', 'LineStyle', '--', 'LineWidth', 2);
-        fprintf('First point selected: (%.3f, %.3f). Select second point\n', x1, y1);
+        debugState('startZoomSelection', 'First point selected: (%.3f, %.3f). Select second point', x1, y1);
         
         [x2, y2] = ginput(1);
         if isempty(x2)
             delete(hTempLineV);
             delete(hTempLineH);
-            fprintf('Zoom cancelled\n');
+            debugState('startZoomSelection', 'Zoom cancelled');
             return;
         end
         
@@ -1877,7 +1877,7 @@ updateCursorEditFields();
         if zoom_x_end > zoom_x_start && zoom_y_end > zoom_y_start
             applyZoom(zoom_x_start, zoom_x_end, zoom_y_start, zoom_y_end);
         else
-            fprintf('Invalid zoom area: area must have non-zero size\n');
+            debugState('startZoomSelection', 'Invalid zoom area: area must have non-zero size');
         end
     end
     
@@ -1997,10 +1997,10 @@ updateCursorEditFields();
             set(zoomBtn, 'String', 'Zoom');
             % fprintf('DEBUG: Кнопка сброшена на: %s, zoom_active = %d\n', get(zoomBtn, 'String'), zoom_active);
         else
-            fprintf('ERROR: Zoom button not found in resZoom!\n');
+            debugState('resZoom', 'ERROR: Zoom button not found in resZoom!');
         end
         
-        fprintf('✓ Zoom reset (new optimal boundaries will be calculated)\n');
+        debugState('resZoom', '✓ Zoom reset (new optimal boundaries will be calculated)');
         updateNavigationStatus();
         updatePlotAndCalculation();
     end
@@ -2131,7 +2131,7 @@ updateCursorEditFields();
         % Обновляем таблицу
         updateResultsTable();
         
-        fprintf('✓ Result added to table (total: %d)\n', length(slope_measurement_results));
+        debugState('addResult', '✓ Result added to table (total: %d)', length(slope_measurement_results));
     end
     
     function addResultSilent()
@@ -2228,7 +2228,7 @@ updateCursorEditFields();
                 % UIScrollPane уже содержит методы прокрутки
                 saved_vpos = jTable.getVerticalScrollBar.getValue();
                 saved_hpos = jTable.getHorizontalScrollBar.getValue();
-                fprintf('DEBUG: Сохранены позиции - vpos: %d, hpos: %d\n', saved_vpos, saved_hpos);
+                debugState('removeResult', 'DEBUG: Сохранены позиции - vpos: %d, hpos: %d', saved_vpos, saved_hpos);
             catch
                 saved_vpos = [];
                 saved_hpos = [];
@@ -2250,7 +2250,7 @@ updateCursorEditFields();
             % Обновляем таблицу
             updateResultsTable();
         
-        fprintf('✓ Result #%d removed from table\n', selected_row_slope);
+        debugState('removeResult', '✓ Result #%d removed from table', selected_row_slope);
         
         % Оставляем selected_row_slope без изменений для сохранения выделения
             
@@ -2263,9 +2263,9 @@ updateCursorEditFields();
                 % Обновляем таблицу
                 updateResultsTable();
                 
-                fprintf('✓ Last result #%d removed from table\n', last_index);
+                debugState('removeResult', '✓ Last result #%d removed from table', last_index);
             else
-                fprintf('❌ No results to delete\n');
+                debugState('removeResult', '❌ No results to delete');
             end
         end
         
@@ -2287,13 +2287,13 @@ updateCursorEditFields();
         % Заменяет выбранный результат текущим измерением
         
         if isempty(selected_row_slope) || selected_row_slope > length(slope_measurement_results)
-            fprintf('❌ No selected result to replace\n');
+            debugState('replaceResult', '❌ No selected result to replace');
             return;
         end
         
         % Проверяем, что у нас есть текущие результаты
         if ~exist('slope_value', 'var') || isnan(slope_value)
-            fprintf('❌ No current results to replace\n');
+            debugState('replaceResult', '❌ No current results to replace');
             return;
         end
         
@@ -2374,31 +2374,31 @@ updateCursorEditFields();
         try
             jTable = findjobj(hResultsTable);
             % UIScrollPane уже содержит методы прокрутки
-            saved_vpos = jTable.getVerticalScrollBar.getValue();
-            saved_hpos = jTable.getHorizontalScrollBar.getValue();
-            fprintf('DEBUG: Сохранены позиции - vpos: %d, hpos: %d\n', saved_vpos, saved_hpos);
-        catch
-            saved_vpos = [];
-            saved_hpos = [];
-        end
+                saved_vpos = jTable.getVerticalScrollBar.getValue();
+                saved_hpos = jTable.getHorizontalScrollBar.getValue();
+                debugState('replaceResult', 'DEBUG: Сохранены позиции - vpos: %d, hpos: %d', saved_vpos, saved_hpos);
+            catch
+                saved_vpos = [];
+                saved_hpos = [];
+            end
+            
+            % Отключаем видимость таблицы для плавного обновления
+            set(hResultsTable, 'Visible', 'off');
+            
+            % Показываем текст "Wait..." в центре таблицы
+            waitText = uicontrol(signalFig, 'Style', 'text', ...
+                'Position', [1135, 300, 460, 20], ...
+                'String', 'Wait...', ...
+                'FontSize', 16, ...
+                'FontWeight', 'bold', ...
+                'BackgroundColor', get(signalFig, 'Color'), ...
+                'ForegroundColor', [0.5, 0.5, 0.5], ...
+                'HorizontalAlignment', 'center');
+            
+            % Обновляем таблицу
+            updateResultsTable();
         
-        % Отключаем видимость таблицы для плавного обновления
-        set(hResultsTable, 'Visible', 'off');
-        
-        % Показываем текст "Wait..." в центре таблицы
-        waitText = uicontrol(signalFig, 'Style', 'text', ...
-            'Position', [1135, 300, 460, 20], ...
-            'String', 'Wait...', ...
-            'FontSize', 16, ...
-            'FontWeight', 'bold', ...
-            'BackgroundColor', get(signalFig, 'Color'), ...
-            'ForegroundColor', [0.5, 0.5, 0.5], ...
-            'HorizontalAlignment', 'center');
-        
-        % Обновляем таблицу
-        updateResultsTable();
-        
-        fprintf('✓ Result #%d replaced with current measurement\n', selected_row_slope);
+        debugState('replaceResult', '✓ Result #%d replaced with current measurement', selected_row_slope);
         
         % Оставляем selected_row_slope без изменений для сохранения выделения
         
@@ -2423,7 +2423,7 @@ updateCursorEditFields();
         % Сохраняет результаты в Excel файл и метаданные в .meta файл
         
         if isempty(slope_measurement_results)
-            fprintf('❌ No results to save\n');
+            debugState('saveResults', '❌ No results to save');
             return;
         end
 
@@ -2441,7 +2441,7 @@ updateCursorEditFields();
                                        'Save Excel Results As', defaultFileName);
         
         if isequal(filename, 0) || isequal(pathname, 0)
-            fprintf('❌ Save cancelled\n');
+            debugState('saveResults', '❌ Save cancelled');
             return;
         end
         
@@ -2567,10 +2567,10 @@ updateCursorEditFields();
             % Сохраняем метаданные в .meta файл (фактически .mat формат)
             save(meta_path, 'slope_measurement_results', 'average_values', 'original_file_info', '-v7.3');
             
-            fprintf('✓ Results saved:\n');
-            fprintf('  Excel: %s\n', excel_path);
-            fprintf('  Metadata: %s\n', meta_path);
-            fprintf('  Total records: %d\n', length(slope_measurement_results));
+            debugState('saveResults', '✓ Results saved:');
+            debugState('saveResults', '  Excel: %s', excel_path);
+            debugState('saveResults', '  Metadata: %s', meta_path);
+            debugState('saveResults', '  Total records: %d', length(slope_measurement_results));
             
             % Сохраняем результат анализа в базу данных
             if ~isempty(matFilePath)
@@ -2582,11 +2582,11 @@ updateCursorEditFields();
                     'parameters', struct('total_records', length(slope_measurement_results), ...
                                          'meta_path', meta_path));
                 logAnalysisResult(matFilePath, result);
-                fprintf('  Analysis result saved to database\n');
+                debugState('saveResults', '  Analysis result saved to database');
             end
             
         catch ME
-            fprintf('❌ Error saving: %s\n', ME.message);
+            debugState('saveResults', '❌ Error saving: %s', ME.message);
         end
     end
     
@@ -2667,21 +2667,21 @@ updateCursorEditFields();
         try
             % Получаем Java-объект таблицы через findjobj
             jTable = findjobj(hResultsTable);
-            fprintf('DEBUG: jTable тип: %s\n', class(jTable));
+            debugState('updateResultsTable', 'DEBUG: jTable тип: %s', class(jTable));
             
             % Проверяем доступные методы UIScrollPane
-            fprintf('DEBUG: Проверяем методы UIScrollPane\n');
+            debugState('updateResultsTable', 'DEBUG: Проверяем методы UIScrollPane');
             
             % Восстанавливаем позицию прокрутки через viewport
             if exist('saved_vpos', 'var') && ~isempty(saved_vpos)
-                fprintf('DEBUG: Восстанавливаем vpos: %d\n', saved_vpos);
+                debugState('updateResultsTable', 'DEBUG: Восстанавливаем vpos: %d', saved_vpos);
                 
                 try
                     viewport = jTable.getViewport();
                     viewport.setViewPosition(java.awt.Point(0, saved_vpos));
                     % fprintf('DEBUG: ✓ Способ 2 (viewport) применен\n');
                 catch ME
-                    fprintf('DEBUG: ✗ Способ 2 не сработал: %s\n', ME.message);
+                    debugState('updateResultsTable', 'DEBUG: ✗ Способ 2 не сработал: %s', ME.message);
                 end
                 
                 % Удаляем текст "Wait..." и включаем видимость таблицы
@@ -2699,7 +2699,7 @@ updateCursorEditFields();
             end
         catch ME
             % Выводим ошибки Java для отладки
-            fprintf('DEBUG: Ошибка при восстановлении позиции: %s\n', ME.message);
+            debugState('updateResultsTable', 'DEBUG: Ошибка при восстановлении позиции: %s', ME.message);
         end
         
     end
@@ -2739,7 +2739,7 @@ updateCursorEditFields();
         
         % Обновляем таблицу средних значений
 
-        disp(hAverageTable);
+        debugState('updateAverageTable', '%s', mat2str(hAverageTable));
         
         % Вычисляем разность времени пика и онсета для всех результатов
         peak_onset_diff_values = ([slope_measurement_results.peak_time] - [slope_measurement_results.onset_time]) * timeUnitFactor;
@@ -2748,7 +2748,7 @@ updateCursorEditFields();
         try
             set(hAverageTable, 'Data', {avg_slope, avg_peak_time_rel, avg_peak_amplitude, avg_onset_time_rel, avg_baseline, avg_peak_onset_diff});
         catch ME
-            fprintf('Error updating table: %s\n', ME.message);
+            debugState('updateAverageTable', 'Error updating table: %s', ME.message);
         end
     end
     
@@ -2880,7 +2880,7 @@ updateCursorEditFields();
         original_xlim = optimal_xlim;
         original_ylim = optimal_ylim;
         
-        fprintf('DEBUG: Применены оптимальные границы ylim: %s, xlim: %s\n', mat2str(optimal_ylim), mat2str(optimal_xlim));
+        debugState('restoreStateFromMetadata', 'DEBUG: Применены оптимальные границы ylim: %s, xlim: %s', mat2str(optimal_ylim), mat2str(optimal_xlim));
         
         % Обновляем edit fields с относительным временем после автоскейла
         updateCursorEditFields();
@@ -2891,7 +2891,7 @@ updateCursorEditFields();
         % Сбрасываем флаг восстановления
         restoring_from_metadata = false;
         
-        fprintf('✓ State restored from result #%d\n', row_index);
+        debugState('restoreStateFromMetadata', '✓ State restored from result #%d', row_index);
     end
     
     function status_text = getNavigationStatusText(metadata)
@@ -2930,7 +2930,7 @@ updateCursorEditFields();
         % Переключает режим просмотра среднего сигнала
         
         if isempty(slope_measurement_results)
-            fprintf('❌ No results for averaging\n');
+            debugState('toggleMeanResults', '❌ No results for averaging');
             return;
         end
         
@@ -2940,7 +2940,7 @@ updateCursorEditFields();
             % Вычисляем средний сигнал
             [mean_signal_data, mean_signal_time] = calculateMeanSignal();
             set(hMeanResultsBtn, 'String', 'Show Single');
-            fprintf('✓ Average signal mode enabled (%d results)\n', length(slope_measurement_results));
+            debugState('toggleMeanResults', '✓ Average signal mode enabled (%d results)', length(slope_measurement_results));
             % вычисляем границы осей
             [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
         else
@@ -2948,7 +2948,7 @@ updateCursorEditFields();
             mean_signal_data = [];
             mean_signal_time = [];
             set(hMeanResultsBtn, 'String', 'Av. Trace');
-            fprintf('✓ Single signal mode enabled\n');
+            debugState('toggleMeanResults', '✓ Single signal mode enabled');
             if isempty(original_xlim) && isempty(original_ylim)
                 [original_xlim, original_ylim] = calculateOptimalAxisLimits(true);
             else
@@ -3066,20 +3066,20 @@ updateCursorEditFields();
                     % Очищаем таблицу результатов перед автоматическим измерением
                     slope_measurement_results = [];
                     updateResultsTable();
-                    fprintf('✓ Table cleared before automatic measurement\n');
+                    debugState('autoMeasureAllTimeRanges', '✓ Table cleared before automatic measurement');
                     
                 case 'No'
                     % Продолжаем с существующими результатами
-                    fprintf('✓ Automatic measurement will be added to existing results\n');
+                    debugState('autoMeasureAllTimeRanges', '✓ Automatic measurement will be added to existing results');
                     
                 case 'Cancel'
                     % Отменяем операцию
-                    fprintf('❌ Automatic measurement cancelled by user\n');
+                    debugState('autoMeasureAllTimeRanges', '❌ Automatic measurement cancelled by user');
                     return;
                     
                 otherwise
                     % Пользователь закрыл диалог
-                    fprintf('❌ Automatic measurement cancelled\n');
+                    debugState('autoMeasureAllTimeRanges', '❌ Automatic measurement cancelled');
                     return;
             end
         end
@@ -3105,18 +3105,18 @@ updateCursorEditFields();
             case 'stimulus'
                 if stims_exist && ~isempty(stims)
                     total_ranges = length(stims);
-                    fprintf('Automatic measurement of %d stimuli...\n', total_ranges);
+                    debugState('autoMeasureAllTimeRanges', 'Automatic measurement of %d stimuli...', total_ranges);
                 else
-                    fprintf('ERROR: No stimuli for measurement\n');
+                    debugState('autoMeasureAllTimeRanges', 'ERROR: No stimuli for measurement');
                     return;
                 end
                 
             case 'sweep'
                 if isstruct(sweep_info) && sweep_info.is_sweep_data
                     total_ranges = sweep_info.sweep_count;
-                    fprintf('Automatic measurement of %d sweeps...\n', total_ranges);
+                    debugState('autoMeasureAllTimeRanges', 'Automatic measurement of %d sweeps...', total_ranges);
                 else
-                    fprintf('ERROR: No sweep data for measurement\n');
+                    debugState('autoMeasureAllTimeRanges', 'ERROR: No sweep data for measurement');
                     return;
                 end
                 
@@ -3124,18 +3124,18 @@ updateCursorEditFields();
                 % Для режима time вычисляем количество возможных шагов
                 windowSize = chosen_time_interval(2) - chosen_time_interval(1);
                 if windowSize <= 0
-                    fprintf('ERROR: Invalid time window size\n');
+                    debugState('autoMeasureAllTimeRanges', 'ERROR: Invalid time window size');
                     return;
                 end
                 total_ranges = floor((time(end) - time(1)) / windowSize);
                 if total_ranges <= 0
-                    fprintf('ERROR: Insufficient data for measurement\n');
+                    debugState('autoMeasureAllTimeRanges', 'ERROR: Insufficient data for measurement');
                     return;
                 end
-                fprintf('Automatic measurement of %d time segments...\n', total_ranges);
+                debugState('autoMeasureAllTimeRanges', 'Automatic measurement of %d time segments...', total_ranges);
                 
             otherwise
-                fprintf('ERROR: Unsupported navigation mode\n');
+                debugState('autoMeasureAllTimeRanges', 'ERROR: Unsupported navigation mode');
                 return;
         end
         
@@ -3156,7 +3156,7 @@ updateCursorEditFields();
             for i = 1:total_ranges
                 % Проверяем, не было ли закрыто окно прогресса
                 if ~ishandle(hWaitBar)
-                    fprintf('❌ Automatic measurement cancelled by user\n');
+                    debugState('autoMeasureAllTimeRanges', '❌ Automatic measurement cancelled by user');
                     break;
                 end
                 
@@ -3166,7 +3166,7 @@ updateCursorEditFields();
                 current_message = sprintf('Measuring segment %d of %d (%d%%)', i, total_ranges, percent);
                 waitbar(progress, hWaitBar, current_message);
                 
-                fprintf('Measuring segment %d/%d...\n', i, total_ranges);
+                debugState('autoMeasureAllTimeRanges', 'Measuring segment %d/%d...', i, total_ranges);
                 
                 % Переключаемся на следующий участок (аналогично Next)
                 switch selectedCenter
@@ -3202,36 +3202,36 @@ updateCursorEditFields();
                 
                 % Минимальное обновление для прогресса
                 if mod(i, 10) == 0 || i == total_ranges
-                    fprintf('Progress: %d/%d\n', i, total_ranges);
+                    debugState('autoMeasureAllTimeRanges', 'Progress: %d/%d', i, total_ranges);
                 end
             end
             
             % Проверяем, была ли отмена
             if ~ishandle(hWaitBar)
-                fprintf('❌ Автоматическое измерение отменено пользователем\n');
+                debugState('autoMeasureAllTimeRanges', '❌ Автоматическое измерение отменено пользователем');
             else
-                fprintf('SUCCESS: Automatic measurement completed! Added %d results\n', total_ranges);
+                debugState('autoMeasureAllTimeRanges', 'SUCCESS: Automatic measurement completed! Added %d results', total_ranges);
             end
             
             % Принудительно закрываем окно прогресса после завершения цикла
             if exist('hWaitBar', 'var') && ishandle(hWaitBar)
                 close(hWaitBar);
-                fprintf('✓ Progress window closed after completion\n');
+                debugState('autoMeasureAllTimeRanges', '✓ Progress window closed after completion');
             end
             
         catch ME
             % Закрываем окно прогресса при ошибке
             if exist('hWaitBar', 'var') && ishandle(hWaitBar)
                 close(hWaitBar);
-                fprintf('✓ Progress window closed on error\n');
+                debugState('autoMeasureAllTimeRanges', '✓ Progress window closed on error');
             end
             
             % Сбрасываем флаг автоанализа
             auto_analysis_mode = false;
             
             % Показываем ошибку пользователю
-            fprintf('Error in auto-analysis: %s\n', ME.message);
-            fprintf('❌ Error in auto-analysis: %s\n', ME.message);
+            debugState('autoMeasureAllTimeRanges', 'Error in auto-analysis: %s', ME.message);
+            debugState('autoMeasureAllTimeRanges', '❌ Error in auto-analysis: %s', ME.message);
             return;
         end
         
@@ -3261,7 +3261,7 @@ updateCursorEditFields();
         % Закрываем окно прогресса в любом случае
         if exist('hWaitBar', 'var') && ishandle(hWaitBar)
             close(hWaitBar);
-            fprintf('✓ Progress window closed\n');
+            debugState('autoMeasureAllTimeRanges', '✓ Progress window closed');
         end
         
         % ФИНАЛЬНОЕ обновление всех таблиц и графика
@@ -3290,7 +3290,7 @@ updateCursorEditFields();
         [filename, pathname] = uigetfile('*.meta', 'Load Results From', defaultPath);
         
         if isequal(filename, 0) || isequal(pathname, 0)
-            fprintf('❌ Loading cancelled\n');
+            debugState('loadResults', '❌ Loading cancelled');
             return;
         end
         
@@ -3304,10 +3304,10 @@ updateCursorEditFields();
             if isfield(loaded_data, 'original_file_info') && ~isempty(loaded_data.original_file_info.matFileName)
                 if ~strcmp(loaded_data.original_file_info.matFileName, matFileName)
                     % Имена файлов не совпадают, загружаем оригинальный файл
-                    fprintf('📁 Loading original file: %s\n', loaded_data.original_file_info.matFilePath);
+                    debugState('loadResults', '📁 Loading original file: %s', loaded_data.original_file_info.matFilePath);
                     OpenFilePath(loaded_data.original_file_info.matFilePath);
                 else
-                    fprintf('ℹ️ Original file already loaded: %s\n', matFileName);
+                    debugState('loadResults', 'ℹ️ Original file already loaded: %s', matFileName);
                 end
             end
             
@@ -3315,31 +3315,31 @@ updateCursorEditFields();
             slope_measurement_results = loaded_data.slope_measurement_results;
             
             % Проверяем и обновляем старые метаданные
-            fprintf('Checking and updating old metadata...\n');
+            debugState('loadResults', 'Checking and updating old metadata...');
             for i = 1:length(slope_measurement_results)
                 % Проверяем наличие поля stim_inx
                 if ~isfield(slope_measurement_results(i).metadata, 'stim_inx')
                     % Для старых метаданных пробуем получить номер стимула из индекса
                     if strcmp(slope_measurement_results(i).metadata.selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
                         slope_measurement_results(i).metadata.stim_inx = i;
-                        fprintf('  Result #%d: added stimulus number %d\n', i, i);
+                        debugState('loadResults', '  Result #%d: added stimulus number %d', i, i);
                     else
                         slope_measurement_results(i).metadata.stim_inx = NaN;
-                        fprintf('  Result #%d: stimulus number not determined\n', i);
+                        debugState('loadResults', '  Result #%d: stimulus number not determined', i);
                     end
                 end
                 
                 % Проверяем наличие полей для peak_onset_diff
                 if ~isfield(slope_measurement_results(i), 'onset_time')
                     slope_measurement_results(i).onset_time = NaN;
-                    fprintf('  Result #%d: added onset_time field\n', i);
+                    debugState('loadResults', '  Result #%d: added onset_time field', i);
                 end
                 if ~isfield(slope_measurement_results(i), 'onset_value')
                     slope_measurement_results(i).onset_value = NaN;
-                    fprintf('  Result #%d: added onset_value field\n', i);
+                    debugState('loadResults', '  Result #%d: added onset_value field', i);
                 end
             end
-            fprintf('Metadata update completed\n');
+            debugState('loadResults', 'Metadata update completed');
 
             % Сбрасываем выделения
             selected_row_slope = [];
@@ -3348,9 +3348,9 @@ updateCursorEditFields();
             % Обновляем отображение
             updateResultsTable();
             
-            fprintf('✓ Results loaded from file:\n');
-            fprintf('  File: %s\n', filepath);
-            fprintf('  Results: %d\n', length(slope_measurement_results));
+            debugState('loadResults', '✓ Results loaded from file:');
+            debugState('loadResults', '  File: %s', filepath);
+            debugState('loadResults', '  Results: %d', length(slope_measurement_results));
             
             % Восстанавливаем состояние первого результата если есть
             if ~isempty(slope_measurement_results)
@@ -3358,7 +3358,7 @@ updateCursorEditFields();
             end
             
         catch ME
-            fprintf('❌ Error loading: %s\n', ME.message);
+            debugState('loadResults', '❌ Error loading: %s', ME.message);
         end
     end
     
@@ -3381,7 +3381,7 @@ updateCursorEditFields();
             
             [file, path] = uigetfile('*.mat', 'Load .mat File (ZAV or Heka format)', initialDir);
             if isequal(file, 0)
-                disp('File selection canceled.');
+                debugState('openFile', 'File selection canceled.');
                 return;
             end
             filepath = fullfile(path, file);
@@ -3506,10 +3506,10 @@ updateCursorEditFields();
             updateNavigationStatus();
             updatePlotAndCalculation();
             
-            fprintf('✓ File successfully loaded: %s\n', matFileName);
-            fprintf('  Data size: %dx%dx%d\n', size(lfp));
-            fprintf('  Sampling rate: %.1f Hz\n', Fs);
-            fprintf('  Duration: %.3f s\n', time(end));
+            debugState('openFile', '✓ File successfully loaded: %s', matFileName);
+            debugState('openFile', '  Data size: %dx%dx%d', size(lfp));
+            debugState('openFile', '  Sampling rate: %.1f Hz', Fs);
+            debugState('openFile', '  Duration: %.3f s', time(end));
             
             % Возвращаем метаданные для совместимости с launchFile
             metadata.hd = hd;
@@ -3517,7 +3517,7 @@ updateCursorEditFields();
             metadata.filePath = filepath;
             
         catch ME
-            fprintf('❌ Error loading file: %s\n', ME.message);
+            debugState('openFile', '❌ Error loading file: %s', ME.message);
             % Восстанавливаем предыдущие данные если загрузка не удалась
             metadata = struct('hd', [], 'stims', [], 'filePath', '');
             return;
@@ -3557,7 +3557,7 @@ updateCursorEditFields();
         % Обновляем состояние кнопки Replace
         updateReplaceButtonState();
         
-        fprintf('✓ All results and measurements cleared\n');
+        debugState('clearAllResults', '✓ All results and measurements cleared');
                 
             case 'No'
                 % Пользователь отменил операцию
@@ -3570,7 +3570,7 @@ updateCursorEditFields();
         % Вызывается из settingsEditor.m
         try
             updatePlotAndCalculation();
-            fprintf('✓ Signal analysis plot updated from group settings\n');
+            debugState('updateAnalysisPlotFunc', '✓ Signal analysis plot updated from group settings');
         catch ME
             warning('Error updating analysis plot: %s', ME.message);
         end
@@ -3604,12 +3604,12 @@ updateCursorEditFields();
         if isfile(channelSettingsFilePath)
             % Индивидуальные настройки существуют - загружаем их полностью
             % fprintf('DEBUG: loadChannelSettings: Индивидуальные настройки найдены\n');
-            disp('Loading individual channel settings...')
+            debugState('loadChannelSettings', 'Loading individual channel settings...')
             loadSettingsFile(channelSettingsFilePath);
         else
             % Индивидуальных настроек нет - загружаем групповые + создаем индивидуальные
             % fprintf('DEBUG: loadChannelSettings: Индивидуальные настройки НЕ найдены, загружаем групповые\n');
-            disp('No individual settings found, loading group settings...')
+            debugState('loadChannelSettings', 'No individual settings found, loading group settings...')
             % Загружаем групповые настройки и создаем индивидуальные
             loadGroupSettingsAndCreateIndividual(matFilePath, numChannels, Fs, EV_version);
         end
@@ -3670,7 +3670,7 @@ updateCursorEditFields();
                 filterSettings.freqHigh = 50;
                 filterSettings.order = 4;
                 filterSettings.channelsToFilter = false(length(channelNames), 1);
-                disp('settings were without filterSettings')
+                debugState('loadSettingsFile', 'settings were without filterSettings')
             end       
 
             if isfield(loadedSettings, 'newFs')
@@ -3692,13 +3692,13 @@ updateCursorEditFields();
                 stims = loadedSettings.stims;
                 stims_exist = ~isempty(stims);
                 stims_loaded_from_settings = true;
-                disp('Loaded shifted stimulus times from settings')
+                debugState('loadSettingsFile', 'Loaded shifted stimulus times from settings')
             end
             
 
             
             % fprintf('DEBUG: loadSettingsFile: Настройки каналов загружены успешно\n');
-            disp('Channel settings loaded successfully')
+            debugState('loadSettingsFile', 'Channel settings loaded successfully')
             
         catch ME
             warning('Error loading channel settings: %s', ME.message)
@@ -3725,7 +3725,7 @@ updateCursorEditFields();
             filterSettings.order = 4;
             filterSettings.channelsToFilter = false(numChannels, 1);
             
-            disp('Default channel settings applied')
+            debugState('setDefaultChannelSettings', 'Default channel settings applied')
         end
     end
 
@@ -3736,18 +3736,18 @@ updateCursorEditFields();
         
         % Проверяем, загружен ли файл
         if isempty(matFilePath) || ~exist(matFilePath, 'file')
-            fprintf('No project loaded. Please load a MAT file first.\n');
+            debugState('openGroupSettingsEditor', 'No project loaded. Please load a MAT file first.');
             return;
         end
         
         % Проверяем, что все необходимые глобальные переменные доступны
         if ~exist('numChannels', 'var') || isempty(numChannels)
-            fprintf('Channel information not available. Please reload the file.\n');
+            debugState('openGroupSettingsEditor', 'Channel information not available. Please reload the file.');
             return;
         end
         
         if ~exist('Fs', 'var') || isempty(Fs)
-            fprintf('Sampling rate information not available. Please reload the file.\n');
+            debugState('openGroupSettingsEditor', 'Sampling rate information not available. Please reload the file.');
             return;
         end
         
@@ -3764,17 +3764,17 @@ updateCursorEditFields();
         
         % Создаем заглушки для функций обновления (аналогично signalViewerGUI.m)
         % В slopeMeasurementGUI.m эти функции могут быть пустыми или выполнять базовые операции
-        updateTableFunc = @() disp('Table update function called');
-        updateLocalCoefsFunc = @() disp('Local coefficients update function called');
+        updateTableFunc = @() debugState('openGroupSettingsEditor', 'Table update function called');
+        updateLocalCoefsFunc = @() debugState('openGroupSettingsEditor', 'Local coefficients update function called');
         updatePlotFunc = @() updatePlotAndCalculation();
         saveChannelSettingsFunc = @() saveChannelSettings();
         
         % Открываем редактор настроек
         try
             settingsEditor();
-            disp('Settings Editor opened successfully');
+            debugState('openGroupSettingsEditor', 'Settings Editor opened successfully');
         catch ME
-            fprintf('Error opening Settings Editor: %s\n', ME.message);
+            debugState('openGroupSettingsEditor', 'Error opening Settings Editor: %s', ME.message);
         end
     end
 
@@ -3801,7 +3801,7 @@ updateCursorEditFields();
              'Save Image As', defaultFileName);
         
         if isequal(file, 0) || isequal(path, 0)
-            fprintf('❌ Image save cancelled\n');
+            debugState('saveImage', '❌ Image save cancelled');
             return;
         end
         
@@ -3819,24 +3819,24 @@ updateCursorEditFields();
             switch filterindex
                 case 1
                     print(tempFig, filename, '-dpdf', '-bestfit');
-                    fprintf('✓ Plot saved as PDF: %s\n', filename);
+                    debugState('saveImage', '✓ Plot saved as PDF: %s', filename);
                 case 2
                     print(tempFig, filename, '-depsc');
-                    fprintf('✓ Plot saved as EPS: %s\n', filename);
+                    debugState('saveImage', '✓ Plot saved as EPS: %s', filename);
                 case 3
                     saveas(tempFig, filename, 'png');
-                    fprintf('✓ Plot saved as PNG: %s\n', filename);
+                    debugState('saveImage', '✓ Plot saved as PNG: %s', filename);
                 otherwise
                     saveas(tempFig, filename);
-                    fprintf('✓ Plot saved: %s\n', filename);
+                    debugState('saveImage', '✓ Plot saved: %s', filename);
             end
             
             % Удаляем временную фигуру
             delete(tempFig);
             
         catch ME
-            fprintf('❌ Error saving plot: %s\n', ME.message);
-            fprintf('Error saving image: %s\n', ME.message);
+            debugState('saveImage', '❌ Error saving plot: %s', ME.message);
+            debugState('saveImage', 'Error saving image: %s', ME.message);
             
             % Убеждаемся что временная фигура удалена даже при ошибке
             if exist('tempFig', 'var') && ishandle(tempFig)
@@ -3861,7 +3861,7 @@ updateCursorEditFields();
                     slope_measurement_settings.peak_start = loadedSettings.cursor_positions.peak_start + rel_shift;
                     slope_measurement_settings.peak_end = loadedSettings.cursor_positions.peak_end + rel_shift;
                     
-                    fprintf('✓ Cursor positions loaded from settings\n');
+                    debugState('loadCursorPositionsFromSettings', '✓ Cursor positions loaded from settings');
                     
                     % Обновляем edit fields с новыми позициями
                     updateCursorEditFields();
@@ -3869,13 +3869,13 @@ updateCursorEditFields();
                     % НЕ вызываем updatePlotAndCalculation() здесь, чтобы не перезаписывать границы осей
                     % Границы осей уже применены в OpenFilePath() через calculateOptimalAxisLimits()
                 else
-                    fprintf('ℹ️ Cursor positions not found in settings\n');
+                    debugState('loadCursorPositionsFromSettings', 'ℹ️ Cursor positions not found in settings');
                 end
             else
-                fprintf('ℹ️ Settings file not found\n');
+                debugState('loadCursorPositionsFromSettings', 'ℹ️ Settings file not found');
             end
         catch ME
-            fprintf('❌ Error loading cursor positions: %s\n', ME.message);
+            debugState('loadCursorPositionsFromSettings', '❌ Error loading cursor positions: %s', ME.message);
         end
     end
     
@@ -3946,7 +3946,7 @@ updateCursorEditFields();
         try
             % Проверяем, есть ли список последних файлов
             if isempty(lastOpenedFiles)
-                fprintf('ℹ️ No recent files found for automatic opening\n');
+                debugState('autoOpenLastFile', 'ℹ️ No recent files found for automatic opening');
                 return;
             end
             
@@ -3955,7 +3955,7 @@ updateCursorEditFields();
             
             % Проверяем, существует ли файл
             if ~exist(lastFile, 'file')
-                fprintf('⚠️ Last file not found: %s\n', lastFile);
+                debugState('autoOpenLastFile', '⚠️ Last file not found: %s', lastFile);
                 % Удаляем несуществующий файл из списка
                 lastOpenedFiles(end) = [];
                 
@@ -3978,16 +3978,16 @@ updateCursorEditFields();
                             openFile([], []);
                         end
                     case 'No'
-                        fprintf('ℹ️ Manual file opening cancelled\n');
+                        debugState('autoOpenLastFile', 'ℹ️ Manual file opening cancelled');
                 end
                 return;
             end
-            fprintf('🔄 Automatically opening last file: %s\n', lastFile);
+            debugState('autoOpenLastFile', '🔄 Automatically opening last file: %s', lastFile);
             outside_calling_filepath = lastFile;
             openFile([], []);
         catch ME
-            fprintf('❌ Error during automatic file opening: %s\n', ME.message);
-            fprintf('ℹ️ Continuing with clean initialization\n');
+            debugState('autoOpenLastFile', '❌ Error during automatic file opening: %s', ME.message);
+            debugState('autoOpenLastFile', 'ℹ️ Continuing with clean initialization');
         end
     end
 
@@ -4104,7 +4104,7 @@ updateCursorEditFields();
         % Обновляем статус навигации
         updateNavigationStatus();
         
-        fprintf('✓ Optimal axis sizes applied\n');
+        debugState('applyAutoscale', '✓ Optimal axis sizes applied');
     end
 
     function loadEvents(~, ~)
@@ -4184,7 +4184,7 @@ updateCursorEditFields();
         % Запрашиваем корневую папку для поиска
         root_dir = uigetdir(initial_dir, 'Select Root Directory for Metadata Collection');
         if root_dir == 0
-            fprintf('❌ Metadata collection cancelled\n');
+            debugState('collectAllMetadata', '❌ Metadata collection cancelled');
             return;
         end
         
@@ -4193,17 +4193,17 @@ updateCursorEditFields();
         
         try
             % Находим все .meta файлы рекурсивно
-            fprintf('🔍 Searching for .meta files in folder %s...\n', root_dir);
+            debugState('collectAllMetadata', '🔍 Searching for .meta files in folder %s...', root_dir);
             meta_files = dir(fullfile(root_dir, '**', '*.meta'));
             
             if isempty(meta_files)
                 close(hWaitBar);
-                fprintf('No .meta files found in the selected directory and its subdirectories.\n');
-                fprintf('❌ No .meta files found\n');
+                debugState('collectAllMetadata', 'No .meta files found in the selected directory and its subdirectories.');
+                debugState('collectAllMetadata', '❌ No .meta files found');
                 return;
             end
             
-            fprintf('✓ Files found: %d\n', length(meta_files));
+            debugState('collectAllMetadata', '✓ Files found: %d', length(meta_files));
             
             % Инициализируем массив для всех результатов
             all_results = [];
@@ -4223,7 +4223,7 @@ updateCursorEditFields();
                     
                     % Проверяем наличие необходимых полей
                     if ~isfield(loaded_data, 'slope_measurement_results') || isempty(loaded_data.slope_measurement_results)
-                        fprintf('⚠️ Skipped file %s: no measurement results\n', meta_files(i).name);
+                        debugState('collectAllMetadata', '⚠️ Skipped file %s: no measurement results', meta_files(i).name);
                         continue;
                     end
                     
@@ -4267,7 +4267,7 @@ updateCursorEditFields();
                     end
                     
                 catch ME
-                    fprintf('⚠️ Error processing file %s: %s\n', meta_files(i).name, ME.message);
+                    debugState('collectAllMetadata', '⚠️ Error processing file %s: %s', meta_files(i).name, ME.message);
                     continue;
                 end
             end
@@ -4276,8 +4276,8 @@ updateCursorEditFields();
             close(hWaitBar);
             
             if isempty(all_results)
-                fprintf('No valid results found in any of the .meta files.\n');
-                fprintf('❌ No valid results to save\n');
+                debugState('collectAllMetadata', 'No valid results found in any of the .meta files.');
+                debugState('collectAllMetadata', '❌ No valid results to save');
                 return;
             end
             
@@ -4290,7 +4290,7 @@ updateCursorEditFields();
                 'Save Combined Results As', default_excel_name);
             
             if isequal(filename, 0) || isequal(pathname, 0)
-                fprintf('❌ Save cancelled\n');
+                debugState('collectAllMetadata', '❌ Save cancelled');
                 return;
             end
             
@@ -4455,18 +4455,18 @@ updateCursorEditFields();
             % Сохраняем статистику на второй лист
             writecell(stats_data, excel_path, 'Sheet', 'Statistics');
             
-            fprintf('✓ Summary table saved:\n');
-            fprintf('  Path: %s\n', excel_path);
-            fprintf('  Files processed: %d\n', length(meta_files));
-            fprintf('  Total results: %d\n', length(all_results));
+            debugState('collectAllMetadata', '✓ Summary table saved:');
+            debugState('collectAllMetadata', '  Path: %s', excel_path);
+            debugState('collectAllMetadata', '  Files processed: %d', length(meta_files));
+            debugState('collectAllMetadata', '  Total results: %d', length(all_results));
             
         catch ME
             % Закрываем окно прогресса при ошибке
             if exist('hWaitBar', 'var') && ishandle(hWaitBar)
                 close(hWaitBar);
             end
-            fprintf('❌ Ошибка при сборе метаданных: %s\n', ME.message);
-            fprintf('Error collecting metadata: %s\n', ME.message);
+            debugState('collectAllMetadata', '❌ Ошибка при сборе метаданных: %s', ME.message);
+            debugState('collectAllMetadata', 'Error collecting metadata: %s', ME.message);
         end
     end
 

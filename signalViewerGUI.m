@@ -64,7 +64,7 @@ function signalViewerGUI(editMode)
     global saveChannelSettingsFunc
     global updateTableFunc updateLocalCoefsFunc updatePlotFunc
  
-    disp('Signal Viewer Started')
+    debugState('signalViewerGUI', 'Signal Viewer Started')
 
     % Проверяем режим редактирования
     if nargin < 1
@@ -411,8 +411,8 @@ function signalViewerGUI(editMode)
         '', ...
         'Cross-Correlation', ...
         '', ...
-        'ICA', ...
         'PCA', ...
+        '', ... % 'ICA', ... % в разработке
         'Data operations', ...
         '', ...
         'compare average data'};
@@ -827,7 +827,7 @@ function signalViewerGUI(editMode)
         try
             resetGraphParameters()
         catch
-            disp('')
+            debugState('resetParametersCallback', '')
         end
     end
 
@@ -851,7 +851,7 @@ function signalViewerGUI(editMode)
         help_menu_visible = false;
         
         catch
-            disp('bravo 5')
+            debugState('resetGraphParameters', 'bravo 5')
         end
     end
 
@@ -874,9 +874,9 @@ function signalViewerGUI(editMode)
                 openSignalAnalysisWindow();
             case analysis_functions{9}
                 eventCrossCorrelationGUI();
-            case analysis_functions{11}% ICA анализ  
-                ICAazGUI();
-            case analysis_functions{12}% PCA analysis
+            % case analysis_functions{11}% ICA анализ  
+            %     ICAazGUI();
+            case analysis_functions{11}% PCA analysis
                 PCAazGUI();
             case analysis_functions{13}
                 performChannelOperations();
@@ -885,7 +885,7 @@ function signalViewerGUI(editMode)
             case ''
                 dont_close_menu = true;
         end    
-        disp(selectedOption);        
+        debugState('AnalysisMenuSelectionCallback', 'Selected: %s', selectedOption);        
         if ~dont_close_menu
             resetGraphParameters()
         end
@@ -941,7 +941,7 @@ function signalViewerGUI(editMode)
             case ''
                 dont_close_menu = true;
         end
-        disp(selectedOption);
+        debugState('FileMenuSelectionCallback', 'Selected: %s', selectedOption);
         if ~dont_close_menu
             resetGraphParameters()
         end
@@ -979,7 +979,7 @@ function signalViewerGUI(editMode)
              '*.*', 'All Files (*.*)'},...
              'Save file name', [mat_file_folder '/' figure_name]);
         if isequal(file,0) || isequal(path,0)
-           disp('User pressed cancel');
+           debugState('saveMainAxisAs', 'User pressed cancel');
         else
            filename = fullfile(path, file);      
            switch filterindex
@@ -992,7 +992,7 @@ function signalViewerGUI(editMode)
                otherwise
                    saveas(f, filename);
            end
-           disp(['Image saved to ', filename]);
+           debugState('saveMainAxisAs', 'Image saved to %s', filename);
         end
 
     end
@@ -1021,7 +1021,7 @@ function signalViewerGUI(editMode)
             case ''
             dont_close_menu = true;
         end
-        disp(selectedOption);
+        debugState('ViewMenuSelectionCallback', 'Selected: %s', selectedOption);
         if ~dont_close_menu
             resetGraphParameters()
         end
@@ -1053,7 +1053,7 @@ function signalViewerGUI(editMode)
             case ''
             dont_close_menu = true;
         end
-        disp(selectedOption);
+        debugState('OptionsSelectionCallback', 'Selected: %s', selectedOption);
         if ~dont_close_menu
             resetGraphParameters()
         end
@@ -1067,13 +1067,13 @@ function signalViewerGUI(editMode)
     function showHideSidePanel()
         
         if side_panel_visible
-            disp('Hiding Side Panel')
+            debugState('showHideSidePanel', 'Hiding Side Panel')
             set(sidePanel, 'Visible', 'off');
             set(multiax,'Position', multiax_position_b);
             str_out = 'view Channel Settings';
             resizeUIControls(eventPanel, 1, 0.5);
         else
-            disp('Showing Side Panel')
+            debugState('showHideSidePanel', 'Showing Side Panel')
             set(sidePanel, 'Visible', 'on');            
             set(multiax,'Position', multiax_position_a);
             str_out = 'hide Channel Settings';
@@ -1092,10 +1092,10 @@ function signalViewerGUI(editMode)
     function showHideStimulus()
         
         if stimShowFlag
-            disp('Hiding Stimulus')
+            debugState('showHideStimulus', 'Hiding Stimulus')
             str_out = 'show stimulus';
         else
-            disp('Showing Stimulus')
+            debugState('showHideStimulus', 'Showing Stimulus')
             str_out = 'hide stimulus';
         end
         
@@ -1108,7 +1108,7 @@ function signalViewerGUI(editMode)
 
     function showSidePanel()
         if ~side_panel_visible
-            disp('Showing Side Panel')
+            debugState('showSidePanel', 'Showing Side Panel')
             set(sidePanel, 'Visible', 'on');            
             set(multiax,'Position', multiax_position_a);
             str_out = 'hide Channel Settings';
@@ -1248,7 +1248,7 @@ function signalViewerGUI(editMode)
 %         drawnow; % Process GUI events
         key = get(f, 'CurrentCharacter');
         if ~isempty(key)
-            disp(['Key pressed: ', key]);
+            debugState('check_key_press', 'Key pressed: %s', key);
 %             set(gcf, 'CurrentCharacter', ''); % Reset current character
         end
     end
@@ -1306,7 +1306,7 @@ function signalViewerGUI(editMode)
     function shiftCoeffEditCallback(src, ~)
         newShiftCoeff = str2double(get(src, 'String'));
         if isnan(newShiftCoeff) || newShiftCoeff <= 0
-            fprintf('Invalid Shift Coeff Value\n');
+            debugState('shiftCoeffEditCallback', 'Invalid Shift Coeff Value');
             return;
         end
         shiftCoeff = newShiftCoeff;
@@ -1317,7 +1317,7 @@ function signalViewerGUI(editMode)
     function FsCoeffEditCallback(src, ~)
         newFsCoeff = str2double(get(src, 'String'));
         if isnan(newFsCoeff) || newFsCoeff <= 0
-            fprintf('Invalid Fs Value\n');
+            debugState('FsCoeffEditCallback', 'Invalid Fs Value');
             return;
         end
         newFs = newFsCoeff;
@@ -1350,15 +1350,15 @@ function signalViewerGUI(editMode)
     end
     % Функция обратного вызова для timeForwardEdit
     function timeForwardEditCallback(src, ~)
-        fprintf('[%s] timeForwardEditCallback: START, selectedCenter=%s, stims_exist=%d\n', datestr(now, 'HH:MM:SS.FFF'), selectedCenter, stims_exist);
+        debugState('timeForwardEditCallback', 'START, selectedCenter=%s, stims_exist=%d', selectedCenter, stims_exist);
 %         disp('time edited')
         windowSize = str2double(get(src, 'String'))/timeUnitFactor;% time_forward - в секундах
         time_forward = windowSize;
         if isnan(windowSize) || windowSize <= 0
-            fprintf('Invalid time window size.\n');
+            debugState('timeForwardEditCallback', 'Invalid time window size.');
             return;
         end
-        fprintf('[%s] timeForwardEditCallback: windowSize=%.3f, stim_inx=%d\n', datestr(now, 'HH:MM:SS.FFF'), windowSize, stim_inx);
+        debugState('timeForwardEditCallback', 'windowSize=%.3f, stim_inx=%d', windowSize, stim_inx);
                 
         switch selectedCenter
             case 'event'
@@ -1368,10 +1368,10 @@ function signalViewerGUI(editMode)
                 end
             case 'stimulus'
                 if stims_exist
-                    fprintf('[%s] timeForwardEditCallback: BEFORE stimulus update, stim_inx=%d, numel(stims)=%d\n', datestr(now, 'HH:MM:SS.FFF'), stim_inx, numel(stims));
+                    debugState('timeForwardEditCallback', 'BEFORE stimulus update, stim_inx=%d, numel(stims)=%d', stim_inx, numel(stims));
                     chosen_time_interval(1) = stims(stim_inx);
                     chosen_time_interval(2) = stims(stim_inx)+windowSize;
-                    fprintf('[%s] timeForwardEditCallback: AFTER stimulus update, stims(stim_inx)=%.3f, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), stims(stim_inx), chosen_time_interval(1), chosen_time_interval(2));
+                    debugState('timeForwardEditCallback', 'AFTER stimulus update, stims(stim_inx)=%.3f, chosen_time_interval=[%.3f, %.3f]', stims(stim_inx), chosen_time_interval(1), chosen_time_interval(2));
                 end
             case 'sweep'
                 if sweep_info.is_sweep_data && sweep_inx > 0 && sweep_inx <= sweep_info.sweep_count
@@ -1391,10 +1391,10 @@ function signalViewerGUI(editMode)
                 end
         end
         
-        fprintf('[%s] timeForwardEditCallback: BEFORE updatePlot, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2));
+        debugState('timeForwardEditCallback', 'BEFORE updatePlot, chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
         saveChannelSettings();
         updatePlot(); % Обновление графика
-        fprintf('[%s] timeForwardEditCallback: AFTER updatePlot\n', datestr(now, 'HH:MM:SS.FFF'));
+        debugState('timeForwardEditCallback', 'AFTER updatePlot');
     end
 
     % Функция обратного вызова для выпадающего списка
@@ -1682,7 +1682,7 @@ function signalViewerGUI(editMode)
         
         [file, path] = uigetfile('*.mat', 'Load .mat File (ZAV or Heka format)', initialDir);
         if isequal(file, 0)
-            disp('File selection canceled.');
+            debugState('OpenZavLfpFile', 'File selection canceled.');
             return;
         end
         filepath = fullfile(path, file);
@@ -1726,14 +1726,14 @@ function signalViewerGUI(editMode)
         % Open a file save dialog with initial path and file name
         [file, path] = uiputfile(['*' ext], 'Save ZAV (.mat) File', fullfile(initialPath, [initialFile ext]));
         if isequal(file, 0) || isequal(path, 0)
-            disp('User canceled the operation');
+            debugState('saveMatFile', 'User canceled the operation');
             return;
         end
         filepath = fullfile(path, file);
 
         % Extract the file name without extension
         [~, matFileName, ~] = fileparts(filepath);
-        disp(['Saving mat file: ' matFileName]);
+        debugState('saveMatFile', 'Saving mat file: %s', matFileName);
         
         % записываем отредактированные стимулы
         zavp.realStim = struct('r', stims'/zavp.siS);
@@ -1750,9 +1750,9 @@ function signalViewerGUI(editMode)
 
     function metadata = loadMatFile(filepath)
         metadata = struct('hd', [], 'stims', [], 'filePath', '');
-        fprintf('[%s] loadMatFile: START\n', datestr(now, 'HH:MM:SS.FFF'));
+        debugState('loadMatFile', 'START');
         closeChildWindows();
-        disp('loading mat file:')
+        debugState('loadMatFile', 'loading mat file:');
         ica_flag = false;
         pca_flag = false;
         stims_loaded_from_settings = false; % сбрасываем флаг при загрузке нового файла
@@ -1769,15 +1769,15 @@ function signalViewerGUI(editMode)
          % Сохранение пути к загруженному .mat файлу
         matFilePath = filepath;        
         [~, matFileName, ~] = fileparts(matFilePath);
-        disp(matFileName)       
+        debugState('loadMatFile', '%s', matFileName);       
         
         % Используем универсальную функцию загрузки
-        fprintf('[%s] loadMatFile: BEFORE load_zav_file\n', datestr(now, 'HH:MM:SS.FFF'));
+        debugState('loadMatFile', 'BEFORE load_zav_file');
         data = load_zav_file(filepath, ...
             'auto_set_time_windows', autoSetTimeWindowsFromSweeps, ...
             'auto_set_fs', autoSetNewFsFromFs);
         [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
-        fprintf('[%s] loadMatFile: AFTER load_zav_file, numel(stims)=%d, sweep_info.is_sweep_data=%d, time_forward=%.3f, time_back=%.3f\n', datestr(now, 'HH:MM:SS.FFF'), numel(stims), sweep_info.is_sweep_data, time_forward, time_back);
+        debugState('loadMatFile', 'AFTER load_zav_file, numel(stims)=%d, sweep_info.is_sweep_data=%d, time_forward=%.3f, time_back=%.3f', numel(stims), sweep_info.is_sweep_data, time_forward, time_back);
         
         N = size(lfp, 1);
         Fs = zavp.dwnSmplFrq;
@@ -1785,7 +1785,7 @@ function signalViewerGUI(editMode)
         % Устанавливаем флаги
         stims_exist = ~isempty(stims);
         sweep_inx = 1;
-        fprintf('[%s] loadMatFile: stims_exist=%d\n', datestr(now, 'HH:MM:SS.FFF'), stims_exist);
+        debugState('loadMatFile', 'stims_exist=%d', stims_exist);
         
         % Устанавливаем временные параметры
         shiftCoeff = 200;
@@ -1806,7 +1806,7 @@ function signalViewerGUI(editMode)
             selectedCenter = 'time';
         end
         stim_inx = 1;
-        fprintf('[%s] loadMatFile: selectedCenter=%s, stim_inx=%d\n', datestr(now, 'HH:MM:SS.FFF'), selectedCenter, stim_inx);
+        debugState('loadMatFile', 'selectedCenter=%s, stim_inx=%d', selectedCenter, stim_inx);
         
         % Правильно устанавливаем chosen_time_interval в зависимости от выбранного режима
         % Используем time_forward, который был установлен load_zav_file (или значение по умолчанию)
@@ -1829,16 +1829,16 @@ function signalViewerGUI(editMode)
             case 'time'
                 chosen_time_interval = [0, windowSize];
         end
-        fprintf('[%s] loadMatFile: AFTER setting chosen_time_interval=[%.3f, %.3f] based on selectedCenter=%s\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2), selectedCenter);
+        debugState('loadMatFile', 'AFTER setting chosen_time_interval=[%.3f, %.3f] based on selectedCenter=%s', chosen_time_interval(1), chosen_time_interval(2), selectedCenter);
         
         show_spikes = false;
         show_CSD = false;
         channelNames = hd.recChNames;
         numChannels = length(channelNames);
         
-        fprintf('[%s] loadMatFile: BEFORE resetMainWindowButtons, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2));
+        debugState('loadMatFile', 'BEFORE resetMainWindowButtons, chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
         resetMainWindowButtons()
-        fprintf('[%s] loadMatFile: AFTER resetMainWindowButtons, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2));
+        debugState('loadMatFile', 'AFTER resetMainWindowButtons, chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
         
 
         
@@ -1847,11 +1847,11 @@ function signalViewerGUI(editMode)
         
             % Попытка загрузить настройки каналов
     % Сначала проверяются индивидуальные настройки, затем групповые
-        fprintf('[%s] loadMatFile: BEFORE loadChannelSettings, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2));
+        debugState('loadMatFile', 'BEFORE loadChannelSettings, chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
         loadChannelSettings();
-        fprintf('[%s] loadMatFile: AFTER loadChannelSettings, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2));
+        debugState('loadMatFile', 'AFTER loadChannelSettings, chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
         metadata = struct('hd', hd, 'stims', stims, 'filePath', filepath);
-        fprintf('[%s] loadMatFile: END\n', datestr(now, 'HH:MM:SS.FFF'));
+        debugState('loadMatFile', 'END');
     end
     function closeChildWindows()
         % Список тегов окон для закрытия
@@ -1904,7 +1904,7 @@ function signalViewerGUI(editMode)
 
 
     function resetMainWindowButtons()
-        fprintf('[%s] resetMainWindowButtons: START, selectedCenter=%s, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), selectedCenter, chosen_time_interval(1), chosen_time_interval(2));
+        debugState('resetMainWindowButtons', 'START, selectedCenter=%s, chosen_time_interval=[%.3f, %.3f]', selectedCenter, chosen_time_interval(1), chosen_time_interval(2));
         
         % разрешение опций
         set(OptBtn, 'Enable', 'on');
@@ -1926,10 +1926,10 @@ function signalViewerGUI(editMode)
                 set(timeCenterPopup, 'Value', 4);
         end
         
-        fprintf('[%s] resetMainWindowButtons: BEFORE setting timeForwardEdit, time_forward=%.3f\n', datestr(now, 'HH:MM:SS.FFF'), time_forward);
+        debugState('resetMainWindowButtons', 'BEFORE setting timeForwardEdit, time_forward=%.3f', time_forward);
         set(timeBackEdit, 'String', num2str(time_back*timeUnitFactor));% time window before
         set(timeForwardEdit, 'String', num2str(time_forward*timeUnitFactor));% time window after
-        fprintf('[%s] resetMainWindowButtons: AFTER setting timeForwardEdit, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2));
+        debugState('resetMainWindowButtons', 'AFTER setting timeForwardEdit, chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
         set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
         set(FsCoeffEdit, 'String', num2str(newFs));
         
@@ -2057,7 +2057,7 @@ function loadSettingsFile()
             filterSettings.freqHigh = 50;
             filterSettings.order = 4;
             filterSettings.channelsToFilter = false(numChannels, 1); % Ни один канал не участвует в фильтрации
-            disp('settings were without filterSettings')
+            debugState('loadSettingsFile', 'settings were without filterSettings');
         end       
 
         if isfield(loadedSettings, 'newFs')
@@ -2081,13 +2081,13 @@ function loadSettingsFile()
             csd_smooth_coef = loadedSettings.csd_smooth_coef;
         else
             csd_smooth_coef = 5;
-            disp('settings were without CSD smooth coef')
+            debugState('loadSettingsFile', 'settings were without CSD smooth coef');
         end
         if isfield(loadedSettings, 'csd_contrast_coef')
             csd_contrast_coef = loadedSettings.csd_contrast_coef;
         else
             csd_contrast_coef = 99.99;
-            disp('settings were without CSD contrast coef')
+            debugState('loadSettingsFile', 'settings were without CSD contrast coef');
         end
         
         % Загружаем смещенные стимулы если они есть
@@ -2095,7 +2095,7 @@ function loadSettingsFile()
             stims = loadedSettings.stims;
             stims_exist = ~isempty(stims);
             stims_loaded_from_settings = true;
-            disp('Loaded shifted stimulus times from settings')
+            debugState('loadSettingsFile', 'Loaded shifted stimulus times from settings');
         end
         
         % Правильно устанавливаем chosen_time_interval в зависимости от режима
@@ -2117,7 +2117,7 @@ function loadSettingsFile()
                 otherwise
                     chosen_time_interval = [0, time_forward];
             end
-            fprintf('[%s] loadSettingsFile: AFTER loading time_forward=%.3f, chosen_time_interval=[%.3f, %.3f], selectedCenter=%s\n', datestr(now, 'HH:MM:SS.FFF'), time_forward, chosen_time_interval(1), chosen_time_interval(2), selectedCenter);
+            debugState('loadSettingsFile', 'AFTER loading time_forward=%.3f, chosen_time_interval=[%.3f, %.3f], selectedCenter=%s', time_forward, chosen_time_interval(1), chosen_time_interval(2), selectedCenter);
         end
     catch
         createNewChoice = questdlg('An error occurred when loading channel settings. Do you want to create new channel settings file?', ...
@@ -2137,12 +2137,12 @@ end
         
         if isfile(channelSettingsFilePath)
             % Индивидуальные настройки существуют - загружаем их полностью
-            disp('Loading individual channel settings...')
+            debugState('loadChannelSettings', 'Loading individual channel settings...');
             loadSettingsFile()
             updateChannelSelection();
         else
             % Индивидуальных настроек нет - загружаем групповые + создаем индивидуальные
-            disp('No individual settings found, loading group settings...')
+            debugState('loadChannelSettings', 'No individual settings found, loading group settings...');
             loadGroupSettingsAndCreateIndividual(matFilePath, numChannels, Fs, EV_version)
         end
         
@@ -2171,7 +2171,7 @@ end
     function resetRecordSettings()
         % Функция для сброса настроек записи к значениям по умолчанию
         if ~data_loaded
-            fprintf('No data loaded. Please load a MAT file first.\n');
+            debugState('resetRecordSettings', 'No data loaded. Please load a MAT file first.');
             return;
         end
         
@@ -2187,13 +2187,13 @@ end
                 
                 if exist(channelSettingsFilePath, 'file')
                     delete(channelSettingsFilePath);
-                    fprintf('Settings file deleted.\n');
+                    debugState('resetRecordSettings', 'Settings file deleted.');
                 end
                 
                 % Переоткрываем файл - это загрузит настройки по умолчанию
                 loadMatFile(matFilePath);
                 
-                fprintf('Channel settings have been reset to default values.\n');
+                debugState('resetRecordSettings', 'Channel settings have been reset to default values.');
                 
             case 'No'
                 % Пользователь отменил операцию
@@ -2287,7 +2287,7 @@ end
 
     function shiftTime(~, ~, direction, timeForwardEdit)
         
-        fprintf('[%s] shiftTime: START, direction=%d, selectedCenter=%s\n', datestr(now, 'HH:MM:SS.FFF'), direction, selectedCenter);
+        debugState('shiftTime', 'START, direction=%d, selectedCenter=%s', direction, selectedCenter);
         
         % Проверяем, не идет ли уже обновление графика
         if plot_updating
@@ -2304,7 +2304,7 @@ end
         
 %         disp('changed position')
         windowSize = str2double(get(timeForwardEdit, 'String'))/timeUnitFactor;% должен быть в секундах
-        fprintf('[%s] shiftTime: windowSize=%.3f, stims_exist=%d, stim_inx=%d\n', datestr(now, 'HH:MM:SS.FFF'), windowSize, stims_exist, stim_inx);
+        debugState('shiftTime', 'windowSize=%.3f, stims_exist=%d, stim_inx=%d', windowSize, stims_exist, stim_inx);
         switch selectedCenter
             case 'event'
                 if events_exist
@@ -2329,7 +2329,7 @@ end
                 end
             case 'stimulus'
                 if stims_exist
-                    fprintf('[%s] shiftTime: BEFORE stimulus update, stim_inx=%d, numel(stims)=%d\n', datestr(now, 'HH:MM:SS.FFF'), stim_inx, numel(stims));
+                    debugState('shiftTime', 'BEFORE stimulus update, stim_inx=%d, numel(stims)=%d', stim_inx, numel(stims));
                     if direction == 1% движение вперед  
 %                         disp('stimulus forward')
                         stim_inx = stim_inx+1;                    
@@ -2343,7 +2343,7 @@ end
                     if stim_inx > 0
                         chosen_time_interval(1) = stims(stim_inx);
                         chosen_time_interval(2) = stims(stim_inx)+windowSize;
-                        fprintf('[%s] shiftTime: AFTER stimulus update, stim_inx=%d, stims(stim_inx)=%.3f, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), stim_inx, stims(stim_inx), chosen_time_interval(1), chosen_time_interval(2));
+                        debugState('shiftTime', 'AFTER stimulus update, stim_inx=%d, stims(stim_inx)=%.3f, chosen_time_interval=[%.3f, %.3f]', stim_inx, stims(stim_inx), chosen_time_interval(1), chosen_time_interval(2));
                     else
                         stim_inx = 1;
                     end
@@ -2386,9 +2386,9 @@ end
         end
         
         keyboardpressed = false;
-        fprintf('[%s] shiftTime: BEFORE updatePlot, chosen_time_interval=[%.3f, %.3f]\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2));
+        debugState('shiftTime', 'BEFORE updatePlot, chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
         updatePlot(); % Обновление графика
-        fprintf('[%s] shiftTime: AFTER updatePlot\n', datestr(now, 'HH:MM:SS.FFF'));
+        debugState('shiftTime', 'AFTER updatePlot');
         
         % Включаем callback нажатия клавиш
 %         set(f, 'KeyPressFcn', @keyPressFunction);
@@ -2458,7 +2458,7 @@ end
 
 % Функция загрузки событий
 function loadEvents(~, ~)
-    disp(outside_calling_filepath)
+    debugState('loadEvents', '%s', outside_calling_filepath);
     if isempty(outside_calling_filepath)
         % Получение пути к последнему открытому файлу или использование стандартной директории
         initialDir = pwd;
@@ -2468,13 +2468,13 @@ function loadEvents(~, ~)
 
         [file, path] = uigetfile({'*.ev'; '*.mean'}, 'Load Events', initialDir);
         if isequal(file, 0)
-            disp('File selection canceled.');
+            debugState('loadEvents', 'File selection canceled.');
             return;
         end
         filepath = fullfile(path, file);
         
     else
-        disp('loading file from outside')
+        debugState('loadEvents', 'loading file from outside');
         filepath = outside_calling_filepath;
         [path,file,ext] = fileparts(outside_calling_filepath);
         file = [file,ext];
@@ -2510,7 +2510,7 @@ function loadEvents(~, ~)
             event_amplitudes = [loadedData.manlDet.amplitude]';
         else
             event_amplitudes = NaN(size(events)); % default для старых файлов
-            disp('Old format detected: amplitude data not available');
+            debugState('loadEvents', 'Old format detected: amplitude data not available');
         end
         
         if isfield(loadedData.manlDet, 'channels')
@@ -2531,21 +2531,21 @@ function loadEvents(~, ~)
             event_channels = [loadedData.manlDet.ch]'; % Используем старое поле ch
         else
             event_channels = ones(size(events)); % default
-            disp('Old format detected: channel data not available');
+            debugState('loadEvents', 'Old format detected: channel data not available');
         end
         
         if isfield(loadedData.manlDet, 'width')
             event_widths = [loadedData.manlDet.width]';
         else
             event_widths = NaN(size(events)); % default для старых файлов
-            disp('Old format detected: width data not available');
+            debugState('loadEvents', 'Old format detected: width data not available');
         end
         
         if isfield(loadedData.manlDet, 'prominence')
             event_prominences = [loadedData.manlDet.prominence]';
         else
             event_prominences = NaN(size(events)); % default для старых файлов
-            disp('Old format detected: prominence data not available');
+            debugState('loadEvents', 'Old format detected: prominence data not available');
         end
         
         if isfield(loadedData.manlDet, 'metadata')
@@ -2553,7 +2553,7 @@ function loadEvents(~, ~)
         else
             % Создаем default metadata для старых файлов
             event_metadata = repmat(struct('source', 'loaded'), length(events), 1);
-            disp('Old format detected: metadata not available');
+            debugState('loadEvents', 'Old format detected: metadata not available');
         end
         
         event_title_string = file;
@@ -2567,7 +2567,7 @@ function loadEvents(~, ~)
         
 %         updatePlot(); Уже обновили график когда вызывали timeForwardEditCallback
     else
-        fprintf('No events found in the file.\n');
+        debugState('loadEvents', 'No events found in the file.');
     end
 end
 
@@ -2659,7 +2659,7 @@ end
             end
         else
             % Dialog box to inform the user that the latest version is already installed
-            fprintf('The latest version is already installed.\n');
+            debugState('updateAndRunInstaller', 'The latest version is already installed.');
         end
     end
 
