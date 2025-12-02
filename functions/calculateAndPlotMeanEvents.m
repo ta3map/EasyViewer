@@ -157,7 +157,10 @@ if sum(filter_avaliable)>0
     params.lfp(:, ch_to_filter) = applyFilter(params.lfp(:, ch_to_filter), filterSettings, newFs);        
 end
 
-close(wb);
+try
+    delete(wb);
+catch
+end
 
 [mean_f, calculation_result] = plotMeanEvents(params);
 if ~isempty(params.customXLimits)
