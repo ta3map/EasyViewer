@@ -8,8 +8,9 @@ function autoEventDetectionGUI()
     
     global events event_comments hd events_detected matFilePath evfilename eventDeleteEdit
     global hMinPeakProminence hDetectionType hChPos hChNeg hMaxPeakWidth
-    global hMinPeakDistance hDetectionMode hOnsetThreshold hOnsetSearchWindow
+    global hMinPeakDistance
     global hSourceType selectedCenter timeCenterPopup windowSize chosen_time_interval
+    global hSearchAroundStimuli hSearchWindow stims_exist
     
     % Переменные для хранения результатов детекции в области видимости GUI
     amplitudes_detected = [];
@@ -57,20 +58,18 @@ function autoEventDetectionGUI()
     hMinPeakDistance_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(4), 150, 30], 'String', ['Minimal Time Between Peaks (' selectedUnit '):']);
     hMinPeakDistance = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(4), 130, 20], 'String', num2str(3*timeUnitFactor));
 
-    hMaxPeakWidth_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(6), 150, 20], 'String', ['Max peak width (' selectedUnit '):']);
-    hMaxPeakWidth = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(6), 130, 20], 'String', num2str(0.05*timeUnitFactor));
+    % Чекбокс для поиска вокруг стимулов
+    hSearchAroundStimuli = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', [10, ypos(5), 280, 20], 'String', 'Search around stimuli', 'Value', 0, 'Callback', @changeDetectionType);
     
-    % Окно выбора режима детекции
-    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(7), 150, 20], 'String', 'Detection Mode:');
-    hDetectionMode = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(7), 130, 20], 'String', {'peaks', 'onsets'}, 'Callback', @changeDetectionType);
+    % Поле ввода размера окна поиска
+    hSearchWindow_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(6), 150, 20], 'String', ['Search window (' selectedUnit '):']);
+    hSearchWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(6), 130, 20], 'String', num2str(0.5*timeUnitFactor));
 
-    % Окошко для ввода Onset Threshold
-    hOnsetThreshold_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(8), 150, 20], 'visible', 'off', 'String', 'Onset Threshold:');
-    hOnsetThreshold = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(8), 130, 20], 'visible', 'off', 'String', '10');
+    hMaxPeakWidth_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(7), 150, 20], 'String', ['Max peak width (' selectedUnit '):']);
+    hMaxPeakWidth = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(7), 130, 20], 'String', num2str(0.05*timeUnitFactor));
 
-    % Окошко для ввода Onset Search Window
-    hOnsetSearchWindow_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(9), 150, 20], 'visible', 'off', 'String', ['Onset Search Window (' selectedUnit '):']);
-    hOnsetSearchWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(9), 130, 20], 'visible', 'off', 'String', num2str(1*timeUnitFactor));
+    % Инициализация видимости элементов в зависимости от наличия стимулов
+    changeDetectionType();
 
     ax1 = axes('Position', [0.40    0.27    0.25    0.65]);
     ax2 = axes('Position', [0.70    0.27    0.25    0.65]);
@@ -89,18 +88,11 @@ function autoEventDetectionGUI()
 
         safeSetPopupValue(hDetectionType, settings.DetectionTypeIndex, ...
                           numel(get(hDetectionType,'String')), 'DetectionType');
-
-        safeSetPopupValue(hDetectionMode, settings.DetectionModeIndex, ...
-                          numel(get(hDetectionMode,'String')), 'DetectionMode');
                       
         set(hMinPeakProminence, 'String', num2str(settings.MinPeakProminence));
 
         set(hMinPeakDistance, 'String', num2str(settings.MinPeakDistance*timeUnitFactor));
         set(hMinPeakDistance_text, 'String', ['Minimal Time Between Peaks (' selectedUnit '):']);
-
-        set(hOnsetThreshold, 'String', num2str(settings.OnsetThreshold));
-        set(hOnsetSearchWindow, 'String', num2str(settings.OnsetSearchWindow*timeUnitFactor));
-        set(hOnsetSearchWindow_text, 'String', ['Onset Search Window (' selectedUnit '):']);
         
         if isfield(settings, 'SourceTypeIndex')
             if ~isempty(settings.SourceTypeIndex)
@@ -123,6 +115,14 @@ function autoEventDetectionGUI()
         
         % Вызовите функции изменения режима/типа детекции, если необходимо
         changeDetectionType()
+        
+        % Инициализация новых параметров из настроек
+        if isfield(settings, 'SearchAroundStimuli')
+            set(hSearchAroundStimuli, 'Value', settings.SearchAroundStimuli);
+        end
+        if isfield(settings, 'SearchWindow')
+            set(hSearchWindow, 'String', num2str(settings.SearchWindow*timeUnitFactor));
+        end
     end
     
     % Кнопка 'Check Detection'
@@ -135,21 +135,6 @@ function autoEventDetectionGUI()
     set(applybutton, 'Enable', 'off')
 
     function changeDetectionType(~,~)
-        
-        DetectionModes = get(hDetectionMode, 'String');
-        DetectionMode = DetectionModes{get(hDetectionMode, 'Value')};
-        switch DetectionMode
-            case 'onsets'
-                set(hOnsetThreshold_text, 'visible', 'on')
-                set(hOnsetThreshold, 'visible', 'on')
-                set(hOnsetSearchWindow_text, 'visible', 'on')
-                set(hOnsetSearchWindow, 'visible', 'on')
-            case 'peaks'
-                set(hOnsetThreshold, 'visible', 'off')
-                set(hOnsetThreshold_text, 'visible', 'off')
-                set(hOnsetSearchWindow_text, 'visible', 'off')
-                set(hOnsetSearchWindow, 'visible', 'off')
-        end
         
         DetectionTypes = get(hDetectionType, 'String');
         DetectionType = DetectionTypes{get(hDetectionType, 'Value')};
@@ -176,6 +161,18 @@ function autoEventDetectionGUI()
                 set(hChNeg, 'visible', 'off')
         end
         
+        % Показывать/скрывать элементы поиска вокруг стимулов
+        if stims_exist
+            set(hSearchAroundStimuli, 'visible', 'on')
+            set(hSearchWindow_text, 'visible', 'on')
+            set(hSearchWindow, 'visible', 'on')
+        else
+            set(hSearchAroundStimuli, 'visible', 'off')
+            set(hSearchWindow_text, 'visible', 'off')
+            set(hSearchWindow, 'visible', 'off')
+            set(hSearchAroundStimuli, 'Value', 0)
+        end
+        
 %         previewData()
 
     end
@@ -187,16 +184,14 @@ function autoEventDetectionGUI()
         params.ChPos = get(hChPos, 'Value');
         params.ChNeg = get(hChNeg, 'Value');
         params.MinPeakDistance = str2double(get(hMinPeakDistance, 'String')) / timeUnitFactor;
-        params.OnsetThreshold = str2double(get(hOnsetThreshold, 'String'));
-        params.OnsetSearchWindow = str2double(get(hOnsetSearchWindow, 'String')) / timeUnitFactor;
-        DetectionModes = get(hDetectionMode, 'String');
-        params.DetectionMode = DetectionModes{get(hDetectionMode, 'Value')};
         DetectionTypes = get(hDetectionType, 'String');
         params.DetectionType = DetectionTypes{get(hDetectionType, 'Value')};
         SourceTypes = get(hSourceType, 'String');
         params.SourceType = SourceTypes{get(hSourceType, 'Value')};
         params.detect = false;
         params.max_peak_width = str2double(get(hMaxPeakWidth, 'String')) / timeUnitFactor;
+        params.SearchAroundStimuli = get(hSearchAroundStimuli, 'Value');
+        params.SearchWindow = str2double(get(hSearchWindow, 'String')) / timeUnitFactor;
                
         [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected] = autoEventDetection(params);
         
@@ -230,16 +225,14 @@ function autoEventDetectionGUI()
         params.ChPos = get(hChPos, 'Value');
         params.ChNeg = get(hChNeg, 'Value');
         params.MinPeakDistance = str2double(get(hMinPeakDistance, 'String')) / timeUnitFactor;
-        params.OnsetThreshold = str2double(get(hOnsetThreshold, 'String'));
-        params.OnsetSearchWindow = str2double(get(hOnsetSearchWindow, 'String')) / timeUnitFactor;
-        DetectionModes = get(hDetectionMode, 'String');
-        params.DetectionMode = DetectionModes{get(hDetectionMode, 'Value')};
         DetectionTypes = get(hDetectionType, 'String');
         params.DetectionType = DetectionTypes{get(hDetectionType, 'Value')};
         SourceTypes = get(hSourceType, 'String');
         params.SourceType = SourceTypes{get(hSourceType, 'Value')};
         params.detect = true;
         params.max_peak_width = str2double(get(hMaxPeakWidth, 'String')) / timeUnitFactor;
+        params.SearchAroundStimuli = get(hSearchAroundStimuli, 'Value');
+        params.SearchWindow = str2double(get(hSearchWindow, 'String')) / timeUnitFactor;
         
         [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected] = autoEventDetection(params);
         
@@ -335,10 +328,11 @@ function autoEventDetectionGUI()
         end
         
         % Обновление таблицы событий
-        events = events_detected;
+        events = events_detected(:); % Преобразуем в столбец
         
-        event_comments = repmat({'...'}, numel(events), 1); % Инициализация комментариев
         if not(isempty(events))
+            event_comments = repmat({'...'}, numel(events), 1); % Инициализация комментариев
+            
             [events, ev_inxs] = sort(events);
             event_comments = event_comments(ev_inxs);
             
@@ -408,20 +402,19 @@ end
 
 function saveSettings()
     global hMinPeakProminence hDetectionType hChPos hChNeg hMaxPeakWidth
-    global hMinPeakDistance hDetectionMode hOnsetThreshold hOnsetSearchWindow
+    global hMinPeakDistance
     global autodetection_settings SettingsFilepath
-    global hSourceType timeUnitFactor 
+    global hSourceType timeUnitFactor hSearchAroundStimuli hSearchWindow
     
     settings.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
     settings.DetectionTypeIndex = get(hDetectionType, 'Value');
     settings.ChPos = get(hChPos, 'Value');
     settings.ChNeg = get(hChNeg, 'Value');
     settings.MinPeakDistance = str2double(get(hMinPeakDistance, 'String')) / timeUnitFactor;
-    settings.DetectionModeIndex = get(hDetectionMode, 'Value');
-    settings.OnsetThreshold = str2double(get(hOnsetThreshold, 'String'));
-    settings.OnsetSearchWindow = str2double(get(hOnsetSearchWindow, 'String')) / timeUnitFactor;
     settings.SourceTypeIndex = get(hSourceType, 'Value');
     settings.MaxPeakWidth = str2double(get(hMaxPeakWidth, 'String')) / timeUnitFactor;
+    settings.SearchAroundStimuli = get(hSearchAroundStimuli, 'Value');
+    settings.SearchWindow = str2double(get(hSearchWindow, 'String')) / timeUnitFactor;
     
     autodetection_settings = settings;
     % сохраняем фактор в глобальные настройки              
@@ -430,20 +423,22 @@ end
 
 function [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected] = autoEventDetection(params)
     global Fs time newFs lfp wb ch_inxs csd_avaliable filterSettings filter_avaliable mean_group_ch 
-    global stims_exist stims time
+    global stims_exist stims time art_rem_window_ms
     
     data_in = lfp;
     fprintf('Please wait...\n');
     
+    % Инициализация waitbar если не существует
+    if isempty(wb) || ~isvalid(wb)
+        wb = waitbar(0, 'Initializing...', 'Name', 'Event Detection');
+    end
+    
     % Распаковка параметров из структуры
     DetectionType = params.DetectionType;
-    OnsetSearchWindow = params.OnsetSearchWindow;
     MinPeakProminence = params.MinPeakProminence;
     ChPos = params.ChPos;
     ChNeg = params.ChNeg;
     MinPeakDistance = params.MinPeakDistance;
-    onset_threshold = params.OnsetThreshold;
-    DetectionMode = params.DetectionMode;
     SourceType = params.SourceType;
     
     detect = params.detect;
@@ -454,6 +449,7 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     lfp_frq = round(newFs);
     
     % Фильтруем если попросили
+    waitbar(0.1, wb, 'Applying filters...');
     try
         if sum(filter_avaliable)>0
             ch_to_filter = filterSettings.channelsToFilter;
@@ -462,13 +458,20 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     catch ME
         fprintf('An error occurred: %s\n', ME.message);
     end
-    
 
+    % Убираем артефакт стимула если включено
+    waitbar(0.2, wb, 'Removing stimulus artifacts...');
+    if stims_exist && ~isempty(stims) && ~isempty(art_rem_window_ms) && art_rem_window_ms > 0
+        win_r = round(art_rem_window_ms * (Fs/1000));
+        data_in = removeStimArtifact(data_in, stims, time, win_r);
+    end
     
     % Вычитаем среднее из запрошенных
+    waitbar(0.3, wb, 'Subtracting mean...');
     data_in(:, mean_group_ch) = data_in(:, mean_group_ch) - mean(data_in(:, mean_group_ch), 2); % вычитание выбранных средних каналов
     
     % Если источником выбран CSD
+    waitbar(0.4, wb, 'Computing CSD...');
     switch SourceType
         case 'CSD'
         % Выборка только разрешенных каналов, которым доступен CSD
@@ -476,7 +479,8 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
         data_in = -globalCSD(data_in, allowed_ch_inxs);
     end
 
-        
+    % Создание Trace_out
+    waitbar(0.5, wb, 'Creating detection trace...');
     switch DetectionType
         case 'two channels difference'
 
@@ -508,12 +512,13 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     
     time_res = linspace(time(1),time(end),numel(Trace_out));
     
+    waitbar(0.6, wb, 'Preparing detection...');
+    
     if detect
         fprintf('=== DEBUG: Detection parameters ===\n');
         fprintf('MinPeakProminence: %.3f\n', MinPeakProminence);
         fprintf('MinPeakDistance: %.6f sec (%.6f samples at %d Hz)\n', MinPeakDistance, MinPeakDistance*lfp_frq, lfp_frq);
         fprintf('MaxPeakWidth: %.6f sec (%.6f samples at %d Hz)\n', max_peak_width, max_peak_width*lfp_frq, lfp_frq);
-        fprintf('DetectionMode: %s\n', DetectionMode);
         fprintf('DetectionType: %s\n', DetectionType);
         fprintf('SourceType: %s\n', SourceType);
         fprintf('ChPos: %d, ChNeg: %d\n', ChPos, ChNeg);
@@ -527,86 +532,154 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
         fprintf('Trace_out 99.9%% quantile: %.3f\n', quantile(Trace_out, 0.999));
         fprintf('\n');
         
-        [peaks,peak_times,widths,prominences] = findpeaks(Trace_out, time_res, 'MinPeakHeight',MinPeakProminence, 'MinPeakDistance', MinPeakDistance,'WidthReference','halfheight');
-        
-        fprintf('=== DEBUG: After findpeaks ===\n');
-        fprintf('Found %d peaks\n', length(peaks));
-        if ~isempty(peaks)
-            fprintf('Peak amplitudes range: [%.3f, %.3f]\n', min(peaks), max(peaks));
-            fprintf('Peak widths range: [%.6f, %.6f] sec\n', min(widths), max(widths));
-            fprintf('Peak prominences range: [%.3f, %.3f]\n', min(prominences), max(prominences));
+        % Проверяем, нужно ли искать вокруг стимулов
+        SearchAroundStimuli = false;
+        SearchWindow = 0;
+        if isfield(params, 'SearchAroundStimuli')
+            SearchAroundStimuli = params.SearchAroundStimuli;
         end
-        fprintf('\n');
+        if isfield(params, 'SearchWindow')
+            SearchWindow = params.SearchWindow;
+        end
         
-        % убираем слишком широкие пики
-        wide_peaks_mask = widths > max_peak_width;
-        num_wide_peaks = sum(wide_peaks_mask);
-        peak_times(wide_peaks_mask) = [];
-        peaks(wide_peaks_mask) = [];
-        widths(wide_peaks_mask) = [];
-        prominences(wide_peaks_mask) = [];
-        
-        fprintf('=== DEBUG: After width filtering ===\n');
-        fprintf('Removed %d peaks (too wide, > %.6f sec)\n', num_wide_peaks, max_peak_width);
-        fprintf('Remaining peaks: %d\n', length(peaks));
-        fprintf('\n');
-        
-        peak_locs_inx = ClosestIndex(peak_times, time_res);
-
-        switch DetectionMode
-            case 'peaks'
-                events_detected = peak_times';
-                amplitudes_detected = peaks';
-                widths_detected = widths';
+        if SearchAroundStimuli && stims_exist && ~isempty(stims)
+            fprintf('=== DEBUG: Searching around stimuli ===\n');
+            fprintf('Number of stimuli: %d\n', length(stims));
+            fprintf('Search window: ±%.6f sec\n', SearchWindow);
+            fprintf('\n');
+            
+            waitbar(0.65, wb, sprintf('Detecting events around %d stimuli...', length(stims)));
+            
+            % Инициализация массивов для объединения результатов
+            all_peak_times = [];
+            all_peaks = [];
+            all_widths = [];
+            all_prominences = [];
+            
+            % Детекция в окнах вокруг каждого стимула
+            num_stims = length(stims);
+            for stim_idx = 1:num_stims
+                waitbar(0.65 + 0.25 * (stim_idx / num_stims), wb, ...
+                    sprintf('Processing stimulus %d of %d...', stim_idx, num_stims));
+                stim = stims(stim_idx);
+                window_start = stim - SearchWindow;
+                window_end = stim + SearchWindow;
                 
-            case 'onsets'
-                fprintf('=== DEBUG: Onset detection ===\n');
-                fprintf('OnsetThreshold: %.3f\n', onset_threshold);
-                fprintf('OnsetSearchWindow: %.6f sec (%.6f samples at %d Hz)\n', OnsetSearchWindow, OnsetSearchWindow*lfp_frq, lfp_frq);
-                fprintf('Starting with %d peaks\n', length(peak_locs_inx));
+                % Находим индексы, попадающие в окно
+                window_mask = (time_res >= window_start) & (time_res <= window_end);
                 
-                % onset of peaks by Khazipov method
-                onset_locs_inx = zeros(size(peak_locs_inx));
-                sig_part_window_inx = round(OnsetSearchWindow * lfp_frq);
-                o_i = 0;
-                valid_onsets = false(size(peak_locs_inx));
-                num_out_of_bounds = 0;
-                num_no_onset_found = 0;
-                
-                for i = 1:length(peak_locs_inx)
-                    peak_loc_inx = peak_locs_inx(i);
-                    o_i = o_i + 1;
-
-                    start_inx = peak_loc_inx - sig_part_window_inx;
-                    end_inx = peak_loc_inx + sig_part_window_inx;
-
-                    if start_inx > 1 && end_inx < numel(Trace_out)
-                        signal_part = Trace_out(start_inx : end_inx);
-                        onset_l = find(diff(signal_part) > onset_threshold);
-                        if not(isempty(onset_l))
-                            onset_locs_inx(o_i) = start_inx + onset_l(1);
-                            valid_onsets(i) = true;
-                        else
-                            num_no_onset_found = num_no_onset_found + 1;
-                        end
-                    else
-                        num_out_of_bounds = num_out_of_bounds + 1;
-                    end                    
+                if sum(window_mask) == 0
+                    continue;
                 end
-                onset_locs_inx(onset_locs_inx == 0) = [];
-                onset_times = time_res(onset_locs_inx)';
-                events_detected = onset_times;
                 
-                fprintf('Out of bounds (window extends beyond signal): %d peaks\n', num_out_of_bounds);
-                fprintf('No onset found (diff < threshold): %d peaks\n', num_no_onset_found);
-                fprintf('Valid onsets found: %d\n', sum(valid_onsets));
-                fprintf('Final events_detected: %d\n', length(events_detected));
+                % Выделяем участок сигнала
+                Trace_out_window = Trace_out(window_mask);
+                time_res_window = time_res(window_mask);
+                
+                % Детекция в окне
+                [peaks_window, peak_times_window, widths_window, prominences_window] = ...
+                    findpeaks(Trace_out_window, time_res_window, ...
+                    'MinPeakHeight', MinPeakProminence, ...
+                    'MinPeakDistance', MinPeakDistance, ...
+                    'WidthReference', 'halfheight');
+                
+                % Фильтрация по ширине
+                if ~isempty(widths_window)
+                    wide_mask = widths_window <= max_peak_width;
+                    peaks_window = peaks_window(wide_mask);
+                    peak_times_window = peak_times_window(wide_mask);
+                    widths_window = widths_window(wide_mask);
+                    prominences_window = prominences_window(wide_mask);
+                end
+                
+                % Добавляем результаты в общие массивы
+                if ~isempty(peak_times_window)
+                    all_peak_times = [all_peak_times; peak_times_window(:)];
+                    all_peaks = [all_peaks; peaks_window(:)];
+                    all_widths = [all_widths; widths_window(:)];
+                    all_prominences = [all_prominences; prominences_window(:)];
+                end
+            end
+            
+            fprintf('=== DEBUG: After window detection ===\n');
+            fprintf('Total peaks found in all windows: %d\n', length(all_peak_times));
+            fprintf('\n');
+            
+            waitbar(0.9, wb, 'Removing duplicates...');
+            
+            % Удаление дубликатов (если окна перекрываются)
+            if ~isempty(all_peak_times)
+                [sorted_times, sort_idx] = sort(all_peak_times);
+                sorted_peaks = all_peaks(sort_idx);
+                sorted_widths = all_widths(sort_idx);
+                sorted_prominences = all_prominences(sort_idx);
+                
+                % Удаляем события, которые слишком близко друг к другу
+                unique_mask = true(size(sorted_times));
+                for i = 2:length(sorted_times)
+                    if (sorted_times(i) - sorted_times(i-1)) < MinPeakDistance
+                        unique_mask(i) = false;
+                    end
+                end
+                
+                all_peak_times = sorted_times(unique_mask);
+                all_peaks = sorted_peaks(unique_mask);
+                all_widths = sorted_widths(unique_mask);
+                all_prominences = sorted_prominences(unique_mask);
+                
+                fprintf('=== DEBUG: After duplicate removal ===\n');
+                fprintf('Remaining peaks: %d\n', length(all_peak_times));
                 fprintf('\n');
-                
-                % Для onsets используем амплитуды соответствующих пиков
-                amplitudes_detected = peaks(valid_onsets)';
-                widths_detected = widths(valid_onsets)';
+            end
+            
+            if ~isempty(all_peak_times)
+                events_detected = all_peak_times(:);
+                amplitudes_detected = all_peaks(:);
+                widths_detected = all_widths(:);
+                prominences = all_prominences(:);
+            else
+                events_detected = [];
+                amplitudes_detected = [];
+                widths_detected = [];
+                prominences = [];
+            end
+            
+        else
+            % Детекция по всему сигналу (как раньше)
+            waitbar(0.7, wb, 'Detecting peaks in full signal...');
+            [peaks,peak_times,widths,prominences] = findpeaks(Trace_out, time_res, 'MinPeakHeight',MinPeakProminence, 'MinPeakDistance', MinPeakDistance,'WidthReference','halfheight');
+            
+            fprintf('=== DEBUG: After findpeaks ===\n');
+            fprintf('Found %d peaks\n', length(peaks));
+            if ~isempty(peaks)
+                fprintf('Peak amplitudes range: [%.3f, %.3f]\n', min(peaks), max(peaks));
+                fprintf('Peak widths range: [%.6f, %.6f] sec\n', min(widths), max(widths));
+                fprintf('Peak prominences range: [%.3f, %.3f]\n', min(prominences), max(prominences));
+            end
+            fprintf('\n');
+            
+            waitbar(0.85, wb, 'Filtering peaks by width...');
+            
+            % убираем слишком широкие пики
+            wide_peaks_mask = widths > max_peak_width;
+            num_wide_peaks = sum(wide_peaks_mask);
+            peak_times(wide_peaks_mask) = [];
+            peaks(wide_peaks_mask) = [];
+            widths(wide_peaks_mask) = [];
+            prominences(wide_peaks_mask) = [];
+            
+            fprintf('=== DEBUG: After width filtering ===\n');
+            fprintf('Removed %d peaks (too wide, > %.6f sec)\n', num_wide_peaks, max_peak_width);
+            fprintf('Remaining peaks: %d\n', length(peaks));
+            fprintf('\n');
+            
+            events_detected = peak_times(:);
+            amplitudes_detected = peaks(:);
+            widths_detected = widths(:);
+            prominences = prominences(:);
         end
+        
+        waitbar(0.95, wb, 'Finalizing results...');
         
         % Формируем каналы и метаданные
         channels_detected = [];
@@ -622,29 +695,20 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
         % Создаем метаданные для каждого события
         metadata_detected = repmat(struct(...
             'source', 'auto', ...
-            'method', DetectionMode, ...
+            'method', 'peaks', ...
             'data_type', SourceType, ...
             'polarity', DetectionType, ...
             'prominence', NaN, ...
             'detection_params', struct(...
                 'MinPeakProminence', MinPeakProminence, ...
                 'MinPeakDistance', MinPeakDistance, ...
-                'OnsetThreshold', onset_threshold, ...
-                'OnsetSearchWindow', OnsetSearchWindow, ...
                 'MaxPeakWidth', max_peak_width ...
             ) ...
         ), length(events_detected), 1);
         
         % Добавляем prominence для каждого события
         for i = 1:length(events_detected)
-            if strcmp(DetectionMode, 'peaks')
-                metadata_detected(i).prominence = prominences(i);
-            elseif strcmp(DetectionMode, 'onsets') && i <= length(prominences)
-                valid_idx = find(valid_onsets);
-                if i <= length(valid_idx)
-                    metadata_detected(i).prominence = prominences(valid_idx(i));
-                end
-            end
+            metadata_detected(i).prominence = prominences(i);
         end
         
         fprintf('=== DEBUG: Final results ===\n');
@@ -652,14 +716,21 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
         fprintf('===================================\n\n');
         
     else
+        waitbar(0.9, wb, 'Preview mode - no detection');
         events_detected = [];
         amplitudes_detected = [];
         widths_detected = [];
         channels_detected = [];
         metadata_detected = [];
     end
+    
+    waitbar(1.0, wb, 'Complete');
     fprintf('Events detected.\n');
-    close(wb)
+    
+    % Закрываем waitbar только если detect = true (в режиме детекции)
+    if detect && ~isempty(wb) && isvalid(wb)
+        close(wb);
+    end
 end
 
 function safeSetPopupValue(hPopup, requestedValue, maxItems, popupLabel)

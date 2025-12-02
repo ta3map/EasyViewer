@@ -482,52 +482,18 @@ function editStimulusTimesGUI()
         isReplace = contains(selectedMode, 'replace');
         
         if isToFile
-            [path, name, ~] = fileparts(matFilePath);
-            defaultFileName = fullfile(path, [name '_stimuli.ev']);
+            event_comments_stim = repmat({'Stimulus'}, numel(stimTimes), 1);
+            event_metadata_stim = repmat(struct('source', 'stimulus_export'), numel(stimTimes), 1);
             
-            [file, path] = uiputfile('*.ev', 'Save Stimuli as Events', defaultFileName);
-            if isequal(file, 0)
-                fprintf('Export canceled.\n');
-                return;
-            end
-            
-            filepath = fullfile(path, file);
-            
-            clear manlDet
-            numStims = numel(stimTimes);
-            manlDet(numStims) = struct('t', [], 'ch', [], 'subT', [], 'subCh', [], 'sw', [], ...
-                                       'amplitude', [], 'channels', [], 'width', [], 'prominence', [], 'metadata', []);
-            
-            for i = 1:numStims
-                manlDet(i).t = ClosestIndex(stimTimes(i), time);
-                manlDet(i).ch = 1;
-                manlDet(i).channels = 1;
-                manlDet(i).subT = [];
-                manlDet(i).subCh = 2;
-                manlDet(i).sw = 1;
-                manlDet(i).amplitude = NaN;
-                manlDet(i).width = NaN;
-                manlDet(i).prominence = NaN;
-                manlDet(i).metadata = struct('source', 'stimulus_export');
-            end
-            
-            event_comments = repmat({'Stimulus'}, numStims, 1);
-            
-            clear viewer_data
-            viewer_data.matFileName = matFileName;
-            viewer_data.matFilePath = matFilePath;
-            if exist('autodetection_settings', 'var') && ~isempty(autodetection_settings)
-                viewer_data.autodetection_settings = autodetection_settings;
-            end
-            if exist('add_event_settings', 'var') && ~isempty(add_event_settings)
-                viewer_data.add_event_settings = add_event_settings;
-            end
-            if exist('EV_version', 'var') && ~isempty(EV_version)
-                viewer_data.EV_version = EV_version;
-            end
-            
-            save(filepath, 'manlDet', 'event_comments', 'viewer_data');
-            fprintf('Exported %d stimuli to %s\n', numStims, file);
+            saveEventsToFile(stimTimes, time, matFilePath, ...
+                'event_comments', event_comments_stim, ...
+                'event_metadata', event_metadata_stim, ...
+                'dialogTitle', 'Save Stimuli as Events', ...
+                'defaultFileNameSuffix', '_stimuli', ...
+                'matFileName', matFileName, ...
+                'autodetection_settings', autodetection_settings, ...
+                'add_event_settings', add_event_settings, ...
+                'EV_version', EV_version);
         else
             if isReplace
                 events = sort(stimTimes(:));

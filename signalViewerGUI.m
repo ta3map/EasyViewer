@@ -2562,77 +2562,19 @@ end
 
 
     function saveEvents(~, ~)
-
-        [path, name, ~] = fileparts(matFilePath);
-        defaultFileName = fullfile(path, [name '_events.ev']);
-
-        [file, path] = uiputfile('*.ev', 'Save Events', defaultFileName);
-        if isequal(file, 0)
-            disp('File save canceled.');
-            return;
-        end
-        filepath = fullfile(path, file);
-        clear manlDet
-        % Преаллокация расширенной структуры с новыми полями
-        manlDet(numel(events)) = struct('t', [], 'ch', [], 'subT', [], 'subCh', [], 'sw', [], ...
-                                       'amplitude', [], 'channels', [], 'width', [], 'prominence', [], 'metadata', []);
-
-        for i = 1:numel(events)
-            manlDet(i).t = ClosestIndex(events(i), time);
-            
-            % Новые поля с проверкой существования данных
-            if ~isempty(event_channels) && i <= length(event_channels)
-                if size(event_channels, 2) == 1
-                    manlDet(i).ch = event_channels(i);
-                    manlDet(i).channels = event_channels(i);
-                else
-                    manlDet(i).ch = event_channels(i, 1); % Первый канал для совместимости
-                    manlDet(i).channels = event_channels(i, :); % Все каналы
-                end
-            else
-                manlDet(i).ch = 1;  % default для совместимости
-                manlDet(i).channels = 1;
-            end
-            
-            if ~isempty(event_amplitudes) && i <= length(event_amplitudes)
-                manlDet(i).amplitude = event_amplitudes(i);
-            else
-                manlDet(i).amplitude = NaN;
-            end
-            
-            if ~isempty(event_widths) && i <= length(event_widths)
-                manlDet(i).width = event_widths(i);
-            else
-                manlDet(i).width = NaN;
-            end
-            
-            if ~isempty(event_prominences) && i <= length(event_prominences)
-                manlDet(i).prominence = event_prominences(i);
-            else
-                manlDet(i).prominence = NaN;
-            end
-            
-            if ~isempty(event_metadata) && i <= length(event_metadata)
-                manlDet(i).metadata = event_metadata(i);
-            else
-                manlDet(i).metadata = struct('source', 'unknown');
-            end
-            
-            % Старые поля для совместимости
-            manlDet(i).subT = [];
-            manlDet(i).subCh = 2;
-            manlDet(i).sw = 1;
-        end
-        
-        clear viewer_data
-        viewer_data.matFileName = matFileName;
-        viewer_data.matFilePath = matFilePath;
-        viewer_data.autodetection_settings = autodetection_settings;
-        viewer_data.add_event_settings = add_event_settings;
-        viewer_data.EV_version = EV_version;
-        
-        save(filepath, 'manlDet', 'event_comments', ...
-            'viewer_data'); % Сохранение в .ev файл
+        saveEventsToFile(events, time, matFilePath, ...
+            'event_comments', event_comments, ...
+            'event_amplitudes', event_amplitudes, ...
+            'event_channels', event_channels, ...
+            'event_widths', event_widths, ...
+            'event_prominences', event_prominences, ...
+            'event_metadata', event_metadata, ...
+            'dialogTitle', 'Save Events', ...
+            'defaultFileNameSuffix', '_events', ...
+            'matFileName', matFileName, ...
+            'autodetection_settings', autodetection_settings, ...
+            'add_event_settings', add_event_settings, ...
+            'EV_version', EV_version);
     end
 
     set(eventTable, 'CellEditCallback', @updateEventTable);

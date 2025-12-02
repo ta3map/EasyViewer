@@ -67,10 +67,12 @@ function eventCrossCorrelationGUI()
         loadedData = load(filepath, '-mat'); % Load data into structure
 
         if isfield(loadedData, 'manlDet')
+            indices = round([loadedData.manlDet.t]);
+            indices = max(1, min(indices, length(time)));
             if eventNum == 1
-                events1 = time(round([loadedData.manlDet.t]))'; % Update events1
+                events1 = time(indices)'; % Update events1
             else
-                events2 = time(round([loadedData.manlDet.t]))'; % Update events2
+                events2 = time(indices)'; % Update events2
             end
         end
 
@@ -88,11 +90,12 @@ function eventCrossCorrelationGUI()
             return;
         end
 
-        % Compute histograms of events
-        edges1 = min(events1):binSize:max(events1);
-        edges2 = min(events2):binSize:max(events2);
-        eventHist1 = histcounts(events1, edges1, 'Normalization', 'count');
-        eventHist2 = histcounts(events2, edges2, 'Normalization', 'count');
+        % Compute histograms of events with common edges
+        minTime = min([min(events1), min(events2)]);
+        maxTime = max([max(events1), max(events2)]);
+        edges = minTime:binSize:maxTime;
+        eventHist1 = histcounts(events1, edges, 'Normalization', 'count');
+        eventHist2 = histcounts(events2, edges, 'Normalization', 'count');
 
         % Compute cross-correlation
         if normalize
