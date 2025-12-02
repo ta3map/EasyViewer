@@ -8,9 +8,9 @@ function autoEventDetectionGUI()
     
     global events event_comments hd events_detected matFilePath evfilename eventDeleteEdit
     global hMinPeakProminence hDetectionType hChPos hChNeg hMaxPeakWidth
-    global hMinPeakDistance
+    global hMinPeakDistance hPeakDetectionMode
     global hSourceType selectedCenter timeCenterPopup windowSize chosen_time_interval
-    global hSearchAroundStimuli hSearchWindow stims_exist
+    global hSearchAroundStimuli hSearchWindow stims_exist stims
     
     % Переменные для хранения результатов детекции в области видимости GUI
     amplitudes_detected = [];
@@ -33,7 +33,7 @@ function autoEventDetectionGUI()
     % Окно Auto Event Detection
     detectionFig = figure('Name', 'Auto Event Detection', 'Tag', figTag, ...
         'Resize', 'off', ...
-        'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', 'Position', [100, 100, 800, 400]);
+        'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', 'Position', [100, 100, 1100, 400]);
 
     ypos = [linspace(300, 70, 9), 340, 365];
     % Окно выбора источника данных LFP или CSD
@@ -44,38 +44,44 @@ function autoEventDetectionGUI()
     uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(10), 150, 20], 'String', 'Detection Type:');
     hDetectionType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(10), 130, 20], 'String', {'two channels difference', 'two channels multiplied', 'one channel positive', 'one channel negative'}, 'Callback', @changeDetectionType);
 
-    % Окошко для ввода MinPeakHeight
-    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(1), 150, 20], 'String', 'Minimal Peak Amplitude:');
-    hMinPeakProminence = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(1), 130, 20], 'String', '50');
+    % Выбор режима детекции (Height или Prominence)
+    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(1), 150, 20], 'String', 'Peak Detection Mode:');
+    hPeakDetectionMode = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(1), 130, 20], 'String', {'Height', 'Prominence'}, 'Callback', @changeDetectionType);
+    
+    % Окошко для ввода минимального значения (Height или Prominence)
+    hMinPeakProminence_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(2), 150, 20], 'String', 'Minimal Peak Height:');
+    hMinPeakProminence = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(2), 130, 20], 'String', '50');
 
     % Окно выбора ChPos и ChNeg из списка каналов
-    hChPos_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(2), 150, 20], 'String', 'Positive Channel:');
-    hChPos = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(2), 130, 20], 'String', hd.recChNames, 'Callback', @changeDetectionType);
-    hChNeg_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(3), 150, 20], 'String', 'Negative Channel:');
-    hChNeg = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(3), 130, 20], 'String', hd.recChNames, 'Callback', @changeDetectionType);
+    hChPos_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(3), 150, 20], 'String', 'Positive Channel:');
+    hChPos = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(3), 130, 20], 'String', hd.recChNames, 'Callback', @changeDetectionType);
+    hChNeg_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(4), 150, 20], 'String', 'Negative Channel:');
+    hChNeg = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(4), 130, 20], 'String', hd.recChNames, 'Callback', @changeDetectionType);
 
     % Окошко для ввода MinPeakDistance
-    hMinPeakDistance_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(4), 150, 30], 'String', ['Minimal Time Between Peaks (' selectedUnit '):']);
-    hMinPeakDistance = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(4), 130, 20], 'String', num2str(3*timeUnitFactor));
+    hMinPeakDistance_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(5), 150, 30], 'String', ['Minimal Time Between Peaks (' selectedUnit '):']);
+    hMinPeakDistance = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(5), 130, 20], 'String', num2str(3*timeUnitFactor));
 
     % Чекбокс для поиска вокруг стимулов
-    hSearchAroundStimuli = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', [10, ypos(5), 280, 20], 'String', 'Search around stimuli', 'Value', 0, 'Callback', @changeDetectionType);
+    hSearchAroundStimuli = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', [10, ypos(6), 280, 20], 'String', 'Search around stimuli', 'Value', 0, 'Callback', @changeDetectionType);
     
     % Поле ввода размера окна поиска
-    hSearchWindow_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(6), 150, 20], 'String', ['Search window (' selectedUnit '):']);
-    hSearchWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(6), 130, 20], 'String', num2str(0.5*timeUnitFactor));
+    hSearchWindow_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(7), 150, 20], 'String', ['Search window (' selectedUnit '):']);
+    hSearchWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(7), 130, 20], 'String', num2str(0.5*timeUnitFactor));
 
-    hMaxPeakWidth_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(7), 150, 20], 'String', ['Max peak width (' selectedUnit '):']);
-    hMaxPeakWidth = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(7), 130, 20], 'String', num2str(0.05*timeUnitFactor));
+    hMaxPeakWidth_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(8), 150, 20], 'String', ['Max peak width (' selectedUnit '):']);
+    hMaxPeakWidth = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(8), 130, 20], 'String', num2str(0.05*timeUnitFactor));
 
     % Инициализация видимости элементов в зависимости от наличия стимулов
     changeDetectionType();
 
-    ax1 = axes('Position', [0.40    0.27    0.25    0.65]);
-    ax2 = axes('Position', [0.70    0.27    0.25    0.65]);
+    ax1 = axes('Position', [0.35    0.27    0.20    0.65]);
+    ax2 = axes('Position', [0.58    0.27    0.20    0.65]);
+    ax3 = axes('Position', [0.81    0.27    0.15    0.65]);
     
     set(ax1, 'visible', 'off')
     set(ax2, 'visible', 'off')
+    set(ax3, 'visible', 'off')
     
     % Инициализация значений из настроек, если они существуют
     if ~isempty(settings)
@@ -88,6 +94,13 @@ function autoEventDetectionGUI()
 
         safeSetPopupValue(hDetectionType, settings.DetectionTypeIndex, ...
                           numel(get(hDetectionType,'String')), 'DetectionType');
+        
+        if isfield(settings, 'PeakDetectionModeIndex')
+            safeSetPopupValue(hPeakDetectionMode, settings.PeakDetectionModeIndex, ...
+                              numel(get(hPeakDetectionMode,'String')), 'PeakDetectionMode');
+        else
+            set(hPeakDetectionMode, 'Value', 1); % По умолчанию Height
+        end
                       
         set(hMinPeakProminence, 'String', num2str(settings.MinPeakProminence));
 
@@ -161,6 +174,16 @@ function autoEventDetectionGUI()
                 set(hChNeg, 'visible', 'off')
         end
         
+        % Обновление подписи поля ввода в зависимости от режима детекции
+        PeakDetectionModes = get(hPeakDetectionMode, 'String');
+        PeakDetectionMode = PeakDetectionModes{get(hPeakDetectionMode, 'Value')};
+        switch PeakDetectionMode
+            case 'Height'
+                set(hMinPeakProminence_text, 'String', 'Minimal Peak Height:');
+            case 'Prominence'
+                set(hMinPeakProminence_text, 'String', 'Minimal Peak Prominence:');
+        end
+        
         % Показывать/скрывать элементы поиска вокруг стимулов
         if stims_exist
             set(hSearchAroundStimuli, 'visible', 'on')
@@ -181,6 +204,8 @@ function autoEventDetectionGUI()
         % Предварительная прорисовка
         % Сбор значений параметров и упаковка их в структуру
         params.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
+        PeakDetectionModes = get(hPeakDetectionMode, 'String');
+        params.PeakDetectionMode = PeakDetectionModes{get(hPeakDetectionMode, 'Value')};
         params.ChPos = get(hChPos, 'Value');
         params.ChNeg = get(hChNeg, 'Value');
         params.MinPeakDistance = str2double(get(hMinPeakDistance, 'String')) / timeUnitFactor;
@@ -193,12 +218,12 @@ function autoEventDetectionGUI()
         params.SearchAroundStimuli = get(hSearchAroundStimuli, 'Value');
         params.SearchWindow = str2double(get(hSearchWindow, 'String')) / timeUnitFactor;
                
-        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected] = autoEventDetection(params);
+        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected] = autoEventDetection(params);
         
         Trace_out(isnan(Trace_out)) = 0;
         Trace_out(isinf(Trace_out)) = 0;
         
-        outlier = plotRequest(events_detected, Trace_out, time_res, params);
+        outlier = plotRequest(events_detected, Trace_out, time_res, params, prominences_detected);
         set(hMinPeakProminence, 'String', num2str(outlier));
     end
 
@@ -218,10 +243,20 @@ function autoEventDetectionGUI()
         text(0.5, 0.5, 'Detecting ...', 'HorizontalAlignment', 'center', ...
              'VerticalAlignment', 'middle', 'FontSize', 14, 'Units', 'normalized');
         axis off;
+        
+        axes(ax3);
+        set(ax3, 'visible', 'on');
+        cla;
+        text(0.5, 0.5, 'Detecting ...', 'HorizontalAlignment', 'center', ...
+             'VerticalAlignment', 'middle', 'FontSize', 14, 'Units', 'normalized');
+        axis off;
+        
         drawnow;
         
         % Сбор значений параметров и упаковка их в структуру
         params.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
+        PeakDetectionModes = get(hPeakDetectionMode, 'String');
+        params.PeakDetectionMode = PeakDetectionModes{get(hPeakDetectionMode, 'Value')};
         params.ChPos = get(hChPos, 'Value');
         params.ChNeg = get(hChNeg, 'Value');
         params.MinPeakDistance = str2double(get(hMinPeakDistance, 'String')) / timeUnitFactor;
@@ -234,18 +269,23 @@ function autoEventDetectionGUI()
         params.SearchAroundStimuli = get(hSearchAroundStimuli, 'Value');
         params.SearchWindow = str2double(get(hSearchWindow, 'String')) / timeUnitFactor;
         
-        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected] = autoEventDetection(params);
+        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected] = autoEventDetection(params);
         
         Trace_out(isnan(Trace_out)) = 0;
         Trace_out(isinf(Trace_out)) = 0;
         
-        plotRequest(events_detected, Trace_out, time_res, params);
+        plotRequest(events_detected, Trace_out, time_res, params, prominences_detected);
         
         set(applybutton, 'Enable', 'on')
         
     end
 
-    function outlier = plotRequest(events_detected, Trace_out, time_res, params)
+    function outlier = plotRequest(events_detected, Trace_out, time_res, params, prominences_detected)
+        
+        PeakDetectionMode = 'Height';
+        if isfield(params, 'PeakDetectionMode')
+            PeakDetectionMode = params.PeakDetectionMode;
+        end
                 
         outlier = quantile(Trace_out, [0.999]);
         std3 = 3*nanstd(Trace_out);
@@ -284,13 +324,27 @@ function autoEventDetectionGUI()
         end
 
 
-        % Визуализация
+        % Визуализация гистограммы
         axes(ax2);
         set(ax2, 'visible', 'on')
         
         cla; hold on;
+        
+        % Выбираем данные для гистограммы в зависимости от режима
+        if strcmp(PeakDetectionMode, 'Prominence') && params.detect && ~isempty(prominences_detected)
+            % Для режима Prominence показываем распределение prominence
+            hist_data = prominences_detected;
+            hist_label = 'Prominence';
+            outlier = quantile(hist_data, [0.999]);
+            std3 = 3*nanstd(hist_data);
+        else
+            % Для режима Height показываем распределение Trace_out
+            hist_data = Trace_out;
+            hist_label = 'Height';
+        end
+        
         % Автоматическое определение количества бинов для улучшения визуализации
-        h = histogram(Trace_out, 50,'Normalization','probability');        
+        h = histogram(hist_data, 50,'Normalization','probability');        
         
         xline(outlier, 'k:')
         
@@ -312,6 +366,54 @@ function autoEventDetectionGUI()
         xline(chosen_th, 'r:')
         text(chosen_th, chosen_th_h, 'now')
         text(chosen_th, std3_h*0.45, num2str(chosen_th, 3), 'color', 'r')
+        
+        xlabel(['Peak ' hist_label]);
+        title(['Distribution of Peak ' hist_label]);
+        
+        hold off;
+        
+        % Боксплот относительного времени (если поиск вокруг стимулов)
+        axes(ax3);
+        set(ax3, 'visible', 'on')
+        
+        cla; hold on;
+        
+        SearchAroundStimuli = false;
+        if isfield(params, 'SearchAroundStimuli')
+            SearchAroundStimuli = params.SearchAroundStimuli;
+        end
+        
+        if SearchAroundStimuli && params.detect && ~isempty(events_detected) && stims_exist && ~isempty(stims)
+            % Вычисляем относительное время для каждого события
+            rel_times = [];
+            for i = 1:length(events_detected)
+                event_time = events_detected(i);
+                % Находим ближайший стимул
+                [~, closest_stim_idx] = min(abs(stims - event_time));
+                closest_stim = stims(closest_stim_idx);
+                rel_time = event_time - closest_stim;
+                rel_times = [rel_times; rel_time];
+            end
+            
+            % Строим боксплот
+            boxplot(rel_times*timeUnitFactor, 'Orientation', 'horizontal');
+            hold on;
+            
+            % Добавляем точки данных с небольшим jitter по вертикали
+            y_jitter = 1 + 0.1 * (rand(size(rel_times)) - 0.5); % Небольшой случайный разброс
+            scatter(rel_times*timeUnitFactor, y_jitter, 30, 'filled', 'MarkerFaceAlpha', 0.6, 'MarkerEdgeColor', 'k');
+            
+            xlabel(['Relative time from stimulus, ' selectedUnit]);
+            ylabel('Events');
+            title(sprintf('Event timing relative to stimuli (n=%d)', length(rel_times)));
+            grid on;
+        else
+            % Если боксплот не нужен, просто очищаем ось
+            axis off;
+            text(0.5, 0.5, 'Boxplot available\nwhen searching\naround stimuli', ...
+                'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', ...
+                'Units', 'normalized', 'FontSize', 10);
+        end
         
         hold off;
     end
@@ -402,11 +504,12 @@ end
 
 function saveSettings()
     global hMinPeakProminence hDetectionType hChPos hChNeg hMaxPeakWidth
-    global hMinPeakDistance
+    global hMinPeakDistance hPeakDetectionMode
     global autodetection_settings SettingsFilepath
     global hSourceType timeUnitFactor hSearchAroundStimuli hSearchWindow
     
     settings.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
+    settings.PeakDetectionModeIndex = get(hPeakDetectionMode, 'Value');
     settings.DetectionTypeIndex = get(hDetectionType, 'Value');
     settings.ChPos = get(hChPos, 'Value');
     settings.ChNeg = get(hChNeg, 'Value');
@@ -421,7 +524,7 @@ function saveSettings()
     save(SettingsFilepath, 'autodetection_settings', '-append');
 end
 
-function [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected] = autoEventDetection(params)
+function [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected] = autoEventDetection(params)
     global Fs time newFs lfp wb ch_inxs csd_avaliable filterSettings filter_avaliable mean_group_ch 
     global stims_exist stims time art_rem_window_ms
     
@@ -430,12 +533,39 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     
     % Инициализация waitbar если не существует
     if isempty(wb) || ~isvalid(wb)
-        wb = waitbar(0, 'Initializing...', 'Name', 'Event Detection');
+        wb = waitbar(0, 'Initializing...', 'Name', 'Event Detection', 'CreateCancelBtn', 'setappdata(gcbf,''canceling'',1)');
+        setappdata(wb, 'canceling', 0);
+    end
+    
+    % Функция проверки отмены и установки пустых значений
+    function canceled = checkCancel()
+        canceled = false;
+        if ~isempty(wb) && isvalid(wb)
+            canceled = getappdata(wb, 'canceling');
+        else
+            canceled = true; % Если waitbar закрыт, считаем что отменено
+        end
+        
+        % Если отмена, устанавливаем пустые значения
+        if canceled
+            assignin('caller', 'events_detected', []);
+            assignin('caller', 'amplitudes_detected', []);
+            assignin('caller', 'widths_detected', []);
+            assignin('caller', 'channels_detected', []);
+            assignin('caller', 'metadata_detected', []);
+            assignin('caller', 'prominences_detected', []);
+            assignin('caller', 'Trace_out', []);
+            assignin('caller', 'time_res', []);
+        end
     end
     
     % Распаковка параметров из структуры
     DetectionType = params.DetectionType;
     MinPeakProminence = params.MinPeakProminence;
+    PeakDetectionMode = 'Height'; % По умолчанию
+    if isfield(params, 'PeakDetectionMode')
+        PeakDetectionMode = params.PeakDetectionMode;
+    end
     ChPos = params.ChPos;
     ChNeg = params.ChNeg;
     MinPeakDistance = params.MinPeakDistance;
@@ -449,6 +579,9 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     lfp_frq = round(newFs);
     
     % Фильтруем если попросили
+    if checkCancel()
+        return;
+    end
     waitbar(0.1, wb, 'Applying filters...');
     try
         if sum(filter_avaliable)>0
@@ -460,6 +593,9 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     end
 
     % Убираем артефакт стимула если включено
+    if checkCancel()
+        return;
+    end
     waitbar(0.2, wb, 'Removing stimulus artifacts...');
     if stims_exist && ~isempty(stims) && ~isempty(art_rem_window_ms) && art_rem_window_ms > 0
         win_r = round(art_rem_window_ms * (Fs/1000));
@@ -467,10 +603,16 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     end
     
     % Вычитаем среднее из запрошенных
+    if checkCancel()
+        return;
+    end
     waitbar(0.3, wb, 'Subtracting mean...');
     data_in(:, mean_group_ch) = data_in(:, mean_group_ch) - mean(data_in(:, mean_group_ch), 2); % вычитание выбранных средних каналов
     
     % Если источником выбран CSD
+    if checkCancel()
+        return;
+    end
     waitbar(0.4, wb, 'Computing CSD...');
     switch SourceType
         case 'CSD'
@@ -480,6 +622,9 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     end
 
     % Создание Trace_out
+    if checkCancel()
+        return;
+    end
     waitbar(0.5, wb, 'Creating detection trace...');
     switch DetectionType
         case 'two channels difference'
@@ -512,6 +657,9 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     
     time_res = linspace(time(1),time(end),numel(Trace_out));
     
+    if checkCancel()
+        return;
+    end
     waitbar(0.6, wb, 'Preparing detection...');
     
     if detect
@@ -559,6 +707,10 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
             % Детекция в окнах вокруг каждого стимула
             num_stims = length(stims);
             for stim_idx = 1:num_stims
+                if checkCancel()
+                    fprintf('Detection cancelled by user.\n');
+                    return;
+                end
                 waitbar(0.65 + 0.25 * (stim_idx / num_stims), wb, ...
                     sprintf('Processing stimulus %d of %d...', stim_idx, num_stims));
                 stim = stims(stim_idx);
@@ -646,8 +798,17 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
             
         else
             % Детекция по всему сигналу (как раньше)
+            if checkCancel()
+                return;
+            end
             waitbar(0.7, wb, 'Detecting peaks in full signal...');
-            [peaks,peak_times,widths,prominences] = findpeaks(Trace_out, time_res, 'MinPeakHeight',MinPeakProminence, 'MinPeakDistance', MinPeakDistance,'WidthReference','halfheight');
+            findpeaks_params = {'MinPeakDistance', MinPeakDistance, 'WidthReference', 'halfheight'};
+            if strcmp(PeakDetectionMode, 'Height')
+                findpeaks_params = [findpeaks_params, {'MinPeakHeight', MinPeakProminence}];
+            else
+                findpeaks_params = [findpeaks_params, {'MinPeakProminence', MinPeakProminence}];
+            end
+            [peaks,peak_times,widths,prominences] = findpeaks(Trace_out, time_res, findpeaks_params{:});
             
             fprintf('=== DEBUG: After findpeaks ===\n');
             fprintf('Found %d peaks\n', length(peaks));
@@ -679,6 +840,9 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
             prominences = prominences(:);
         end
         
+        if checkCancel()
+            return;
+        end
         waitbar(0.95, wb, 'Finalizing results...');
         
         % Формируем каналы и метаданные
@@ -707,6 +871,7 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
         ), length(events_detected), 1);
         
         % Добавляем prominence для каждого события
+        prominences_detected = prominences(:);
         for i = 1:length(events_detected)
             metadata_detected(i).prominence = prominences(i);
         end
@@ -722,14 +887,22 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
         widths_detected = [];
         channels_detected = [];
         metadata_detected = [];
+        prominences_detected = [];
     end
     
-    waitbar(1.0, wb, 'Complete');
-    fprintf('Events detected.\n');
-    
-    % Закрываем waitbar только если detect = true (в режиме детекции)
-    if detect && ~isempty(wb) && isvalid(wb)
-        close(wb);
+    if ~checkCancel()
+        waitbar(1.0, wb, 'Complete');
+        fprintf('Events detected.\n');
+        
+        % Закрываем waitbar только если detect = true (в режиме детекции)
+        if detect && ~isempty(wb) && isvalid(wb)
+            close(wb);
+        end
+    else
+        fprintf('Detection cancelled by user.\n');
+        if ~isempty(wb) && isvalid(wb)
+            close(wb);
+        end
     end
 end
 
