@@ -1,11 +1,8 @@
-function result = autoDetectStimuli(filePath, fileId)
+function result = autoDetectStimuli(filePath, fileId, params)
     global zav_calling timeUnitFactor stims saveChannelSettingsFunc
     global lfp time Fs channelTable updatePlot
     
     metadata = zav_calling(filePath);
-    
-    % Загрузка параметров из JSON файла
-    params = loadModuleParams('autoDetectStimuli', timeUnitFactor);
     
     % Получение активных каналов
     channelSettings = get(channelTable, 'Data');
@@ -20,7 +17,6 @@ function result = autoDetectStimuli(filePath, fileId)
             'module_description', 'Автодетекция стимулов в сигнале', ...
             'parameters', params, ...
             'num_stimuli', 0);
-        logAnalysisResult(fileId, result);
         return;
     end
     
@@ -66,8 +62,6 @@ function result = autoDetectStimuli(filePath, fileId)
         'module_description', 'Автодетекция стимулов в сигнале', ...
         'parameters', params, ...
         'num_stimuli', length(stims));
-    
-    logAnalysisResult(fileId, result);
 end
 
 function events_detected = detectPeaksInSignal(lfp, time, Fs, timeUnitFactor, channels, params)

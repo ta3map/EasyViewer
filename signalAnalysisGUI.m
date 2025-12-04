@@ -3387,6 +3387,25 @@ updateCursorEditFields();
             filepath = fullfile(path, file);
         end
         
+        % Проверка, открыт ли уже файл
+        if exist('matFilePath', 'var') && ~isempty(matFilePath) && exist('hd', 'var') && ~isempty(hd)
+            [~, currentFileName, ~] = fileparts(matFilePath);
+            [~, newFileName, ~] = fileparts(filepath);
+            if strcmp(currentFileName, newFileName) && strcmp(matFilePath, filepath)
+                debugState('openFile', 'File already open: %s', newFileName);
+                hWaitBar = waitbar(0, 'File already open...', 'Name', 'Loading file');
+                waitbar(0.5, hWaitBar, 'File already open...');
+                pause(0.3);
+                waitbar(1, hWaitBar, 'Complete');
+                pause(0.1);
+                if isvalid(hWaitBar)
+                    close(hWaitBar);
+                end
+                metadata = struct('hd', hd, 'stims', stims, 'filePath', matFilePath);
+                return;
+            end
+        end
+        
         % Очищаем все предыдущие результаты и измерения
         slope_measurement_results = [];
 

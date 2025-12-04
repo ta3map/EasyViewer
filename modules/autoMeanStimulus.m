@@ -1,10 +1,7 @@
-function result = autoMeanStimulus(filePath, fileId)
+function result = autoMeanStimulus(filePath, fileId, params)
     global zav_calling autodetection_settings timeUnitFactor
     
     metadata = zav_calling(filePath);
-    
-    % Загрузка параметров из JSON файла
-    params = loadModuleParams('autoMeanStimulus', timeUnitFactor);
     
     % Подготовка opts для calculateAndPlotMeanEvents
     % tiledlayoutSize: [4, 1] - основной график (2 строки), таблица (1 строка), scatter (1 строка)
@@ -54,7 +51,5 @@ function result = autoMeanStimulus(filePath, fileId)
         'data_path', dataPath, ...
         'parameters', params, ...
         'events', events);
-    
-    logAnalysisResult(fileId, result);
 end
 
