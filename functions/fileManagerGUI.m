@@ -96,20 +96,26 @@ function fileManagerGUI()
         'FontSize', 11, ...
         'Callback', @createNewProject);
 
-    addBtn = uicontrol('Style', 'pushbutton', ...
+    exportProjectBtn = uicontrol('Style', 'pushbutton', ...
         'Position', [415, 463, 100, 38], ...
+        'String', 'Export Project', ...
+        'FontSize', 11, ...
+        'Callback', @exportProject);
+
+    addBtn = uicontrol('Style', 'pushbutton', ...
+        'Position', [525, 463, 100, 38], ...
         'String', 'Add Files', ...
         'FontSize', 11, ...
         'Callback', @addFilesToProject);
     
     deleteFieldBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [535, 463, 100, 38], ...
+        'Position', [635, 463, 100, 38], ...
         'String', 'Delete Field', ...
         'FontSize', 11, ...
         'Callback', @deleteMetadataField);
     
     addFieldBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [645, 463, 100, 38], ...
+        'Position', [745, 463, 100, 38], ...
         'String', 'Add Field', ...
         'FontSize', 11, ...
         'Callback', @addMetadataField);
@@ -1405,6 +1411,324 @@ function fileManagerGUI()
         match = find(ids == state.selectedFileId, 1);
         if ~isempty(match)
             rowIdx = match;
+        end
+    end
+    
+    function exportProject(~, ~)
+        if isempty(state.currentProjectId)
+            msgbox('No project selected', 'Error', 'error');
+            return
+        end
+        
+        projectIdx = find([state.projects.id] == state.currentProjectId, 1);
+        if isempty(projectIdx)
+            msgbox('Project not found', 'Error', 'error');
+            return
+        end
+        projectName = state.projects(projectIdx).name;
+        safeProjectName = regexprep(projectName, '[<>:"/\\|?*]', '_');
+        
+        formatChoice = questdlg('Select export format:', 'Export Project', 'Database (.db)', 'Excel (.xlsx)', 'Cancel', 'Database (.db)');
+        if isempty(formatChoice) || strcmp(formatChoice, 'Cancel')
+            return
+        end
+        
+        startDir = fileparts(state.dbPath);
+        if isempty(startDir) || ~isfolder(startDir)
+            startDir = fileparts(defaultDbPath());
+        end
+        
+        if strcmp(formatChoice, 'Database (.db)')
+            defaultFileName = [safeProjectName, '.db'];
+            defaultPath = fullfile(startDir, defaultFileName);
+            [file, path] = uiputfile('*.db', 'Export Project to Database', defaultPath);
+            if isequal(file, 0)
+                return
+            end
+            targetPath = fullfile(path, file);
+            exportProjectToDatabase(state.currentProjectId, targetPath);
+        else
+            defaultFileName = [safeProjectName, '.xlsx'];
+            defaultPath = fullfile(startDir, defaultFileName);
+            [file, path] = uiputfile('*.xlsx', 'Export Project to Excel', defaultPath);
+            if isequal(file, 0)
+                return
+            end
+            excelPath = fullfile(path, file);
+            exportProjectToExcel(state.currentProjectId, excelPath);
+        end
+    end
+    
+    function exportProjectToDatabase(projectId, targetDbPath)
+        debugState('fileManagerGUI', 'exportProjectToDatabase: starting export project_id=%d to %s', projectId, targetDbPath);
+        sourceDbPath = getDbPath();
+        if isempty(sourceDbPath) || ~isfile(sourceDbPath)
+            debugState('fileManagerGUI', 'exportProjectToDatabase: source database not found: %s', sourceDbPath);
+            msgbox('Source database not found', 'Error', 'error');
+            return
+        end
+        
+        sourceConn = openSqliteConnection(sourceDbPath);
+        if isempty(sourceConn)
+            debugState('fileManagerGUI', 'exportProjectToDatabase: failed to connect to source database: %s', sourceDbPath);
+            msgbox('Failed to connect to source database', 'Error', 'error');
+            return
+        end
+        
+        targetConn = openSqliteConnection(targetDbPath);
+        if isempty(targetConn)
+            closeJdbcResource(sourceConn);
+            debugState('fileManagerGUI', 'exportProjectToDatabase: failed to connect to target database: %s', targetDbPath);
+            msgbox('Failed to connect to target database', 'Error', 'error');
+            return
+        end
+        
+        stmt = [];
+        try
+            stmt = targetConn.createStatement();
+            
+            stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS projects (' ...
+                'id INTEGER PRIMARY KEY, ' ...
+                'name TEXT NOT NULL, ' ...
+                'description TEXT, ' ...
+                'created_at DATETIME DEFAULT CURRENT_TIMESTAMP, ' ...
+                'updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)']);
+            
+            stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS groups (' ...
+                'id INTEGER PRIMARY KEY, ' ...
+                'project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE, ' ...
+                'name TEXT NOT NULL, ' ...
+                'created_at DATETIME DEFAULT CURRENT_TIMESTAMP)']);
+            
+            stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS group_metadata (' ...
+                'id INTEGER PRIMARY KEY, ' ...
+                'group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE, ' ...
+                'field_name TEXT NOT NULL, ' ...
+                'field_value TEXT, ' ...
+                'updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, ' ...
+                'UNIQUE(group_id, field_name))']);
+            
+            stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS files (' ...
+                'id INTEGER PRIMARY KEY, ' ...
+                'file_path TEXT NOT NULL, ' ...
+                'file_name TEXT NOT NULL, ' ...
+                'created_at DATETIME DEFAULT CURRENT_TIMESTAMP, ' ...
+                'UNIQUE(file_path, file_name))']);
+            
+            stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS project_files (' ...
+                'project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE, ' ...
+                'file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE, ' ...
+                'group_id INTEGER REFERENCES groups(id) ON DELETE SET NULL, ' ...
+                'created_at DATETIME DEFAULT CURRENT_TIMESTAMP, ' ...
+                'PRIMARY KEY (project_id, file_id))']);
+            
+            stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS file_metadata (' ...
+                'id INTEGER PRIMARY KEY, ' ...
+                'file_id INTEGER REFERENCES files(id) ON DELETE SET NULL, ' ...
+                'field_name TEXT NOT NULL, ' ...
+                'field_value TEXT, ' ...
+                'updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, ' ...
+                'UNIQUE(file_id, field_name))']);
+            
+            stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS analysis_results (' ...
+                'id INTEGER PRIMARY KEY, ' ...
+                'file_id INTEGER REFERENCES files(id) ON DELETE SET NULL, ' ...
+                'module_name TEXT NOT NULL, ' ...
+                'module_display_name TEXT, ' ...
+                'module_description TEXT, ' ...
+                'analysis_timestamp BIGINT NOT NULL, ' ...
+                'report_path TEXT NOT NULL, ' ...
+                'parameters_json TEXT, ' ...
+                'created_at DATETIME DEFAULT CURRENT_TIMESTAMP)']);
+            
+            closeJdbcResource(stmt);
+            
+            debugState('fileManagerGUI', 'exportProjectToDatabase: fetching project data');
+            projectRows = sqlFetchWithConn(sourceConn, sprintf('SELECT id, name, description, created_at, updated_at FROM projects WHERE id = %d', projectId));
+            if isempty(projectRows)
+                closeJdbcResource(sourceConn);
+                closeJdbcResource(targetConn);
+                debugState('fileManagerGUI', 'exportProjectToDatabase: project not found: id=%d', projectId);
+                msgbox('Project not found', 'Error', 'error');
+                return
+            end
+            
+            escapedName = escapeSql(projectRows{1, 2});
+            escapedDesc = escapeSql(projectRows{1, 3});
+            escapedCreated = escapeSql(projectRows{1, 4});
+            escapedUpdated = escapeSql(projectRows{1, 5});
+            
+            insertProject = sprintf(['INSERT OR REPLACE INTO projects (id, name, description, created_at, updated_at) ' ...
+                'VALUES (%d, ''%s'', ''%s'', ''%s'', ''%s'')'], ...
+                projectRows{1, 1}, escapedName, escapedDesc, escapedCreated, escapedUpdated);
+            debugState('fileManagerGUI', 'exportProjectToDatabase: inserting project id=%d', projectRows{1, 1});
+            sqlExecWithConn(targetConn, insertProject);
+            
+            debugState('fileManagerGUI', 'exportProjectToDatabase: fetching groups');
+            groupsRows = sqlFetchWithConn(sourceConn, sprintf('SELECT id, project_id, name, created_at FROM groups WHERE project_id = %d', projectId));
+            for i = 1:size(groupsRows, 1)
+                escapedGroupName = escapeSql(groupsRows{i, 3});
+                escapedGroupCreated = escapeSql(groupsRows{i, 4});
+                insertGroup = sprintf(['INSERT OR REPLACE INTO groups (id, project_id, name, created_at) ' ...
+                    'VALUES (%d, %d, ''%s'', ''%s'')'], ...
+                    groupsRows{i, 1}, groupsRows{i, 2}, escapedGroupName, escapedGroupCreated);
+                sqlExecWithConn(targetConn, insertGroup);
+            end
+            
+            if ~isempty(groupsRows)
+                groupIds = cellfun(@(idx) groupsRows{idx, 1}, num2cell(1:size(groupsRows, 1)));
+                idsStr = sprintf('%d,', groupIds);
+                idsStr = idsStr(1:end-1);
+                groupMetaRows = sqlFetchWithConn(sourceConn, sprintf('SELECT id, group_id, field_name, field_value, updated_at FROM group_metadata WHERE group_id IN (%s)', idsStr));
+                for i = 1:size(groupMetaRows, 1)
+                    escapedFieldName = escapeSql(groupMetaRows{i, 3});
+                    escapedFieldValue = escapeSql(groupMetaRows{i, 4});
+                    if isempty(escapedFieldValue)
+                        escapedFieldValue = '';
+                    end
+                    escapedUpdated = escapeSql(groupMetaRows{i, 5});
+                    insertGroupMeta = sprintf(['INSERT OR REPLACE INTO group_metadata (id, group_id, field_name, field_value, updated_at) ' ...
+                        'VALUES (%d, %d, ''%s'', ''%s'', ''%s'')'], ...
+                        groupMetaRows{i, 1}, groupMetaRows{i, 2}, escapedFieldName, escapedFieldValue, escapedUpdated);
+                    sqlExecWithConn(targetConn, insertGroupMeta);
+                end
+            end
+            
+            debugState('fileManagerGUI', 'exportProjectToDatabase: fetching files');
+            fileIdsRows = sqlFetchWithConn(sourceConn, sprintf('SELECT file_id FROM project_files WHERE project_id = %d', projectId));
+            if ~isempty(fileIdsRows)
+                fileIds = cellfun(@(idx) fileIdsRows{idx, 1}, num2cell(1:size(fileIdsRows, 1)));
+                idsStr = sprintf('%d,', fileIds);
+                idsStr = idsStr(1:end-1);
+                debugState('fileManagerGUI', 'exportProjectToDatabase: found %d files', numel(fileIds));
+                
+                filesRows = sqlFetchWithConn(sourceConn, sprintf('SELECT id, file_path, file_name, created_at FROM files WHERE id IN (%s)', idsStr));
+                for i = 1:size(filesRows, 1)
+                    escapedPath = escapeSql(filesRows{i, 2});
+                    escapedName = escapeSql(filesRows{i, 3});
+                    escapedCreated = escapeSql(filesRows{i, 4});
+                    insertFile = sprintf(['INSERT OR REPLACE INTO files (id, file_path, file_name, created_at) ' ...
+                        'VALUES (%d, ''%s'', ''%s'', ''%s'')'], ...
+                        filesRows{i, 1}, escapedPath, escapedName, escapedCreated);
+                    sqlExecWithConn(targetConn, insertFile);
+                end
+                
+                projectFilesRows = sqlFetchWithConn(sourceConn, sprintf('SELECT project_id, file_id, group_id, created_at FROM project_files WHERE project_id = %d', projectId));
+                for i = 1:size(projectFilesRows, 1)
+                    escapedCreated = escapeSql(projectFilesRows{i, 4});
+                    groupIdVal = projectFilesRows{i, 3};
+                    if isempty(groupIdVal)
+                        insertPF = sprintf(['INSERT OR REPLACE INTO project_files (project_id, file_id, group_id, created_at) ' ...
+                            'VALUES (%d, %d, NULL, ''%s'')'], ...
+                            projectFilesRows{i, 1}, projectFilesRows{i, 2}, escapedCreated);
+                    else
+                        insertPF = sprintf(['INSERT OR REPLACE INTO project_files (project_id, file_id, group_id, created_at) ' ...
+                            'VALUES (%d, %d, %d, ''%s'')'], ...
+                            projectFilesRows{i, 1}, projectFilesRows{i, 2}, groupIdVal, escapedCreated);
+                    end
+                    sqlExecWithConn(targetConn, insertPF);
+                end
+                
+                fileMetaRows = sqlFetchWithConn(sourceConn, sprintf('SELECT id, file_id, field_name, field_value, updated_at FROM file_metadata WHERE file_id IN (%s)', idsStr));
+                for i = 1:size(fileMetaRows, 1)
+                    escapedFieldName = escapeSql(fileMetaRows{i, 3});
+                    escapedFieldValue = escapeSql(fileMetaRows{i, 4});
+                    if isempty(escapedFieldValue)
+                        escapedFieldValue = '';
+                    end
+                    escapedUpdated = escapeSql(fileMetaRows{i, 5});
+                    insertFileMeta = sprintf(['INSERT OR REPLACE INTO file_metadata (id, file_id, field_name, field_value, updated_at) ' ...
+                        'VALUES (%d, %d, ''%s'', ''%s'', ''%s'')'], ...
+                        fileMetaRows{i, 1}, fileMetaRows{i, 2}, escapedFieldName, escapedFieldValue, escapedUpdated);
+                    sqlExecWithConn(targetConn, insertFileMeta);
+                end
+                
+                debugState('fileManagerGUI', 'exportProjectToDatabase: fetching analysis results');
+                analysisRows = sqlFetchWithConn(sourceConn, sprintf('SELECT id, file_id, module_name, module_display_name, module_description, analysis_timestamp, report_path, parameters_json, created_at FROM analysis_results WHERE file_id IN (%s)', idsStr));
+                debugState('fileManagerGUI', 'exportProjectToDatabase: found %d analysis results', size(analysisRows, 1));
+                for i = 1:size(analysisRows, 1)
+                    escapedModuleName = escapeSql(analysisRows{i, 3});
+                    escapedModuleDisplay = escapeSql(analysisRows{i, 4});
+                    if isempty(escapedModuleDisplay)
+                        escapedModuleDisplay = '';
+                    end
+                    escapedModuleDesc = escapeSql(analysisRows{i, 5});
+                    if isempty(escapedModuleDesc)
+                        escapedModuleDesc = '';
+                    end
+                    escapedReportPath = escapeSql(analysisRows{i, 7});
+                    escapedParams = escapeSql(analysisRows{i, 8});
+                    if isempty(escapedParams)
+                        escapedParams = '';
+                    end
+                    escapedCreated = escapeSql(analysisRows{i, 9});
+                    insertAnalysis = sprintf(['INSERT OR REPLACE INTO analysis_results (id, file_id, module_name, module_display_name, module_description, analysis_timestamp, report_path, parameters_json, created_at) ' ...
+                        'VALUES (%d, %d, ''%s'', ''%s'', ''%s'', %d, ''%s'', ''%s'', ''%s'')'], ...
+                        analysisRows{i, 1}, analysisRows{i, 2}, escapedModuleName, escapedModuleDisplay, escapedModuleDesc, analysisRows{i, 6}, escapedReportPath, escapedParams, escapedCreated);
+                    sqlExecWithConn(targetConn, insertAnalysis);
+                end
+            end
+            
+            closeJdbcResource(sourceConn);
+            closeJdbcResource(targetConn);
+            debugState('fileManagerGUI', 'exportProjectToDatabase: export completed successfully');
+            msgbox('Project exported successfully', 'Success', 'help');
+        catch ME
+            closeJdbcResource(stmt);
+            closeJdbcResource(sourceConn);
+            closeJdbcResource(targetConn);
+            debugState('fileManagerGUI', 'exportProjectToDatabase: error - %s', ME.message);
+            if ~isempty(ME.stack)
+                for k = 1:numel(ME.stack)
+                    debugState('fileManagerGUI', 'exportProjectToDatabase: stack %d: %s at line %d', k, ME.stack(k).file, ME.stack(k).line);
+                end
+            end
+            msgbox(sprintf('Failed to export project: %s', ME.message), 'Error', 'error');
+        end
+    end
+    
+    function exportProjectToExcel(projectId, excelPath)
+        if ~exist('fileTable', 'var') || ~ishandle(fileTable)
+            msgbox('File table not available', 'Error', 'error');
+            return
+        end
+        
+        fileData = fileTable.Data;
+        fileColumnNames = fileTable.ColumnName;
+        
+        if isempty(fileData)
+            msgbox('No files to export', 'Error', 'error');
+            return
+        end
+        
+        try
+            if iscell(fileColumnNames)
+                excelData = [fileColumnNames(:)'; fileData];
+            else
+                excelData = [fileColumnNames; fileData];
+            end
+            writecell(excelData, excelPath, 'Sheet', 'Files');
+            
+            if ~isempty(state.files)
+                fileIds = [state.files.id];
+                if ~isempty(fileIds)
+                    idsStr = sprintf('%d,', fileIds);
+                    idsStr = idsStr(1:end-1);
+                    query = sprintf(['SELECT file_id, report_path, module_name FROM analysis_results ' ...
+                        'WHERE file_id IN (%s) ORDER BY analysis_timestamp DESC'], idsStr);
+                    resultsRows = sqlFetch(query);
+                    
+                    if ~isempty(resultsRows)
+                        resultsHeaders = {'File ID', 'Report Path', 'Module'};
+                        resultsData = [resultsHeaders(:)'; resultsRows];
+                        writecell(resultsData, excelPath, 'Sheet', 'Results');
+                    end
+                end
+            end
+            
+            msgbox('Project exported successfully', 'Success', 'help');
+        catch ME
+            msgbox(sprintf('Failed to export project: %s', ME.message), 'Error', 'error');
         end
     end
 end
