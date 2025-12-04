@@ -90,35 +90,19 @@ function fileManagerGUI()
         'String', {'Loading...'}, ...
         'Callback', @switchProject);
     
-    newProjectBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [305, 463, 100, 38], ...
-        'String', 'New Project', ...
+    projectActionsMenu = uicontrol('Style', 'popupmenu', ...
+        'Position', [305, 463, 200, 38], ...
+        'String', {'Project Actions', 'New Project', 'Rename Project', 'Delete Project', 'Export Project', 'Import Project'}, ...
         'FontSize', 11, ...
-        'Callback', @createNewProject);
+        'Value', 1, ...
+        'Callback', @handleProjectAction);
 
-    exportProjectBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [415, 463, 100, 38], ...
-        'String', 'Export Project', ...
+    fileActionsMenu = uicontrol('Style', 'popupmenu', ...
+        'Position', [525, 463, 200, 38], ...
+        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field'}, ...
         'FontSize', 11, ...
-        'Callback', @exportProject);
-
-    addBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [525, 463, 100, 38], ...
-        'String', 'Add Files', ...
-        'FontSize', 11, ...
-        'Callback', @addFilesToProject);
-    
-    deleteFieldBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [635, 463, 100, 38], ...
-        'String', 'Delete Field', ...
-        'FontSize', 11, ...
-        'Callback', @deleteMetadataField);
-    
-    addFieldBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [745, 463, 100, 38], ...
-        'String', 'Add Field', ...
-        'FontSize', 11, ...
-        'Callback', @addMetadataField);
+        'Value', 1, ...
+        'Callback', @handleFileAction);
     
     deleteBtn = uicontrol('Style', 'pushbutton', ...
         'Position', [765, 321, 100, 38], ...
@@ -285,6 +269,104 @@ function fileManagerGUI()
         selectProjectByIndex(idx);
     end
     
+    function handleProjectAction(src, ~)
+        actionIdx = src.Value;
+        if actionIdx == 1
+            src.Value = 1;
+            return
+        end
+        
+        src.Value = 1;
+        
+        switch actionIdx
+            case 2
+                createNewProject();
+            case 3
+                renameProject();
+            case 4
+                deleteProject();
+            case 5
+                exportProject();
+            case 6
+                importProject();
+        end
+    end
+    
+    function renameProject(~, ~)
+        if isempty(state.currentProjectId)
+            msgbox('No project selected', 'Error', 'error');
+            return
+        end
+        
+        projectIdx = find([state.projects.id] == state.currentProjectId, 1);
+        if isempty(projectIdx)
+            msgbox('Project not found', 'Error', 'error');
+            return
+        end
+        
+        currentName = state.projects(projectIdx).name;
+        prompt = {'Enter new project name:'};
+        dlgTitle = 'Rename Project';
+        defaultAnswer = {currentName};
+        answer = inputdlg(prompt, dlgTitle, 1, defaultAnswer);
+        if isempty(answer)
+            return
+        end
+        
+        newName = strtrim(answer{1});
+        if isempty(newName)
+            msgbox('Project name cannot be empty', 'Error', 'error');
+            return
+        end
+        
+        if strcmp(newName, currentName)
+            return
+        end
+        
+        autoBackupDatabase();
+        
+        try
+            escapedNewName = escapeSql(newName);
+            updateQuery = sprintf('UPDATE projects SET name = ''%s'', updated_at = CURRENT_TIMESTAMP WHERE id = %d', ...
+                escapedNewName, state.currentProjectId);
+            sqlExec(updateQuery);
+            
+            debugState('fileManagerGUI', 'renameProject: renamed project id=%d from "%s" to "%s"', ...
+                state.currentProjectId, currentName, newName);
+            
+            loadProjectsFromDb();
+            match = find([state.projects.id] == state.currentProjectId, 1);
+            if ~isempty(match)
+                projectSelect.Value = match;
+                selectProjectByIndex(match);
+            end
+            
+            msgbox('Project renamed successfully', 'Success', 'help');
+        catch ME
+            debugState('fileManagerGUI', 'renameProject: error - %s', ME.message);
+            msgbox(sprintf('Failed to rename project: %s', ME.message), 'Error', 'error');
+        end
+    end
+    
+    function handleFileAction(src, ~)
+        actionIdx = src.Value;
+        if actionIdx == 1
+            src.Value = 1;
+            return
+        end
+        
+        src.Value = 1;
+        
+        switch actionIdx
+            case 2
+                addFilesToProject();
+            case 3
+                addMetadataField();
+            case 4
+                deleteMetadataField();
+        end
+    end
+    
     function promptCreateDatabase()
         choice = questdlg('No database found. Would you like to create a new database?', ...
             'Database Not Found', 'Create Database', 'Select Database', 'Cancel', 'Create Database');
@@ -327,6 +409,43 @@ function fileManagerGUI()
         if ~isempty(match)
             projectSelect.Value = match;
             selectProjectByIndex(match);
+        end
+    end
+    
+    function deleteProject(~, ~)
+        if isempty(state.currentProjectId)
+            msgbox('No project selected', 'Error', 'error');
+            return
+        end
+        
+        projectIdx = find([state.projects.id] == state.currentProjectId, 1);
+        if isempty(projectIdx)
+            msgbox('Project not found', 'Error', 'error');
+            return
+        end
+        
+        projectName = state.projects(projectIdx).name;
+        choice = questdlg(sprintf('Delete project "%s" and all its files, groups, and analysis results?', projectName), ...
+            'Delete Project', 'Delete', 'Cancel', 'Cancel');
+        if ~strcmp(choice, 'Delete')
+            return
+        end
+        
+        autoBackupDatabase();
+        
+        try
+            deleteQuery = sprintf('DELETE FROM projects WHERE id = %d', state.currentProjectId);
+            sqlExec(deleteQuery);
+            
+            debugState('fileManagerGUI', 'deleteProject: deleted project id=%d, name=%s', state.currentProjectId, projectName);
+            
+            clearSelection();
+            loadProjectsFromDb();
+            
+            msgbox('Project deleted successfully', 'Success', 'help');
+        catch ME
+            debugState('fileManagerGUI', 'deleteProject: error - %s', ME.message);
+            msgbox(sprintf('Failed to delete project: %s', ME.message), 'Error', 'error');
         end
     end
     
@@ -1461,15 +1580,19 @@ function fileManagerGUI()
     
     function exportProjectToDatabase(projectId, targetDbPath)
         debugState('fileManagerGUI', 'exportProjectToDatabase: starting export project_id=%d to %s', projectId, targetDbPath);
+        wb = waitbar(0, 'Initializing export...', 'Name', 'Export Project');
         sourceDbPath = getDbPath();
         if isempty(sourceDbPath) || ~isfile(sourceDbPath)
+            close(wb);
             debugState('fileManagerGUI', 'exportProjectToDatabase: source database not found: %s', sourceDbPath);
             msgbox('Source database not found', 'Error', 'error');
             return
         end
         
+        waitbar(0.1, wb, 'Connecting to databases...');
         sourceConn = openSqliteConnection(sourceDbPath);
         if isempty(sourceConn)
+            close(wb);
             debugState('fileManagerGUI', 'exportProjectToDatabase: failed to connect to source database: %s', sourceDbPath);
             msgbox('Failed to connect to source database', 'Error', 'error');
             return
@@ -1478,6 +1601,7 @@ function fileManagerGUI()
         targetConn = openSqliteConnection(targetDbPath);
         if isempty(targetConn)
             closeJdbcResource(sourceConn);
+            close(wb);
             debugState('fileManagerGUI', 'exportProjectToDatabase: failed to connect to target database: %s', targetDbPath);
             msgbox('Failed to connect to target database', 'Error', 'error');
             return
@@ -1485,6 +1609,7 @@ function fileManagerGUI()
         
         stmt = [];
         try
+            waitbar(0.15, wb, 'Creating database schema...');
             stmt = targetConn.createStatement();
             
             stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS projects (' ...
@@ -1543,6 +1668,7 @@ function fileManagerGUI()
             
             closeJdbcResource(stmt);
             
+            waitbar(0.3, wb, 'Fetching project data...');
             debugState('fileManagerGUI', 'exportProjectToDatabase: fetching project data');
             projectRows = sqlFetchWithConn(sourceConn, sprintf('SELECT id, name, description, created_at, updated_at FROM projects WHERE id = %d', projectId));
             if isempty(projectRows)
@@ -1558,15 +1684,18 @@ function fileManagerGUI()
             escapedCreated = escapeSql(projectRows{1, 4});
             escapedUpdated = escapeSql(projectRows{1, 5});
             
+            waitbar(0.4, wb, 'Exporting project...');
             insertProject = sprintf(['INSERT OR REPLACE INTO projects (id, name, description, created_at, updated_at) ' ...
                 'VALUES (%d, ''%s'', ''%s'', ''%s'', ''%s'')'], ...
                 projectRows{1, 1}, escapedName, escapedDesc, escapedCreated, escapedUpdated);
             debugState('fileManagerGUI', 'exportProjectToDatabase: inserting project id=%d', projectRows{1, 1});
             sqlExecWithConn(targetConn, insertProject);
             
+            waitbar(0.5, wb, 'Exporting groups...');
             debugState('fileManagerGUI', 'exportProjectToDatabase: fetching groups');
             groupsRows = sqlFetchWithConn(sourceConn, sprintf('SELECT id, project_id, name, created_at FROM groups WHERE project_id = %d', projectId));
             for i = 1:size(groupsRows, 1)
+                waitbar(0.5 + 0.1 * (i / max(1, size(groupsRows, 1))), wb, sprintf('Exporting groups %d/%d...', i, size(groupsRows, 1)));
                 escapedGroupName = escapeSql(groupsRows{i, 3});
                 escapedGroupCreated = escapeSql(groupsRows{i, 4});
                 insertGroup = sprintf(['INSERT OR REPLACE INTO groups (id, project_id, name, created_at) ' ...
@@ -1594,6 +1723,7 @@ function fileManagerGUI()
                 end
             end
             
+            waitbar(0.65, wb, 'Exporting files...');
             debugState('fileManagerGUI', 'exportProjectToDatabase: fetching files');
             fileIdsRows = sqlFetchWithConn(sourceConn, sprintf('SELECT file_id FROM project_files WHERE project_id = %d', projectId));
             if ~isempty(fileIdsRows)
@@ -1604,6 +1734,7 @@ function fileManagerGUI()
                 
                 filesRows = sqlFetchWithConn(sourceConn, sprintf('SELECT id, file_path, file_name, created_at FROM files WHERE id IN (%s)', idsStr));
                 for i = 1:size(filesRows, 1)
+                    waitbar(0.65 + 0.1 * (i / max(1, size(filesRows, 1))), wb, sprintf('Exporting files %d/%d...', i, size(filesRows, 1)));
                     escapedPath = escapeSql(filesRows{i, 2});
                     escapedName = escapeSql(filesRows{i, 3});
                     escapedCreated = escapeSql(filesRows{i, 4});
@@ -1643,10 +1774,12 @@ function fileManagerGUI()
                     sqlExecWithConn(targetConn, insertFileMeta);
                 end
                 
+                waitbar(0.8, wb, 'Exporting analysis results...');
                 debugState('fileManagerGUI', 'exportProjectToDatabase: fetching analysis results');
                 analysisRows = sqlFetchWithConn(sourceConn, sprintf('SELECT id, file_id, module_name, module_display_name, module_description, analysis_timestamp, report_path, parameters_json, created_at FROM analysis_results WHERE file_id IN (%s)', idsStr));
                 debugState('fileManagerGUI', 'exportProjectToDatabase: found %d analysis results', size(analysisRows, 1));
                 for i = 1:size(analysisRows, 1)
+                    waitbar(0.8 + 0.15 * (i / max(1, size(analysisRows, 1))), wb, sprintf('Exporting results %d/%d...', i, size(analysisRows, 1)));
                     escapedModuleName = escapeSql(analysisRows{i, 3});
                     escapedModuleDisplay = escapeSql(analysisRows{i, 4});
                     if isempty(escapedModuleDisplay)
@@ -1669,14 +1802,19 @@ function fileManagerGUI()
                 end
             end
             
+            waitbar(1.0, wb, 'Export completed!');
             closeJdbcResource(sourceConn);
             closeJdbcResource(targetConn);
+            close(wb);
             debugState('fileManagerGUI', 'exportProjectToDatabase: export completed successfully');
             msgbox('Project exported successfully', 'Success', 'help');
         catch ME
             closeJdbcResource(stmt);
             closeJdbcResource(sourceConn);
             closeJdbcResource(targetConn);
+            if exist('wb', 'var') && ishandle(wb)
+                close(wb);
+            end
             debugState('fileManagerGUI', 'exportProjectToDatabase: error - %s', ME.message);
             if ~isempty(ME.stack)
                 for k = 1:numel(ME.stack)
@@ -1688,7 +1826,9 @@ function fileManagerGUI()
     end
     
     function exportProjectToExcel(projectId, excelPath)
+        wb = waitbar(0, 'Initializing export...', 'Name', 'Export Project to Excel');
         if ~exist('fileTable', 'var') || ~ishandle(fileTable)
+            close(wb);
             msgbox('File table not available', 'Error', 'error');
             return
         end
@@ -1697,19 +1837,23 @@ function fileManagerGUI()
         fileColumnNames = fileTable.ColumnName;
         
         if isempty(fileData)
+            close(wb);
             msgbox('No files to export', 'Error', 'error');
             return
         end
         
         try
+            waitbar(0.3, wb, 'Preparing file data...');
             if iscell(fileColumnNames)
                 excelData = [fileColumnNames(:)'; fileData];
             else
                 excelData = [fileColumnNames; fileData];
             end
+            waitbar(0.5, wb, 'Writing Files sheet...');
             writecell(excelData, excelPath, 'Sheet', 'Files');
             
             if ~isempty(state.files)
+                waitbar(0.7, wb, 'Fetching analysis results...');
                 fileIds = [state.files.id];
                 if ~isempty(fileIds)
                     idsStr = sprintf('%d,', fileIds);
@@ -1719,6 +1863,7 @@ function fileManagerGUI()
                     resultsRows = sqlFetch(query);
                     
                     if ~isempty(resultsRows)
+                        waitbar(0.9, wb, 'Writing Results sheet...');
                         resultsHeaders = {'File ID', 'Report Path', 'Module'};
                         resultsData = [resultsHeaders(:)'; resultsRows];
                         writecell(resultsData, excelPath, 'Sheet', 'Results');
@@ -1726,9 +1871,458 @@ function fileManagerGUI()
                 end
             end
             
+            waitbar(1.0, wb, 'Export completed!');
+            close(wb);
             msgbox('Project exported successfully', 'Success', 'help');
         catch ME
+            if exist('wb', 'var') && ishandle(wb)
+                close(wb);
+            end
             msgbox(sprintf('Failed to export project: %s', ME.message), 'Error', 'error');
+        end
+    end
+    
+    function importProject(~, ~)
+        formatChoice = questdlg('Select import format:', 'Import Project', 'Database (.db)', 'Excel (.xlsx)', 'Cancel', 'Database (.db)');
+        if isempty(formatChoice) || strcmp(formatChoice, 'Cancel')
+            return
+        end
+        
+        startDir = fileparts(state.dbPath);
+        if isempty(startDir) || ~isfolder(startDir)
+            startDir = fileparts(defaultDbPath());
+        end
+        
+        if strcmp(formatChoice, 'Database (.db)')
+            [file, path] = uigetfile('*.db', 'Import Project from Database', startDir);
+            if isequal(file, 0)
+                return
+            end
+            sourcePath = fullfile(path, file);
+            importProjectFromDatabase(sourcePath);
+        else
+            [file, path] = uigetfile('*.xlsx', 'Import Project from Excel', startDir);
+            if isequal(file, 0)
+                return
+            end
+            excelPath = fullfile(path, file);
+            importProjectFromExcel(excelPath);
+        end
+    end
+    
+    function importProjectFromDatabase(sourceDbPath)
+        debugState('fileManagerGUI', 'importProjectFromDatabase: starting import from %s', sourceDbPath);
+        wb = waitbar(0, 'Initializing import...', 'Name', 'Import Project from Database');
+        
+        if isempty(state.dbPath) || ~isfile(state.dbPath)
+            close(wb);
+            msgbox('Current database not found', 'Error', 'error');
+            return
+        end
+        
+        waitbar(0.1, wb, 'Connecting to source database...');
+        sourceConn = openSqliteConnection(sourceDbPath);
+        if isempty(sourceConn)
+            close(wb);
+            debugState('fileManagerGUI', 'importProjectFromDatabase: failed to connect to source database');
+            msgbox('Failed to connect to source database', 'Error', 'error');
+            return
+        end
+        
+        try
+            waitbar(0.2, wb, 'Fetching projects...');
+            projectsRows = sqlFetchWithConn(sourceConn, 'SELECT id, name FROM projects ORDER BY created_at DESC');
+            if isempty(projectsRows)
+                closeJdbcResource(sourceConn);
+                close(wb);
+                msgbox('No projects found in source database', 'Error', 'error');
+                return
+            end
+            
+            if size(projectsRows, 1) > 1
+                close(wb);
+                projectNames = cell(size(projectsRows, 1), 1);
+                for i = 1:size(projectsRows, 1)
+                    projectNames{i} = sprintf('%s (#%d)', projectsRows{i, 2}, projectsRows{i, 1});
+                end
+                [selection, ok] = listdlg('ListString', projectNames, ...
+                    'SelectionMode', 'single', ...
+                    'PromptString', 'Select project to import:', ...
+                    'Name', 'Import Project', ...
+                    'ListSize', [300, 200]);
+                if ~ok || isempty(selection)
+                    closeJdbcResource(sourceConn);
+                    return
+                end
+                sourceProjectId = projectsRows{selection, 1};
+                sourceProjectName = projectsRows{selection, 2};
+                wb = waitbar(0, 'Starting import...', 'Name', 'Import Project from Database');
+            else
+                sourceProjectId = projectsRows{1, 1};
+                sourceProjectName = projectsRows{1, 2};
+            end
+            
+            debugState('fileManagerGUI', 'importProjectFromDatabase: importing project id=%d, name=%s', sourceProjectId, sourceProjectName);
+            
+            waitbar(0.3, wb, 'Connecting to target database...');
+            targetConn = openSqliteConnection(state.dbPath);
+            if isempty(targetConn)
+                closeJdbcResource(sourceConn);
+                close(wb);
+                debugState('fileManagerGUI', 'importProjectFromDatabase: failed to connect to target database');
+                msgbox('Failed to connect to current database', 'Error', 'error');
+                return
+            end
+            
+            waitbar(0.4, wb, 'Creating project...');
+            projectName = sourceProjectName;
+            existingProjects = sqlFetchWithConn(targetConn, sprintf('SELECT name FROM projects WHERE name = ''%s''', escapeSql(projectName)));
+            if ~isempty(existingProjects)
+                projectName = [sourceProjectName, '_imported'];
+            end
+            
+            newProjectId = insertProjectWithConn(targetConn, projectName);
+            if isempty(newProjectId)
+                closeJdbcResource(sourceConn);
+                closeJdbcResource(targetConn);
+                close(wb);
+                msgbox('Failed to create project', 'Error', 'error');
+                return
+            end
+            
+            debugState('fileManagerGUI', 'importProjectFromDatabase: created new project id=%d, name=%s', newProjectId, projectName);
+            
+            waitbar(0.5, wb, 'Importing groups...');
+            groupsRows = sqlFetchWithConn(sourceConn, sprintf('SELECT id, project_id, name, created_at FROM groups WHERE project_id = %d', sourceProjectId));
+            groupIdMap = containers.Map('KeyType', 'double', 'ValueType', 'double');
+            
+            for i = 1:size(groupsRows, 1)
+                waitbar(0.5 + 0.1 * (i / max(1, size(groupsRows, 1))), wb, sprintf('Importing groups %d/%d...', i, size(groupsRows, 1)));
+                oldGroupId = groupsRows{i, 1};
+                escapedGroupName = escapeSql(groupsRows{i, 3});
+                escapedGroupCreated = escapeSql(groupsRows{i, 4});
+                insertGroup = sprintf(['INSERT INTO groups (project_id, name, created_at) ' ...
+                    'VALUES (%d, ''%s'', ''%s'')'], ...
+                    newProjectId, escapedGroupName, escapedGroupCreated);
+                sqlExecWithConn(targetConn, insertGroup);
+                newGroupId = sqlFetchWithConn(targetConn, sprintf('SELECT id FROM groups WHERE project_id = %d AND name = ''%s'' ORDER BY created_at DESC LIMIT 1', newProjectId, escapedGroupName));
+                if ~isempty(newGroupId)
+                    groupIdMap(oldGroupId) = newGroupId{1, 1};
+                end
+            end
+            
+            if ~isempty(groupsRows)
+                oldGroupIds = cellfun(@(idx) groupsRows{idx, 1}, num2cell(1:size(groupsRows, 1)));
+                idsStr = sprintf('%d,', oldGroupIds);
+                idsStr = idsStr(1:end-1);
+                groupMetaRows = sqlFetchWithConn(sourceConn, sprintf('SELECT id, group_id, field_name, field_value, updated_at FROM group_metadata WHERE group_id IN (%s)', idsStr));
+                for i = 1:size(groupMetaRows, 1)
+                    oldGroupId = groupMetaRows{i, 2};
+                    if isKey(groupIdMap, oldGroupId)
+                        newGroupId = groupIdMap(oldGroupId);
+                        escapedFieldName = escapeSql(groupMetaRows{i, 3});
+                        escapedFieldValue = escapeSql(groupMetaRows{i, 4});
+                        if isempty(escapedFieldValue)
+                            escapedFieldValue = '';
+                        end
+                        escapedUpdated = escapeSql(groupMetaRows{i, 5});
+                        insertGroupMeta = sprintf(['INSERT OR REPLACE INTO group_metadata (group_id, field_name, field_value, updated_at) ' ...
+                            'VALUES (%d, ''%s'', ''%s'', ''%s'')'], ...
+                            newGroupId, escapedFieldName, escapedFieldValue, escapedUpdated);
+                        sqlExecWithConn(targetConn, insertGroupMeta);
+                    end
+                end
+            end
+            
+            waitbar(0.65, wb, 'Importing files...');
+            fileIdsRows = sqlFetchWithConn(sourceConn, sprintf('SELECT file_id FROM project_files WHERE project_id = %d', sourceProjectId));
+            if ~isempty(fileIdsRows)
+                fileIds = cellfun(@(idx) fileIdsRows{idx, 1}, num2cell(1:size(fileIdsRows, 1)));
+                idsStr = sprintf('%d,', fileIds);
+                idsStr = idsStr(1:end-1);
+                
+                filesRows = sqlFetchWithConn(sourceConn, sprintf('SELECT id, file_path, file_name, created_at FROM files WHERE id IN (%s)', idsStr));
+                fileIdMap = containers.Map('KeyType', 'double', 'ValueType', 'double');
+                
+                for i = 1:size(filesRows, 1)
+                    waitbar(0.65 + 0.15 * (i / max(1, size(filesRows, 1))), wb, sprintf('Importing files %d/%d...', i, size(filesRows, 1)));
+                    oldFileId = filesRows{i, 1};
+                    escapedPath = escapeSql(filesRows{i, 2});
+                    escapedName = escapeSql(filesRows{i, 3});
+                    escapedCreated = escapeSql(filesRows{i, 4});
+                    
+                    existingFile = sqlFetchWithConn(targetConn, sprintf('SELECT id FROM files WHERE file_path = ''%s'' LIMIT 1', escapedPath));
+                    if ~isempty(existingFile)
+                        newFileId = existingFile{1, 1};
+                    else
+                        insertFile = sprintf(['INSERT INTO files (file_path, file_name, created_at) ' ...
+                            'VALUES (''%s'', ''%s'', ''%s'')'], ...
+                            escapedPath, escapedName, escapedCreated);
+                        sqlExecWithConn(targetConn, insertFile);
+                        newFileIdRow = sqlFetchWithConn(targetConn, sprintf('SELECT id FROM files WHERE file_path = ''%s'' LIMIT 1', escapedPath));
+                        if ~isempty(newFileIdRow)
+                            newFileId = newFileIdRow{1, 1};
+                        else
+                            continue
+                        end
+                    end
+                    fileIdMap(oldFileId) = newFileId;
+                end
+                
+                projectFilesRows = sqlFetchWithConn(sourceConn, sprintf('SELECT project_id, file_id, group_id, created_at FROM project_files WHERE project_id = %d', sourceProjectId));
+                for i = 1:size(projectFilesRows, 1)
+                    oldFileId = projectFilesRows{i, 2};
+                    if isKey(fileIdMap, oldFileId)
+                        newFileId = fileIdMap(oldFileId);
+                        oldGroupId = projectFilesRows{i, 3};
+                        escapedCreated = escapeSql(projectFilesRows{i, 4});
+                        
+                        if ~isempty(oldGroupId) && isKey(groupIdMap, oldGroupId)
+                            newGroupId = groupIdMap(oldGroupId);
+                            insertPF = sprintf(['INSERT OR IGNORE INTO project_files (project_id, file_id, group_id, created_at) ' ...
+                                'VALUES (%d, %d, %d, ''%s'')'], ...
+                                newProjectId, newFileId, newGroupId, escapedCreated);
+                        else
+                            insertPF = sprintf(['INSERT OR IGNORE INTO project_files (project_id, file_id, group_id, created_at) ' ...
+                                'VALUES (%d, %d, NULL, ''%s'')'], ...
+                                newProjectId, newFileId, escapedCreated);
+                        end
+                        sqlExecWithConn(targetConn, insertPF);
+                    end
+                end
+                
+                fileMetaRows = sqlFetchWithConn(sourceConn, sprintf('SELECT id, file_id, field_name, field_value, updated_at FROM file_metadata WHERE file_id IN (%s)', idsStr));
+                for i = 1:size(fileMetaRows, 1)
+                    oldFileId = fileMetaRows{i, 2};
+                    if isKey(fileIdMap, oldFileId)
+                        newFileId = fileIdMap(oldFileId);
+                        escapedFieldName = escapeSql(fileMetaRows{i, 3});
+                        escapedFieldValue = escapeSql(fileMetaRows{i, 4});
+                        if isempty(escapedFieldValue)
+                            escapedFieldValue = '';
+                        end
+                        escapedUpdated = escapeSql(fileMetaRows{i, 5});
+                        insertFileMeta = sprintf(['INSERT OR REPLACE INTO file_metadata (file_id, field_name, field_value, updated_at) ' ...
+                            'VALUES (%d, ''%s'', ''%s'', ''%s'')'], ...
+                            newFileId, escapedFieldName, escapedFieldValue, escapedUpdated);
+                        sqlExecWithConn(targetConn, insertFileMeta);
+                    end
+                end
+                
+                waitbar(0.85, wb, 'Importing analysis results...');
+                analysisRows = sqlFetchWithConn(sourceConn, sprintf('SELECT id, file_id, module_name, module_display_name, module_description, analysis_timestamp, report_path, parameters_json, created_at FROM analysis_results WHERE file_id IN (%s)', idsStr));
+                for i = 1:size(analysisRows, 1)
+                    waitbar(0.85 + 0.1 * (i / max(1, size(analysisRows, 1))), wb, sprintf('Importing results %d/%d...', i, size(analysisRows, 1)));
+                    oldFileId = analysisRows{i, 2};
+                    if isKey(fileIdMap, oldFileId)
+                        newFileId = fileIdMap(oldFileId);
+                        escapedModuleName = escapeSql(analysisRows{i, 3});
+                        escapedModuleDisplay = escapeSql(analysisRows{i, 4});
+                        if isempty(escapedModuleDisplay)
+                            escapedModuleDisplay = '';
+                        end
+                        escapedModuleDesc = escapeSql(analysisRows{i, 5});
+                        if isempty(escapedModuleDesc)
+                            escapedModuleDesc = '';
+                        end
+                        escapedReportPath = escapeSql(analysisRows{i, 7});
+                        escapedParams = escapeSql(analysisRows{i, 8});
+                        if isempty(escapedParams)
+                            escapedParams = '';
+                        end
+                        escapedCreated = escapeSql(analysisRows{i, 9});
+                        insertAnalysis = sprintf(['INSERT INTO analysis_results (file_id, module_name, module_display_name, module_description, analysis_timestamp, report_path, parameters_json, created_at) ' ...
+                            'VALUES (%d, ''%s'', ''%s'', ''%s'', %d, ''%s'', ''%s'', ''%s'')'], ...
+                            newFileId, escapedModuleName, escapedModuleDisplay, escapedModuleDesc, analysisRows{i, 6}, escapedReportPath, escapedParams, escapedCreated);
+                        sqlExecWithConn(targetConn, insertAnalysis);
+                    end
+                end
+            end
+            
+            waitbar(1.0, wb, 'Import completed!');
+            closeJdbcResource(sourceConn);
+            closeJdbcResource(targetConn);
+            close(wb);
+            
+            debugState('fileManagerGUI', 'importProjectFromDatabase: import completed successfully');
+            loadProjectsFromDb();
+            match = find([state.projects.id] == newProjectId, 1);
+            if ~isempty(match)
+                projectSelect.Value = match;
+                selectProjectByIndex(match);
+            end
+            msgbox('Project imported successfully', 'Success', 'help');
+        catch ME
+            closeJdbcResource(sourceConn);
+            if exist('wb', 'var') && ishandle(wb)
+                close(wb);
+            end
+            debugState('fileManagerGUI', 'importProjectFromDatabase: error - %s', ME.message);
+            if ~isempty(ME.stack)
+                for k = 1:numel(ME.stack)
+                    debugState('fileManagerGUI', 'importProjectFromDatabase: stack %d: %s at line %d', k, ME.stack(k).file, ME.stack(k).line);
+                end
+            end
+            msgbox(sprintf('Failed to import project: %s', ME.message), 'Error', 'error');
+        end
+    end
+    
+    function importProjectFromExcel(excelPath)
+        debugState('fileManagerGUI', 'importProjectFromExcel: starting import from %s', excelPath);
+        wb = waitbar(0, 'Initializing import...', 'Name', 'Import Project from Excel');
+        
+        if isempty(state.dbPath) || ~isfile(state.dbPath)
+            close(wb);
+            msgbox('Current database not found', 'Error', 'error');
+            return
+        end
+        
+        try
+            waitbar(0.1, wb, 'Reading Excel file...');
+            filesData = readcell(excelPath, 'Sheet', 'Files');
+            if isempty(filesData) || size(filesData, 1) < 2
+                close(wb);
+                msgbox('No data found in Files sheet', 'Error', 'error');
+                return
+            end
+            
+            waitbar(0.2, wb, 'Processing file data...');
+            headers = filesData(1, :);
+            data = filesData(2:end, :);
+            
+            pathColIdx = find(strcmp(headers, 'Path'), 1);
+            nameColIdx = find(strcmp(headers, 'File Name'), 1);
+            
+            if isempty(pathColIdx) || isempty(nameColIdx)
+                close(wb);
+                msgbox('Required columns not found: Path, File Name', 'Error', 'error');
+                return
+            end
+            
+            waitbar(0.3, wb, 'Creating project...');
+            [~, excelFileName, ~] = fileparts(excelPath);
+            projectName = excelFileName;
+            existingProjects = sqlFetch(sprintf('SELECT name FROM projects WHERE name = ''%s''', escapeSql(projectName)));
+            if ~isempty(existingProjects)
+                projectName = [excelFileName, '_imported'];
+            end
+            
+            newProjectId = insertProject(projectName);
+            if isempty(newProjectId)
+                close(wb);
+                msgbox('Failed to create project', 'Error', 'error');
+                return
+            end
+            
+            debugState('fileManagerGUI', 'importProjectFromExcel: created new project id=%d, name=%s', newProjectId, projectName);
+            
+            waitbar(0.4, wb, 'Importing files...');
+            fileIdMap = containers.Map('KeyType', 'double', 'ValueType', 'double');
+            importedCount = 0;
+            skippedCount = 0;
+            
+            for i = 1:size(data, 1)
+                waitbar(0.4 + 0.4 * (i / max(1, size(data, 1))), wb, sprintf('Importing file %d/%d...', i, size(data, 1)));
+                filePath = data{i, pathColIdx};
+                if isempty(filePath) || ~ischar(filePath) && ~isstring(filePath)
+                    continue
+                end
+                filePath = char(filePath);
+                
+                if ~exist(filePath, 'file')
+                    debugState('fileManagerGUI', 'importProjectFromExcel: file not found, skipping: %s', filePath);
+                    skippedCount = skippedCount + 1;
+                    continue
+                end
+                
+                ensureFileInProject(filePath, newProjectId);
+                record = sqlFetch(sprintf('SELECT id FROM files WHERE file_path = ''%s'' LIMIT 1', escapeSql(filePath)));
+                if ~isempty(record)
+                    newFileId = record{1};
+                    oldFileId = data{i, 1};
+                    if ~isempty(oldFileId) && isnumeric(oldFileId)
+                        fileIdMap(oldFileId) = newFileId;
+                    end
+                    
+                    for j = 1:numel(headers)
+                        if j == pathColIdx || j == nameColIdx || strcmp(headers{j}, 'File ID')
+                            continue
+                        end
+                        fieldName = headers{j};
+                        fieldValue = data{i, j};
+                        if isempty(fieldValue)
+                            fieldValue = '';
+                        end
+                        if ischar(fieldValue) || isstring(fieldValue)
+                            saveFileMetadata(newFileId, fieldName, char(fieldValue));
+                        end
+                    end
+                    importedCount = importedCount + 1;
+                end
+            end
+            
+            try
+                waitbar(0.85, wb, 'Importing analysis results...');
+                resultsData = readcell(excelPath, 'Sheet', 'Results');
+                if ~isempty(resultsData) && size(resultsData, 1) > 1
+                    resultsHeaders = resultsData(1, :);
+                    resultsRows = resultsData(2:end, :);
+                    
+                    fileIdColIdx = find(strcmp(resultsHeaders, 'File ID'), 1);
+                    reportPathColIdx = find(strcmp(resultsHeaders, 'Report Path'), 1);
+                    moduleColIdx = find(strcmp(resultsHeaders, 'Module'), 1);
+                    
+                    if ~isempty(fileIdColIdx) && ~isempty(reportPathColIdx) && ~isempty(moduleColIdx)
+                        for i = 1:size(resultsRows, 1)
+                            waitbar(0.85 + 0.1 * (i / max(1, size(resultsRows, 1))), wb, sprintf('Importing results %d/%d...', i, size(resultsRows, 1)));
+                            oldFileId = resultsRows{i, fileIdColIdx};
+                            if isempty(oldFileId) || ~isnumeric(oldFileId)
+                                continue
+                            end
+                            if isKey(fileIdMap, oldFileId)
+                                newFileId = fileIdMap(oldFileId);
+                                reportPath = resultsRows{i, reportPathColIdx};
+                                moduleName = resultsRows{i, moduleColIdx};
+                                if isempty(reportPath) || isempty(moduleName)
+                                    continue
+                                end
+                                
+                                escapedModuleName = escapeSql(char(moduleName));
+                                escapedReportPath = escapeSql(char(reportPath));
+                                timestamp = round(now * 86400000);
+                                insertAnalysis = sprintf(['INSERT INTO analysis_results (file_id, module_name, report_path, analysis_timestamp, created_at) ' ...
+                                    'VALUES (%d, ''%s'', ''%s'', %d, CURRENT_TIMESTAMP)'], ...
+                                    newFileId, escapedModuleName, escapedReportPath, timestamp);
+                                sqlExec(insertAnalysis);
+                            end
+                        end
+                    end
+                end
+            catch
+                debugState('fileManagerGUI', 'importProjectFromExcel: failed to read Results sheet, skipping');
+            end
+            
+            waitbar(1.0, wb, 'Import completed!');
+            debugState('fileManagerGUI', 'importProjectFromExcel: imported %d files, skipped %d files', importedCount, skippedCount);
+            close(wb);
+            loadProjectsFromDb();
+            match = find([state.projects.id] == newProjectId, 1);
+            if ~isempty(match)
+                projectSelect.Value = match;
+                selectProjectByIndex(match);
+            end
+            msgbox(sprintf('Project imported successfully. Imported: %d files, Skipped: %d files', importedCount, skippedCount), 'Success', 'help');
+        catch ME
+            if exist('wb', 'var') && ishandle(wb)
+                close(wb);
+            end
+            debugState('fileManagerGUI', 'importProjectFromExcel: error - %s', ME.message);
+            if ~isempty(ME.stack)
+                for k = 1:numel(ME.stack)
+                    debugState('fileManagerGUI', 'importProjectFromExcel: stack %d: %s at line %d', k, ME.stack(k).file, ME.stack(k).line);
+                end
+            end
+            msgbox(sprintf('Failed to import project: %s', ME.message), 'Error', 'error');
         end
     end
 end
@@ -1772,6 +2366,20 @@ function projectId = insertProject(projectName)
     result = sqlFetch(sprintf('SELECT id FROM projects WHERE name = ''%s'' ORDER BY created_at DESC LIMIT 1', escapedName));
     if ~isempty(result)
         projectId = result{1};
+    end
+end
+
+function projectId = insertProjectWithConn(conn, projectName)
+    projectId = [];
+    if isempty(projectName) || isempty(conn)
+        return
+    end
+    escapedName = escapeSql(projectName);
+    query = sprintf('INSERT INTO projects (name, created_at) VALUES (''%s'', CURRENT_TIMESTAMP)', escapedName);
+    sqlExecWithConn(conn, query);
+    result = sqlFetchWithConn(conn, sprintf('SELECT id FROM projects WHERE name = ''%s'' ORDER BY created_at DESC LIMIT 1', escapedName));
+    if ~isempty(result)
+        projectId = result{1, 1};
     end
 end
 

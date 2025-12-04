@@ -11,6 +11,7 @@ function autoEventDetectionGUI()
     global hMinPeakDistance hPeakDetectionMode
     global hSourceType selectedCenter timeCenterPopup windowSize chosen_time_interval
     global hSearchAroundStimuli hSearchWindow hSubtractBaseline hApplySmoothing hSmoothingSpan stims_exist stims
+    global hUseTimeRange hStartTime hEndTime time
     
     % Переменные для хранения результатов детекции в области видимости GUI
     amplitudes_detected = [];
@@ -35,7 +36,7 @@ function autoEventDetectionGUI()
         'Resize', 'off', ...
         'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', 'Position', [100, 100, 1100, 500]);
 
-    ypos = linspace(450, 150, 13);
+    ypos = linspace(450, 120, 16);
     
     % Окно выбора источника данных LFP или CSD
     uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(1), 150, 20], 'String', 'Source:');
@@ -73,15 +74,26 @@ function autoEventDetectionGUI()
     hMaxPeakWidth_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(9), 150, 20], 'String', ['Max peak width (' selectedUnit '):']);
     hMaxPeakWidth = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(9), 130, 20], 'String', num2str(0.05*timeUnitFactor));
 
+    % Чекбокс для использования временного диапазона
+    hUseTimeRange = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', [10, ypos(10), 280, 20], 'String', 'Use time range', 'Value', 0, 'Callback', @timeRangeCallback);
+    
+    % Поля ввода времени начала и конца
+    global time
+    hStartTimeLabel = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(11), 80, 20], 'String', ['Start (' selectedUnit '):'], 'Visible', 'off');
+    hStartTime = uicontrol(detectionFig, 'Style', 'edit', 'Position', [100, ypos(11), 70, 20], 'String', num2str(time(1)*timeUnitFactor), 'Visible', 'off');
+    
+    hEndTimeLabel = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(12), 80, 20], 'String', ['End (' selectedUnit '):'], 'Visible', 'off');
+    hEndTime = uicontrol(detectionFig, 'Style', 'edit', 'Position', [100, ypos(12), 70, 20], 'String', num2str(time(end)*timeUnitFactor), 'Visible', 'off');
+
     % Чекбокс для поиска вокруг стимулов
-    hSearchAroundStimuli = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', [10, ypos(10), 280, 20], 'String', 'Search around stimuli', 'Value', 0, 'Callback', @changeDetectionType);
+    hSearchAroundStimuli = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', [10, ypos(13), 280, 20], 'String', 'Search around stimuli', 'Value', 0, 'Callback', @changeDetectionType);
     
     % Поле ввода размера окна поиска
-    hSearchWindow_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(11), 150, 20], 'String', ['Search window (' selectedUnit '):']);
-    hSearchWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(11), 130, 20], 'String', num2str(0.5*timeUnitFactor));
+    hSearchWindow_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(14), 150, 20], 'String', ['Search window (' selectedUnit '):']);
+    hSearchWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(14), 130, 20], 'String', num2str(0.5*timeUnitFactor));
     
     % Чекбокс для вычитания базовой линии
-    hSubtractBaseline = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', [10, ypos(12), 280, 20], 'String', 'Subtract baseline', 'Value', 0, 'Callback', @changeDetectionType);
+    hSubtractBaseline = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', [10, ypos(15), 280, 20], 'String', 'Subtract baseline', 'Value', 0, 'Callback', @changeDetectionType);
 
     % Инициализация видимости элементов в зависимости от наличия стимулов
     changeDetectionType();
@@ -171,6 +183,17 @@ function autoEventDetectionGUI()
             set(hSmoothingSpan, 'String', num2str(settings.SmoothingSpan));
         end
         
+        % Инициализация параметров временного диапазона из настроек
+        if isfield(settings, 'UseTimeRange')
+            set(hUseTimeRange, 'Value', settings.UseTimeRange);
+        end
+        if isfield(settings, 'StartTime')
+            set(hStartTime, 'String', num2str(settings.StartTime*timeUnitFactor));
+        end
+        if isfield(settings, 'EndTime')
+            set(hEndTime, 'String', num2str(settings.EndTime*timeUnitFactor));
+        end
+        
         % Обновляем видимость полей сглаживания после загрузки настроек
         smoothing_enabled = get(hApplySmoothing, 'Value');
         if smoothing_enabled
@@ -179,6 +202,20 @@ function autoEventDetectionGUI()
         else
             set(hSmoothingSpan_text, 'visible', 'off')
             set(hSmoothingSpan, 'visible', 'off')
+        end
+        
+        % Обновляем видимость полей временного диапазона после загрузки настроек
+        useTimeRange = get(hUseTimeRange, 'Value');
+        if useTimeRange
+            set(hStartTimeLabel, 'visible', 'on')
+            set(hStartTime, 'visible', 'on')
+            set(hEndTimeLabel, 'visible', 'on')
+            set(hEndTime, 'visible', 'on')
+        else
+            set(hStartTimeLabel, 'visible', 'off')
+            set(hStartTime, 'visible', 'off')
+            set(hEndTimeLabel, 'visible', 'off')
+            set(hEndTime, 'visible', 'off')
         end
     end
     
@@ -190,6 +227,25 @@ function autoEventDetectionGUI()
     applybutton = uicontrol(detectionFig, 'Style', 'pushbutton', 'String', 'Apply',...
         'Position', [650, 10, 120, 40], 'Callback', @detectButtonCallback);
     set(applybutton, 'Enable', 'off')
+
+    function timeRangeCallback(~, ~)
+        isChecked = get(hUseTimeRange, 'Value');
+        if isChecked
+            set(hSearchAroundStimuli, 'Value', 0);
+        end
+        if isChecked
+            set(hStartTimeLabel, 'Visible', 'on');
+            set(hStartTime, 'Visible', 'on');
+            set(hEndTimeLabel, 'Visible', 'on');
+            set(hEndTime, 'Visible', 'on');
+        else
+            set(hStartTimeLabel, 'Visible', 'off');
+            set(hStartTime, 'Visible', 'off');
+            set(hEndTimeLabel, 'Visible', 'off');
+            set(hEndTime, 'Visible', 'off');
+        end
+        changeDetectionType();
+    end
 
     function changeDetectionType(~,~)
         
@@ -228,13 +284,35 @@ function autoEventDetectionGUI()
                 set(hMinPeakProminence_text, 'String', 'Minimal Peak Prominence:');
         end
         
+        % Управление видимостью элементов временного диапазона
+        useTimeRange = get(hUseTimeRange, 'Value');
+        if useTimeRange
+            set(hStartTimeLabel, 'visible', 'on')
+            set(hStartTime, 'visible', 'on')
+            set(hEndTimeLabel, 'visible', 'on')
+            set(hEndTime, 'visible', 'on')
+        else
+            set(hStartTimeLabel, 'visible', 'off')
+            set(hStartTime, 'visible', 'off')
+            set(hEndTimeLabel, 'visible', 'off')
+            set(hEndTime, 'visible', 'off')
+        end
+        
         % Показывать/скрывать элементы поиска вокруг стимулов
         if stims_exist
             set(hSearchAroundStimuli, 'visible', 'on')
             set(hSubtractBaseline, 'visible', 'on')
-            % Поле Search window видно только если чекбокс включен
+            % Если включен поиск вокруг стимулов, выключаем временной диапазон
             search_enabled = get(hSearchAroundStimuli, 'Value');
             if search_enabled
+                set(hUseTimeRange, 'Value', 0)
+                set(hStartTimeLabel, 'visible', 'off')
+                set(hStartTime, 'visible', 'off')
+                set(hEndTimeLabel, 'visible', 'off')
+                set(hEndTime, 'visible', 'off')
+            end
+            % Поле Search window видно только если чекбокс включен и не включен временной диапазон
+            if search_enabled && ~useTimeRange
                 set(hSearchWindow_text, 'visible', 'on')
                 set(hSearchWindow, 'visible', 'on')
             else
@@ -284,6 +362,9 @@ function autoEventDetectionGUI()
         params.SubtractBaseline = get(hSubtractBaseline, 'Value');
         params.ApplySmoothing = get(hApplySmoothing, 'Value');
         params.SmoothingSpan = str2double(get(hSmoothingSpan, 'String')); % в миллисекундах
+        params.UseTimeRange = get(hUseTimeRange, 'Value');
+        params.StartTime = str2double(get(hStartTime, 'String')) / timeUnitFactor;
+        params.EndTime = str2double(get(hEndTime, 'String')) / timeUnitFactor;
                
         [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected] = autoEventDetection(params);
         
@@ -342,6 +423,9 @@ function autoEventDetectionGUI()
         params.max_peak_width = str2double(get(hMaxPeakWidth, 'String')) / timeUnitFactor;
         params.SearchAroundStimuli = get(hSearchAroundStimuli, 'Value');
         params.SearchWindow = str2double(get(hSearchWindow, 'String')) / timeUnitFactor;
+        params.UseTimeRange = get(hUseTimeRange, 'Value');
+        params.StartTime = str2double(get(hStartTime, 'String')) / timeUnitFactor;
+        params.EndTime = str2double(get(hEndTime, 'String')) / timeUnitFactor;
         
         [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected] = autoEventDetection(params);
         
@@ -614,6 +698,7 @@ function saveSettings()
     global hMinPeakDistance hPeakDetectionMode
     global autodetection_settings SettingsFilepath
     global hSourceType timeUnitFactor hSearchAroundStimuli hSearchWindow hSubtractBaseline hApplySmoothing hSmoothingSpan
+    global hUseTimeRange hStartTime hEndTime
     
     settings.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
     settings.PeakDetectionModeIndex = get(hPeakDetectionMode, 'Value');
@@ -628,6 +713,9 @@ function saveSettings()
     settings.SubtractBaseline = get(hSubtractBaseline, 'Value');
     settings.ApplySmoothing = get(hApplySmoothing, 'Value');
     settings.SmoothingSpan = str2double(get(hSmoothingSpan, 'String'));
+    settings.UseTimeRange = get(hUseTimeRange, 'Value');
+    settings.StartTime = str2double(get(hStartTime, 'String')) / timeUnitFactor;
+    settings.EndTime = str2double(get(hEndTime, 'String')) / timeUnitFactor;
     
     autodetection_settings = settings;
     % сохраняем фактор в глобальные настройки              
@@ -746,6 +834,26 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     
     time_res = linspace(time(1),time(end),numel(Trace_out));
     
+    % Фильтрация по временному диапазону, если включено
+    UseTimeRange = false;
+    StartTime = time(1);
+    EndTime = time(end);
+    if isfield(params, 'UseTimeRange')
+        UseTimeRange = params.UseTimeRange;
+    end
+    if isfield(params, 'StartTime')
+        StartTime = params.StartTime;
+    end
+    if isfield(params, 'EndTime')
+        EndTime = params.EndTime;
+    end
+    
+    if UseTimeRange
+        timeIndices = (time_res >= StartTime) & (time_res <= EndTime);
+        Trace_out = Trace_out(timeIndices);
+        time_res = time_res(timeIndices);
+    end
+    
     waitbar(0.6, wb, 'Preparing detection...');
     
     if detect
@@ -780,7 +888,8 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
                 SubtractBaseline = params.SubtractBaseline;
             end
         
-        if SearchAroundStimuli && stims_exist && ~isempty(stims)
+        % Поиск вокруг стимулов возможен только если не включен временной диапазон
+        if SearchAroundStimuli && stims_exist && ~isempty(stims) && ~UseTimeRange
             fprintf('=== DEBUG: Searching around stimuli ===\n');
             fprintf('Number of stimuli: %d\n', length(stims));
             fprintf('Search window: ±%.6f sec\n', SearchWindow);
