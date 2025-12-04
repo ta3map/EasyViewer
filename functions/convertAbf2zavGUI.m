@@ -39,17 +39,16 @@ function convertAbf2zavGUI
     end
 
     % Создаем главное окно GUI
-    fig = figure('Name', 'Convert ABF to ZAV', 'Position', [100, 100, 600, 500], 'NumberTitle', 'off',...
+    fig = figure('Name', 'Convert ABF to ZAV', 'Position', [100, 100, 600, 600], 'NumberTitle', 'off',...
             'MenuBar', 'none', 'ToolBar', 'none', 'Resize', 'off', 'Tag', figTag);
 
     % Позиционные переменные
     leftMargin = 20;
-    topMargin = 450;
+    topMargin = 550;
     btnWidth = 150;
     btnHeight = 25;
     spacing = 10;
-    secondcolumnshift =  150;
-    thirdcolumnshift =  400;
+    secondcolumnshift =  170;
     % Кнопка для выбора ABF-файла
     uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Select ABF File', ...
         'Position', [leftMargin, topMargin, btnWidth, btnHeight], 'Callback', @selectAbfFile);
@@ -59,41 +58,47 @@ function convertAbf2zavGUI
         'Position', [leftMargin + btnWidth + spacing, topMargin, 400, btnHeight], 'HorizontalAlignment', 'left');
     
     % Метка для отображения оригинальной частоты дискретизации
-    shiftdown = btnHeight+10;
+    shiftdown = btnHeight + 20;
     FsOrigLabel = uicontrol('Parent', fig, 'Style', 'text', 'String', '...', ...
-        'Position', [leftMargin + btnWidth + spacing, topMargin-shiftdown, 400, btnHeight], 'HorizontalAlignment', 'left');
+        'Position', [leftMargin + btnWidth + spacing, topMargin - shiftdown, 400, btnHeight], 'HorizontalAlignment', 'left');
    
-    
     % Checkbox для обнаружения MUA
-    shiftdown = 50;
+    shiftdown = 80;
     detectMuaToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Detect MUA', ...
-        'Position', [leftMargin, topMargin - (btnHeight + spacing)+30-shiftdown, btnWidth, btnHeight], 'Value', detectMua, 'Callback', @detectMuaCallback);
+        'Position', [leftMargin, topMargin - (btnHeight + spacing) + 30 - shiftdown, btnWidth, btnHeight], 'Value', detectMua, 'Callback', @detectMuaCallback);
     
     % Поле для ввода коэффициента порога MUA    
     uicontrol('Parent', fig, 'Style', 'text', 'String', 'MUA Threshold (n*STD):', ...
-        'Position', [leftMargin, topMargin - (btnHeight + spacing)-shiftdown, 150, btnHeight], 'HorizontalAlignment', 'right');    
+        'Position', [leftMargin, topMargin - (btnHeight + spacing) - shiftdown, 150, btnHeight], 'HorizontalAlignment', 'right');    
     
     muaCoefUI = uicontrol('Parent', fig, 'Style', 'edit', 'String', num2str(mua_std_coef), ...
-        'Position', [leftMargin + secondcolumnshift, topMargin - (btnHeight + spacing)-shiftdown, 50, btnHeight], 'Callback', @muaCoefUICallback);
+        'Position', [leftMargin + secondcolumnshift, topMargin - (btnHeight + spacing) - shiftdown, 50, btnHeight], 'Callback', @muaCoefUICallback);
     
-    shiftdown = 70;
     % Поле для ввода частоты дискретизации LFP
+    shiftdown = 120;
     uicontrol('Parent', fig, 'Style', 'text', 'String', 'New Fs (Hz):', ...
-        'Position', [leftMargin, topMargin - 2*(btnHeight + spacing)-shiftdown, 150, btnHeight], 'HorizontalAlignment', 'right');
+        'Position', [leftMargin, topMargin - 2*(btnHeight + spacing) - shiftdown, 150, btnHeight], 'HorizontalAlignment', 'right');
     
     lfpFsUI = uicontrol('Parent', fig, 'Style', 'edit', 'String', num2str(lfp_Fs), ...
-        'Position', [leftMargin + secondcolumnshift, topMargin - 2*(btnHeight + spacing)-shiftdown, 50, btnHeight], 'Callback', @lfpFsUICallback);
+        'Position', [leftMargin + secondcolumnshift, topMargin - 2*(btnHeight + spacing) - shiftdown, 50, btnHeight], 'Callback', @lfpFsUICallback);
    
     % Checkbox для ресемплинга
     doResampleToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Resample LFP', ...
-        'Position', [leftMargin, topMargin - 2*(btnHeight + spacing)+30-shiftdown, 100, btnHeight], 'Value', doResample, 'Callback', @doResampleCallback);
+        'Position', [leftMargin, topMargin - 2*(btnHeight + spacing) + 30 - shiftdown, 100, btnHeight], 'Value', doResample, 'Callback', @doResampleCallback);
 
     % Панель для выбора каналов
-    channelPanel = uipanel('Parent', fig, 'Title', 'Select Channels', 'Position', [0.05, 0.1, 0.9, 0.5]);
+    channelPanel = uipanel('Parent', fig, 'Title', 'Select Channels', 'Position', [0.05, 0.1, 0.9, 0.45]);
+
+    % Кнопки для выбора/отмены всех каналов
+    btnSelectAll = uicontrol('Parent', channelPanel, 'Style', 'pushbutton', 'String', 'Select All', ...
+        'Units', 'normalized', 'Position', [0.02, 0.92, 0.15, 0.06], 'Callback', @selectAllChannels);
+    
+    btnDeselectAll = uicontrol('Parent', channelPanel, 'Style', 'pushbutton', 'String', 'Deselect All', ...
+        'Units', 'normalized', 'Position', [0.18, 0.92, 0.15, 0.06], 'Callback', @deselectAllChannels);
 
     % Таблица для отображения списка каналов с галочками
     channelTable = uitable('Parent', channelPanel, 'Data', {}, 'ColumnName', {'Use', 'Channel Name'}, ...
-        'ColumnEditable', [true, false], 'Units', 'normalized', 'Position', [0, 0, 1, 1], 'CellEditCallback', @channelSelectionCallback);
+        'ColumnEditable', [true, false], 'Units', 'normalized', 'Position', [0, 0, 1, 0.92], 'CellEditCallback', @channelSelectionCallback);
 
     % Checkbox для открытия файла    
     openafterConvToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Open after conversion', ...
@@ -101,7 +106,7 @@ function convertAbf2zavGUI
     
     % Кнопка для запуска конвертации
     uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Start Conversion', ...
-        'Position', [leftMargin+secondcolumnshift, 20, btnWidth, btnHeight], 'Callback', @startConversion);
+        'Position', [leftMargin + secondcolumnshift, 20, btnWidth, btnHeight], 'Callback', @startConversion);
 
     % Функции обратного вызова
     function selectAbfFile(~, ~)
@@ -143,7 +148,7 @@ function convertAbf2zavGUI
         
         % Оригинальная частота дискретизации.
         orig_Fs = 1e6 / hd_abf.si; % hd_abf.si в микросекундах на сэмпл.
-        set(FsOrigLabel, 'String', ['Fs (Hz):', num2str(orig_Fs)]);
+        set(FsOrigLabel, 'String', ['Fs (Hz): ', num2str(orig_Fs)]);
     end
 
     function channelSelectionCallback(src, event)
@@ -151,6 +156,30 @@ function convertAbf2zavGUI
         channelData = get(src, 'Data');
         selectedChannelIndices = find([channelData{:,1}]);
         selectedChannels = availableChannels(selectedChannelIndices);
+    end
+
+    function selectAllChannels(~, ~)
+        % Выбираем все каналы
+        channelData = get(channelTable, 'Data');
+        if ~isempty(channelData)
+            for i = 1:size(channelData, 1)
+                channelData{i, 1} = true;
+            end
+            set(channelTable, 'Data', channelData);
+            selectedChannels = availableChannels;
+        end
+    end
+
+    function deselectAllChannels(~, ~)
+        % Отменяем выбор всех каналов
+        channelData = get(channelTable, 'Data');
+        if ~isempty(channelData)
+            for i = 1:size(channelData, 1)
+                channelData{i, 1} = false;
+            end
+            set(channelTable, 'Data', channelData);
+            selectedChannels = {};
+        end
     end
 
     function detectMuaCallback(source, ~)

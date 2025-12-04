@@ -1,214 +1,406 @@
 function convertNlx2zavGUI
-    global SettingsFilepath
-    
+    % GUI для конвертации Neuralynx-файлов в формат ZAV
+
+    % Проверяем, не открыто ли уже окно GUI
+    figTag = 'convertNlx2zavGUI';
+    guiFig = findobj('Type', 'figure', 'Tag', figTag);
+
+    if ~isempty(guiFig)
+        figure(guiFig);
+        return;
+    end
+
+    % Глобальная переменная для хранения пути к настройкам
+    global SettingsFilepath zav_calling
+
+    % Инициализация переменных
+    persistent recordPath zavFilePath detectMua mua_std_coef lfp_Fs doResample selectedChannels availableChannels channelNumbers active_folder
+
+    % Значения по умолчанию
+    mua_std_coef = 3;
+    lfp_Fs = 1000;
+    detectMua = false;
+    doResample = true;
+    selectedChannels = {}; % Пустой означает все каналы
+    availableChannels = {};
+    channelNumbers = []; % Номера каналов, соответствующие именам
+    recordPath = '';
+    zavFilePath = '';
+    openAfter = true;
+
+    % Используем SettingsFilepath для определения последней используемой папки
     try
         d = load(SettingsFilepath);
-        active_folder = fileparts(d.lastOpenedFiles{end});
+        if isfield(d, 'lastOpenedFolders') && ~isempty(d.lastOpenedFolders)
+            active_folder = d.lastOpenedFolders{end};
+        elseif isfield(d, 'lastOpenedFiles') && ~isempty(d.lastOpenedFiles)
+            active_folder = fileparts(d.lastOpenedFiles{end});
+        else
+            active_folder = userpath;
+        end
     catch
         active_folder = userpath;
     end
-            
-    persistent recordPath detectMua hWaitBar channels_n lfp hd orig_Fs spks mua_std_coef
-    persistent lfp_Fs channels_list
-    
-    % Порог MUA
-    mua_std_coef = 3;
-    lfp_Fs = 1000;
-    
+
     % Создаем главное окно GUI
-    fig = figure('Name', 'Convert to ZAV', 'Position', [100, 100, 280, 200], 'NumberTitle', 'off',...
-            'MenuBar', 'none', ... % Отключение стандартного меню
-            'ToolBar', 'none', 'Resize', 'off');
+    fig = figure('Name', 'Convert Neuralynx to ZAV', 'Position', [100, 100, 600, 600], 'NumberTitle', 'off',...
+            'MenuBar', 'none', 'ToolBar', 'none', 'Resize', 'off', 'Tag', figTag);
+
+    % Позиционные переменные
+    leftMargin = 20;
+    topMargin = 550;
+    btnWidth = 150;
+    btnHeight = 25;
+    spacing = 10;
+    secondcolumnshift =  170;
+
+    % Кнопка для выбора папки с данными Neuralynx
+    uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Select Neuralynx Folder', ...
+        'Position', [leftMargin, topMargin, btnWidth, btnHeight], 'Callback', @selectRecordPath);
+
+    % Метка для отображения выбранной папки
+    recordPathLabel = uicontrol('Parent', fig, 'Style', 'text', 'String', 'No folder selected', ...
+        'Position', [leftMargin + btnWidth + spacing, topMargin, 400, btnHeight], 'HorizontalAlignment', 'left');
+
+    % Метка для отображения оригинальной частоты дискретизации
+    shiftdown = btnHeight + 20;
+    FsOrigLabel = uicontrol('Parent', fig, 'Style', 'text', 'String', '...', ...
+        'Position', [leftMargin + btnWidth + spacing, topMargin - shiftdown, 400, btnHeight], 'HorizontalAlignment', 'left');
+
+    % Checkbox для обнаружения MUA
+    shiftdown = 80;
+    detectMuaToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Detect MUA', ...
+        'Position', [leftMargin, topMargin - (btnHeight + spacing) + 30 - shiftdown, btnWidth, btnHeight], 'Value', detectMua, 'Callback', @detectMuaCallback);
+
+    % Поле для ввода коэффициента порога MUA    
+    uicontrol('Parent', fig, 'Style', 'text', 'String', 'MUA Threshold (n*STD):', ...
+        'Position', [leftMargin, topMargin - (btnHeight + spacing) - shiftdown, 150, btnHeight], 'HorizontalAlignment', 'right');    
+
+    muaCoefUI = uicontrol('Parent', fig, 'Style', 'edit', 'String', num2str(mua_std_coef), ...
+        'Position', [leftMargin + secondcolumnshift, topMargin - (btnHeight + spacing) - shiftdown, 50, btnHeight], 'Callback', @muaCoefUICallback);
+
+    % Поле для ввода частоты дискретизации LFP
+    shiftdown = 120;
+    uicontrol('Parent', fig, 'Style', 'text', 'String', 'New Fs (Hz):', ...
+        'Position', [leftMargin, topMargin - 2*(btnHeight + spacing) - shiftdown, 150, btnHeight], 'HorizontalAlignment', 'right');
+
+    lfpFsUI = uicontrol('Parent', fig, 'Style', 'edit', 'String', num2str(lfp_Fs), ...
+        'Position', [leftMargin + secondcolumnshift, topMargin - 2*(btnHeight + spacing) - shiftdown, 50, btnHeight], 'Callback', @lfpFsUICallback);
+
+    % Checkbox для ресемплинга
+    doResampleToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Resample LFP', ...
+        'Position', [leftMargin, topMargin - 2*(btnHeight + spacing) + 30 - shiftdown, 100, btnHeight], 'Value', doResample, 'Callback', @doResampleCallback);
+
+    % Панель для выбора каналов
+    channelPanel = uipanel('Parent', fig, 'Title', 'Select Channels', 'Position', [0.05, 0.1, 0.9, 0.45]);
+
+    % Кнопки для выбора/отмены всех каналов
+    btnSelectAll = uicontrol('Parent', channelPanel, 'Style', 'pushbutton', 'String', 'Select All', ...
+        'Units', 'normalized', 'Position', [0.02, 0.92, 0.15, 0.06], 'Callback', @selectAllChannels);
     
-    % Кнопка для выбора пути к записи
-    uicontrol('Style', 'pushbutton', 'String', 'Select Record Path', ...
-        'Position', [50, 150, 150, 25], 'Callback', @selectRecordPath);
+    btnDeselectAll = uicontrol('Parent', channelPanel, 'Style', 'pushbutton', 'String', 'Deselect All', ...
+        'Units', 'normalized', 'Position', [0.18, 0.92, 0.15, 0.06], 'Callback', @deselectAllChannels);
+
+    % Таблица для отображения списка каналов с галочками
+    channelTable = uitable('Parent', channelPanel, 'Data', {}, 'ColumnName', {'Use', 'Channel Name'}, ...
+        'ColumnEditable', [true, false], 'Units', 'normalized', 'Position', [0, 0, 1, 0.92], 'CellEditCallback', @channelSelectionCallback);
     
-    % Toggle switch для детекции MUA
-    detectMuaToggle = uicontrol('Style', 'checkbox', 'String', 'Detect MUA', ...
-        'Position', [50, 100, 150, 25], 'Value', 0);
-    
-    % Окошко для значения коэффициента порога MUA   
-    muaCoefUITitlecoords = [160, 100, 50, 25];
-    muaCoefTitleUI = uicontrol('Style', 'text', 'String', 'threshold (n*STD)', 'Position', muaCoefUITitlecoords);
-    
-    muaCoefUIcoords = [208, 100, 20, 25];
-    muaCoefUI = uicontrol('Style', 'edit', 'String', num2str(mua_std_coef), 'Position', muaCoefUIcoords, 'Callback', @muaCoefUICallback);
-    
-    % Окошко для значения частоты дикретизации lfp   
-    lfpFsTitlecoords = [160, 45, 50, 25];
-    lfpFsTitleUI = uicontrol('Style', 'text', 'String', 'Fs, Hz', 'Position', lfpFsTitlecoords);
-    
-    lfpFsUIcoords = [208, 50, 60, 25];
-    lfpFsUI = uicontrol('Style', 'edit', 'String', num2str(lfp_Fs), 'Position', lfpFsUIcoords, 'Callback', @lfpFsUICallback);
-    
-    uicontrol('Style', 'text', ...
-          'Position', [10 65 120 25], ...
-          'String', 'Chosen channels:');
-    h = uicontrol('Style', 'edit', ...
-              'Position', [10 50 120 25], ...
-              'String', 'all channels', ...
-              'Callback', @chosenChannelsCallback);
+    % Checkbox для открытия файла    
+    openafterConvToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Open after conversion', ...
+        'Position', [leftMargin, 20, btnWidth, btnHeight], 'Value', openAfter, 'Callback', @openafterConvCallback);
     
     % Кнопка для запуска конвертации
-    uicontrol('Style', 'pushbutton', 'String', 'Start Conversion', ...
-        'Position', [50, 10, 150, 25], 'Callback', @startConversion);
-    
-    % Глобальные переменные
-    recordPath = '';
-    detectMua = false;
-    
-    
+    uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Start Conversion', ...
+        'Position', [leftMargin + secondcolumnshift, 20, btnWidth, btnHeight], 'Callback', @startConversion);
+
+    % Функции обратного вызова
+    function selectRecordPath(~, ~)
+        folder = uigetdir(active_folder, 'Select Neuralynx Folder');
+        if isequal(folder, 0)
+            disp('User canceled folder selection');
+            recordPath = '';
+            set(recordPathLabel, 'String', 'No folder selected');
+            % Очистим таблицу каналов
+            set(channelTable, 'Data', {});
+            availableChannels = {};
+            selectedChannels = {};
+            channelNumbers = [];
+            set(FsOrigLabel, 'String', '...');
+        else
+            recordPath = folder;
+            disp(['Selected Neuralynx folder: ', recordPath]);
+            set(recordPathLabel, 'String', recordPath);
+            % Обновляем активную папку
+            active_folder = recordPath;
+            % После выбора папки извлекаем доступные каналы
+            extractChannels();
+        end
+    end
+
+    function extractChannels()
+        % Извлечение списка каналов из папки Neuralynx
+        try
+            if (recordPath(end) ~= '\')
+                recordPath(end + 1) = '\';
+            end
+            
+            % Находим все .ncs файлы
+            dirCnt = dir(recordPath);
+            ncsFiles = struct('f', {}, 'chNum', {}, 'chName', {});
+            
+            for t = 1:length(dirCnt)
+                if ((~dirCnt(t).isdir) && (length(dirCnt(t).name) > 3))
+                    if isequal(dirCnt(t).name(end - 3:end), '.ncs')
+                        % Извлекаем номер канала из имени файла (формат: префикс + номер + .ncs)
+                        % Например: CSC1.ncs -> 1, или CH1.ncs -> 1
+                        fileName = dirCnt(t).name(1:end-4); % убираем .ncs
+                        % Ищем последние цифры в имени файла
+                        numMatch = regexp(fileName, '\d+$', 'match');
+                        if ~isempty(numMatch)
+                            ch = str2double(numMatch{1});
+                            if ~isnan(ch)
+                                ncsFiles(end + 1).f = fullfile(recordPath, dirCnt(t).name);
+                                ncsFiles(end).chNum = ch;
+                                ncsFiles(end).chName = fileName;
+                            end
+                        end
+                    end
+                end
+            end
+            
+            % Сортируем по номеру канала
+            [~, sortIdx] = sort([ncsFiles.chNum]);
+            ncsFiles = ncsFiles(sortIdx);
+            
+            if isempty(ncsFiles)
+                warndlg('No .ncs files found in the selected folder.', 'No Channels Found');
+                set(recordPathLabel, 'String', 'No folder selected');
+            recordPath = '';
+            availableChannels = {};
+            selectedChannels = {};
+            channelNumbers = [];
+            set(FsOrigLabel, 'String', '...');
+            set(channelTable, 'Data', {});
+                return;
+            end
+            
+            % Читаем заголовки для получения имен каналов и частоты дискретизации
+            channelNames = cell(length(ncsFiles), 1);
+            channelNums = zeros(length(ncsFiles), 1);
+            orig_Fs = [];
+            
+            for i = 1:length(ncsFiles)
+                fileToRead = ncsFiles(i).f;
+                if exist(fileToRead, 'file')
+                    cscHd = Nlx2MatCSC(fileToRead, [0 0 0 0 0], 1, 1, []);
+                    % Используем сохраненное имя канала
+                    channelNames{i} = ncsFiles(i).chName;
+                    channelNums(i) = ncsFiles(i).chNum;
+                    
+                    % Получаем частоту дискретизации из первого канала
+                    if isempty(orig_Fs)
+                        Fs = NlxParametr(cscHd, 'SamplingFrequency');
+                        orig_Fs = Fs;
+                    end
+                end
+            end
+            
+            availableChannels = channelNames;
+            channelNumbers = channelNums; % Сохраняем номера каналов в persistent переменную
+            numChannels = numel(availableChannels);
+
+            % Подготавливаем данные для таблицы
+            channelData = cell(numChannels, 2);
+            for i = 1:numChannels
+                channelData{i, 1} = true; % По умолчанию все каналы выбраны
+                channelData{i, 2} = availableChannels{i};
+            end
+
+            % Обновляем таблицу каналов
+            set(channelTable, 'Data', channelData);
+            % Инициализируем выбранные каналы
+            selectedChannels = availableChannels; % Все каналы выбраны
+            
+            % Отображаем оригинальную частоту дискретизации
+            if ~isempty(orig_Fs)
+                set(FsOrigLabel, 'String', ['Fs (Hz): ', num2str(orig_Fs)]);
+            else
+                set(FsOrigLabel, 'String', 'Fs (Hz): N/A');
+            end
+            
+        catch ME
+            disp(['Error loading Neuralynx channels: ', ME.message]);
+            warndlg(['An error occurred while loading Neuralynx channels: ', ME.message], 'Loading Error');
+            set(recordPathLabel, 'String', 'No folder selected');
+            recordPath = '';
+            availableChannels = {};
+            selectedChannels = {};
+            channelNumbers = [];
+            set(FsOrigLabel, 'String', '...');
+            set(channelTable, 'Data', {});
+        end
+    end
+
+    function channelSelectionCallback(src, event)
+        % Обновляем список выбранных каналов при изменении галочек
+        channelData = get(src, 'Data');
+        selectedChannelIndices = find([channelData{:,1}]);
+        selectedChannels = availableChannels(selectedChannelIndices);
+    end
+
+    function selectAllChannels(~, ~)
+        % Выбираем все каналы
+        channelData = get(channelTable, 'Data');
+        if ~isempty(channelData)
+            for i = 1:size(channelData, 1)
+                channelData{i, 1} = true;
+            end
+            set(channelTable, 'Data', channelData);
+            selectedChannels = availableChannels;
+        end
+    end
+
+    function deselectAllChannels(~, ~)
+        % Отменяем выбор всех каналов
+        channelData = get(channelTable, 'Data');
+        if ~isempty(channelData)
+            for i = 1:size(channelData, 1)
+                channelData{i, 1} = false;
+            end
+            set(channelTable, 'Data', channelData);
+            selectedChannels = {};
+        end
+    end
+
+    function detectMuaCallback(source, ~)
+        detectMua = get(source, 'Value');
+    end
+
+    function openafterConvCallback(source, ~)
+        openAfter = get(source, 'Value');
+    end
+
     function muaCoefUICallback(source, ~)
         mua_std_coef = str2double(get(source, 'String'));
+        if isnan(mua_std_coef) || mua_std_coef <= 0
+            warndlg('Please enter a valid positive number for MUA threshold.', 'Invalid Input');
+            set(source, 'String', num2str(3));
+            mua_std_coef = 3;
+        end
     end
 
     function lfpFsUICallback(source, ~)
         lfp_Fs = str2double(get(source, 'String'));
-    end
-
-    % Функция обратного вызова для выбора пути к записи
-    function selectRecordPath(~, ~)
-        recordPath = uigetdir(active_folder);
-        if recordPath == 0
-            recordPath = '';
-        else
-            active_folder = recordPath;
-            disp(['Selected record path: ', recordPath]);
+        if isnan(lfp_Fs) || lfp_Fs <= 0
+            warndlg('Please enter a valid positive number for LFP Fs.', 'Invalid Input');
+            set(source, 'String', num2str(1000));
+            lfp_Fs = 1000;
         end
     end
-    
-    function chosenChannelsCallback(hObject, ~)
-        
-        if isempty(recordPath)
-            warndlg('Please select a record path first.', 'Warning');
-            return;
-        end
-        
-        channels_n = countChannels(recordPath);  % number of channels
-        disp(['channels total: ' num2str(channels_n)]);
-        
-        val = get(hObject, 'String');
 
-        % Проверка, если введено 'all channels'
-        if strcmp(val, 'all channels')
-            channels_list = 1:channels_n;
-            disp('all channels chosen')
-        else
-            % Пытаемся интерпретировать введенное значение как диапазон или список каналов
-            try
-                channels_list = eval(['[', val, ']']);
-            catch
-                % В случае ошибки возвращаем пустой массив и выводим сообщение об ошибке
-                channels_list = [];
-                disp('Invalid input. Please enter channels like "1,2,3" or "1:5".');
-            end
-        end
-
-        % Демонстрация полученного списка каналов (можно убрать или заменить на другое действие)
-        disp(['channel list: ' num2str(channels_list)]);
+    function doResampleCallback(source, ~)
+        doResample = get(source, 'Value');
     end
 
-    % Функция обратного вызова для запуска конвертации
     function startConversion(~, ~)
-        detectMua = get(detectMuaToggle, 'Value');
         if isempty(recordPath)
-            warndlg('Please select a record path first.', 'Warning');
+            warndlg('Please select a Neuralynx folder first.', 'No Folder Selected');
+            return;
+        end
+
+        % Получаем выбранные каналы из таблицы
+        channelData = get(channelTable, 'Data');
+        selectedChannelIndices = find([channelData{:,1}]);
+        if isempty(selectedChannelIndices)
+            warndlg('Please select at least one channel.', 'No Channels Selected');
             return;
         end
         
-        disp(['Starting conversion. Detect MUA: ', num2str(detectMua)]);
+        % Преобразуем выбранные индексы в номера каналов
+        channels_list = channelNumbers(selectedChannelIndices);
         
-        chosenChannelsCallback(h, [])
-        
-        channels_n = numel(channels_list);
-        
-        disp(['channels total: ' num2str(channels_n)]);
-        disp(['channel list: ' num2str(channels_list)]);
-        
-        lfp = []; % инициализация переменной для lfp
-
-        % Создание окна прогресса
-        hWaitBar = waitbar(0,'Wait...', 'Name', 'Conversion to NLX to ZAV');
-
-        % Считываем данные первого канала для определения размера матрицы lfp
-        [data, ~, hd, ~, ~] = ZavNrlynx2(recordPath, [], 1, [], []);
-        orig_Fs = 1e6/hd.si; % оригинальная частота дискретизации
-        lfp_length = floor(length(data) * lfp_Fs / orig_Fs); % новая длина сигнала после ресемплинга
-        lfp = zeros(lfp_length, channels_n); % предварительное выделение памяти для lfp
-
-        clear spks
-        ch_inx = 0;
-        for ch = channels_list
-            ch_inx = ch_inx+1;
-            
-            [data, ~, hd, spkTS, spkSM] = ZavNrlynx2(recordPath, [], ch, [], []);
-
-            ampl = min(spkSM.s(:, :));
-
-            if detectMua
-                [tStamp, ampl, shape] = detectMUA(data, hd, mua_std_coef, true);
-                spks(ch_inx).tStamp = single(tStamp); % сохраняем спайки канала в миллисекундном формате
-                spks(ch_inx).ampl = single(ampl);
-                spks(ch_inx).shape = shape;
-            else
-                % по ZAV формату
-                spks(ch_inx).tStamp = single(spkTS.s'); % сохраняем спайки канала в миллисекундном формате
-                spks(ch_inx).ampl = single(ampl');
-                spks(ch_inx).shape = [];
-            end
-
-            % Ресамплинг данных канала
-            data_resampled = resample(data, lfp_Fs, orig_Fs);
-            lfp(:, ch_inx) = data_resampled; % добавляем ресемплированные данные в матрицу lfp
-
-            % Обновление индикатора прогресса
-            waitbar(ch_inx / numel(channels_list), hWaitBar, sprintf('Channel %d from %d...', ch, numel(channels_list)));
+        if isempty(channels_list)
+            warndlg('No channels selected.', 'Channel Error');
+            return;
         end
-        
-        % преобразуем заголовок для выбранного списка каналов
-        hd.adBitVolts = hd.adBitVolts(channels_list);
-        hd.dspDelay_mks = hd.dspDelay_mks(channels_list);
-        hd.adBitVoltsSpk = hd.adBitVoltsSpk(channels_list);
-        hd.dspDelay_mksSpk = hd.dspDelay_mksSpk(channels_list);
-        hd.alignmentPt = hd.alignmentPt(channels_list);
-        hd.inverted = hd.inverted(channels_list);
-        hd.recChUnits = hd.recChUnits(channels_list); 
-        hd.recChNames = hd.recChNames(channels_list);
-        hd.ch_si = hd.ch_si(channels_list);
-        
-        close(hWaitBar); % Закрытие окна прогресса
-        disp('over')
 
-        saveDialog()
-    end
-    
-    function saveDialog()
-        choice = questdlg('Save data?', 'Save Confirmation', ...
-                          'Yes','No','Yes');
-        switch choice
-            case 'Yes'
-                saveData();  % Предполагается, что функция saveData уже определена в вашем коде
-            case 'No'
-                disp('User selected Cancel')
-        end
-    end
-
-
-    % Функция обратного вызова для сохранения данных
-    function saveData()
-        % Cохранения данных
-        [parent_folder, active_name, ~] = fileparts(active_folder);
-        [file, path] = uiputfile([active_name, '.mat'], 'Save File As', parent_folder);
-        if isequal(file, 0) || isequal(path, 0)
-            disp('User selected Cancel');
+        % Предлагаем имя для выходного файла на основе имени папки
+        [~, folderName, ~] = fileparts(recordPath);
+        defaultOutputName = [folderName, '.mat'];
+        [file, path] = uiputfile('*.mat', 'Save ZAV File As', fullfile(active_folder, defaultOutputName));
+        if isequal(file, 0)
+            disp('User canceled file save');
+            return;
         else
-            disp(['User selected ', fullfile(path, file)]);
+            zavFilePath = fullfile(path, file);
+            % Обновляем активную папку
+            active_folder = path;
+        end
+
+        % Создаем окно прогресса
+        hWaitBar = waitbar(0, 'Initializing conversion...', 'Name', 'Neuralynx to ZAV Conversion');
+
+        try
+            channels_n = numel(channels_list);
+            lfp = []; % инициализация переменной для lfp
+
+            % Считываем данные первого канала для определения размера матрицы lfp
+            [data, ~, hd, ~, ~] = ZavNrlynx2(recordPath, [], channels_list(1), [], []);
+            orig_Fs = 1e6/hd.si; % оригинальная частота дискретизации
+            lfp_length = floor(length(data) * lfp_Fs / orig_Fs); % новая длина сигнала после ресемплинга
+            lfp = zeros(lfp_length, channels_n); % предварительное выделение памяти для lfp
+
+            clear spks
+            ch_inx = 0;
+            for ch = channels_list
+                ch_inx = ch_inx + 1;
+                
+                [data, ~, hd, spkTS, spkSM] = ZavNrlynx2(recordPath, [], ch, [], []);
+
+                ampl = min(spkSM.s(:, :));
+
+                if detectMua
+                    [tStamp, ampl, shape] = detectMUA(data, hd, mua_std_coef, true);
+                    spks(ch_inx).tStamp = single(tStamp); % сохраняем спайки канала в миллисекундном формате
+                    spks(ch_inx).ampl = single(ampl);
+                    spks(ch_inx).shape = shape;
+                else
+                    % по ZAV формату
+                    spks(ch_inx).tStamp = single(spkTS.s'); % сохраняем спайки канала в миллисекундном формате
+                    spks(ch_inx).ampl = single(ampl');
+                    spks(ch_inx).shape = [];
+                end
+
+                % Ресамплинг данных канала
+                if doResample
+                    data_resampled = resample(data, lfp_Fs, orig_Fs);
+                else
+                    data_resampled = data;
+                end
+                lfp(:, ch_inx) = data_resampled; % добавляем ресемплированные данные в матрицу lfp
+
+                % Обновление индикатора прогресса
+                waitbar(ch_inx / numel(channels_list), hWaitBar, sprintf('Channel %d from %d...', ch, numel(channels_list)));
+            end
             
+            % преобразуем заголовок для выбранного списка каналов
+            hd.adBitVolts = hd.adBitVolts(channels_list);
+            hd.dspDelay_mks = hd.dspDelay_mks(channels_list);
+            hd.adBitVoltsSpk = hd.adBitVoltsSpk(channels_list);
+            hd.dspDelay_mksSpk = hd.dspDelay_mksSpk(channels_list);
+            hd.alignmentPt = hd.alignmentPt(channels_list);
+            hd.inverted = hd.inverted(channels_list);
+            hd.recChUnits = hd.recChUnits(channels_list); 
+            hd.recChNames = hd.recChNames(channels_list);
+            hd.ch_si = hd.ch_si(channels_list);
+            
+            waitbar(1, hWaitBar, 'Saving data...');
+            
+            % Сохранение данных
             skip_points = orig_Fs/lfp_Fs;
             clear chnlGrp lfpVar zavp
             chnlGrp = {};
-            lfpVar = np_flatten(std(lfp)/10)'; % не знаю что это
+            lfpVar = np_flatten(std(lfp)/10)';
             zavp.file = recordPath;
             zavp.siS = (hd.si/1000)/lfp_Fs;
             zavp.dwnSmplFrq = lfp_Fs;
@@ -225,14 +417,42 @@ function convertNlx2zavGUI
             zavp.realStim.f = f_i;
             zavp.rarStep = hd.ch_si'*0+skip_points;
 
-            new_lfp_filepath = fullfile(path, file);
-            save(new_lfp_filepath, 'chnlGrp', 'hd', 'lfp', 'lfpVar' , 'spks', 'zavp');
+            save(zavFilePath, 'chnlGrp', 'hd', 'lfp', 'lfpVar', 'spks', 'zavp');
             
-            % Сохраняем информацию о том какой файл сохранили
-            lastOpenedFiles = {new_lfp_filepath};
+            % Сохраняем информацию о последней открытой папке
+            lastOpenedFolders = {recordPath};
+            if exist(SettingsFilepath, 'file')
+                save(SettingsFilepath, 'lastOpenedFolders', '-append');
+            else
+                save(SettingsFilepath, 'lastOpenedFolders');
+            end
+
+            % Сохраняем информацию о последнем открытом файле
+            lastOpenedFiles = {zavFilePath};
             save(SettingsFilepath, 'lastOpenedFiles', '-append');
+
+            disp('Conversion completed successfully.');
+
+            % Закрываем окно прогресса
+            if isvalid(hWaitBar)
+                close(hWaitBar);
+            end
+
+            % Закрываем окно GUI после успешной конвертации
+            close(fig);
+
+            % Открываем если хотели
+            if openAfter
+                zav_calling(zavFilePath)
+            end
             
-            disp('file saved')
+        catch ME
+            disp(['Error during conversion: ', ME.message]);
+            warndlg(['An error occurred during conversion: ', ME.message], 'Conversion Error');
+            % Закрываем окно прогресса при ошибке
+            if exist('hWaitBar', 'var') && isvalid(hWaitBar)
+                close(hWaitBar);
+            end
         end
     end
 end
