@@ -26,3 +26,6 @@ coverage.xml
 # Database files
 *.db
 database/
+
+# Data examples
+data_examples/

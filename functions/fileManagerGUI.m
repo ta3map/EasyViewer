@@ -545,6 +545,7 @@ function fileManagerGUI()
         defaultAnswer = {''};
         answer = inputdlg(prompt, dlgTitle, 1, defaultAnswer);
         if isempty(answer)
+            debugState('fileManagerGUI', 'addMetadataField: user cancelled input');
             return
         end
         originalFieldName = strtrim(answer{1});
@@ -555,10 +556,13 @@ function fileManagerGUI()
         
         if any(strcmp(state.metadataFields, originalFieldName))
             msgbox('Field already exists', 'Error', 'error');
+            debugState('fileManagerGUI', 'addMetadataField: field "%s" already exists', originalFieldName);
             return
         end
         
         safeFieldName = makeSafeFieldName(originalFieldName);
+        debugState('fileManagerGUI', 'addMetadataField: adding field "%s" (safe: "%s") to %d files', ...
+            originalFieldName, safeFieldName, numel(state.files));
         
         state.metadataFields{end+1} = originalFieldName;
         if ~isfield(state.fieldNameMap, safeFieldName)
@@ -574,7 +578,14 @@ function fileManagerGUI()
             state.metadataData.(fileIdStr).(safeFieldName) = '';
         end
         
+        debugState('fileManagerGUI', 'addMetadataField: saving field "%s" to database for all files', originalFieldName);
+        for i = 1:numel(state.files)
+            fileId = state.files(i).id;
+            syncMetadataForFile(fileId);
+        end
+        
         updateTable(state.files);
+        debugState('fileManagerGUI', 'addMetadataField: field "%s" added successfully', originalFieldName);
     end
     
     function deleteMetadataField(~, ~)
@@ -661,22 +672,28 @@ function fileManagerGUI()
             return
         end
         
-        if colIdx <= 2
+        if colIdx < 1 || colIdx > numel(src.ColumnName)
             return
         end
         
-        metadataColIdx = colIdx - 2;
-        if metadataColIdx > numel(state.metadataFields)
+        originalFieldName = src.ColumnName{colIdx};
+        if any(strcmp(originalFieldName, {'File ID', 'File Name', 'Path'}))
+            return
+        end
+        
+        if ~any(strcmp(state.metadataFields, originalFieldName))
+            debugState('fileManagerGUI', 'handleCellEdit: field "%s" not found in metadataFields', originalFieldName);
             return
         end
         
         fileId = state.files(rowIdx).id;
-        originalFieldName = state.metadataFields{metadataColIdx};
         safeFieldName = makeSafeFieldName(originalFieldName);
         newValue = event.NewData;
         if isempty(newValue)
             newValue = '';
         end
+        
+        debugState('fileManagerGUI', 'handleCellEdit: file_id=%d, field="%s", value="%s"', fileId, originalFieldName, newValue);
         
         fileIdStr = sprintf('f%d', fileId);
         if ~isfield(state.metadataData, fileIdStr)
