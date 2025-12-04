@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<script src="../functions/showdown.min.js"></script>
+<style>
+body { font-family: Arial, sans-serif; padding: 20px; line-height: 1.6; }
+h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+h2 { color: #34495e; margin-top: 30px; }
+h3 { color: #7f8c8d; }
+code { background-color: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: "Courier New", monospace; }
+pre { background-color: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+pre code { background-color: transparent; padding: 0; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+ul, ol { margin-left: 20px; }
+blockquote { border-left: 4px solid #3498db; padding-left: 15px; margin-left: 0; color: #7f8c8d; }
+table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+table th, table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+table th { background-color: #3498db; color: white; }
+</style>
+</head><body>
+<div id="content"></div>
+<script>
+var converter = new showdown.Converter();
+converter.setOption("tables", true);
+converter.setOption("strikethrough", true);
+converter.setOption("tasklists", true);
+var markdown = "# SQL lite database\n\n#### `projects`\n```sql\nid INTEGER PRIMARY KEY\nname TEXT NOT NULL\ndescription TEXT\ncreated_at DATETIME DEFAULT CURRENT_TIMESTAMP\nupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP\n```\n\n#### `groups`\n```sql\nid INTEGER PRIMARY KEY\nproject_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE\nname TEXT NOT NULL\ncreated_at DATETIME DEFAULT CURRENT_TIMESTAMP\n```\n\n#### `group_metadata`\n```sql\nid INTEGER PRIMARY KEY\ngroup_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE\nfield_name TEXT NOT NULL\nfield_value TEXT\nupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP\nUNIQUE(group_id, field_name)\n```\n\n#### `files`\n```sql\nid INTEGER PRIMARY KEY\nfile_path TEXT NOT NULL\nfile_name TEXT NOT NULL\ncreated_at DATETIME DEFAULT CURRENT_TIMESTAMP\nUNIQUE(file_path, file_name)\n```\n\n#### `project_files` (many-to-many)\n```sql\nproject_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE\nfile_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE\ngroup_id INTEGER REFERENCES groups(id) ON DELETE SET NULL\ncreated_at DATETIME DEFAULT CURRENT_TIMESTAMP\nPRIMARY KEY (project_id, file_id)\n```\n\n#### `file_metadata`\n```sql\nid INTEGER PRIMARY KEY\nfile_id INTEGER REFERENCES files(id) ON DELETE SET NULL\nfield_name TEXT NOT NULL\nfield_value TEXT\nupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP\nUNIQUE(file_id, field_name)\n```\n\n#### `analysis_results`\n```sql\nid INTEGER PRIMARY KEY\nfile_id INTEGER REFERENCES files(id) ON DELETE SET NULL\nmodule_name TEXT NOT NULL\nmodule_display_name TEXT\nmodule_description TEXT\nanalysis_timestamp BIGINT NOT NULL\nreport_path TEXT NOT NULL\nparameters_json TEXT\ncreated_at DATETIME DEFAULT CURRENT_TIMESTAMP\n```\n";
+var html = converter.makeHtml(markdown);
+document.getElementById("content").innerHTML = html;
+</script>
+</body></html>

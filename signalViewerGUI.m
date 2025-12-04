@@ -510,7 +510,9 @@ function signalViewerGUI(editMode)
     % Список пунктов Help меню
     help_functions = {'About Program', ...
         '', ...
-        'About Current File'};
+        'About Current File', ...
+        '', ...
+        'Help'};
     
     % Создание выпадающего списка
     help_menu = uicontrol('Style', 'listbox',...
@@ -1211,6 +1213,8 @@ function signalViewerGUI(editMode)
                 showAboutProgram();
             case help_functions{3} % 'About Current File'
                 showAboutCurrentFile();
+            case help_functions{5} % 'Help'
+                showHelp();
             case ''
                 dont_close_menu = true;
         end

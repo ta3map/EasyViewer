@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<script src="../functions/showdown.min.js"></script>
+<style>
+body { font-family: Arial, sans-serif; padding: 20px; line-height: 1.6; }
+h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+h2 { color: #34495e; margin-top: 30px; }
+h3 { color: #7f8c8d; }
+code { background-color: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: "Courier New", monospace; }
+pre { background-color: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+pre code { background-color: transparent; padding: 0; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+ul, ol { margin-left: 20px; }
+blockquote { border-left: 4px solid #3498db; padding-left: 15px; margin-left: 0; color: #7f8c8d; }
+table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+table th, table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+table th { background-color: #3498db; color: white; }
+</style>
+</head><body>
+<div id="content"></div>
+<script>
+var converter = new showdown.Converter();
+converter.setOption("tables", true);
+converter.setOption("strikethrough", true);
+converter.setOption("tasklists", true);
+var markdown = "# Quick Start Guide\r\n\r\nThis guide will help you get started with Easy Viewer quickly.\r\n\r\n## Opening Files\r\n\r\n### ZAV Format Files\r\nTo open a ZAV format file:\r\n1. Click **File** → **open ZAV(.mat) file**\r\n2. Select your `.mat` file\r\n3. The signal will be displayed automatically\r\n\r\n### Event Files\r\nTo load events:\r\n1. Click **File** → **open event (.ev) file**\r\n2. Select your `.ev` file\r\n3. Events will be loaded and displayed in the events table\r\n\r\n## Basic Navigation\r\n\r\n### Time Navigation\r\n- Use the **time slider** to navigate through the signal\r\n- Click **Previous** and **Next** buttons to move by time window\r\n- Use arrow keys (← →) for quick navigation\r\n\r\n### Zoom\r\n1. Click the **Zoom** button\r\n2. Click two points on the graph to define zoom area\r\n3. Click **Reset Zoom** to return to full view\r\n\r\n## Channel Settings\r\n\r\n### Enable/Disable Channels\r\n- Use the channel table to enable or disable specific channels\r\n- Click the checkbox in the **Enabled** column\r\n\r\n### Adjust Scaling\r\n- Modify the **Scale** value in the channel table\r\n- Higher values increase signal amplitude\r\n\r\n### Change Colors\r\n- Edit the **Color** field in the channel table\r\n- Use MATLAB color codes (e.g., 'r' for red, 'b' for blue)\r\n\r\n## Event Management\r\n\r\n### Adding Events\r\n- Press **Shift** and click on the graph to add an event\r\n- Or use **Add Event** button\r\n\r\n### Deleting Events\r\n- Enter event number in the delete field\r\n- Click **Delete Event** button\r\n- Or press **Delete** key\r\n\r\n### Saving Events\r\n- Click **Save Events** button\r\n- Events will be saved with metadata\r\n\r\n## Analysis Tools\r\n\r\n### Auto Event Detection\r\n1. Click **Analysis** → **Auto Event Detection**\r\n2. Configure detection parameters\r\n3. Click **Detect** to find events automatically\r\n\r\n### Mean Events\r\n1. Load events or stimuli\r\n2. Click **Mean Events** button\r\n3. Average trace will be calculated and displayed\r\n\r\n### CSD (Current Source Density)\r\n1. Enable CSD in channel settings\r\n2. Click **CSD** checkbox\r\n3. CSD map will be displayed\r\n\r\n## Tips\r\n\r\n- Use **File Manager** to organize and search your files\r\n- Save channel settings for quick reuse\r\n- Export figures using **File** → **save figure snapshot**\r\n\r\n## Keyboard Shortcuts\r\n\r\n- **←** / **→** : Navigate time\r\n- **Delete** : Delete selected event\r\n- **Ctrl + Click** : Add marker on graph\r\n- **Shift + Click** : Add event\r\n\r\n";
+var html = converter.makeHtml(markdown);
+document.getElementById("content").innerHTML = html;
+</script>
+</body></html>
