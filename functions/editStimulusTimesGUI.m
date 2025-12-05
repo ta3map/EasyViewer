@@ -9,6 +9,7 @@ function editStimulusTimesGUI()
     global event_comments event_amplitudes event_channels event_widths
     global event_prominences event_metadata events_exist
     global table_calling updatePlotFunc
+    global stims_exist
 
     % Check if stims exist
     % Identifier (tag) for GUI figure
@@ -227,8 +228,12 @@ function editStimulusTimesGUI()
         % Update global stims variable
         stims = newStimTimes(:); % Ensure column vector
         
-        % Sort stims to maintain order
+        % Remove duplicates and sort stims to maintain order
+        stims = unique(stims);
         [stims, ~] = sort(stims);
+        
+        % Update stims_exist flag
+        stims_exist = ~isempty(stims);
         
         % Save channel settings to preserve shifted stimulus times
         saveChannelSettingsFunc();
@@ -370,7 +375,8 @@ function editStimulusTimesGUI()
         end
         
         if isReplace
-            newStimsSorted = sort(newStims);
+            newStimsSorted = unique(newStims);
+            newStimsSorted = sort(newStimsSorted);
         else
             tableData = get(stimTable, 'Data');
             if isempty(tableData)

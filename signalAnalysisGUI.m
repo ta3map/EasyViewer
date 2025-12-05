@@ -4513,6 +4513,9 @@ updateCursorEditFields();
             end
         end
         
+        % Очистка памяти - очищаем все глобальные переменные
+        clear global
+        
         % Не сохраняем положение окна - всегда используем базовое из JSON
         delete(src);
     end

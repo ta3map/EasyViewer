@@ -2159,6 +2159,30 @@ function loadSettingsFile()
     end
 end
 
+    % Функция создания нового файла настроек
+    function createNewSettingsFile()
+        [path, name, ~] = fileparts(matFilePath);
+        channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
+        
+        if exist(channelSettingsFilePath, 'file')
+            delete(channelSettingsFilePath);
+            debugState('createNewSettingsFile', 'Deleted old settings file');
+        end
+        
+        setStandardChannelSettings();
+        
+        csd_smooth_coef = 5;
+        csd_contrast_coef = 99.99;
+        
+        saveChannelSettings();
+        
+        updateTableFunc();
+        updateLocalCoefsFunc();
+        updateChannelSelection();
+        updatePlotFunc();
+        
+        debugState('createNewSettingsFile', 'Created new settings file');
+    end
 
     % Функция загрузки настроек каналов
     function loadChannelSettings()
@@ -2220,8 +2244,8 @@ end
                     debugState('resetRecordSettings', 'Settings file deleted.');
                 end
                 
-                % Переоткрываем файл - это загрузит настройки по умолчанию
-                loadMatFile(matFilePath);
+                % Создаем новый файл настроек с настройками по умолчанию
+                createNewSettingsFile();
                 
                 debugState('resetRecordSettings', 'Channel settings have been reset to default values.');
                 

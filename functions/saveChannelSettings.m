@@ -6,7 +6,7 @@ function saveChannelSettings(varargin)
     global matFilePath newFs shiftCoeff time_forward time_back
     global channelNames channelEnabled scalingCoefficients colorsIn lineCoefficients
     global mean_group_ch csd_avaliable filter_avaliable baseline_subtract_available filterSettings
-    global stims EV_version csd_smooth_coef csd_contrast_coef channelSettings
+    global stims EV_version csd_smooth_coef csd_contrast_coef
     
     if exist(matFilePath, 'file') ~= 2
         return;
@@ -18,7 +18,6 @@ function saveChannelSettings(varargin)
     varsToSave = varargin;
     if isempty(varsToSave)
         varsToSave = {
-            'channelSettings'
             'newFs'
             'shiftCoeff'
             'time_forward'
