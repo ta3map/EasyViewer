@@ -272,19 +272,12 @@ function signalViewerGUI(editMode)
            'Tag', figTag, ...
            'KeyPressFcn', @keyPressFunction);
     
-    % Используем базовое положение из JSON файла
-    figure_position = coordsData.base_figure_position;
-    f.Position = figure_position;
+    % Сохраняем загруженный размер окна из настроек до перезаписи
+    saved_figure_position = figure_position;
     
-    % Применяем начальное масштабирование элементов сразу после создания окна
-    try
-        coordsFile = fullfile(fileparts(mfilename('fullpath')), 'signalViewerGUI_coords.json');
-        if exist(coordsFile, 'file')
-            ResizeElements(f, coordsFile, figure_position);
-        end
-    catch ME
-        warning('Error during initial element scaling: %s', ME.message);
-    end
+    % Используем базовое положение из JSON файла для начального построения
+    base_figure_position = coordsData.base_figure_position;
+    f.Position = base_figure_position;
     
     mainPanel = uipanel('Parent', f, 'Position', getElementPosition('main_panel'), 'Tag', 'main_panel');
     multiax_position_a = getElementPosition('multiax_position_a');
@@ -640,6 +633,20 @@ function signalViewerGUI(editMode)
     f.WindowButtonDownFcn = @(src, event)ButtonDownFcn(multiax, f);
     f.WindowButtonMotionFcn = @(src, event)ButtonMotionFcn(multiax, f);
     f.WindowButtonUpFcn = @(src, event)ButtonUpFcn(multiax, f);
+    
+    % Восстанавливаем размер окна из глобальных настроек после создания всех элементов
+    % Это вызовет автоматическое масштабирование через SizeChangedFcn
+    if ~isempty(saved_figure_position) && isnumeric(saved_figure_position) && ...
+       length(saved_figure_position) == 4 && length(base_figure_position) == 4
+        if any(saved_figure_position ~= base_figure_position)
+            figure_position = saved_figure_position;
+            f.Position = figure_position;
+        else
+            figure_position = base_figure_position;
+        end
+    else
+        figure_position = base_figure_position;
+    end
     
     function ButtonDownFcn(ax, fig)
         if zoomState.await_points
@@ -1285,14 +1292,24 @@ function signalViewerGUI(editMode)
 
     function resizeComponents(~, ~)
         try
-            % сбрасываем изменения боковой панели
-            showSidePanel();
+            % Применяем текущее состояние боковой панели без изменения настройки
+            if side_panel_visible
+                set(sidePanel, 'Visible', 'on');
+                set(multiax,'Position', multiax_position_a);
+            else
+                set(sidePanel, 'Visible', 'off');
+                set(multiax,'Position', multiax_position_b);
+            end
             
             % Путь к файлу координат
             coordsFile = fullfile(fileparts(mfilename('fullpath')), 'signalViewerGUI_coords.json');
             
-            % Используем figure_position для правильного вычисления коэффициентов масштабирования
-            ResizeElements(f, coordsFile, figure_position);
+            % Загружаем базовый размер из JSON для правильного вычисления коэффициентов масштабирования
+            if exist(coordsFile, 'file')
+                coordsData = jsondecode(fileread(coordsFile));
+                base_figure_position = coordsData.base_figure_position;
+                ResizeElements(f, coordsFile, base_figure_position);
+            end
         catch ME
             warning('Error scaling elements: %s', ME.message);
         end
