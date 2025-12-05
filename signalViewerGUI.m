@@ -399,11 +399,16 @@ function signalViewerGUI(editMode)
     % Добавление выпадающего списка для выбора режима просмотра
     timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', {'time', 'stimulus', 'event', 'sweep'}, 'Position', getElementPosition('time_center_popup'), 'Callback', @changeTimeCenter, 'Tag', 'time_center_popup');
 
+    % Путь к папке с иконками
+    assetsPath = fullfile(fileparts(mfilename('fullpath')), 'assets');
+    
     % Кнопка для загрузки .mat файла
     LoadMatFileBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Load .mat File', 'Position', getElementPosition('load_mat_file_btn'), 'Callback', @OpenZavLfpFile, 'Tag', 'load_mat_file_btn');
+    btnIcon(LoadMatFileBtn, fullfile(assetsPath, 'load_mat_file_btn.png'), false);
     
     % Кнопка для менеджера файлов
     FMbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'File Manager', 'Position', getElementPosition('fm_button'), 'Callback', @fileManagerBtnClb, 'Tag', 'fm_button');
+    btnIcon(FMbutton, fullfile(assetsPath, 'fm_button.png'), false);
     
     % Поля для выбора временного окна
     TimeWindowText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', ['Time Window, ' selectedUnit ':'] , 'Position', getElementPosition('time_window_text'), 'Tag', 'time_window_text');
@@ -422,7 +427,10 @@ function signalViewerGUI(editMode)
     
     % Кнопки для навигации по времени
     previousbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Previous', 'Position', getElementPosition('previous_button'), 'Callback', {@shiftTime, -1, timeForwardEdit}, 'Tag', 'previous_button');
+    btnIcon(previousbutton, fullfile(assetsPath, 'previous_button.png'), false);
+    
     nextbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Next', 'Position', getElementPosition('next_button'), 'Callback', {@shiftTime, 1, timeForwardEdit}, 'Tag', 'next_button');
+    btnIcon(nextbutton, fullfile(assetsPath, 'next_button.png'), false);
 
     % Окошко для выбора размера shiftCoeff
     shiftCoefText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'Ch. Shift:', 'Position', getElementPosition('shift_coef_text'), 'Tag', 'shift_coef_text');
@@ -497,7 +505,13 @@ function signalViewerGUI(editMode)
         '', ...
         'Lines and styles', ...
         '', ...
-        'CSD displaying'};
+        'CSD displaying', ...
+        '', ...
+        'Built-in Zoom', ...
+        '', ...
+        'Built-in Pan', ...
+        '', ...
+        'Data Cursor'};
           
     % Создание выпадающего списка
     view_menu = uicontrol('Style', 'listbox',...
@@ -561,12 +575,45 @@ function signalViewerGUI(editMode)
         'Position', getElementPosition('help_btn'),...
         'Callback', @showHelpMenu, 'Tag', 'help_btn');
 
+    panButton = uicontrol('Style', 'pushbutton', 'String', 'Pan', ...
+        'Visible', 'on', ...
+        'Parent', f, ...
+        'Position', getElementPosition('pan_btn'), ...
+        'Callback', @panButtonCallback, ...
+        'Tag', 'pan_btn');
+    btnIcon(panButton, fullfile(assetsPath, 'pan_btn.png'), false);
+    
+    cursorButton = uicontrol('Style', 'pushbutton', 'String', 'Cursor', ...
+        'Visible', 'on', ...
+        'Parent', f, ...
+        'Position', getElementPosition('cursor_btn'), ...
+        'Callback', @cursorButtonCallback, ...
+        'Tag', 'cursor_btn');
+    btnIcon(cursorButton, fullfile(assetsPath, 'cursor_btn.png'), false);
+    
     zoomButton = uicontrol('Style', 'pushbutton', 'String', 'Zoom', ...
         'Visible', 'on', ...
         'Parent', f, ...
         'Position', getElementPosition('zoom_btn'), ...
         'Callback', @zoomButtonCallback, ...
         'Tag', 'zoom_btn');
+    btnIcon(zoomButton, fullfile(assetsPath, 'zoom_btn.png'), false);
+    
+    brushButton = uicontrol('Style', 'pushbutton', 'String', 'Brush', ...
+        'Visible', 'on', ...
+        'Parent', f, ...
+        'Position', getElementPosition('brush_btn'), ...
+        'Callback', @brushButtonCallback, ...
+        'Tag', 'brush_btn');
+    btnIcon(brushButton, fullfile(assetsPath, 'brush_btn.png'), false);
+    
+    homeButton = uicontrol('Style', 'pushbutton', 'String', 'Home', ...
+        'Visible', 'on', ...
+        'Parent', f, ...
+        'Position', getElementPosition('home_btn'), ...
+        'Callback', @homeButtonCallback, ...
+        'Tag', 'home_btn');
+    btnIcon(homeButton, fullfile(assetsPath, 'home_btn.png'), false);
 
                 % Конец выпадающих меню
     %%
@@ -817,14 +864,57 @@ function signalViewerGUI(editMode)
     end
 
     function zoomButtonCallback(src, ~)
-        if zoomState.has_zoom || zoomState.await_points
-            resetZoom();
-            updatePlot();
-            return;
-        end
-        zoomState.await_points = true;
-        zoomState.points = zeros(0, 2);
-        set(f, 'Pointer', 'crosshair');
+        % Активация встроенного zoom
+        resetZoom(); % Сбрасываем кастомный zoom если был активен
+        pan(f, 'off'); % Отключаем другие инструменты
+        datacursormode(f, 'off');
+        brush(f, 'off');
+        zoom(f, 'on');
+        zoom(multiax, 'on');
+        debugState('zoomButtonCallback', 'Built-in zoom activated');
+    end
+
+    function panButtonCallback(src, ~)
+        % Активация встроенного pan
+        resetZoom(); % Сбрасываем кастомный zoom если был активен
+        zoom(f, 'off'); % Отключаем другие инструменты
+        datacursormode(f, 'off');
+        brush(f, 'off');
+        pan(f, 'on');
+        pan(multiax, 'on');
+        debugState('panButtonCallback', 'Built-in pan activated');
+    end
+
+    function cursorButtonCallback(src, ~)
+        % Активация встроенного data cursor
+        resetZoom(); % Сбрасываем кастомный zoom если был активен
+        zoom(f, 'off'); % Отключаем другие инструменты
+        pan(f, 'off');
+        brush(f, 'off');
+        datacursormode(f, 'on');
+        debugState('cursorButtonCallback', 'Data cursor activated');
+    end
+
+    function homeButtonCallback(src, ~)
+        % Сброс всех инструментов и восстановление исходного вида графика
+        resetZoom(); % Сбрасываем кастомный zoom
+        zoom(f, 'off'); % Отключаем все встроенные инструменты
+        pan(f, 'off');
+        datacursormode(f, 'off');
+        brush(f, 'off');
+        updatePlot(); % Восстанавливаем исходные границы осей
+        debugState('homeButtonCallback', 'All tools reset, view restored');
+    end
+
+    function brushButtonCallback(src, ~)
+        % Активация встроенного brush
+        resetZoom(); % Сбрасываем кастомный zoom если был активен
+        zoom(f, 'off'); % Отключаем другие инструменты
+        pan(f, 'off');
+        datacursormode(f, 'off');
+        brush(f, 'on');
+        brush(multiax, 'on');
+        debugState('brushButtonCallback', 'Built-in brush activated');
     end
     
     % Функция для добавления маркера
@@ -1070,6 +1160,12 @@ function signalViewerGUI(editMode)
                 % вызов функции для CSD ...
                 CSDfigSettings();
                 updateTable();
+            case view_functions{11}%'Built-in Zoom'
+                activateBuiltInZoom();
+            case view_functions{13}%'Built-in Pan'
+                activateBuiltInPan();
+            case view_functions{15}%'Data Cursor'
+                activateDataCursor();
             case ''
             dont_close_menu = true;
         end
@@ -1169,6 +1265,38 @@ function signalViewerGUI(editMode)
         stimShowFlag = ~stimShowFlag;
         
         updatePlot()
+    end
+
+    function activateBuiltInZoom()
+        % Активация встроенного инструмента zoom для multiax через меню
+        resetZoom();
+        pan(f, 'off');
+        datacursormode(f, 'off');
+        brush(f, 'off');
+        zoom(f, 'on');
+        zoom(multiax, 'on');
+        debugState('activateBuiltInZoom', 'Built-in zoom activated');
+    end
+
+    function activateBuiltInPan()
+        % Активация встроенного инструмента pan для multiax через меню
+        resetZoom();
+        zoom(f, 'off');
+        datacursormode(f, 'off');
+        brush(f, 'off');
+        pan(f, 'on');
+        pan(multiax, 'on');
+        debugState('activateBuiltInPan', 'Built-in pan activated');
+    end
+
+    function activateDataCursor()
+        % Активация встроенного инструмента data cursor для multiax через меню
+        resetZoom();
+        zoom(f, 'off');
+        pan(f, 'off');
+        brush(f, 'off');
+        datacursormode(f, 'on');
+        debugState('activateDataCursor', 'Data cursor activated');
     end
 
     function showSidePanel()
