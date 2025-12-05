@@ -34,6 +34,7 @@ function signalViewerGUI(editMode)
     global stimShowFlag 
     global lines_and_styles
     global auto_open_last_file
+    global side_panel_visible
     global keyboardpressed previousKey
     global plot_updating loading_text_handle % флаг обновления графика и handle текста
     global ica_flag pca_flag
@@ -293,15 +294,28 @@ function signalViewerGUI(editMode)
     
     sidePanel = uipanel('Parent', f, 'Position', getElementPosition('side_panel'), 'Tag', 'side_panel');
     
-    % боковая панель видна по умолчанию (или согласно сохраненным настройкам)
-    if ~exist('side_panel_visible', 'var') || isempty(side_panel_visible)
-        side_panel_visible = true; % fallback на случай если настройки старые
+    % Используем значение из глобальных настроек (загружено через loadGlobalSettings)
+    if isempty(side_panel_visible)
+        side_panel_visible = true; % fallback на случай если настройки не загрузились
     end
     
     if side_panel_visible
         set(sidePanel, 'Visible', 'on');
     else
         set(sidePanel, 'Visible', 'off');
+    end
+    
+    % Кнопка переключения видимости боковой панели
+    sidePanelToggleBtn = uicontrol('Parent', f, 'Style', 'pushbutton', ...
+        'Position', getElementPosition('side_panel_toggle_btn'), ...
+        'Callback', @toggleSidePanelCallback, ...
+        'Tag', 'side_panel_toggle_btn');
+    
+    % Устанавливаем начальный текст кнопки
+    if side_panel_visible
+        set(sidePanelToggleBtn, 'String', '×');
+    else
+        set(sidePanelToggleBtn, 'String', '□');
     end
  
     % Подготовка данных для таблицы каналов
@@ -393,7 +407,7 @@ function signalViewerGUI(editMode)
     timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', {'time', 'stimulus', 'event', 'sweep'}, 'Position', getElementPosition('time_center_popup'), 'Callback', @changeTimeCenter, 'Tag', 'time_center_popup');
 
     % Кнопка для загрузки .mat файла
-    LoadMatFileBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Load .mat File (ZAV/Heka)', 'Position', getElementPosition('load_mat_file_btn'), 'Callback', @OpenZavLfpFile, 'Tag', 'load_mat_file_btn');
+    LoadMatFileBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Load .mat File', 'Position', getElementPosition('load_mat_file_btn'), 'Callback', @OpenZavLfpFile, 'Tag', 'load_mat_file_btn');
     
     % Кнопка для менеджера файлов
     FMbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'File Manager', 'Position', getElementPosition('fm_button'), 'Callback', @fileManagerBtnClb, 'Tag', 'fm_button');
@@ -1116,8 +1130,21 @@ function signalViewerGUI(editMode)
             
         side_panel_visible = ~side_panel_visible;
         
+        % Обновляем текст кнопки переключения
+        if exist('sidePanelToggleBtn', 'var') && isvalid(sidePanelToggleBtn)
+            if side_panel_visible
+                set(sidePanelToggleBtn, 'String', '×');
+            else
+                set(sidePanelToggleBtn, 'String', '□');
+            end
+        end
+        
         % Сохраняем состояние в общие настройки
         save(SettingsFilepath, 'side_panel_visible', '-append');
+    end
+    
+    function toggleSidePanelCallback(~, ~)
+        showHideSidePanel();
     end
 
     function showHideStimulus()
@@ -1148,6 +1175,11 @@ function signalViewerGUI(editMode)
             set(view_menu, 'String', view_functions);
 
             side_panel_visible = true;
+            
+            % Обновляем текст кнопки переключения
+            if exist('sidePanelToggleBtn', 'var') && isvalid(sidePanelToggleBtn)
+                set(sidePanelToggleBtn, 'String', '×');
+            end
         end
     end
 
