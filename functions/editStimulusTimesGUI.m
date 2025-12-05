@@ -9,7 +9,7 @@ function editStimulusTimesGUI()
     global event_comments event_amplitudes event_channels event_widths
     global event_prominences event_metadata events_exist
     global table_calling updatePlotFunc
-    global stims_exist
+    global stims_exist StimuliTitle
 
     % Check if stims exist
     % Identifier (tag) for GUI figure
@@ -234,6 +234,15 @@ function editStimulusTimesGUI()
         
         % Update stims_exist flag
         stims_exist = ~isempty(stims);
+        
+        % Update stimuli title
+        if exist('StimuliTitle', 'var') && isvalid(StimuliTitle)
+            if stims_exist
+                set(StimuliTitle, 'String', ['Stimuli: ', num2str(numel(stims))]);
+            else
+                set(StimuliTitle, 'String', 'Stimuli');
+            end
+        end
         
         % Save channel settings to preserve shifted stimulus times
         saveChannelSettingsFunc();

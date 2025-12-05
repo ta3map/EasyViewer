@@ -29,7 +29,7 @@ function signalViewerGUI(editMode)
     global autodetection_settings
     global lfpVar windowSize
     global timeCenterPopup
-    global event_title_string evfilename eventDeleteEdit
+    global event_title_string evfilename eventDeleteEdit StimuliTitle
     global art_rem_window_ms
     global stimShowFlag 
     global lines_and_styles
@@ -89,8 +89,7 @@ function signalViewerGUI(editMode)
             
             % Проверяем, не является ли элемент осью или панелью - для них оставляем относительные координаты
             if ~strcmp(tag, 'main_axes') && ~strcmp(tag, 'multiax') && ...
-               ~strcmp(tag, 'main_panel') && ~strcmp(tag, 'side_panel') && ~strcmp(tag, 'event_panel') && ...
-               ~strcmp(tag, 'stimulus_panel')
+               ~strcmp(tag, 'main_panel') && ~strcmp(tag, 'side_panel')
                 % Преобразуем относительные координаты в абсолютные на основе base_figure_position
                 base_pos = coordsData.base_figure_position;
                 pos = [
@@ -331,13 +330,8 @@ function signalViewerGUI(editMode)
     toggleCSDBtn = uicontrol('Parent', sidePanel, 'Style', 'togglebutton', 'String', '(De)select CSD', 'Position', getElementPosition('toggle_csd_btn'), 'Callback', @(src,evt)toggleChannelProperty(src, evt, 7), 'Tag', 'toggle_csd_btn');
     toggleBaselineBtn = uicontrol('Parent', sidePanel, 'Style', 'togglebutton', 'String', '(De)select Baseline', 'Position', getElementPosition('toggle_baseline_btn'), 'Callback', @(src,evt)toggleChannelProperty(src, evt, 9), 'Tag', 'toggle_baseline_btn');
     
-    % Панель событий                   
-    event_panel_position_a = [.72 .01 .27 .31];
-    eventPanel = uipanel('Parent', f, 'Position', getElementPosition('event_panel'), 'Tag', 'event_panel');
-    
-    % Панель стимулов
-    stimulusPanel = uipanel('Parent', f, 'Position', getElementPosition('stimulus_panel'), 'Tag', 'stimulus_panel');
-    editStimulusTimesBtn = uicontrol('Parent', stimulusPanel, 'Style', 'pushbutton', 'String', 'Edit stimulus times', 'Position', getElementPosition('edit_stimulus_times_btn'), 'Callback', @(~,~)editStimulusTimesGUI(), 'Tag', 'edit_stimulus_times_btn');
+    % Кнопка Edit Stimulus times
+    editStimulusTimesBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Edit', 'Position', getElementPosition('edit_stimulus_times_btn'), 'Callback', @(~,~)editStimulusTimesGUI(), 'Tag', 'edit_stimulus_times_btn');
     
     set(f, 'SizeChangedFcn', @resizeComponents);
     % Сохраняем настройки после изменения размера окна
@@ -349,10 +343,41 @@ function signalViewerGUI(editMode)
     set(multiax, 'Visible', 'off')
     text(multiax, 0.5, 0.5, 'Open MAT or EV file', 'color', 'r', 'horizontalalignment', 'center')
     
+    % Заголовок секции каналов
+    ChannelsTitle = uicontrol('Parent', sidePanel, 'Style', 'text', 'String', 'Channels', ...
+              'Position', getElementPosition('channels_title'), ...
+              'HorizontalAlignment', 'left', ...
+              'FontSize', 11, ...
+              'FontWeight', 'bold', 'Tag', 'channels_title');
+    
+    % Разделитель 1 (между каналами и стимулами)
+    separator1 = uicontrol('Parent', sidePanel, 'Style', 'text', ...
+              'Position', getElementPosition('separator_1'), ...
+              'String', '────── Stimuli ──────', ...
+              'HorizontalAlignment', 'center', ...
+              'FontWeight', 'bold', ...
+              'Tag', 'separator_1');
+    
+    % Заголовок секции стимулов
+    StimuliTitle = uicontrol('Parent', sidePanel, 'Style', 'text', 'String', 'Stimuli', ...
+              'Position', getElementPosition('stimuli_title'), ...
+              'HorizontalAlignment', 'left', ...
+              'FontSize', 11, ...
+              'FontWeight', 'bold', 'Tag', 'stimuli_title');
+    
+    % Разделитель 2 (между стимулами и событиями)
+    separator2 = uicontrol('Parent', sidePanel, 'Style', 'text', ...
+              'Position', getElementPosition('separator_2'), ...
+              'String', '────── Events ──────', ...
+              'HorizontalAlignment', 'center', ...
+              'FontWeight', 'bold', ...
+              'Tag', 'separator_2');
+    
     % Добавление текстовой метки как заголовка к sidePanel
-    EventsTableTitle = uicontrol('Parent', eventPanel, 'Style', 'text', 'String', event_title_string, ...
+    EventsTableTitle = uicontrol('Parent', sidePanel, 'Style', 'text', 'String', event_title_string, ...
               'Position', getElementPosition('events_table_title'), ...
               'HorizontalAlignment', 'left', ...
+              'FontSize', 11, ...
               'FontWeight', 'bold', 'Tag', 'events_table_title'); % Жирный шрифт для заголовка
       
     % Добавление слайдера для времени
@@ -413,9 +438,9 @@ function signalViewerGUI(editMode)
         '', ...
         'PCA', ...
         '', ... % 'ICA', ... % в разработке
-        'Data operations', ...
+        'Data Operations', ...
         '', ...
-        'compare average data'};
+        'Compare average data'};
     
     % Создание выпадающего списка
     analysis_menu = uicontrol('Style', 'listbox',...
@@ -430,19 +455,19 @@ function signalViewerGUI(editMode)
         'Callback', @showAnalysisMenu, 'Tag', 'analysis_btn');       
     
     % Список действий
-    file_functions = {'open ZAV(.mat) file', ...
+    file_functions = {'Open ZAV(.mat) file', ...
         '', ...
-        'open event (.ev) file',...
+        'Open event (.ev) file',...
         '', ...
-        'save ZAV(.mat) file', ...
+        'Save ZAV(.mat) file', ...
         '', ...
-        'file manager', ...
+        'File manager', ...
         '', ...
-        'open figure', ...
+        'Open figure', ...
         '', ...
         'Import', ...
         '', ...
-        'save figure snapshot'};
+        'Save figure snapshot'};
         
     % Создание выпадающего списка
     file_menu = uicontrol('Style', 'listbox',...
@@ -457,13 +482,13 @@ function signalViewerGUI(editMode)
         'Position', getElementPosition('file_btn'),...
         'Callback', @showFileMenu, 'Tag', 'file_btn');
                 
-    view_functions = {'close all windows', ...
+    view_functions = {'Close all windows', ...
         '', ...
-        'hide Channel Settings', ...
+        'Hide Channel Settings', ...
         '', ...
-        'hide stimulus', ...
+        'Hide stimulus', ...
         '', ...
-        'lines and styles', ...
+        'Lines and styles', ...
         '', ...
         'CSD displaying'};
           
@@ -540,7 +565,7 @@ function signalViewerGUI(editMode)
     %%
     % Таблица для отображения событий с расширенными колонками
     event_table_data = [num2cell([]), num2cell([]), num2cell([]), num2cell([]), num2cell([])];    
-    eventTable = uitable('Parent', eventPanel, ...
+    eventTable = uitable('Parent', sidePanel, ...
                      'Position', getElementPosition('event_table'), ...
                      'ColumnName', {'Time', 'Comment', 'Amplitude', 'Channel', 'Source'}, ...
                      'ColumnFormat', {'bank', 'char', 'bank', 'numeric', 'char'}, ... % Формат для отображения чисел
@@ -549,44 +574,43 @@ function signalViewerGUI(editMode)
                      'CellSelectionCallback', @eventTableSelectionChanged);
                  
     % Автоматический детектор событий
-    AutoEventDetectionBtn = uicontrol('Parent', eventPanel,'Style', 'pushbutton', 'String', 'Autodetection',...
+    AutoEventDetectionBtn = uicontrol('Parent', sidePanel,'Style', 'pushbutton', 'String', 'Detect',...
         'Position', getElementPosition('auto_event_detection_btn'), 'Callback', @openAutoEventDetectionWindow, 'Tag', 'auto_event_detection_btn');
     
-    EditEventsBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Edit Events', ...
+    EditEventsBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Edit', ...
         'Position', getElementPosition('edit_events_btn'), 'Callback', @(~,~)editEventsGUI(), 'Tag', 'edit_events_btn');
     
     % Кнопки и поля для управления событиями    
-    DeleteEventBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Delete Event', 'Position', getElementPosition('delete_event_btn'), 'Callback', @deleteEvent, 'Tag', 'delete_event_btn');
-    eventDeleteEdit = uicontrol('Parent', eventPanel, 'Style', 'edit', 'Position', getElementPosition('event_delete_edit'), 'Callback', @eventEdited, 'Tag', 'event_delete_edit');
+    DeleteEventBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Delete', 'Position', getElementPosition('delete_event_btn'), 'Callback', @deleteEvent, 'Tag', 'delete_event_btn');
+    eventDeleteEdit = uicontrol('Parent', sidePanel, 'Style', 'edit', 'Position', getElementPosition('event_delete_edit'), 'Callback', @eventEdited, 'Tag', 'event_delete_edit');
 
     % Clear Table
-    clearTableBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Clear Table', 'Position', getElementPosition('clear_table_btn'), 'Callback', @clearTable, 'Tag', 'clear_table_btn');
+    clearTableBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Clear', 'Position', getElementPosition('clear_table_btn'), 'Callback', @clearTable, 'Tag', 'clear_table_btn');
     
     % Add event
-    eventAdd = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Add Event', 'Position', getElementPosition('event_add'), 'Callback', @addEvent, 'Tag', 'event_add');
+    eventAdd = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Add', 'Position', getElementPosition('event_add'), 'Callback', @addEvent, 'Tag', 'event_add');
 
     % Кнопка для сохранения событий
-    saveEventsBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Save Events', 'Position', getElementPosition('save_events_btn'), 'Callback', @saveEvents, 'Tag', 'save_events_btn');
+    saveEventsBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Save', 'Position', getElementPosition('save_events_btn'), 'Callback', @saveEvents, 'Tag', 'save_events_btn');
 
     % Кнопка для загрузки событий
-    loadEventsBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Load Events', 'Position', getElementPosition('load_events_btn'), 'Callback', @loadEvents, 'Tag', 'load_events_btn');
+    loadEventsBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Load', 'Position', getElementPosition('load_events_btn'), 'Callback', @loadEvents, 'Tag', 'load_events_btn');
 
     % Кнопка и окно ввода для 'Mean Events'
-    MeanEventsBtn = uicontrol('Parent', eventPanel, 'Style', 'pushbutton', 'String', 'Mean Events', 'Position', getElementPosition('mean_events_btn'), 'Callback', @meanEventsCallback, 'Tag', 'mean_events_btn');
-    meanEventsWindowText = uicontrol('Parent', eventPanel, 'Style', 'text', 'String', 'Window(+/-, s):', 'Position', getElementPosition('mean_events_window_text'), 'visible', 'off', 'Tag', 'mean_events_window_text');
-    meanEventsWindowEdit = uicontrol('Parent', eventPanel, 'Style', 'edit', 'String', '1', 'Position', getElementPosition('mean_events_window_edit'), 'visible', 'off', 'Tag', 'mean_events_window_edit'); % Окно ввода временного окна (скрыл)
+    MeanEventsBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', 'String', 'Mean', 'Position', getElementPosition('mean_events_btn'), 'Callback', @meanEventsCallback, 'Tag', 'mean_events_btn');
+    meanEventsWindowText = uicontrol('Parent', sidePanel, 'Style', 'text', 'String', 'Window(+/-, s):', 'Position', getElementPosition('mean_events_window_text'), 'visible', 'off', 'Tag', 'mean_events_window_text');
+    meanEventsWindowEdit = uicontrol('Parent', sidePanel, 'Style', 'edit', 'String', '1', 'Position', getElementPosition('mean_events_window_edit'), 'visible', 'off', 'Tag', 'mean_events_window_edit'); % Окно ввода временного окна (скрыл)
     
     % Применяем полное состояние боковой панели после создания всех элементов
     if ~side_panel_visible
         set(multiax,'Position', multiax_position_b);
-        resizeUIControls(eventPanel, 1, 0.5);
     end
     
     % Обновляем текст в меню View в соответствии с состоянием
     if side_panel_visible
-        view_functions{3} = 'hide Channel Settings';
+        view_functions{3} = 'Hide Channel Settings';
     else
-        view_functions{3} = 'view Channel Settings';
+        view_functions{3} = 'View Channel Settings';
     end
     set(view_menu, 'String', view_functions);
     
@@ -594,7 +618,7 @@ function signalViewerGUI(editMode)
     set(OptBtn, 'Enable', 'off');
     set(viewBtn, 'Enable', 'off');
     set(analysisBtn, 'Enable', 'off');
-    setUIControlsEnable({eventPanel, sidePanel, mainPanel} , 'off')    
+    setUIControlsEnable({sidePanel, mainPanel} , 'off')    
     set(LoadMatFileBtn, 'Enable', 'on');
     set(FMbutton, 'Enable', 'on');
     set(loadEventsBtn, 'Enable', 'on');
@@ -1079,14 +1103,12 @@ function signalViewerGUI(editMode)
             debugState('showHideSidePanel', 'Hiding Side Panel')
             set(sidePanel, 'Visible', 'off');
             set(multiax,'Position', multiax_position_b);
-            str_out = 'view Channel Settings';
-            resizeUIControls(eventPanel, 1, 0.5);
+            str_out = 'View Channel Settings';
         else
             debugState('showHideSidePanel', 'Showing Side Panel')
             set(sidePanel, 'Visible', 'on');            
             set(multiax,'Position', multiax_position_a);
-            str_out = 'hide Channel Settings';
-            resizeUIControls(eventPanel, 1, 1/0.5);
+            str_out = 'Hide Channel Settings';
         end
         
         view_functions{3} = str_out;
@@ -1102,10 +1124,10 @@ function signalViewerGUI(editMode)
         
         if stimShowFlag
             debugState('showHideStimulus', 'Hiding Stimulus')
-            str_out = 'show stimulus';
+            str_out = 'Show stimulus';
         else
             debugState('showHideStimulus', 'Showing Stimulus')
-            str_out = 'hide stimulus';
+            str_out = 'Hide stimulus';
         end
         
         view_functions{5} = str_out;
@@ -1120,12 +1142,11 @@ function signalViewerGUI(editMode)
             debugState('showSidePanel', 'Showing Side Panel')
             set(sidePanel, 'Visible', 'on');            
             set(multiax,'Position', multiax_position_a);
-            str_out = 'hide Channel Settings';
+            str_out = 'Hide Channel Settings';
 
             view_functions{3} = str_out;
             set(view_menu, 'String', view_functions);
 
-            resizeUIControls(eventPanel, 1, 1/0.5);
             side_panel_visible = true;
         end
     end
@@ -1817,6 +1838,13 @@ function signalViewerGUI(editMode)
         sweep_inx = 1;
         debugState('loadMatFile', 'stims_exist=%d', stims_exist);
         
+        % Обновляем заголовок стимулов
+        if stims_exist
+            set(StimuliTitle, 'String', ['Stimuli: ', num2str(numel(stims))]);
+        else
+            set(StimuliTitle, 'String', 'Stimuli');
+        end
+        
         % Устанавливаем временные параметры
         shiftCoeff = 200;
         
@@ -1978,7 +2006,7 @@ function signalViewerGUI(editMode)
         % Включаем все элементы управления если файл загрузился в первый
         % раз
         if ~data_loaded
-            setUIControlsEnable({eventPanel, sidePanel, mainPanel} , 'on')
+            setUIControlsEnable({sidePanel, mainPanel} , 'on')
             data_loaded = true;
         end
         
@@ -2126,6 +2154,13 @@ function loadSettingsFile()
             stims_exist = ~isempty(stims);
             stims_loaded_from_settings = true;
             debugState('loadSettingsFile', 'Loaded shifted stimulus times from settings');
+            
+            % Обновляем заголовок стимулов
+            if stims_exist
+                set(StimuliTitle, 'String', ['Stimuli: ', num2str(numel(stims))]);
+            else
+                set(StimuliTitle, 'String', 'Stimuli');
+            end
         end
         
         % Правильно устанавливаем chosen_time_interval в зависимости от режима

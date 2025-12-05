@@ -854,6 +854,26 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
         time_res = time_res(timeIndices);
     end
     
+    % Проверка на пустой Trace_out
+    if isempty(Trace_out) || numel(Trace_out) == 0
+        if ~isempty(wb) && isvalid(wb)
+            delete(wb);
+        end
+        
+        errorMsg = sprintf(['Error: No data available for event detection.\n\n' ...
+            'Possible causes:\n' ...
+            '1. Time range (Use time range) contains no data\n' ...
+            '2. Selected channels contain no data\n' ...
+            '3. Data filtering resulted in empty result\n\n' ...
+            'Recommendations:\n' ...
+            '- Check time range settings\n' ...
+            '- Ensure selected channels exist\n' ...
+            '- Disable filters or time range and try again']);
+        
+        uiwait(msgbox(errorMsg, 'Event Detection Error', 'error', 'modal'));
+        error('Trace_out is empty - no data available for detection');
+    end
+    
     waitbar(0.6, wb, 'Preparing detection...');
     
     if detect
@@ -922,6 +942,11 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
                 % Выделяем участок сигнала
                 Trace_out_window = Trace_out(window_mask);
                 time_res_window = time_res(window_mask);
+                
+                % Пропускаем окно, если данных нет
+                if isempty(Trace_out_window) || numel(Trace_out_window) == 0
+                    continue;
+                end
                 
                 % Вычитание базовой линии, если включено
                 if SubtractBaseline
@@ -1013,6 +1038,27 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
         else
             % Детекция по всему сигналу (как раньше)
             waitbar(0.7, wb, 'Detecting peaks in full signal...');
+            
+            % Проверка на пустой Trace_out перед вызовом findpeaks
+            if isempty(Trace_out) || numel(Trace_out) == 0
+                if ~isempty(wb) && isvalid(wb)
+                    delete(wb);
+                end
+                
+                errorMsg = sprintf(['Ошибка: Нет данных для детекции событий.\n\n' ...
+                    'Возможные причины:\n' ...
+                    '1. Временной диапазон (Use time range) не содержит данных\n' ...
+                    '2. Выбранные каналы не содержат данных\n' ...
+                    '3. Фильтрация данных привела к пустому результату\n\n' ...
+                    'Рекомендации:\n' ...
+                    '- Проверьте настройки временного диапазона\n' ...
+                    '- Убедитесь, что выбранные каналы существуют\n' ...
+                    '- Отключите фильтры или временной диапазон и попробуйте снова']);
+                
+                uiwait(msgbox(errorMsg, 'Ошибка детекции событий', 'error', 'modal'));
+                error('Trace_out is empty - no data available for detection');
+            end
+            
             findpeaks_params = {'MinPeakDistance', MinPeakDistance, 'WidthReference', 'halfheight'};
             if strcmp(PeakDetectionMode, 'Height')
                 findpeaks_params = [findpeaks_params, {'MinPeakHeight', MinPeakProminence}];
