@@ -29,3 +29,6 @@ database/
 
 # Data examples
 data_examples/
+
+# VS Code settings
+.vscode/
