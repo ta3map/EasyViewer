@@ -1163,7 +1163,34 @@ function fileManagerGUI()
         end
         metaPaths = cellfun(@(p) replaceFileExt(p, '.meta'), validPaths, 'UniformOutput', false);
         fileIdArray = cellfun(@(id) id, validFileIds);
-        metadataAnalysis(metaPaths, fileIdArray);
+        
+        % Extract file table data for selected files
+        fileTableData = [];
+        fileTableColumns = {};
+        if ~ishandle(fileTable) || isempty(fileTable.Data)
+            metadataAnalysis(metaPaths, fileIdArray);
+            return
+        end
+        
+        % Find rows in fileTable matching fileIds
+        fileTableFileIds = fileTable.Data(:, 1);
+        matchingRows = [];
+        for i = 1:numel(fileIdArray)
+            fileId = fileIdArray(i);
+            for j = 1:numel(fileTableFileIds)
+                if isequal(fileTableFileIds{j}, fileId)
+                    matchingRows(end+1) = j;
+                    break
+                end
+            end
+        end
+        
+        if ~isempty(matchingRows)
+            fileTableData = fileTable.Data(matchingRows, :);
+            fileTableColumns = fileTable.ColumnName;
+        end
+        
+        metadataAnalysis(metaPaths, fileIdArray, fileTableData, fileTableColumns);
     end
     
     function deleteFiles(paths)

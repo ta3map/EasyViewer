@@ -1,4 +1,4 @@
-function metadataAnalysis(metaPaths, fileIds)
+function metadataAnalysis(metaPaths, fileIds, fileTableData, fileTableColumns)
     if isempty(metaPaths)
         return
     end
@@ -37,6 +37,18 @@ function metadataAnalysis(metaPaths, fileIds)
         return
     end
     
+    % Add SQL fields if fileTableData provided
+    if nargin >= 3 && ~isempty(fileTableData) && nargin >= 4 && ~isempty(fileTableColumns)
+        sqlFields = {};
+        if numel(fileTableColumns) > 3
+            for i = 4:numel(fileTableColumns)
+                sqlFields{end+1} = sprintf('sql.%s', fileTableColumns{i});
+            end
+        end
+        allFields = [allFields, sqlFields];
+        debugState('metadataAnalysis', 'Added %d SQL fields from file table', numel(sqlFields));
+    end
+    
     debugState('metadataAnalysis', 'Found %d metadata fields', numel(allFields));
     
     selectedFields = showFieldSelectionDialog(allFields);
@@ -57,7 +69,11 @@ function metadataAnalysis(metaPaths, fileIds)
     debugState('metadataAnalysis', 'Save path selected: %s', savePath);
     
     debugState('metadataAnalysis', 'Saving directly to MAT file (streaming)');
-    success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath);
+    if nargin >= 3 && ~isempty(fileTableData) && nargin >= 4 && ~isempty(fileTableColumns)
+        success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath, fileTableData, fileTableColumns);
+    else
+        success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath);
+    end
     if ~success
         debugState('metadataAnalysis', 'Failed to create and save table');
         msgbox('Failed to create and save table', 'Error', 'error');
@@ -133,7 +149,7 @@ function selectedFields = showFieldSelectionDialog(allFields)
         'Data', data, ...
         'ColumnName', {'Field Name', 'Select'}, ...
         'ColumnEditable', [false, true], ...
-        'ColumnWidth', {380, 80}, ...
+        'ColumnWidth', {250, 80}, ...
         'ColumnFormat', {'char', 'logical'});
     
     selectAllBtn = uicontrol('Parent', fig, ...
@@ -446,7 +462,7 @@ function flatTable = createFlatTable(collectedData, selectedFields)
     flatTable = table(tableData{:}, 'VariableNames', columnNames);
 end
 
-function success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath)
+function success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath, fileTableData, fileTableColumns)
     success = false;
     
     if isempty(metaPaths) || isempty(selectedFields)
@@ -454,6 +470,7 @@ function success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath)
     end
     
     numFiles = numel(metaPaths);
+    hasFileTableData = nargin >= 5 && ~isempty(fileTableData) && nargin >= 6 && ~isempty(fileTableColumns);
     
     try
         debugState('metadataAnalysis', 'Analyzing field structure from all files');
@@ -474,6 +491,15 @@ function success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath)
             
             for fieldIdx = 1:numel(selectedFields)
                 fieldPath = selectedFields{fieldIdx};
+                
+                % Skip SQL fields during structure analysis (they are always strings)
+                if strncmp(fieldPath, 'sql.', 4)
+                    if isempty(fieldInfo{fieldIdx})
+                        fieldInfo{fieldIdx} = struct('isText', true, 'isStruct', false, 'isCellArray', false, 'maxSize', 1);
+                    end
+                    continue
+                end
+                
                 value = getFieldValue(meta, fieldPath);
                 
                 if isempty(value)
@@ -582,7 +608,43 @@ function success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath)
             fileValues = cell(1, numel(selectedFields));
             for fieldIdx = 1:numel(selectedFields)
                 fieldPath = selectedFields{fieldIdx};
-                value = getFieldValue(meta, fieldPath);
+                
+                % Check if this is a SQL field
+                if strncmp(fieldPath, 'sql.', 4) && hasFileTableData
+                    % Extract SQL field name (remove "sql." prefix)
+                    sqlFieldName = fieldPath(5:end);
+                    
+                    % Find column index in fileTableColumns
+                    colIdx = [];
+                    for c = 1:numel(fileTableColumns)
+                        if strcmp(fileTableColumns{c}, sqlFieldName)
+                            colIdx = c;
+                            break
+                        end
+                    end
+                    
+                    % Find row in fileTableData matching fileId
+                    value = [];
+                    if ~isempty(colIdx)
+                        for r = 1:size(fileTableData, 1)
+                            if isequal(fileTableData{r, 1}, fileId)
+                                value = fileTableData{r, colIdx};
+                                if isempty(value)
+                                    value = '';
+                                end
+                                break
+                            end
+                        end
+                    end
+                    
+                    if isempty(value)
+                        value = '';
+                    end
+                else
+                    % Regular .meta file field
+                    value = getFieldValue(meta, fieldPath);
+                end
+                
                 fileValues{fieldIdx} = value;
             end
             fileData.values{1} = fileValues;
