@@ -65,8 +65,21 @@ function metadataAnalysis(metaPaths, fileIds)
     end
     
     debugState('metadataAnalysis', 'Table successfully saved to: %s', savePath);
-    msgbox(sprintf('Data saved to %s', savePath), 'Success', 'help');
+    
+    % Offer to view results
+    choice = questdlg(sprintf('Data saved to:\n%s\n\nHow would you like to view the results?', savePath), ...
+        'View Results', 'Boxplot', 'Dependencies Analysis', 'Cancel', 'Boxplot');
+    
+    switch choice
+        case 'Boxplot'
+            boxplotFromTableGUI(savePath);
+        case 'Dependencies Analysis'
+            msgbox('Dependencies analysis will be implemented in the future', 'Info', 'help');
+        case 'Cancel'
+            % Do nothing
+    end
 end
+
 
 function fields = extractAllFields(structData)
     fields = {};
