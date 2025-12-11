@@ -23,7 +23,7 @@ function boxplotFromTableGUI(filePath)
     end
     
     % Создание главного окна
-    fig = figure('Position', [100, 100, 1200, 800], ...
+    fig = figure('Position', [100, 100, 1200, 900], ...
         'Name', 'Boxplot from Table', ...
         'NumberTitle', 'off', ...
         'MenuBar', 'none', ...
@@ -65,10 +65,11 @@ function createUI(fig)
     
     % Левая панель - настройки
     panelWidth = 400;
-    figHeight = 800;
+    figHeight = 900;
     margin = 10;
     lineHeight = 25;
-    sectionSpacing = 15;
+    sectionSpacing = 10;
+    buttonHeight = 35;
     
     % Текущая Y позиция (сверху вниз)
     yPos = figHeight - margin;
@@ -102,12 +103,43 @@ function createUI(fig)
     
     yPos = yPos - lineHeight - 5;
     columnsList = uicontrol('Parent', fig, 'Style', 'listbox', ...
-        'Position', [margin, yPos - 100, panelWidth - 2*margin, 100], ...
+        'Position', [margin, yPos - 80, panelWidth - 2*margin, 80], ...
         'String', {}, ...
         'Tag', 'columnsList', ...
+        'Max', 2, ...
         'Callback', @(~,~) columnSelectedCallback(fig));
     
-    yPos = yPos - 105 - 5;
+    yPos = yPos - 85 - 5;
+    addToAnalysisBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
+        'Position', [margin, yPos, 180, 25], ...
+        'String', 'Add to Analysis', ...
+        'Callback', @(~,~) addColumnToAnalysis(fig));
+    
+    clearAnalysisBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
+        'Position', [190, yPos, 180, 25], ...
+        'String', 'Clear Analysis', ...
+        'Callback', @(~,~) clearAnalysisColumns(fig));
+    
+    yPos = yPos - 30 - sectionSpacing;
+    
+    % Настройка анализа
+    uicontrol('Parent', fig, 'Style', 'text', ...
+        'Position', [margin, yPos, 380, lineHeight], ...
+        'String', 'Analysis Columns', ...
+        'FontSize', 11, 'FontWeight', 'bold', ...
+        'HorizontalAlignment', 'left');
+    
+    yPos = yPos - lineHeight - 5;
+    paramsTextarea = uicontrol('Parent', fig, 'Style', 'edit', ...
+        'Position', [margin, yPos - 40, panelWidth - 2*margin, 40], ...
+        'String', '', ...
+        'Max', 10, 'Min', 0, ...
+        'Enable', 'off', ...
+        'HorizontalAlignment', 'left', ...
+        'Tag', 'paramsTextarea');
+    
+    yPos = yPos - 45 - sectionSpacing;
+    
     uicontrol('Parent', fig, 'Style', 'text', ...
         'Position', [margin, yPos, 200, lineHeight], ...
         'String', 'Column Data Preview', ...
@@ -116,13 +148,13 @@ function createUI(fig)
     
     yPos = yPos - lineHeight - 5;
     dataTable = uitable('Parent', fig, ...
-        'Position', [margin, yPos - 100, panelWidth - 2*margin, 100], ...
+        'Position', [margin, yPos - 80, panelWidth - 2*margin, 80], ...
         'ColumnEditable', false, ...
         'Tag', 'dataTable', ...
         'Data', cell(0, 1), ...
         'ColumnName', {'Value'});
     
-    yPos = yPos - 105 - sectionSpacing;
+    yPos = yPos - 85 - sectionSpacing;
     
     % Настройка фильтров
     uicontrol('Parent', fig, 'Style', 'text', ...
@@ -133,36 +165,19 @@ function createUI(fig)
     
     yPos = yPos - lineHeight - 5;
     filtersTextarea = uicontrol('Parent', fig, 'Style', 'edit', ...
-        'Position', [margin, yPos - 120, panelWidth - 2*margin, 120], ...
-        'String', sprintf('A: age > 5\nB: age <= 5'), ...
+        'Position', [margin, yPos - 80, panelWidth - 2*margin, 80], ...
+        'String', '', ...
         'Max', 10, 'Min', 0, ...
         'HorizontalAlignment', 'left', ...
         'Tag', 'filtersTextarea');
     
-    yPos = yPos - 125 - 5;
+    yPos = yPos - 85 - 5;
     checkFiltersBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
         'Position', [margin, yPos, 150, 25], ...
         'String', 'Check Filters', ...
         'Callback', @(~,~) checkFiltersCallback(fig));
     
-    yPos = yPos - 30 - sectionSpacing;
-    
-    % Настройка анализа
-    uicontrol('Parent', fig, 'Style', 'text', ...
-        'Position', [margin, yPos, 380, lineHeight], ...
-        'String', 'Analysis Columns (one per line)', ...
-        'FontSize', 11, 'FontWeight', 'bold', ...
-        'HorizontalAlignment', 'left');
-    
-    yPos = yPos - lineHeight - 5;
-    paramsTextarea = uicontrol('Parent', fig, 'Style', 'edit', ...
-        'Position', [margin, yPos - 50, panelWidth - 2*margin, 50], ...
-        'String', '', ...
-        'Max', 10, 'Min', 0, ...
-        'HorizontalAlignment', 'left', ...
-        'Tag', 'paramsTextarea');
-    
-    yPos = yPos - 55 - sectionSpacing;
+    yPos = yPos - 25 - sectionSpacing;
     
     % Кастомные подписи
     uicontrol('Parent', fig, 'Style', 'text', ...
@@ -262,15 +277,16 @@ function createUI(fig)
     
     yPos = yPos - 30 - sectionSpacing;
     
-    % Кнопки
+    % Кнопки (размещаем внизу с отступом)
+    buttonY = margin + buttonHeight;
     plotBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
-        'Position', [margin, margin, 150, 35], ...
+        'Position', [margin, margin, 150, buttonHeight], ...
         'String', 'Plot', ...
         'FontSize', 11, ...
         'Callback', @(~,~) plotBoxplotCallback(fig));
     
     exportBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
-        'Position', [160, margin, 150, 35], ...
+        'Position', [160, margin, 150, buttonHeight], ...
         'String', 'Export Plot', ...
         'FontSize', 11, ...
         'Callback', @(~,~) exportPlotCallback(fig));
@@ -317,6 +333,7 @@ function loadFileInGUI(fig, filePath)
         end
         
         state.filePath = filePath;
+        state.parameters = {};
         set(fig, 'UserData', state);
         
         % Update UI
@@ -335,6 +352,9 @@ function loadFileInGUI(fig, filePath)
         if ~isempty(dataTable)
             set(dataTable, 'Data', cell(0, 1));
         end
+        
+        % Update analysis columns display
+        updateAnalysisColumnsDisplay(fig);
         
         msgbox(sprintf('File loaded: %d rows, %d columns', ...
             height(state.table), width(state.table)), 'Success', 'help');
@@ -358,7 +378,16 @@ function columnSelectedCallback(fig)
     selectedIdx = get(columnsList, 'Value');
     columnNames = get(columnsList, 'String');
     
-    if isempty(selectedIdx) || isempty(columnNames) || selectedIdx > length(columnNames)
+    if isempty(selectedIdx) || isempty(columnNames)
+        return
+    end
+    
+    % Если выбрано несколько колонок, показываем первую
+    if isnumeric(selectedIdx) && length(selectedIdx) > 1
+        selectedIdx = selectedIdx(1);
+    end
+    
+    if selectedIdx > length(columnNames)
         return
     end
     
@@ -400,6 +429,112 @@ function columnSelectedCallback(fig)
         set(dataTable, 'Data', displayData);
         set(dataTable, 'ColumnName', {selectedColumn});
     end
+end
+
+function addColumnToAnalysis(fig)
+    % Добавление выбранных колонок в поле анализа
+    state = get(fig, 'UserData');
+    if isempty(state.table)
+        msgbox('Сначала загрузите файл с данными', 'Warning', 'warn');
+        return
+    end
+    
+    columnsList = findobj(fig, 'Tag', 'columnsList');
+    paramsTextarea = findobj(fig, 'Tag', 'paramsTextarea');
+    filtersTextarea = findobj(fig, 'Tag', 'filtersTextarea');
+    
+    if isempty(columnsList) || isempty(paramsTextarea)
+        return
+    end
+    
+    selectedIdx = get(columnsList, 'Value');
+    columnNames = get(columnsList, 'String');
+    
+    if isempty(selectedIdx) || isempty(columnNames)
+        msgbox('Выберите колонку из списка', 'Warning', 'warn');
+        return
+    end
+    
+    % Обработка множественного выбора
+    if ~isnumeric(selectedIdx)
+        selectedIdx = double(selectedIdx);
+    end
+    
+    % Определяем следующую букву алфавита
+    usedLetters = {};
+    for i = 1:length(state.parameters)
+        if ~isempty(state.parameters{i}.group)
+            usedLetters{end+1} = state.parameters{i}.group;
+        end
+    end
+    usedLetters = unique(usedLetters);
+    
+    % Находим следующую свободную букву
+    nextLetter = 'A';
+    if ~isempty(usedLetters)
+        for i = 1:26
+            letter = char('A' + i - 1);
+            if ~ismember(letter, usedLetters)
+                nextLetter = letter;
+                break
+            end
+        end
+    end
+    
+    % Добавляем выбранные колонки с буквой
+    for i = 1:length(selectedIdx)
+        if selectedIdx(i) <= length(columnNames)
+            colName = columnNames{selectedIdx(i)};
+            % Проверяем, не добавлена ли уже эта колонка
+            exists = false;
+            for k = 1:length(state.parameters)
+                if strcmp(state.parameters{k}.column, colName)
+                    exists = true;
+                    break
+                end
+            end
+            if ~exists
+                state.parameters{end+1} = struct('group', nextLetter, 'column', colName);
+                % Переходим к следующей букве
+                nextLetter = char(nextLetter + 1);
+            end
+        end
+    end
+    
+    set(fig, 'UserData', state);
+    updateAnalysisColumnsDisplay(fig);
+end
+
+function clearAnalysisColumns(fig)
+    % Очистка поля анализа
+    state = get(fig, 'UserData');
+    state.parameters = {};
+    set(fig, 'UserData', state);
+    updateAnalysisColumnsDisplay(fig);
+end
+
+function updateAnalysisColumnsDisplay(fig)
+    % Обновление отображения списка колонок для анализа
+    state = get(fig, 'UserData');
+    paramsTextarea = findobj(fig, 'Tag', 'paramsTextarea');
+    filtersTextarea = findobj(fig, 'Tag', 'filtersTextarea');
+    
+    if isempty(paramsTextarea)
+        return
+    end
+    
+    if isempty(state.parameters)
+        set(paramsTextarea, 'String', '');
+        return
+    end
+    
+    % Формируем строки для отображения
+    displayLines = cell(length(state.parameters), 1);
+    for i = 1:length(state.parameters)
+        displayLines{i} = sprintf('%s: %s', state.parameters{i}.group, state.parameters{i}.column);
+    end
+    
+    set(paramsTextarea, 'String', strjoin(displayLines, '\n'));
 end
 
 function checkFiltersCallback(fig)
@@ -447,15 +582,16 @@ function plotBoxplotCallback(fig)
     colorsTextarea = findobj(fig, 'Tag', 'colorsTextarea');
     showStatsCheck = findobj(fig, 'Tag', 'showStatsCheck');
     showAllPvaluesCheck = findobj(fig, 'Tag', 'showAllPvaluesCheck');
-    yAxisPopup = findobj(fig, 'yAxisPopup');
+    yAxisPopup = findobj(fig, 'Tag', 'yAxisPopup');
     yAxisMinEdit = findobj(fig, 'Tag', 'yAxisMinEdit');
     yAxisMaxEdit = findobj(fig, 'Tag', 'yAxisMaxEdit');
     titleEdit = findobj(fig, 'Tag', 'titleEdit');
     
     try
-        % Парсинг параметров
+        % Получение параметров
         groupFilters = parseGroupFilters(get(filtersTextarea, 'String'));
-        parameters = parseAnalysisColumns(get(paramsTextarea, 'String'));
+        parameters = state.parameters;
+        
         groupLabels = parseGroupLabels(get(labelsTextarea, 'String'));
         groupColors = parseGroupColors(get(colorsTextarea, 'String'));
         
@@ -487,6 +623,15 @@ function plotBoxplotCallback(fig)
         if state.showStatistics
             statisticalTests = performStatisticalTests(filteredTable, parameters, 'group_label');
         end
+        
+        % Дебаг перед построением
+        debugState('boxplotFromTableGUI', 'Before createBoxplotFigure:');
+        debugState('boxplotFromTableGUI', '  filteredTable size: %d x %d', height(filteredTable), width(filteredTable));
+        debugState('boxplotFromTableGUI', '  parameters count: %d', length(parameters));
+        for i = 1:length(parameters)
+            debugState('boxplotFromTableGUI', '    param %d: group=%s, column=%s', i, parameters{i}.group, parameters{i}.column);
+        end
+        debugState('boxplotFromTableGUI', '  unique groups in table: %s', strjoin(unique(filteredTable{:, 'group_label'}), ', '));
         
         % Построение графика
         createBoxplotFigure(filteredTable, parameters, groupStats, statisticalTests, ...
@@ -639,12 +784,14 @@ function filteredTable = applyGroupFilters(table, groupFilters)
     % Применение фильтров к таблице через eval
     % Создает колонку group_label с метками групп
     
+    filteredTable = table;
+    
     if isempty(groupFilters)
-        filteredTable = [];
+        % Если фильтров нет, все данные в одной группе
+        filteredTable.group_label = repmat({'All'}, height(filteredTable), 1);
         return
     end
     
-    filteredTable = table;
     filteredTable.group_label = repmat({''}, height(filteredTable), 1);
     
     % Создаем переменные из колонок таблицы
@@ -674,28 +821,6 @@ function filteredTable = applyGroupFilters(table, groupFilters)
     filteredTable = filteredTable(hasLabel, :);
 end
 
-function parameters = parseAnalysisColumns(columnsStr)
-    % Парсинг списка колонок для анализа (каждая на новой строке)
-    
-    if isempty(columnsStr)
-        parameters = {};
-        return
-    end
-    
-    if ischar(columnsStr)
-        lines = strsplit(columnsStr, {'\n', '\r\n', '\r'}, 'CollapseDelimiters', true);
-    else
-        lines = columnsStr;
-    end
-    
-    parameters = {};
-    for i = 1:length(lines)
-        param = strtrim(lines{i});
-        if ~isempty(param)
-            parameters{end+1} = param;
-        end
-    end
-end
 
 function groupLabels = parseGroupLabels(labelsStr)
     % Парсинг кастомных подписей групп: A:Подпись1,B:Подпись2
@@ -809,13 +934,17 @@ end
 
 function groupStats = calculateGroupStatistics(table, parameters, groupColumn)
     % Расчет статистики для каждой группы и параметра
+    % parameters - массив структур с полями: group (буква группы или пусто), column (название колонки)
     
     groupStats = struct();
     uniqueGroups = unique(table{:, groupColumn});
     
     for p = 1:length(parameters)
-        param = parameters{p};
-        if ~ismember(param, table.Properties.VariableNames)
+        paramStruct = parameters{p};
+        columnName = paramStruct.column;
+        groupFilter = paramStruct.group;
+        
+        if ~ismember(columnName, table.Properties.VariableNames)
             continue
         end
         
@@ -826,8 +955,13 @@ function groupStats = calculateGroupStatistics(table, parameters, groupColumn)
                 groupLabel = groupLabel{1};
             end
             
+            % Используем только указанную группу (если указана)
+            if ~isempty(groupFilter) && ~strcmp(groupLabel, groupFilter)
+                continue
+            end
+            
             mask = strcmp(table{:, 'group_label'}, groupLabel);
-            data = table{mask, param};
+            data = table{mask, columnName};
             data = data(~isnan(data) & ~isinf(data));
             
             if ~isempty(data)
@@ -841,12 +975,19 @@ function groupStats = calculateGroupStatistics(table, parameters, groupColumn)
             end
         end
         
-        groupStats.(matlab.lang.makeValidName(param)) = paramStats;
+        % Используем название колонки как ключ с группой
+        if ~isempty(groupFilter)
+            paramKey = sprintf('%s_%s', groupFilter, columnName);
+        else
+            paramKey = columnName;
+        end
+        groupStats.(matlab.lang.makeValidName(paramKey)) = paramStats;
     end
 end
 
 function testResults = performStatisticalTests(table, parameters, groupColumn)
     % Попарные t-test между группами для каждого параметра
+    % parameters - массив структур с полями: group (буква группы или пусто), column (название колонки)
     
     testResults = struct();
     uniqueGroups = unique(table{:, groupColumn});
@@ -856,8 +997,11 @@ function testResults = performStatisticalTests(table, parameters, groupColumn)
     end
     
     for p = 1:length(parameters)
-        param = parameters{p};
-        if ~ismember(param, table.Properties.VariableNames)
+        paramStruct = parameters{p};
+        columnName = paramStruct.column;
+        groupFilter = paramStruct.group;
+        
+        if ~ismember(columnName, table.Properties.VariableNames)
             continue
         end
         
@@ -870,11 +1014,16 @@ function testResults = performStatisticalTests(table, parameters, groupColumn)
                 if iscell(group1), group1 = group1{1}; end
                 if iscell(group2), group2 = group2{1}; end
                 
+                % Пропускаем пары, не содержащие указанную группу
+                if ~strcmp(group1, groupFilter) && ~strcmp(group2, groupFilter)
+                    continue
+                end
+                
                 mask1 = strcmp(table{:, groupColumn}, group1);
                 mask2 = strcmp(table{:, groupColumn}, group2);
                 
-                data1 = table{mask1, param};
-                data2 = table{mask2, param};
+                data1 = table{mask1, columnName};
+                data2 = table{mask2, columnName};
                 
                 data1 = data1(~isnan(data1) & ~isinf(data1));
                 data2 = data2(~isnan(data2) & ~isinf(data2));
@@ -896,13 +1045,34 @@ function testResults = performStatisticalTests(table, parameters, groupColumn)
             end
         end
         
-        testResults.(matlab.lang.makeValidName(param)) = paramResults;
+        % Используем название колонки как ключ с группой
+        if ~isempty(groupFilter)
+            paramKey = sprintf('%s_%s', groupFilter, columnName);
+        else
+            paramKey = columnName;
+        end
+        testResults.(matlab.lang.makeValidName(paramKey)) = paramResults;
     end
 end
 
 function createBoxplotFigure(table, parameters, groupStats, statisticalTests, ...
     groupLabels, groupColors, state)
     % Построение графика с боксплотами
+    
+    % Дебаг в начале функции
+    debugState('createBoxplotFigure', 'Entered function:');
+    debugState('createBoxplotFigure', '  table size: %d x %d', height(table), width(table));
+    debugState('createBoxplotFigure', '  table columns: %s', strjoin(table.Properties.VariableNames, ', '));
+    debugState('createBoxplotFigure', '  parameters count: %d', length(parameters));
+    for i = 1:length(parameters)
+        debugState('createBoxplotFigure', '    param %d: group=%s, column=%s', i, parameters{i}.group, parameters{i}.column);
+    end
+    if ismember('group_label', table.Properties.VariableNames)
+        uniqueGroups = unique(table{:, 'group_label'});
+        debugState('createBoxplotFigure', '  unique groups: %s', strjoin(uniqueGroups, ', '));
+    else
+        debugState('createBoxplotFigure', '  WARNING: group_label column not found!');
+    end
     
     nParams = length(parameters);
     fig = figure('Position', [150, 50, 800, 200 + nParams * 400], ...
@@ -925,8 +1095,11 @@ function createBoxplotFigure(table, parameters, groupStats, statisticalTests, ..
     sortedGroups = uniqueGroups(sortIdx);
     
     for p = 1:nParams
-        param = parameters{p};
-        if ~ismember(param, table.Properties.VariableNames)
+        paramStruct = parameters{p};
+        columnName = paramStruct.column;
+        groupFilter = paramStruct.group;
+        
+        if ~ismember(columnName, table.Properties.VariableNames)
             continue
         end
         
@@ -937,10 +1110,32 @@ function createBoxplotFigure(table, parameters, groupStats, statisticalTests, ..
         allData = [];
         groupLabelsForBoxplot = {};
         
+        % Проверяем, есть ли указанная группа в таблице
+        groupFound = false;
         for g = 1:nGroups
             groupLabel = sortedGroups{g};
             if iscell(groupLabel)
                 groupLabel = groupLabel{1};
+            end
+            if strcmp(groupLabel, groupFilter)
+                groupFound = true;
+                break
+            end
+        end
+        
+        debugState('createBoxplotFigure', '  Parameter %d: groupFilter=%s, groupFound=%d', p, groupFilter, groupFound);
+        
+        for g = 1:nGroups
+            groupLabel = sortedGroups{g};
+            if iscell(groupLabel)
+                groupLabel = groupLabel{1};
+            end
+            
+            % Если группа указана и не найдена в таблице, используем все данные
+            if ~isempty(groupFilter) && ~groupFound
+                % Используем все группы - группа из параметра не найдена
+            elseif ~isempty(groupFilter) && ~strcmp(groupLabel, groupFilter)
+                continue
             end
             
             % Используем кастомную подпись если есть
@@ -950,14 +1145,18 @@ function createBoxplotFigure(table, parameters, groupStats, statisticalTests, ..
             end
             
             mask = strcmp(table{:, 'group_label'}, groupLabel);
-            data = table{mask, param};
+            data = table{mask, columnName};
             data = data(~isnan(data) & ~isinf(data));
+            
+            debugState('createBoxplotFigure', '    Group %s: found %d data points', groupLabel, length(data));
             
             if ~isempty(data)
                 allData = [allData; data];
                 groupLabelsForBoxplot = [groupLabelsForBoxplot; repmat({displayLabel}, length(data), 1)];
             end
         end
+        
+        debugState('createBoxplotFigure', '  Total data points collected: %d', length(allData));
         
         % Построение боксплотов
         if ~isempty(allData)
@@ -1009,32 +1208,61 @@ function createBoxplotFigure(table, parameters, groupStats, statisticalTests, ..
             end
         end
         
-        ylabel(param);
+        % Формируем название для оси Y
+        if ~isempty(groupFilter)
+            yLabelText = sprintf('%s (%s)', columnName, groupFilter);
+        else
+            yLabelText = columnName;
+        end
+        ylabel(yLabelText);
         if p == nParams
             xlabel('Groups');
         end
         
         % Настройка диапазона Y-оси
-        allData = table{:, param};
-        allData = allData(~isnan(allData) & ~isinf(allData));
         if strcmp(state.yAxisRange, 'manual') && ~isempty(state.yAxisMin) && ~isempty(state.yAxisMax)
             ylim([state.yAxisMin, state.yAxisMax]);
+        elseif strcmp(state.yAxisRange, 'auto')
+            % Автоматический расчет пределов по процентилям 0.001 и 99.99
+            if ~isempty(allData)
+                yMin = prctile(allData, 0.001);
+                yMax = prctile(allData, 99.99);
+                % Если все значения одинаковые, добавляем небольшой отступ
+                if yMin == yMax
+                    if yMin == 0
+                        yMin = -0.1;
+                        yMax = 0.1;
+                    else
+                        offset = abs(yMin) * 0.01;
+                        yMin = yMin - offset;
+                        yMax = yMax + offset;
+                    end
+                end
+                ylim([yMin, yMax]);
+            end
         end
         
         % Скобки значимости (если статистика включена)
-        if state.showStatistics && isfield(statisticalTests, matlab.lang.makeValidName(param))
+        if ~isempty(groupFilter)
+            paramKey = sprintf('%s_%s', groupFilter, columnName);
+        else
+            paramKey = columnName;
+        end
+        paramKeyValid = matlab.lang.makeValidName(paramKey);
+        
+        if state.showStatistics && isfield(statisticalTests, paramKeyValid)
             currentAxes = gca;
             currentYLim = ylim(currentAxes);
             addSignificanceBrackets(currentAxes, sortedGroups, ...
-                statisticalTests.(matlab.lang.makeValidName(param)), ...
+                statisticalTests.(paramKeyValid), ...
                 state.showAllPvalues, currentYLim);
             
             % Обновляем пределы Y-оси чтобы вместить скобки
             maxLevel = 0;
-            if ~isempty(fieldnames(statisticalTests.(matlab.lang.makeValidName(param))))
-                testFields = fieldnames(statisticalTests.(matlab.lang.makeValidName(param)));
+            if ~isempty(fieldnames(statisticalTests.(paramKeyValid)))
+                testFields = fieldnames(statisticalTests.(paramKeyValid));
                 for tf = 1:length(testFields)
-                    testData = statisticalTests.(matlab.lang.makeValidName(param)).(testFields{tf});
+                    testData = statisticalTests.(paramKeyValid).(testFields{tf});
                     if state.showAllPvalues || testData.pvalue < 0.05
                         maxLevel = maxLevel + 1;
                     end

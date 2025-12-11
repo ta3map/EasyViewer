@@ -455,7 +455,9 @@ function signalViewerGUI(editMode)
         '', ... % 'ICA', ... % в разработке
         'Data Operations', ...
         '', ...
-        'Compare average data'};
+        'Compare average data', ...
+        '', ...
+        'Boxplot from Table'};
     
     % Создание выпадающего списка
     analysis_menu = uicontrol('Style', 'listbox',...
@@ -1024,6 +1026,8 @@ function signalViewerGUI(editMode)
                 performChannelOperations();
             case analysis_functions{15}
                 dataComparerApp();
+            case analysis_functions{17}
+                boxplotFromTableGUI();
             case ''
                 dont_close_menu = true;
         end    

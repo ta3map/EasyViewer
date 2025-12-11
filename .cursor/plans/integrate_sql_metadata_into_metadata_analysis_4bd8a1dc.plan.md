@@ -27,18 +27,18 @@ Pass selected rows from `fileTable` directly to `metadataAnalysis`. The function
 ### 3. Add SQL fields to selection dialog in [`functions/metadataAnalysis.m`](functions/metadataAnalysis.m)
 
 - After extracting fields from first .meta file, if fileTableData provided:
- - Extract metadata column names (skip first 3: 'File ID', 'File Name', 'Path')
- - Add SQL field names with "sql." prefix (e.g., "sql.age", "sql.condition")
- - Merge with .meta file field names
- - Pass combined list to `showFieldSelectionDialog`
+- Extract metadata column names (skip first 3: 'File ID', 'File Name', 'Path')
+- Add SQL field names with "sql." prefix (e.g., "sql.age", "sql.condition")
+- Merge with .meta file field names
+- Pass combined list to `showFieldSelectionDialog`
 
 ### 4. Modify `saveToMatDirect` function in [`functions/metadataAnalysis.m`](functions/metadataAnalysis.m)
 
 - Add `fileTableData` and `fileTableColumns` parameters
 - When processing each file:
- - Check if selected field starts with "sql."
- - If yes, find fileId in fileTableData and extract value from corresponding row
- - If no, use existing `getFieldValue` for .meta file fields
+- Check if selected field starts with "sql."
+- If yes, find fileId in fileTableData and extract value from corresponding row
+- If no, use existing `getFieldValue` for .meta file fields
 - Add SQL field values to the flatTable
 
 ## Implementation Details
