@@ -268,18 +268,22 @@ function loadFileInGUI(fig, filePath)
             if isfield(data, 'flatTable')
                 state.table = data.flatTable;
             else
-                msgbox('MAT file does not contain variable "flatTable"', 'Error', 'error');
+                errorMsg = 'MAT file does not contain variable "flatTable"';
+                fprintf('ERROR: %s\n', errorMsg);
+                msgbox(errorMsg, 'Error', 'error');
                 return
             end
         elseif any(strcmpi(ext, {'.xlsx', '.xls'}))
             state.table = readtable(filePath);
         else
-            msgbox('Unsupported file format', 'Error', 'error');
+            errorMsg = 'Unsupported file format';
+            fprintf('ERROR: %s\n', errorMsg);
+            msgbox(errorMsg, 'Error', 'error');
             return
         end
         
         % Форматируем названия колонок
-        state.table = formatTableColumnNames(state.table);
+        state.table = boxplotFormatTableColumnNames(state.table);
         
         state.filePath = filePath;
         state.parameters = {};
@@ -289,7 +293,7 @@ function loadFileInGUI(fig, filePath)
         % Update UI
         filePathText = findobj(fig, 'Tag', 'filePathText');
         if ~isempty(filePathText)
-            set(filePathText, 'String', truncatePath(filePath));
+            set(filePathText, 'String', boxplotTruncatePath(filePath));
         end
         
         columnsList = findobj(fig, 'Tag', 'columnsList');
@@ -306,7 +310,9 @@ function loadFileInGUI(fig, filePath)
         % Update analysis columns display
         updateAnalysisColumnsDisplay(fig);
     catch ME
-        msgbox(sprintf('Error loading file: %s', ME.message), 'Error', 'error');
+        errorMsg = sprintf('Error loading file: %s', ME.message);
+        fprintf('ERROR: %s\n', errorMsg);
+        msgbox(errorMsg, 'Error', 'error');
     end
 end
 
@@ -604,7 +610,9 @@ function plotBoxplotCallback(fig)
             groupLabels, groupColors, state);
         
     catch ME
-        msgbox(sprintf('Ошибка при построении графика: %s', ME.message), 'Error', 'error');
+        errorMsg = sprintf('Ошибка при построении графика: %s', ME.message);
+        fprintf('ERROR: %s\n', errorMsg);
+        msgbox(errorMsg, 'Error', 'error');
         debugState('boxplotFromTableGUI', 'Error: %s', ME.message);
     end
 end
@@ -615,14 +623,18 @@ function exportPlotCallback(fig)
     % Находим панель с графиками
     plotPanel = findobj(fig, 'Tag', 'plotPanel');
     if isempty(plotPanel)
-        msgbox('Сначала постройте график', 'Warning', 'warn');
+        warningMsg = 'Сначала постройте график';
+        fprintf('WARNING: %s\n', warningMsg);
+        msgbox(warningMsg, 'Warning', 'warn');
         return
     end
     
     % Проверяем, есть ли axes в панели
     axesInPanel = findobj(plotPanel, 'Type', 'axes');
     if isempty(axesInPanel)
-        msgbox('Сначала постройте график', 'Warning', 'warn');
+        warningMsg = 'Сначала постройте график';
+        fprintf('WARNING: %s\n', warningMsg);
+        msgbox(warningMsg, 'Warning', 'warn');
         return
     end
     
@@ -656,14 +668,18 @@ function exportPlotCallback(fig)
             case '.eps'
                 print(exportFig, '-depsc', '-r300', filePath);
             otherwise
-                msgbox('Неподдерживаемый формат файла', 'Error', 'error');
+                errorMsg = 'Неподдерживаемый формат файла';
+                fprintf('ERROR: %s\n', errorMsg);
+                msgbox(errorMsg, 'Error', 'error');
                 close(exportFig);
                 return
         end
         
         close(exportFig);
     catch ME
-        msgbox(sprintf('Ошибка при экспорте: %s', ME.message), 'Error', 'error');
+        errorMsg = sprintf('Ошибка при экспорте: %s', ME.message);
+        fprintf('ERROR: %s\n', errorMsg);
+        msgbox(errorMsg, 'Error', 'error');
         debugState('boxplotFromTableGUI', 'Export error: %s', ME.message);
         if exist('exportFig', 'var') && isvalid(exportFig)
             close(exportFig);
@@ -711,258 +727,23 @@ function loadCoords(fig)
     end
 end
 
-function pathStr = truncatePath(fullPath)
-    if length(fullPath) > 50
-        [~, name, ext] = fileparts(fullPath);
-        pathStr = ['...' filesep name ext];
-    else
-        pathStr = fullPath;
-    end
-end
-
 % ============================================================================
 % Вспомогательные функции парсинга и обработки данных
 % ============================================================================
+% Функции вынесены в отдельные файлы:
+% - boxplotParseGroupFilters -> functions/boxplotDataFiltering.m
+% - boxplotApplyGroupFilters -> functions/boxplotDataFiltering.m
+% - boxplotDiagnoseFiltering -> functions/boxplotDataFiltering.m
+% - boxplotCalculateGroupStatistics -> functions/boxplotStatistics.m
+% - boxplotPerformStatisticalTests -> functions/boxplotStatistics.m
+% - boxplotCalculateMaxBracketLevelForParams -> functions/boxplotSignificanceBrackets.m
+% - boxplotAssignBracketLevelsForParams -> functions/boxplotSignificanceBrackets.m
+% - boxplotAddSignificanceBracketsForParams -> functions/boxplotSignificanceBrackets.m
+% - boxplotFormatTableColumnNames -> functions/boxplotDataFormatting.m
+% - boxplotTruncatePath -> functions/boxplotUtils.m
+% - boxplotPToStars -> functions/boxplotUtils.m
+% ============================================================================
 
-function groupFilters = parseGroupFilters(filtersStr)
-    % Парсинг фильтра: простое условие
-    % Возвращает cell array структур с полями: condition, groupLabel
-    
-    if isempty(filtersStr)
-        groupFilters = {};
-        return
-    end
-    
-    if ~ischar(filtersStr) && ~isstring(filtersStr)
-        groupFilters = {};
-        return
-    end
-    
-    if isstring(filtersStr)
-        filtersStr = char(filtersStr);
-    end
-    
-    filtersStr = strtrim(filtersStr);
-    
-    if ~isempty(filtersStr)
-        groupFilters{1} = struct('condition', filtersStr, 'groupLabel', 'Group1');
-    else
-        groupFilters = {};
-    end
-end
-
-function filteredTable = applyGroupFilters(table, groupFilters)
-    % Применение фильтров к таблице через eval
-    % Создает колонку group_label с метками групп
-    
-    filteredTable = table;
-    
-    if isempty(groupFilters)
-        % Если фильтров нет, возвращаем пустую таблицу
-        filteredTable = table();
-        return
-    end
-    
-    filteredTable.group_label = repmat({''}, height(filteredTable), 1);
-    
-    % Создаем переменные из колонок таблицы локально (названия уже отформатированы)
-    varNames = filteredTable.Properties.VariableNames;
-    for i = 1:length(varNames)
-        varName = varNames{i};
-        eval(sprintf('%s = filteredTable{:, %d};', varName, i));
-    end
-    
-    % Применяем фильтры для каждой группы
-    for i = 1:length(groupFilters)
-        filter = groupFilters{i};
-        try
-            % Выполняем условие через eval
-            mask = eval(filter.condition);
-            if islogical(mask) && length(mask) == height(filteredTable)
-                % Присваиваем метку группы
-                filteredTable.group_label(mask) = {filter.groupLabel};
-            end
-        catch ME
-            warning('Ошибка при применении фильтра: %s', ME.message);
-        end
-    end
-    
-    % Оставляем только строки с метками групп
-    hasLabel = ~cellfun(@isempty, filteredTable.group_label);
-    filteredTable = filteredTable(hasLabel, :);
-end
-
-
-
-function rgb = hex2rgb(hex)
-    % Конвертация HEX цвета в RGB
-    hex = strrep(hex, '#', '');
-    if length(hex) == 6
-        r = hex2dec(hex(1:2)) / 255;
-        g = hex2dec(hex(3:4)) / 255;
-        b = hex2dec(hex(5:6)) / 255;
-        rgb = [r, g, b];
-    else
-        rgb = [];
-    end
-end
-
-function diagnosis = diagnoseFiltering(table, groupFilters)
-    % Диагностика фильтрации - подробный вывод результатов
-    
-    diagnosis = sprintf('Всего строк в данных: %d\n', height(table));
-    diagnosis = [diagnosis sprintf('Колонки в данных: %s\n\n', strjoin(table.Properties.VariableNames, ', '))];
-    
-    for i = 1:length(groupFilters)
-        filter = groupFilters{i};
-        diagnosis = [diagnosis sprintf('Условие %d:\n', i)];
-        diagnosis = [diagnosis sprintf('  %s\n', filter.condition)];
-        
-        try
-            % Создаем переменные из колонок
-            varNames = table.Properties.VariableNames;
-            for j = 1:length(varNames)
-                varName = matlab.lang.makeValidName(varNames{j});
-                assignin('caller', varName, table{:, j});
-            end
-            
-            % Выполняем условие
-            mask = eval(filter.condition);
-            if islogical(mask) && length(mask) == height(table)
-                count = sum(mask);
-                diagnosis = [diagnosis sprintf('  Строк в группе: %d из %d\n\n', count, height(table))];
-            else
-                diagnosis = [diagnosis sprintf('  Ошибка: условие вернуло неверный результат\n\n')];
-            end
-        catch ME
-            diagnosis = [diagnosis sprintf('  Ошибка: %s\n\n', ME.message)];
-        end
-    end
-end
-
-function groupStats = calculateGroupStatistics(table, parameters, groupColumn)
-    % Расчет статистики для каждой группы и параметра
-    % parameters - массив структур с полями: column (название колонки)
-    
-    groupStats = struct();
-    uniqueGroups = unique(table{:, groupColumn});
-    
-        for p = 1:length(parameters)
-        paramStruct = parameters{p};
-        columnName = paramStruct.column;
-        
-        if ~ismember(columnName, table.Properties.VariableNames)
-            continue
-        end
-        
-        paramStats = struct();
-        for g = 1:length(uniqueGroups)
-            groupLabel = uniqueGroups{g};
-            if iscell(groupLabel)
-                groupLabel = groupLabel{1};
-            end
-            
-            mask = strcmp(table{:, 'group_label'}, groupLabel);
-            data = table{mask, columnName};
-            data = data(~isnan(data) & ~isinf(data));
-            
-            if ~isempty(data)
-                paramStats.(matlab.lang.makeValidName(groupLabel)) = struct(...
-                    'mean', mean(data), ...
-                    'std', std(data), ...
-                    'median', median(data), ...
-                    'q25', prctile(data, 25), ...
-                    'q75', prctile(data, 75), ...
-                    'count', length(data));
-            end
-        end
-        
-        % Используем название колонки как ключ
-        paramKey = columnName;
-        groupStats.(matlab.lang.makeValidName(paramKey)) = paramStats;
-    end
-end
-
-function testResults = performStatisticalTests(table, parameters, groupColumn)
-    % Попарные t-test между параметрами на одном полотне (с одинаковым groupNumber)
-    % parameters - массив структур с полями: groupNumber, column
-    
-    testResults = struct();
-    
-    % Группируем параметры по groupNumber
-    groupNumbers = [];
-    for i = 1:length(parameters)
-        if isfield(parameters{i}, 'groupNumber')
-            groupNumbers(end+1) = parameters{i}.groupNumber;
-        else
-            groupNumbers(end+1) = 1;
-        end
-    end
-    uniqueGroupNumbers = unique(groupNumbers);
-    
-    % Для каждой группы полотен
-    for groupNum = uniqueGroupNumbers
-        % Находим все параметры в этой группе
-        paramsInGroup = {};
-        for i = 1:length(parameters)
-            paramGroupNum = 1;
-            if isfield(parameters{i}, 'groupNumber')
-                paramGroupNum = parameters{i}.groupNumber;
-            end
-            if paramGroupNum == groupNum
-                paramsInGroup{end+1} = parameters{i};
-            end
-        end
-        
-        % Если параметров меньше 2, тестов нет
-        if length(paramsInGroup) < 2
-            continue
-        end
-        
-        % Тестируем все пары параметров на этом полотне
-        for i = 1:length(paramsInGroup)
-            for j = i+1:length(paramsInGroup)
-                param1 = paramsInGroup{i};
-                param2 = paramsInGroup{j};
-                
-                column1 = param1.column;
-                column2 = param2.column;
-                
-                if ~ismember(column1, table.Properties.VariableNames) || ...
-                   ~ismember(column2, table.Properties.VariableNames)
-                    continue
-                end
-                
-                data1 = table{:, column1};
-                data2 = table{:, column2};
-                
-                data1 = data1(~isnan(data1) & ~isinf(data1));
-                data2 = data2(~isnan(data2) & ~isinf(data2));
-                
-                if length(data1) > 0 && length(data2) > 0
-                    try
-                        [~, pvalue] = ttest2(data1, data2);
-                        testKey = sprintf('%s_vs_%s', matlab.lang.makeValidName(column1), matlab.lang.makeValidName(column2));
-                        paramKey = sprintf('Group%d', groupNum);
-                        
-                        if ~isfield(testResults, paramKey)
-                            testResults.(paramKey) = struct();
-                        end
-                        
-                        testResults.(paramKey).(testKey) = struct(...
-                            'pvalue', pvalue, ...
-                            'n1', length(data1), ...
-                            'n2', length(data2), ...
-                            'group1', column1, ...
-                            'group2', column2);
-                    catch
-                        % Игнорируем ошибки тестов
-                    end
-                end
-            end
-        end
-    end
-end
 
 function createBoxplotFigure(fig, table, parameters, groupStats, statisticalTests, ...
     groupLabels, groupColors, state)
@@ -1048,9 +829,9 @@ function createBoxplotFigure(fig, table, parameters, groupStats, statisticalTest
             
             if ~isempty(paramStruct.filter)
                 paramFilter = paramStruct.filter;
-                parsedFilters = parseGroupFilters(paramFilter);
+                parsedFilters = boxplotParseGroupFilters(paramFilter);
                 if ~isempty(parsedFilters)
-                    filteredTableForParam = applyGroupFilters(table, parsedFilters);
+                    filteredTableForParam = boxplotApplyGroupFilters(table, parsedFilters);
                     if isempty(filteredTableForParam)
                         continue
                     end
@@ -1320,10 +1101,10 @@ function createBoxplotFigure(fig, table, parameters, groupStats, statisticalTest
                 currentYLim = ylim(ax);
                 
                 % Вычисляем максимальный уровень скобок
-                maxLevel = calculateMaxBracketLevelForParams(statisticalTests.(paramKeyValid), paramsInGroup, state.showAllPvalues);
+                maxLevel = boxplotCalculateMaxBracketLevelForParams(statisticalTests.(paramKeyValid), paramsInGroup, state.showAllPvalues);
                 
                 % Рисуем скобки между параметрами
-                addSignificanceBracketsForParams(ax, paramsInGroup, ...
+                boxplotAddSignificanceBracketsForParams(ax, paramsInGroup, ...
                     statisticalTests.(paramKeyValid), ...
                     state.showAllPvalues, currentYLim);
                 
@@ -1353,216 +1134,4 @@ function createBoxplotFigure(fig, table, parameters, groupStats, statisticalTest
     end
 end
 
-function maxLevel = calculateMaxBracketLevelForParams(testResults, paramsInGroup, showAllPvalues)
-    % Вычисление максимального уровня скобок для тестов между параметрами
-    
-    if isempty(testResults) || isempty(fieldnames(testResults))
-        maxLevel = -1;
-        return
-    end
-    
-    % Собираем все пары для отображения
-    significantPairs = struct('param1', {}, 'param2', {}, 'pvalue', {});
-    testFields = fieldnames(testResults);
-    
-    for i = 1:length(testFields)
-        testKey = testFields{i};
-        testData = testResults.(testKey);
-        pvalue = testData.pvalue;
-        
-        if showAllPvalues || pvalue < 0.05
-            newPair = struct(...
-                'param1', {testData.group1}, ...
-                'param2', {testData.group2}, ...
-                'pvalue', pvalue);
-            significantPairs = [significantPairs; newPair];
-        end
-    end
-    
-    if isempty(significantPairs)
-        maxLevel = -1;
-        return
-    end
-    
-    % Находим позиции параметров на оси X
-    paramPositions = containers.Map();
-    for i = 1:length(paramsInGroup)
-        paramPositions(paramsInGroup{i}.column) = i;
-    end
-    
-    % Определяем уровни для скобок
-    levels = assignBracketLevelsForParams(significantPairs, paramPositions);
-    
-    if isempty(levels)
-        maxLevel = -1;
-    else
-        maxLevel = max(levels);
-    end
-end
-
-function levels = assignBracketLevelsForParams(pairs, paramPositions)
-    % Определение уровней для скобок между параметрами
-    
-    levels = zeros(length(pairs), 1);
-    
-    for i = 1:length(pairs)
-        pair = pairs(i);
-        param1 = pair.param1;
-        param2 = pair.param2;
-        
-        if ~isKey(paramPositions, param1) || ~isKey(paramPositions, param2)
-            levels(i) = 0;
-            continue
-        end
-        
-        pos1 = paramPositions(param1);
-        pos2 = paramPositions(param2);
-        
-        level = 0;
-        for j = 1:i-1
-            otherPair = pairs(j);
-            if ~isKey(paramPositions, otherPair.param1) || ~isKey(paramPositions, otherPair.param2)
-                continue
-            end
-            
-            otherPos1 = paramPositions(otherPair.param1);
-            otherPos2 = paramPositions(otherPair.param2);
-            
-            if ~(pos2 < otherPos1 || pos1 > otherPos2)
-                level = max(level, levels(j) + 1);
-            end
-        end
-        
-        levels(i) = level;
-    end
-end
-
-function addSignificanceBracketsForParams(ax, paramsInGroup, testResults, showAllPvalues, yLimits)
-    % Добавление скобок значимости между параметрами на график
-    
-    if isempty(testResults) || isempty(fieldnames(testResults))
-        return
-    end
-    
-    % Собираем все пары для отображения
-    significantPairs = struct('param1', {}, 'param2', {}, 'pvalue', {}, 'stars', {});
-    testFields = fieldnames(testResults);
-    
-    for i = 1:length(testFields)
-        testKey = testFields{i};
-        testData = testResults.(testKey);
-        pvalue = testData.pvalue;
-        
-        if showAllPvalues || pvalue < 0.05
-            newPair = struct(...
-                'param1', {testData.group1}, ...
-                'param2', {testData.group2}, ...
-                'pvalue', pvalue, ...
-                'stars', {pToStars(pvalue)});
-            significantPairs = [significantPairs; newPair];
-        end
-    end
-    
-    if isempty(significantPairs)
-        return
-    end
-    
-    % Находим позиции параметров на оси X
-    paramPositions = containers.Map();
-    for i = 1:length(paramsInGroup)
-        paramPositions(paramsInGroup{i}.column) = i;
-    end
-    
-    % Определяем уровни для скобок
-    levels = assignBracketLevelsForParams(significantPairs, paramPositions);
-    
-    % Параметры для позиционирования скобок
-    yRange = yLimits(2) - yLimits(1);
-    yBaseOffset = yRange * 0.05;
-    yLevelSpacing = yRange * 0.08;
-    yTextOffset = yRange * 0.015;
-    bracketWallHeight = yRange * 0.03;
-    
-    % Рисуем скобки
-    hold(ax, 'on');
-    
-    for i = 1:length(significantPairs)
-        pair = significantPairs(i);
-        level = levels(i);
-        
-        param1 = pair.param1;
-        param2 = pair.param2;
-        
-        if ~isKey(paramPositions, param1) || ~isKey(paramPositions, param2)
-            continue
-        end
-        
-        pos1 = paramPositions(param1);
-        pos2 = paramPositions(param2);
-        
-        yLine = yLimits(2) + yBaseOffset + level * yLevelSpacing;
-        yWallBottom = yLine - bracketWallHeight;
-        yText = yLine + yTextOffset;
-        
-        % Горизонтальная линия
-        line(ax, [pos1, pos2], [yLine, yLine], 'Color', 'k', 'LineWidth', 1.5);
-        
-        % Вертикальные стенки
-        line(ax, [pos1, pos1], [yLine, yWallBottom], 'Color', 'k', 'LineWidth', 1.5);
-        line(ax, [pos2, pos2], [yLine, yWallBottom], 'Color', 'k', 'LineWidth', 1.5);
-        
-        % Текст с p-value
-        if pair.pvalue >= 0.001
-            ptext = sprintf('p=%.3f', pair.pvalue);
-        else
-            ptext = 'p<0.001';
-        end
-        
-        starsStr = pair.stars;
-        if iscell(starsStr)
-            starsStr = starsStr{1};
-        end
-        
-        annotationText = sprintf('%s %s', ptext, starsStr);
-        
-        text(ax, (pos1 + pos2) / 2, yText, annotationText, ...
-            'HorizontalAlignment', 'center', ...
-            'VerticalAlignment', 'bottom', ...
-            'FontSize', 10, ...
-            'Color', 'k', ...
-            'BackgroundColor', [1, 1, 1, 0.9], ...
-            'EdgeColor', 'k', ...
-            'LineWidth', 1, ...
-            'Margin', 2);
-    end
-end
-
-
-function table = formatTableColumnNames(table)
-    % Форматирует названия колонок таблицы для валидных имен переменных MATLAB
-    % Транскрибирует кириллические буквы в латиницу, затем делает имя валидным
-    % Использует transliterateColumnName для транскрипции
-    
-    originalNames = table.Properties.VariableNames;
-    validNames = cell(size(originalNames));
-    for i = 1:length(originalNames)
-        validNames{i} = transliterateColumnName(originalNames{i});
-    end
-    table.Properties.VariableNames = validNames;
-end
-
-function stars = pToStars(p)
-    % Конвертация p-value в звездочки
-    if ~isfinite(p)
-        stars = '';
-    elseif p < 0.001
-        stars = '***';
-    elseif p < 0.01
-        stars = '**';
-    elseif p < 0.05
-        stars = '*';
-    else
-        stars = 'ns';
-    end
-end
 
