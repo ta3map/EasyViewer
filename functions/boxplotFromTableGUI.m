@@ -27,7 +27,7 @@ function boxplotFromTableGUI(filePath)
         'Name', 'Boxplot from Table', ...
         'NumberTitle', 'off', ...
         'MenuBar', 'none', ...
-        'ToolBar', 'none', ...
+        'ToolBar', 'figure', ...
         'Resize', 'on', ...
         'Tag', figTag);
     
@@ -149,10 +149,10 @@ function createUI(fig)
     yPos = yPos - lineHeight - 5;
     paramsTable = uitable('Parent', fig, ...
         'Position', [margin, yPos - 120, panelWidth - 2*margin, 120], ...
-        'ColumnName', {'Group', 'Column', 'Filter', 'Label', 'Color'}, ...
-        'ColumnEditable', [true, false, true, true, true], ...
-        'ColumnWidth', {50, 100, 80, 80, 70}, ...
-        'Data', cell(0, 5), ...
+        'ColumnName', {'Group', 'Column', 'Filter', 'Label', 'Color', 'LineWidth'}, ...
+        'ColumnEditable', [true, false, true, true, true, true], ...
+        'ColumnWidth', {50, 100, 80, 80, 70, 70}, ...
+        'Data', cell(0, 6), ...
         'Tag', 'paramsTable', ...
         'CellEditCallback', @(~,~) paramsTableEditCallback(fig));
     
@@ -408,17 +408,30 @@ function addColumnToAnalysis(fig)
     for i = 1:length(selectedIdx)
         if selectedIdx(i) <= length(columnNames)
             colName = columnNames{selectedIdx(i)};
-            % Проверяем, не добавлена ли уже эта колонка
-            exists = false;
-            for k = 1:length(state.parameters)
-                if strcmp(state.parameters{k}.column, colName)
-                    exists = true;
-                    break
-                end
-            end
-            if ~exists
-                state.parameters{end+1} = struct('column', colName, 'groupNumber', 1, 'filter', '', 'label', colName, 'color', '');
-            end
+            % Генерируем цвет для нового параметра
+            colorIndex = length(state.parameters) + 1;
+            colors = getColors(colorIndex);
+            colorHex = colors{colorIndex};
+            state.parameters{end+1} = struct('column', colName, 'groupNumber', 1, 'filter', '', 'label', colName, 'color', colorHex, 'lineWidth', 1);
+        end
+    end
+    
+    % Нормализуем параметры - гарантируем наличие всех полей
+    for i = 1:length(state.parameters)
+        if ~isfield(state.parameters{i}, 'groupNumber')
+            state.parameters{i}.groupNumber = 1;
+        end
+        if ~isfield(state.parameters{i}, 'filter')
+            state.parameters{i}.filter = '';
+        end
+        if ~isfield(state.parameters{i}, 'label')
+            state.parameters{i}.label = state.parameters{i}.column;
+        end
+        if ~isfield(state.parameters{i}, 'color')
+            state.parameters{i}.color = '';
+        end
+        if ~isfield(state.parameters{i}, 'lineWidth')
+            state.parameters{i}.lineWidth = 1;
         end
     end
     
@@ -445,38 +458,19 @@ function updateAnalysisColumnsDisplay(fig)
     end
     
     if isempty(state.parameters)
-        set(paramsTable, 'Data', cell(0, 5));
+        set(paramsTable, 'Data', cell(0, 6));
         return
     end
     
-    % Формируем данные для таблицы
-    tableData = cell(length(state.parameters), 5);
+    % Формируем данные для таблицы (поля уже нормализованы)
+    tableData = cell(length(state.parameters), 6);
     for i = 1:length(state.parameters)
-        if isfield(state.parameters{i}, 'groupNumber')
-            tableData{i, 1} = state.parameters{i}.groupNumber;
-        else
-            tableData{i, 1} = 1;
-            state.parameters{i}.groupNumber = 1;
-        end
+        tableData{i, 1} = state.parameters{i}.groupNumber;
         tableData{i, 2} = state.parameters{i}.column;
-        if isfield(state.parameters{i}, 'filter')
-            tableData{i, 3} = state.parameters{i}.filter;
-        else
-            tableData{i, 3} = '';
-            state.parameters{i}.filter = '';
-        end
-        if isfield(state.parameters{i}, 'label')
-            tableData{i, 4} = state.parameters{i}.label;
-        else
-            tableData{i, 4} = '';
-            state.parameters{i}.label = '';
-        end
-        if isfield(state.parameters{i}, 'color')
-            tableData{i, 5} = state.parameters{i}.color;
-        else
-            tableData{i, 5} = '';
-            state.parameters{i}.color = '';
-        end
+        tableData{i, 3} = state.parameters{i}.filter;
+        tableData{i, 4} = state.parameters{i}.label;
+        tableData{i, 5} = state.parameters{i}.color;
+        tableData{i, 6} = state.parameters{i}.lineWidth;
     end
     
     set(paramsTable, 'Data', tableData);
@@ -513,6 +507,10 @@ function paramsTableEditCallback(fig)
         if ischar(tableData{i, 5}) || isstring(tableData{i, 5})
             state.parameters{i}.color = char(tableData{i, 5});
         end
+        % LineWidth
+        if isnumeric(tableData{i, 6}) && tableData{i, 6} > 0
+            state.parameters{i}.lineWidth = tableData{i, 6};
+        end
     end
     
     set(fig, 'UserData', state);
@@ -544,10 +542,10 @@ function plotBoxplotCallback(fig)
         groupColors = containers.Map();
         for i = 1:length(parameters)
             columnName = parameters{i}.column;
-            if isfield(parameters{i}, 'label') && ~isempty(parameters{i}.label)
+            if ~isempty(parameters{i}.label)
                 groupLabels(columnName) = parameters{i}.label;
             end
-            if isfield(parameters{i}, 'color') && ~isempty(parameters{i}.color)
+            if ~isempty(parameters{i}.color)
                 colorStr = strtrim(parameters{i}.color);
                 if ~isempty(colorStr)
                     % Парсим цвет (может быть в формате #RRGGBB или RGB)
@@ -602,7 +600,7 @@ function plotBoxplotCallback(fig)
         end
         
         % Построение графика
-        createBoxplotFigure(state.table, parameters, groupStats, statisticalTests, ...
+        createBoxplotFigure(fig, state.table, parameters, groupStats, statisticalTests, ...
             groupLabels, groupColors, state);
         
     catch ME
@@ -614,21 +612,16 @@ end
 function exportPlotCallback(fig)
     % Экспорт текущего графика в различные форматы
     
-    % Находим последнее открытое окно с графиком
-    allFigs = findobj('Type', 'figure');
-    plotFig = [];
-    
-    for i = 1:length(allFigs)
-        if ~isempty(allFigs(i).Children) && any(strcmp(get(allFigs(i).Children, 'Type'), 'axes'))
-            % Проверяем, что это не главное GUI окно
-            if ~strcmp(get(allFigs(i), 'Tag'), 'boxplotFromTableGUI')
-                plotFig = allFigs(i);
-                break
-            end
-        end
+    % Находим панель с графиками
+    plotPanel = findobj(fig, 'Tag', 'plotPanel');
+    if isempty(plotPanel)
+        msgbox('Сначала постройте график', 'Warning', 'warn');
+        return
     end
     
-    if isempty(plotFig)
+    % Проверяем, есть ли axes в панели
+    axesInPanel = findobj(plotPanel, 'Type', 'axes');
+    if isempty(axesInPanel)
         msgbox('Сначала постройте график', 'Warning', 'warn');
         return
     end
@@ -649,24 +642,32 @@ function exportPlotCallback(fig)
     [~, ~, ext] = fileparts(file);
     
     try
-        figure(plotFig); % Делаем окно активным
+        % Создаем временную фигуру для экспорта
+        exportFig = figure('Visible', 'off');
+        copyobj(axesInPanel, exportFig);
         
         switch lower(ext)
             case '.png'
-                print(plotFig, '-dpng', '-r300', filePath);
+                print(exportFig, '-dpng', '-r300', filePath);
             case '.pdf'
-                print(plotFig, '-dpdf', '-r300', filePath);
+                print(exportFig, '-dpdf', '-r300', filePath);
             case '.fig'
-                savefig(plotFig, filePath);
+                savefig(exportFig, filePath);
             case '.eps'
-                print(plotFig, '-depsc', '-r300', filePath);
+                print(exportFig, '-depsc', '-r300', filePath);
             otherwise
                 msgbox('Неподдерживаемый формат файла', 'Error', 'error');
+                close(exportFig);
                 return
         end
+        
+        close(exportFig);
     catch ME
         msgbox(sprintf('Ошибка при экспорте: %s', ME.message), 'Error', 'error');
         debugState('boxplotFromTableGUI', 'Export error: %s', ME.message);
+        if exist('exportFig', 'var') && isvalid(exportFig)
+            close(exportFig);
+        end
     end
 end
 
@@ -963,7 +964,7 @@ function testResults = performStatisticalTests(table, parameters, groupColumn)
     end
 end
 
-function createBoxplotFigure(table, parameters, groupStats, statisticalTests, ...
+function createBoxplotFigure(fig, table, parameters, groupStats, statisticalTests, ...
     groupLabels, groupColors, state)
     % Построение графика с боксплотами
     
@@ -975,6 +976,12 @@ function createBoxplotFigure(table, parameters, groupStats, statisticalTests, ..
     for i = 1:length(parameters)
         debugState('createBoxplotFigure', '    param %d: column=%s', i, parameters{i}.column);
     end
+    
+    % Находим панель для графиков
+    plotPanel = findobj(fig, 'Tag', 'plotPanel');
+   
+    % Очищаем содержимое панели
+    delete(plotPanel.Children);
     
     % Группируем параметры по groupNumber
     groupNumbers = [];
@@ -989,10 +996,6 @@ function createBoxplotFigure(table, parameters, groupStats, statisticalTests, ..
     uniqueGroupNumbers = unique(groupNumbers);
     nPlotGroups = length(uniqueGroupNumbers);
     
-    fig = figure('Position', [150, 50, 800, 200 + nPlotGroups * 400], ...
-        'Name', state.title, ...
-        'NumberTitle', 'off');
-    
     % Строим графики по группам
     for plotGroupIdx = 1:nPlotGroups
         groupNum = uniqueGroupNumbers(plotGroupIdx);
@@ -1000,22 +1003,27 @@ function createBoxplotFigure(table, parameters, groupStats, statisticalTests, ..
         % Находим все параметры с этим номером группы
         paramsInGroup = {};
         for i = 1:length(parameters)
-            paramGroupNum = 1;
-            if isfield(parameters{i}, 'groupNumber')
-                paramGroupNum = parameters{i}.groupNumber;
-            end
-            if paramGroupNum == groupNum
+            if parameters{i}.groupNumber == groupNum
                 paramsInGroup{end+1} = parameters{i};
             end
         end
         
-        subplot(nPlotGroups, 1, plotGroupIdx);
-        hold on;
+        % Вычисляем позицию для subplot внутри панели
+        margin = 0.05;
+        spacing = 0.03; % увеличен на 10% (было 0.02)
+        totalHeight = 1 - 2*margin;
+        subplotHeight = (totalHeight - (nPlotGroups - 1) * spacing) / nPlotGroups;
+        subplotBottom = 1 - margin - plotGroupIdx * subplotHeight - (plotGroupIdx - 1) * spacing;
+        subplotPosition = [0.1, subplotBottom, 0.85, subplotHeight];
+        
+        ax = axes('Parent', plotPanel, 'Position', subplotPosition);
+        hold(ax, 'on');
         
         % Строим боксплоты для всех параметров в группе
         allDataForGroup = [];
         groupLabelsForBoxplot = {};
         labelToColumnMap = containers.Map();
+        labelToLineWidthMap = containers.Map();
         paramDataMap = containers.Map(); % Для статистики - объединенные данные каждого параметра
         
         for p = 1:length(paramsInGroup)
@@ -1026,16 +1034,19 @@ function createBoxplotFigure(table, parameters, groupStats, statisticalTests, ..
                 continue
             end
             
-            % Получаем label из параметра
-            paramLabel = '';
-            if isfield(paramStruct, 'label')
-                paramLabel = paramStruct.label;
+            % Вычисляем displayLabel один раз (поля уже нормализованы)
+            paramLabel = paramStruct.label;
+            displayLabel = columnName;
+            if ~isempty(paramLabel)
+                displayLabel = paramLabel;
+            elseif ~isempty(groupLabels) && isKey(groupLabels, columnName)
+                displayLabel = groupLabels(columnName);
             end
             
             % Применяем фильтр для этого параметра индивидуально (ОДИН РАЗ)
-            allDataForParam = []; % Все данные параметра для статистики (объединенные)
+            allDataForParam = [];
             
-            if isfield(paramStruct, 'filter') && ~isempty(paramStruct.filter)
+            if ~isempty(paramStruct.filter)
                 paramFilter = paramStruct.filter;
                 parsedFilters = parseGroupFilters(paramFilter);
                 if ~isempty(parsedFilters)
@@ -1054,70 +1065,44 @@ function createBoxplotFigure(table, parameters, groupStats, statisticalTests, ..
                             groupLabel = groupLabel{1};
                         end
                         
-                        % Используем кастомную подпись если есть
-                        displayLabel = columnName;
-                        if ~isempty(paramLabel)
-                            displayLabel = paramLabel;
-                        elseif ~isempty(groupLabels) && isKey(groupLabels, columnName)
-                            displayLabel = groupLabels(columnName);
-                        end
-                        
                         mask = strcmp(filteredTableForParam{:, 'group_label'}, groupLabel);
                         data = filteredTableForParam{mask, columnName};
                         data = data(~isnan(data) & ~isinf(data));
                         
                         if ~isempty(data)
-                            % Для отображения: данные с группами
-                            allDataForGroup = [allDataForGroup; data];
                             % Формируем метку: название колонки + группа (если групп больше одной)
                             if length(uniqueGroupsForParam) > 1
                                 plotLabel = sprintf('%s (%s)', displayLabel, groupLabel);
                             else
                                 plotLabel = displayLabel;
                             end
+                            
+                            allDataForGroup = [allDataForGroup; data];
                             groupLabelsForBoxplot = [groupLabelsForBoxplot; repmat({plotLabel}, length(data), 1)];
                             if ~isKey(labelToColumnMap, plotLabel)
                                 labelToColumnMap(plotLabel) = columnName;
                             end
-                            
-                            % Для статистики: объединяем все данные из всех групп
+                            if ~isKey(labelToLineWidthMap, plotLabel)
+                                labelToLineWidthMap(plotLabel) = paramStruct.lineWidth;
+                            end
                             allDataForParam = [allDataForParam; data];
                         end
                     end
-                else
-                    % Если фильтр не распарсился, используем все данные
-                    data = table{:, columnName};
-                    data = data(~isnan(data) & ~isinf(data));
-                    if ~isempty(data)
-                        allDataForGroup = [allDataForGroup; data];
-                        displayLabel = columnName;
-                        if ~isempty(paramLabel)
-                            displayLabel = paramLabel;
-                        elseif ~isempty(groupLabels) && isKey(groupLabels, columnName)
-                            displayLabel = groupLabels(columnName);
-                        end
-                        groupLabelsForBoxplot = [groupLabelsForBoxplot; repmat({displayLabel}, length(data), 1)];
-                        if ~isKey(labelToColumnMap, displayLabel)
-                            labelToColumnMap(displayLabel) = columnName;
-                        end
-                        allDataForParam = data;
-                    end
                 end
-            else
-                % Если нет фильтра, используем все данные напрямую
+            end
+            
+            % Если фильтр не применился или его нет - используем все данные
+            if isempty(allDataForParam)
                 data = table{:, columnName};
                 data = data(~isnan(data) & ~isinf(data));
                 if ~isempty(data)
                     allDataForGroup = [allDataForGroup; data];
-                    displayLabel = columnName;
-                    if ~isempty(paramLabel)
-                        displayLabel = paramLabel;
-                    elseif ~isempty(groupLabels) && isKey(groupLabels, columnName)
-                        displayLabel = groupLabels(columnName);
-                    end
                     groupLabelsForBoxplot = [groupLabelsForBoxplot; repmat({displayLabel}, length(data), 1)];
                     if ~isKey(labelToColumnMap, displayLabel)
                         labelToColumnMap(displayLabel) = columnName;
+                    end
+                    if ~isKey(labelToLineWidthMap, displayLabel)
+                        labelToLineWidthMap(displayLabel) = paramStruct.lineWidth;
                     end
                     allDataForParam = data;
                 end
@@ -1131,11 +1116,88 @@ function createBoxplotFigure(table, parameters, groupStats, statisticalTests, ..
         
         % Построение боксплотов
         if ~isempty(allDataForGroup)
-            boxplot(allDataForGroup, groupLabelsForBoxplot);
-            hold on;
+            boxplot(ax, allDataForGroup, groupLabelsForBoxplot);
+            hold(ax, 'on');
+            
+            % Применение цветов к боксплотам
+            uniqueDisplayLabels = unique(groupLabelsForBoxplot, 'stable');
+            
+            % Находим все patch объекты (боксы)
+            allChildren = get(ax, 'Children');
+            boxPatches = [];
+            for i = 1:length(allChildren)
+                if strcmp(get(allChildren(i), 'Type'), 'patch')
+                    boxPatches = [boxPatches; allChildren(i)];
+                end
+            end
+            
+            % Сортируем patch объекты по их X координатам
+            if ~isempty(boxPatches)
+                xPositions = zeros(length(boxPatches), 1);
+                for i = 1:length(boxPatches)
+                    xData = get(boxPatches(i), 'XData');
+                    if ~isempty(xData)
+                        xPositions(i) = mean(xData);
+                    else
+                        % Если XData пуст, используем Vertices
+                        vertices = get(boxPatches(i), 'Vertices');
+                        if ~isempty(vertices)
+                            xPositions(i) = mean(vertices(:, 1));
+                        end
+                    end
+                end
+                [~, sortIdx] = sort(xPositions);
+                boxPatches = boxPatches(sortIdx);
+            end
+            
+            % Находим все line объекты
+            allLines = findobj(ax, 'Type', 'line');
+            
+            for g = 1:length(uniqueDisplayLabels)
+                displayLabel = uniqueDisplayLabels{g};
+                
+                % Находим цвет для параметра
+                color = [0.5 0.5 0.5]; % серый по умолчанию
+                if ~isempty(groupColors) && exist('labelToColumnMap', 'var') && isKey(labelToColumnMap, displayLabel)
+                    columnNameForColor = labelToColumnMap(displayLabel);
+                    if isKey(groupColors, columnNameForColor)
+                        color = groupColors(columnNameForColor);
+                    end
+                end
+                
+                % Находим lineWidth для параметра
+                paramLineWidth = 1; % по умолчанию
+                if exist('labelToLineWidthMap', 'var') && isKey(labelToLineWidthMap, displayLabel)
+                    paramLineWidth = labelToLineWidthMap(displayLabel);
+                end
+                
+                % Применяем цвет к боксу (patch) - по порядку после сортировки
+                if ~isempty(boxPatches) && g <= length(boxPatches)
+                    set(boxPatches(g), 'FaceColor', color, 'EdgeColor', color * 0.7, 'LineWidth', paramLineWidth);
+                end
+                
+                % Применяем цвет и толщину к линиям по их позиции X
+                xPos = g;
+                for i = 1:length(allLines)
+                    xData = get(allLines(i), 'XData');
+                    if ~isempty(xData)
+                        % Проверяем, относится ли линия к этой позиции
+                        xMean = mean(xData);
+                        if abs(xMean - xPos) < 0.3
+                            currentLineWidth = get(allLines(i), 'LineWidth');
+                            if currentLineWidth > 1
+                                % Это медиана
+                                set(allLines(i), 'Color', color * 0.5, 'LineWidth', paramLineWidth);
+                            else
+                                % Это усы или другие линии
+                                set(allLines(i), 'Color', color, 'LineWidth', paramLineWidth);
+                            end
+                        end
+                    end
+                end
+            end
             
             % Добавление точек данных с jitter
-            uniqueDisplayLabels = unique(groupLabelsForBoxplot, 'stable');
             for g = 1:length(uniqueDisplayLabels)
                 displayLabel = uniqueDisplayLabels{g};
                 mask = strcmp(groupLabelsForBoxplot, displayLabel);
@@ -1154,11 +1216,25 @@ function createBoxplotFigure(table, parameters, groupStats, statisticalTests, ..
                         end
                     end
                     
-                    scatter(x_jitter, data, 20, color, '.', 'MarkerFaceAlpha', 0.6);
+                    % Находим lineWidth для параметра
+                    paramLineWidth = 1; % по умолчанию
+                    if exist('labelToLineWidthMap', 'var') && isKey(labelToLineWidthMap, displayLabel)
+                        paramLineWidth = labelToLineWidthMap(displayLabel);
+                    end
+                    
+                    % Размер маркера = lineWidth * 30
+                    markerSize = paramLineWidth * 30;
+                    
+                    % Scatter с заполненными кругами и белым обрамлением
+                    scatter(ax, x_jitter, data, markerSize, color, 'o', ...
+                        'MarkerFaceColor', color, ...
+                        'MarkerEdgeColor', 'white', ...
+                        'LineWidth', paramLineWidth, ...
+                        'MarkerFaceAlpha', 1);
                     
                     % Аннотация n=X
                     medianVal = median(data);
-                    text(x_pos, medianVal, sprintf('n=%d', length(data)), ...
+                    text(ax, x_pos, medianVal, sprintf('n=%d', length(data)), ...
                         'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', ...
                         'FontSize', 9, 'BackgroundColor', 'white');
                 end
@@ -1207,14 +1283,14 @@ function createBoxplotFigure(table, parameters, groupStats, statisticalTests, ..
         else
             yLabelText = sprintf('Group %d', groupNum);
         end
-        ylabel(yLabelText);
+        ylabel(ax, yLabelText);
         if plotGroupIdx == nPlotGroups
-            xlabel('Groups');
+            xlabel(ax, 'Groups');
         end
         
         % Настройка диапазона Y-оси
         if strcmp(state.yAxisRange, 'manual') && ~isempty(state.yAxisMin) && ~isempty(state.yAxisMax)
-            ylim([state.yAxisMin, state.yAxisMax]);
+            ylim(ax, [state.yAxisMin, state.yAxisMax]);
         elseif strcmp(state.yAxisRange, 'auto')
             % Автоматический расчет пределов по процентилям 0.001 и 99.99
             if ~isempty(allDataForGroup)
@@ -1231,7 +1307,7 @@ function createBoxplotFigure(table, parameters, groupStats, statisticalTests, ..
                         yMax = yMax + offset;
                     end
                 end
-                ylim([yMin, yMax]);
+                ylim(ax, [yMin, yMax]);
             end
         end
         
@@ -1241,14 +1317,13 @@ function createBoxplotFigure(table, parameters, groupStats, statisticalTests, ..
             paramKeyValid = matlab.lang.makeValidName(paramKey);
             
             if isfield(statisticalTests, paramKeyValid)
-                currentAxes = gca;
-                currentYLim = ylim(currentAxes);
+                currentYLim = ylim(ax);
                 
                 % Вычисляем максимальный уровень скобок
                 maxLevel = calculateMaxBracketLevelForParams(statisticalTests.(paramKeyValid), paramsInGroup, state.showAllPvalues);
                 
                 % Рисуем скобки между параметрами
-                addSignificanceBracketsForParams(currentAxes, paramsInGroup, ...
+                addSignificanceBracketsForParams(ax, paramsInGroup, ...
                     statisticalTests.(paramKeyValid), ...
                     state.showAllPvalues, currentYLim);
                 
@@ -1259,13 +1334,23 @@ function createBoxplotFigure(table, parameters, groupStats, statisticalTests, ..
                     yLevelSpacing = yRange * 0.08;
                     yTextOffset = yRange * 0.015;
                     newYMax = currentYLim(2) + yBaseOffset + maxLevel * yLevelSpacing + yTextOffset;
-                    ylim(currentAxes, [currentYLim(1), newYMax]);
+                    ylim(ax, [currentYLim(1), newYMax]);
                 end
             end
         end
+        
+        % Добавляем заголовок для первого subplot
+        if plotGroupIdx == 1
+            title(ax, state.title, 'FontSize', 14, 'FontWeight', 'bold');
+        end
     end
     
-    sgtitle(state.title, 'FontSize', 14, 'FontWeight', 'bold');
+    % Активация инструментов для всех axes в панели
+    allAxes = findobj(plotPanel, 'Type', 'axes');
+    if ~isempty(allAxes)
+        zoom(fig, 'on');
+        pan(fig, 'on');
+    end
 end
 
 function maxLevel = calculateMaxBracketLevelForParams(testResults, paramsInGroup, showAllPvalues)
@@ -1399,8 +1484,7 @@ function addSignificanceBracketsForParams(ax, paramsInGroup, testResults, showAl
     bracketWallHeight = yRange * 0.03;
     
     % Рисуем скобки
-    axes(ax);
-    hold on;
+    hold(ax, 'on');
     
     for i = 1:length(significantPairs)
         pair = significantPairs(i);
@@ -1421,11 +1505,11 @@ function addSignificanceBracketsForParams(ax, paramsInGroup, testResults, showAl
         yText = yLine + yTextOffset;
         
         % Горизонтальная линия
-        line([pos1, pos2], [yLine, yLine], 'Color', 'k', 'LineWidth', 1.5);
+        line(ax, [pos1, pos2], [yLine, yLine], 'Color', 'k', 'LineWidth', 1.5);
         
         % Вертикальные стенки
-        line([pos1, pos1], [yLine, yWallBottom], 'Color', 'k', 'LineWidth', 1.5);
-        line([pos2, pos2], [yLine, yWallBottom], 'Color', 'k', 'LineWidth', 1.5);
+        line(ax, [pos1, pos1], [yLine, yWallBottom], 'Color', 'k', 'LineWidth', 1.5);
+        line(ax, [pos2, pos2], [yLine, yWallBottom], 'Color', 'k', 'LineWidth', 1.5);
         
         % Текст с p-value
         if pair.pvalue >= 0.001
@@ -1441,7 +1525,7 @@ function addSignificanceBracketsForParams(ax, paramsInGroup, testResults, showAl
         
         annotationText = sprintf('%s %s', ptext, starsStr);
         
-        text((pos1 + pos2) / 2, yText, annotationText, ...
+        text(ax, (pos1 + pos2) / 2, yText, annotationText, ...
             'HorizontalAlignment', 'center', ...
             'VerticalAlignment', 'bottom', ...
             'FontSize', 10, ...
@@ -1456,12 +1540,13 @@ end
 
 function table = formatTableColumnNames(table)
     % Форматирует названия колонок таблицы для валидных имен переменных MATLAB
-    % Заменяет пробелы и специальные символы на подчеркивания
+    % Транскрибирует кириллические буквы в латиницу, затем делает имя валидным
+    % Использует transliterateColumnName для транскрипции
     
     originalNames = table.Properties.VariableNames;
     validNames = cell(size(originalNames));
     for i = 1:length(originalNames)
-        validNames{i} = matlab.lang.makeValidName(originalNames{i});
+        validNames{i} = transliterateColumnName(originalNames{i});
     end
     table.Properties.VariableNames = validNames;
 end
