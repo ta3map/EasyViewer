@@ -86,12 +86,22 @@ function createUI(fig)
     
     yPos = yPos - lineHeight - 5;
     loadBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
-        'Position', [margin, yPos, 150, 30], ...
+        'Position', [margin, yPos, 100, 30], ...
         'String', 'Load File', ...
         'Callback', @(~,~) loadFileCallback(fig));
     
+    saveStateBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
+        'Position', [110, yPos, 80, 30], ...
+        'String', 'Save', ...
+        'Callback', @(~,~) saveStateCallback(fig));
+    
+    loadStateBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
+        'Position', [200, yPos, 80, 30], ...
+        'String', 'Load', ...
+        'Callback', @(~,~) loadStateCallback(fig));
+    
     filePathText = uicontrol('Parent', fig, 'Style', 'text', ...
-        'Position', [170, yPos, 220, 30], ...
+        'Position', [290, yPos, 110, 30], ...
         'String', 'No file loaded', ...
         'HorizontalAlignment', 'left', ...
         'Tag', 'filePathText');
@@ -139,7 +149,8 @@ function createUI(fig)
         'ColumnWidth', {50, 100, 80, 80, 70, 70}, ...
         'Data', cell(0, 6), ...
         'Tag', 'paramsTable', ...
-        'CellEditCallback', @(~,~) paramsTableEditCallback(fig));
+        'CellEditCallback', @(~,~) paramsTableEditCallback(fig), ...
+        'CellSelectionCallback', @paramsTableSelectionCallback);
     
     yPos = yPos - 125 - sectionSpacing;
     
@@ -256,6 +267,167 @@ function loadFileCallback(fig)
     
     filePath = fullfile(path, file);
     loadFileInGUI(fig, filePath);
+end
+
+function saveStateCallback(fig)
+    % Сохранение состояния в .meta файл
+    state = get(fig, 'UserData');
+    
+    if isempty(state.filePath)
+        errorMsg = 'Сначала загрузите файл с данными';
+        fprintf('ERROR: %s\n', errorMsg);
+        msgbox(errorMsg, 'Error', 'error');
+        return
+    end
+    
+    [file, path] = uiputfile('*.meta', 'Save State', 'boxplot_state.meta');
+    
+    if isequal(file, 0)
+        return
+    end
+    
+    filePath = fullfile(path, file);
+    
+    try
+        % Сохраняем только необходимые поля для восстановления
+        savedState = struct();
+        savedState.filePath = state.filePath;
+        savedState.parameters = state.parameters;
+        savedState.nextGroupNumber = state.nextGroupNumber;
+        savedState.showStatistics = state.showStatistics;
+        savedState.showAllPvalues = state.showAllPvalues;
+        savedState.yAxisRange = state.yAxisRange;
+        savedState.yAxisMin = state.yAxisMin;
+        savedState.yAxisMax = state.yAxisMax;
+        savedState.title = state.title;
+        
+        save(filePath, 'savedState', '-mat');
+        fprintf('State saved to: %s\n', filePath);
+    catch ME
+        errorMsg = sprintf('Ошибка при сохранении: %s', ME.message);
+        fprintf('ERROR: %s\n', errorMsg);
+        msgbox(errorMsg, 'Error', 'error');
+    end
+end
+
+function loadStateCallback(fig)
+    % Загрузка состояния из .meta файла
+    [file, path] = uigetfile('*.meta', 'Load State');
+    
+    if isequal(file, 0)
+        return
+    end
+    
+    filePath = fullfile(path, file);
+    
+    try
+        data = load(filePath, '-mat');
+        
+        if ~isfield(data, 'savedState')
+            errorMsg = 'Invalid state file format';
+            fprintf('ERROR: %s\n', errorMsg);
+            msgbox(errorMsg, 'Error', 'error');
+            return
+        end
+        
+        savedState = data.savedState;
+        
+        % Восстанавливаем состояние через вызовы функций
+        % 1. Загружаем данные
+        if isfield(savedState, 'filePath') && ~isempty(savedState.filePath)
+            if exist(savedState.filePath, 'file')
+                loadFileInGUI(fig, savedState.filePath);
+            else
+                errorMsg = sprintf('Data file not found: %s', savedState.filePath);
+                fprintf('ERROR: %s\n', errorMsg);
+                msgbox(errorMsg, 'Error', 'error');
+                return
+            end
+        else
+            errorMsg = 'State file does not contain filePath';
+            fprintf('ERROR: %s\n', errorMsg);
+            msgbox(errorMsg, 'Error', 'error');
+            return
+        end
+        
+        % 2. Восстанавливаем параметры и настройки
+        state = get(fig, 'UserData');
+        if isfield(savedState, 'parameters')
+            state.parameters = savedState.parameters;
+        end
+        if isfield(savedState, 'nextGroupNumber')
+            state.nextGroupNumber = savedState.nextGroupNumber;
+        end
+        if isfield(savedState, 'showStatistics')
+            state.showStatistics = savedState.showStatistics;
+        end
+        if isfield(savedState, 'showAllPvalues')
+            state.showAllPvalues = savedState.showAllPvalues;
+        end
+        if isfield(savedState, 'yAxisRange')
+            state.yAxisRange = savedState.yAxisRange;
+        end
+        if isfield(savedState, 'yAxisMin')
+            state.yAxisMin = savedState.yAxisMin;
+        end
+        if isfield(savedState, 'yAxisMax')
+            state.yAxisMax = savedState.yAxisMax;
+        end
+        if isfield(savedState, 'title')
+            state.title = savedState.title;
+        end
+        
+        set(fig, 'UserData', state);
+        
+        % 3. Обновляем UI
+        updateAnalysisColumnsDisplay(fig);
+        
+        % Обновляем чекбоксы и поля
+        showStatsCheck = findobj(fig, 'Tag', 'showStatsCheck');
+        if ~isempty(showStatsCheck)
+            set(showStatsCheck, 'Value', state.showStatistics);
+        end
+        
+        showAllPvaluesCheck = findobj(fig, 'Tag', 'showAllPvaluesCheck');
+        if ~isempty(showAllPvaluesCheck)
+            set(showAllPvaluesCheck, 'Value', state.showAllPvalues);
+        end
+        
+        yAxisPopup = findobj(fig, 'Tag', 'yAxisPopup');
+        if ~isempty(yAxisPopup)
+            if strcmp(state.yAxisRange, 'auto')
+                set(yAxisPopup, 'Value', 1);
+            else
+                set(yAxisPopup, 'Value', 2);
+            end
+        end
+        
+        yAxisMinEdit = findobj(fig, 'Tag', 'yAxisMinEdit');
+        if ~isempty(yAxisMinEdit) && ~isempty(state.yAxisMin)
+            set(yAxisMinEdit, 'String', num2str(state.yAxisMin));
+        end
+        
+        yAxisMaxEdit = findobj(fig, 'Tag', 'yAxisMaxEdit');
+        if ~isempty(yAxisMaxEdit) && ~isempty(state.yAxisMax)
+            set(yAxisMaxEdit, 'String', num2str(state.yAxisMax));
+        end
+        
+        titleEdit = findobj(fig, 'Tag', 'titleEdit');
+        if ~isempty(titleEdit) && ~isempty(state.title)
+            set(titleEdit, 'String', state.title);
+        end
+        
+        updateYAxisControls(fig);
+        
+        % 4. Обновляем структуру filteredData
+        updateFilteredDataStructure(fig);
+        
+        fprintf('State loaded from: %s\n', filePath);
+    catch ME
+        errorMsg = sprintf('Ошибка при загрузке: %s', ME.message);
+        fprintf('ERROR: %s\n', errorMsg);
+        msgbox(errorMsg, 'Error', 'error');
+    end
 end
 
 function loadFileInGUI(fig, filePath)
@@ -383,6 +555,115 @@ function columnSelectedCallback(fig)
     if ~isempty(dataTable)
         set(dataTable, 'Data', displayData);
         set(dataTable, 'ColumnName', {selectedColumn});
+    end
+end
+
+function paramsTableSelectionCallback(src, event)
+    % Show filtered data from state.filteredData in the preview table
+    fig = ancestor(src, 'figure');
+    state = get(fig, 'UserData');
+    
+    if isempty(event.Indices)
+        return
+    end
+    
+    % Получаем все выделенные строки
+    selectedRows = unique(event.Indices(:, 1));
+    
+    if isempty(selectedRows)
+        return
+    end
+    
+    % Получаем все поля из state.filteredData в порядке их создания
+    filteredFields = fieldnames(state.filteredData);
+    if isempty(filteredFields)
+        return
+    end
+    
+    % Собираем данные для всех выделенных строк
+    allColumnData = {};
+    columnNames = {};
+    
+    for rowIdx = selectedRows(:)'
+        if rowIdx < 1 || rowIdx > length(state.parameters)
+            continue
+        end
+        
+        if rowIdx > length(filteredFields)
+            continue
+        end
+        
+        param = state.parameters{rowIdx};
+        fieldName = filteredFields{rowIdx};
+        paramData = state.filteredData.(fieldName);
+        
+        if ~isfield(paramData, 'data')
+            continue
+        end
+        
+        columnData = paramData.data;
+        
+        % Преобразуем данные в cell array
+        if isnumeric(columnData) || islogical(columnData)
+            displayData = cell(length(columnData), 1);
+            for i = 1:length(columnData)
+                if isnan(columnData(i)) && isnumeric(columnData)
+                    displayData{i} = 'NaN';
+                else
+                    displayData{i} = num2str(columnData(i));
+                end
+            end
+        elseif iscell(columnData)
+            displayData = cell(length(columnData), 1);
+            for i = 1:length(columnData)
+                if ischar(columnData{i}) || isstring(columnData{i})
+                    displayData{i} = char(columnData{i});
+                else
+                    displayData{i} = mat2str(columnData{i});
+                end
+            end
+        else
+            displayData = cellstr(string(columnData));
+        end
+        
+        allColumnData{end+1} = displayData;
+        
+        % Формируем название колонки
+        columnDisplayName = param.column;
+        if isfield(param, 'filter') && ~isempty(param.filter)
+            columnDisplayName = sprintf('%s [filter: %s]', columnDisplayName, param.filter);
+        end
+        columnNames{end+1} = columnDisplayName;
+    end
+    
+    if isempty(allColumnData)
+        return
+    end
+    
+    % Определяем максимальную длину
+    maxLength = 0;
+    for i = 1:length(allColumnData)
+        maxLength = max(maxLength, length(allColumnData{i}));
+    end
+    
+    % Создаем таблицу с выравниванием по максимальной длине
+    tableData = cell(maxLength, length(allColumnData));
+    for col = 1:length(allColumnData)
+        colData = allColumnData{col};
+        for row = 1:maxLength
+            if row <= length(colData)
+                tableData{row, col} = colData{row};
+            else
+                tableData{row, col} = '';
+            end
+        end
+    end
+    
+    % Update table
+    dataTable = findobj(fig, 'Tag', 'dataTable');
+    if ~isempty(dataTable)
+        set(dataTable, 'Data', tableData);
+        set(dataTable, 'ColumnName', columnNames);
     end
 end
 
