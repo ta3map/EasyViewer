@@ -679,6 +679,9 @@ end
     % Добавляем обработчик закрытия окна для сохранения положения
     set(signalFig, 'CloseRequestFcn', @closeSignalAnalysisWindow);
     
+    % Разворачиваем окно после успешной инициализации
+    signalFig.WindowState = 'maximized';
+    
     % Загружаем позиции курсоров из настроек при первом запуске
     %loadCursorPositionsFromSettings();
     
@@ -4352,12 +4355,6 @@ updateCursorEditFields();
     end
 
     function closeSignalAnalysisWindow(src, ~)
-        figure_position = signalFig.Position;
-        
-        if exist(SettingsFilepath, 'file')
-            save(SettingsFilepath, 'figure_position', '-append');
-        end
-        
         % Если был режим редактирования - обновляем координаты
         if strcmp(editMode, 'edit')
             try
@@ -4370,6 +4367,7 @@ updateCursorEditFields();
         % Очистка памяти - очищаем все глобальные переменные
         clear global
         
+        % Не сохраняем положение окна - всегда используем базовое из JSON
         delete(src);
     end
 

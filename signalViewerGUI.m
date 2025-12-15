@@ -242,8 +242,8 @@ function signalViewerGUI(editMode)
     %% координаты графических элементов - теперь загружаются из JSON файла
         %%
     function saveSettings()
-        figure_position = f.Position;
-        save(SettingsFilepath, 'lastOpenedFiles', 'add_event_settings', 'figure_position', '-append');
+        % Не сохраняем положение окна - всегда используем базовое из JSON
+        save(SettingsFilepath, 'lastOpenedFiles', 'add_event_settings', '-append');
     end
 
     % Идентификатор (tag) для GUI фигуры
@@ -696,6 +696,9 @@ function signalViewerGUI(editMode)
     else
         figure_position = base_figure_position;
     end
+    
+    % Разворачиваем окно после успешной инициализации
+    f.WindowState = 'maximized';
     
     function ButtonDownFcn(ax, fig)
         if zoomState.await_points
