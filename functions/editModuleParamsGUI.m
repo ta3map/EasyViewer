@@ -95,6 +95,11 @@ function params = editModuleParamsGUI(moduleName)
         'String', 'Reset', ...
         'Callback', @resetCallback);
     
+    uicontrol('Style', 'pushbutton', ...
+        'Position', [340, 10, 120, 30], ...
+        'String', 'Import from .meta', ...
+        'Callback', @importFromMetaCallback);
+    
     % Переменные для хранения состояния
     userData = struct();
     userData.jsonParams = jsonParams;
@@ -103,14 +108,14 @@ function params = editModuleParamsGUI(moduleName)
     userData.applied = false;
     fig.UserData = userData;
     
+    % Переменная для сохранения результата после удаления фигуры
+    appliedResult = false;
+    
     % Ожидание закрытия окна
     uiwait(fig);
     
     % Получение результата
-    applied = false;
-    if ishandle(fig) && isfield(fig.UserData, 'applied')
-        applied = fig.UserData.applied;
-    end
+    applied = appliedResult;
     
     if applied
         % Загружаем обновленный JSON и преобразуем в params
@@ -198,6 +203,7 @@ function params = editModuleParamsGUI(moduleName)
             fprintf(fid, '%s', jsonText);
             fclose(fid);
             
+            appliedResult = true;
             fig.UserData.applied = true;
             uiresume(fig);
             delete(fig);
@@ -207,6 +213,7 @@ function params = editModuleParamsGUI(moduleName)
     end
     
     function cancelCallback(~, ~)
+        appliedResult = false;
         uiresume(fig);
         delete(fig);
     end
@@ -252,8 +259,206 @@ function params = editModuleParamsGUI(moduleName)
         set(table, 'Data', originalData);
     end
     
+    function importFromMetaCallback(~, ~)
+        [filename, pathname] = uigetfile('*.meta', 'Select .meta file');
+        if isequal(filename, 0)
+            return;
+        end
+        
+        metaPath = fullfile(pathname, filename);
+        if ~exist(metaPath, 'file')
+            msgbox(sprintf('File not found: %s', metaPath), 'Error', 'error');
+            return;
+        end
+        
+        try
+            metaData = load(metaPath, '-mat');
+        catch ME
+            msgbox(sprintf('Failed to load .meta file: %s', ME.message), 'Error', 'error');
+            return;
+        end
+        
+        allFields = extractAllFields(metaData);
+        if isempty(allFields)
+            msgbox('No fields found in .meta file', 'Error', 'error');
+            return;
+        end
+        
+        selectedFields = showFieldSelectionDialog(allFields);
+        if isempty(selectedFields)
+            return;
+        end
+        
+        tableData = get(table, 'Data');
+        updatedCount = 0;
+        
+        for i = 1:length(selectedFields)
+            fieldPath = selectedFields{i};
+            value = getFieldValue(metaData, fieldPath);
+            
+            if isempty(value)
+                continue;
+            end
+            
+            fieldName = fieldPath;
+            if contains(fieldPath, '.')
+                parts = strsplit(fieldPath, '.');
+                fieldName = parts{end};
+            end
+            
+            for j = 1:size(tableData, 1)
+                if strcmp(tableData{j, 2}, fieldName)
+                    valueStr = convertValueToString(value);
+                    tableData{j, 3} = valueStr;
+                    updatedCount = updatedCount + 1;
+                    break;
+                end
+            end
+        end
+        
+        set(table, 'Data', tableData);
+        if updatedCount > 0
+            msgbox(sprintf('Imported %d parameter(s) from .meta file', updatedCount), 'Import Complete', 'help');
+        else
+            msgbox('No matching parameters found in module', 'Import Complete', 'help');
+        end
+    end
+    
+    function fields = extractAllFields(structData)
+        fields = {};
+        fieldNames = fieldnames(structData);
+        for i = 1:numel(fieldNames)
+            fieldName = fieldNames{i};
+            fields = extractFieldsRecursive(structData.(fieldName), fieldName, fields);
+        end
+    end
+    
+    function fields = extractFieldsRecursive(value, prefix, fields)
+        if isstruct(value)
+            if numel(value) == 1
+                fieldNames = fieldnames(value);
+                for i = 1:numel(fieldNames)
+                    subFieldName = fieldNames{i};
+                    newPrefix = sprintf('%s.%s', prefix, subFieldName);
+                    fields = extractFieldsRecursive(value.(subFieldName), newPrefix, fields);
+                end
+            else
+                fields{end+1} = prefix;
+            end
+        elseif iscell(value) && numel(value) > 0 && isstruct(value{1})
+            if numel(value) == 1
+                fieldNames = fieldnames(value{1});
+                for i = 1:numel(fieldNames)
+                    subFieldName = fieldNames{i};
+                    newPrefix = sprintf('%s.%s', prefix, subFieldName);
+                    fields = extractFieldsRecursive(value{1}.(subFieldName), newPrefix, fields);
+                end
+            else
+                fields{end+1} = prefix;
+            end
+        else
+            fields{end+1} = prefix;
+        end
+    end
+    
+    function value = getFieldValue(structData, fieldPath)
+        parts = strsplit(fieldPath, '.');
+        value = structData;
+        for i = 1:numel(parts)
+            if isstruct(value) && numel(value) == 1 && isfield(value, parts{i})
+                value = value.(parts{i});
+            elseif isstruct(value) && numel(value) > 1 && isfield(value(1), parts{i})
+                value = [value.(parts{i})];
+            elseif iscell(value) && numel(value) > 0 && isstruct(value{1}) && isfield(value{1}, parts{i})
+                value = cellfun(@(x) x.(parts{i}), value, 'UniformOutput', false);
+            else
+                value = [];
+                return;
+            end
+        end
+    end
+    
+    function valueStr = convertValueToString(value)
+        if islogical(value)
+            valueStr = mat2str(value);
+        elseif isnumeric(value)
+            valueStr = mat2str(value);
+        elseif ischar(value) || isstring(value)
+            if isstring(value)
+                valueStr = char(value);
+            else
+                valueStr = value;
+            end
+        else
+            valueStr = mat2str(value);
+        end
+    end
+    
+    function selectedFields = showFieldSelectionDialog(allFields)
+        selectedFields = [];
+        
+        dlg = figure('Position', [400, 400, 500, 400], ...
+            'Name', 'Select Parameters to Import', ...
+            'NumberTitle', 'off', ...
+            'MenuBar', 'none', ...
+            'Resize', 'on', ...
+            'WindowStyle', 'modal');
+        
+        data = [allFields', num2cell(false(numel(allFields), 1))];
+        fieldTable = uitable('Parent', dlg, ...
+            'Position', [10, 50, 480, 310], ...
+            'Data', data, ...
+            'ColumnName', {'Field Name', 'Select'}, ...
+            'ColumnEditable', [false, true], ...
+            'ColumnWidth', {350, 80}, ...
+            'ColumnFormat', {'char', 'logical'});
+        
+        uicontrol('Parent', dlg, ...
+            'Style', 'pushbutton', ...
+            'Position', [10, 10, 120, 30], ...
+            'String', 'Select All', ...
+            'Callback', @(src,evt) selectAllCallback(fieldTable, allFields, true));
+        
+        uicontrol('Parent', dlg, ...
+            'Style', 'pushbutton', ...
+            'Position', [140, 10, 120, 30], ...
+            'String', 'Deselect All', ...
+            'Callback', @(src,evt) selectAllCallback(fieldTable, allFields, false));
+        
+        uicontrol('Parent', dlg, ...
+            'Style', 'pushbutton', ...
+            'Position', [350, 10, 70, 30], ...
+            'String', 'OK', ...
+            'Callback', @(src,evt) uiresume(dlg));
+        
+        uicontrol('Parent', dlg, ...
+            'Style', 'pushbutton', ...
+            'Position', [430, 10, 60, 30], ...
+            'String', 'Cancel', ...
+            'Callback', @(src,evt) close(dlg));
+        
+        uiwait(dlg);
+        
+        if ishandle(dlg)
+            data = fieldTable.Data;
+            selectedIndices = cellfun(@(x) islogical(x) && x, data(:, 2));
+            selectedFields = allFields(selectedIndices);
+            close(dlg);
+        end
+    end
+    
+    function selectAllCallback(table, allFields, select)
+        data = table.Data;
+        for i = 1:numel(allFields)
+            data{i, 2} = select;
+        end
+        table.Data = data;
+    end
+    
     function closeCallback(~, ~)
+        appliedResult = false;
         uiresume(fig);
+        delete(fig);
     end
 end
 

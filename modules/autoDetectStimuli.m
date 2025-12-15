@@ -67,12 +67,12 @@ end
 function events_detected = detectPeaksInSignal(lfp, time, Fs, timeUnitFactor, channels, params)
     Polarity = params.Polarity;
     MinPeakProminence = params.MinPeakProminence;
-    MinPeakDistance = params.MinPeakDistance;
-    max_peak_width = params.MaxPeakWidth;
+    MinPeakDistance = params.MinPeakDistance_s;
+    max_peak_width = params.MaxPeakWidth_s;
     
     % Размер ядра сглаживания (уже масштабирован после loadModuleParams)
-    if isfield(params, 'SmoothingKernel')
-        kernel_time_scaled = params.SmoothingKernel;
+    if isfield(params, 'SmoothingKernel_s')
+        kernel_time_scaled = params.SmoothingKernel_s;
     else
         kernel_time_scaled = 0.01 * timeUnitFactor;
     end

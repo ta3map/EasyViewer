@@ -17,12 +17,11 @@ function metadata = prepareSlopeMeasurementMetadata(measurement_metadata, params
     metadata = measurement_metadata;
     
     % Добавляем параметры измерения
-    % Примечание: loadModuleParams убирает суффикс _s из имен параметров времени
     metadata.channel = params.Channel;
-    metadata.baseline_start = stim_time + params.BaselineStart;  % абсолютное время
-    metadata.baseline_end = stim_time + params.BaselineEnd;
-    metadata.peak_start = stim_time + params.PeakStart;
-    metadata.peak_end = stim_time + params.PeakEnd;
+    metadata.baseline_start = stim_time + params.BaselineStart_s;  % абсолютное время
+    metadata.baseline_end = stim_time + params.BaselineEnd_s;
+    metadata.peak_start = stim_time + params.PeakStart_s;
+    metadata.peak_end = stim_time + params.PeakEnd_s;
     metadata.slope_percent = params.SlopePercent;
     metadata.peak_polarity = params.PeakPolarity;
     

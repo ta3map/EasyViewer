@@ -934,11 +934,18 @@ function fileManagerGUI()
         moduleAction = moduleName{moduleIdx};
         
         % Показываем GUI для редактирования параметров модуля один раз перед обработкой всех файлов
+        paramsApplied = false;
         try
-            editModuleParamsGUI(moduleAction);
+            params = editModuleParamsGUI(moduleAction);
+            if ~isempty(fieldnames(params))
+                paramsApplied = true;
+            end
         catch ME
             debugState('fileManagerGUI', 'Failed to open parameter editor: %s', ME.message);
-            % Продолжаем выполнение с параметрами по умолчанию
+        end
+        
+        if ~paramsApplied
+            return
         end
         
         % Обработка всех выбранных файлов

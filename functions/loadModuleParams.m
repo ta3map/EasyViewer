@@ -21,9 +21,9 @@ function params = loadModuleParams(moduleName, timeUnitFactor)
             value = jsonParams.(sectionName).(fieldName);
             
             % Обработка параметров, зависящих от timeUnitFactor (суффикс _s)
+            % Масштабируем значение, но сохраняем оригинальное имя поля
             if endsWith(fieldName, '_s')
-                paramName = fieldName(1:end-2); % убираем '_s'
-                params.(paramName) = value * timeUnitFactor;
+                params.(fieldName) = value * timeUnitFactor;
             else
                 params.(fieldName) = value;
             end

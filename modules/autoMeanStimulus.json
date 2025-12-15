@@ -11,7 +11,7 @@
     "artifactWindow_ms": 1
   },
   "detection": {
-    "Polarity": "positive",
+    "Polarity": "negative",
     "MinPeakProminence": 5,
     "UseOriginalData": true,
     "MinPeakDistance_s": 0.05,

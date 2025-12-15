@@ -33,16 +33,15 @@ function result = autoSlopeMeasurement(filePath, fileId, params)
     slope_measurement_results = [];
     
     % Параметры из JSON
-    % Примечание: loadModuleParams убирает суффикс _s из имен параметров времени
     channel_idx = params.Channel;
-    baseline_start_rel = params.BaselineStart;
-    baseline_end_rel = params.BaselineEnd;
-    peak_start_rel = params.PeakStart;
-    peak_end_rel = params.PeakEnd;
+    baseline_start_rel = params.BaselineStart_s;
+    baseline_end_rel = params.BaselineEnd_s;
+    peak_start_rel = params.PeakStart_s;
+    peak_end_rel = params.PeakEnd_s;
     slope_percent = params.SlopePercent;
     peak_polarity = params.PeakPolarity;
-    time_back = params.TimeBack;
-    time_forward = params.TimeForward;
+    time_back = params.TimeBack_s;
+    time_forward = params.TimeForward_s;
     
     % Параметры обработки
     smoothing_enabled = params.SmoothingEnabled;

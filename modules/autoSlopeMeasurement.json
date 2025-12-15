@@ -1,9 +1,9 @@
 {
   "measurement": {
     "Channel": 1,
-    "BaselineStart_s": 0,
-    "BaselineEnd_s": 0.01,
-    "PeakStart_s": 0.01,
+    "BaselineStart_s": -0.15,
+    "BaselineEnd_s": -0.02,
+    "PeakStart_s": 0.005,
     "PeakEnd_s": 0.2,
     "SlopePercent": 20,
     "PeakPolarity": "negative"
@@ -19,3 +19,4 @@
     "RemoveArtifact": true,
     "ArtifactWindow_ms": 1
   }
+}

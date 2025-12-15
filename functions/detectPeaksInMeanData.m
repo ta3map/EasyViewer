@@ -23,8 +23,6 @@ function events = detectPeaksInMeanData(calcResult, params)
     % Размер ядра сглаживания (в секундах, масштабированных единицах), по умолчанию 0.01 сек = 10 мс
     if isfield(params, 'SmoothingKernel_s')
         kernel_time_scaled = params.SmoothingKernel_s;
-    elseif isfield(params, 'SmoothingKernel')
-        kernel_time_scaled = params.SmoothingKernel;
     else
         kernel_time_scaled = 0.01 * timeUnitFactor; % значение по умолчанию: 0.01 сек = 10 мс
     end
@@ -76,6 +74,7 @@ function events = detectPeaksInMeanData(calcResult, params)
         kernel_samples = max(5, kernel_samples); % smooth1 требует минимум 5 точек
         Trace_out = smooth1(Trace_out, kernel_samples, 'moving');
         
+        kernel_time_s = kernel_time_scaled / timeUnitFactor;
         debugState('detectPeaksInMeanData', '--- Channel %d ---', channelIdx);
         debugState('detectPeaksInMeanData', 'Smoothing applied: kernel=%.3f s (%.1f ms, %d samples)', kernel_time_s, kernel_time_s*1000, kernel_samples);
         debugState('detectPeaksInMeanData', 'Trace_out length: %d samples', numel(Trace_out));
@@ -224,8 +223,6 @@ function events = detectPeaksInOriginalData(calcResult, params)
     % Размер ядра сглаживания (в секундах, масштабированных единицах), по умолчанию 0.01 сек = 10 мс
     if isfield(params, 'SmoothingKernel_s')
         kernel_time_scaled = params.SmoothingKernel_s;
-    elseif isfield(params, 'SmoothingKernel')
-        kernel_time_scaled = params.SmoothingKernel;
     else
         kernel_time_scaled = 0.01 * timeUnitFactor; % значение по умолчанию: 0.01 сек = 10 мс
     end

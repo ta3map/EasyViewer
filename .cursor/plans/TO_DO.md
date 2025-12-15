@@ -80,3 +80,31 @@
 - Сохранение данных графика в MAT файл
 - Добавить экспорт во все GUI функции визуализации
 
+#### 5.4. Замена кастомных инструментов управления графиком на стандартные MATLAB
+- ⏳ Требуется исправление
+- **Проблема**: В `signalAnalysisGUI.m` используются кастомные реализации zoom и pan вместо стандартных инструментов MATLAB
+- **Затронутые файлы**:
+  - `signalAnalysisGUI.m`: кастомные функции `startZoomSelection()`, `applyZoom()`, `resZoom()`, `mouseWheelZoom()`, `rightClickPan()`, `panZoom()`, `stopPanZoom()`
+- **Текущее поведение**:
+  - Кастомный zoom с выбором области двумя кликами
+  - Кастомный pan через правый клик и перетаскивание
+  - Кастомный zoom колесиком мыши
+  - Сохранение состояния зума в метаданных
+- **Требуемое исправление**:
+  - Заменить кастомные функции на стандартные инструменты MATLAB:
+    - `zoom(fig, 'on')` / `zoom(fig, 'off')` - для zoom
+    - `pan(fig, 'on')` / `pan(fig, 'off')` - для pan
+    - `datacursormode(fig, 'on')` / `datacursormode(fig, 'off')` - для data cursor
+    - `brush(fig, 'on')` / `brush(fig, 'off')` - для brush
+  - Добавить кнопки управления инструментами (как в `signalViewerGUI.m`):
+    - Кнопка Zoom для активации встроенного zoom
+    - Кнопка Pan для активации встроенного pan
+    - Кнопка Cursor для активации data cursor
+    - Кнопка Brush для активации brush
+    - Кнопка Home для сброса всех инструментов и восстановления вида
+  - Удалить кастомные функции zoom/pan и связанные переменные состояния
+  - Убрать сохранение состояния зума из метаданных (или адаптировать под стандартные инструменты)
+- **Примеры реализации**:
+  - `signalViewerGUI.m` (строки 868-920): функции `zoomButtonCallback()`, `panButtonCallback()`, `cursorButtonCallback()`, `brushButtonCallback()`, `homeButtonCallback()`
+  - `boxplotFromTableGUI.m` (строки 1433-1438): активация zoom и pan через `zoom(fig, 'on')` и `pan(fig, 'on')`
+

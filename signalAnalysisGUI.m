@@ -1152,7 +1152,11 @@ updateCursorEditFields();
             calc_channel_data = display_channel_data;
             calc_time_in = display_time_in;
         else
-            calc_interval = getMeasurementInterval();
+            calc_interval = getMeasurementInterval(slope_measurement_settings.baseline_start, ...
+                slope_measurement_settings.baseline_end, ...
+                slope_measurement_settings.peak_start, ...
+                slope_measurement_settings.peak_end, ...
+                chosen_time_interval, time_back, time_forward, time);
             [calc_channel_data, calc_time_in] = getCurrentData(calc_interval);
         end
         
@@ -1236,15 +1240,6 @@ updateCursorEditFields();
         end
     end
 
-    function interval = getMeasurementInterval()
-        % Определяет временной интервал, необходимый для расчетов
-        interval = getMeasurementInterval(slope_measurement_settings.baseline_start, ...
-            slope_measurement_settings.baseline_end, ...
-            slope_measurement_settings.peak_start, ...
-            slope_measurement_settings.peak_end, ...
-            chosen_time_interval, time_back, time_forward, time);
-    end
-    
     function updatePlotVisualization()
         % Обновляет график и визуализацию без пересчета результатов
         
@@ -2774,7 +2769,7 @@ updateCursorEditFields();
     function status_text = getNavigationStatusTextLocal(metadata)
         % Возвращает текст статуса навигации (аналогично updateNavigationStatus)
         % Использует функцию из functions/getNavigationStatusText.m
-        status_text = getNavigationStatusTextLocal(metadata);
+        status_text = getNavigationStatusText(metadata);
     end
     
     function toggleMeanResults(~, ~)
