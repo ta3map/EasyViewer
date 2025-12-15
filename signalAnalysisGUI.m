@@ -498,31 +498,39 @@ end
     hNavigationStatus = uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('navigation_status'), ...
         'String', 'Mode: time', 'HorizontalAlignment', 'left', 'Tag', 'navigation_status');
     
+    % Путь к папкам с иконками
+    assetsPath = fullfile(fileparts(mfilename('fullpath')), 'assets');
+    iconsPath = fullfile(fileparts(mfilename('fullpath')), 'icons');
+    
     % Кнопки навигации (сдвигаем вниз)
     hPrevBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', '◀ Previous', ...
         'Position', getElementPosition('prev_btn'), 'Callback', @(~,~)shiftTimeSlope(-1), 'Tag', 'prev_btn');
+    btnIcon(hPrevBtn, fullfile(assetsPath, 'previous_button.png'), false);
+    
     hNextBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Next ▶', ...
         'Position', getElementPosition('next_btn'), 'Callback', @(~,~)shiftTimeSlope(1), 'Tag', 'next_btn');
+    btnIcon(hNextBtn, fullfile(assetsPath, 'next_button.png'), false);
     
     % Кнопка автоматического измерения всех участков
     hAutoMeasureBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Auto Measure All', ...
         'Position', getElementPosition('auto_measure_btn'), 'Callback', @autoMeasureAllTimeRanges, 'Tag', 'auto_measure_btn');
     
-    % Кнопка открытия файла
-    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Open File', ...
-        'Position', getElementPosition('open_file_btn'), 'Callback', @openFile, 'Tag', 'open_file_btn');
-    
-    % Кнопка File Manager (использует прежние координаты Load Events)
-    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'File Manager', ...
-        'Position', getElementPosition('load_events_btn'), ...
-        'Callback', @(~,~)fileManagerGUI(), 'Tag', 'load_events_btn');
-    
     % Кнопка групповых настроек
     uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Settings', ...
         'Position', getElementPosition('settings_btn'), 'Callback', @openGroupSettingsEditor, 'Tag', 'settings_btn');
     
- 
-        
+    % Кнопка открытия файла
+    hOpenFileButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Open File', ...
+        'Position', getElementPosition('open_file_btn'), 'Callback', @openFile, 'Tag', 'open_file_btn');
+    % Используем иконку из icons, так как в assets нет соответствующей иконки
+    btnIcon(hOpenFileButton, fullfile(iconsPath, 'open-file.png'), false);
+    
+    % Кнопка File Manager (использует прежние координаты Load Events)
+    hFileManagerButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'File Manager', ...
+        'Position', getElementPosition('load_events_btn'), ...
+        'Callback', @(~,~)fileManagerGUI(), 'Tag', 'load_events_btn');
+    % Используем иконку из assets для единообразия с signalViewerGUI
+    btnIcon(hFileManagerButton, fullfile(assetsPath, 'fm_button.png'), false);
     
     % === График ===
     % Создаем панель для графика (как в app.m)
@@ -539,13 +547,26 @@ end
     set(hPlotAxes, 'Visible', 'off');
     text(hPlotAxes, 0.5, 0.5, 'Load ZAV or EV file', 'color', 'r', 'horizontalalignment', 'center');
     
-    % Кнопка зума в левом углу графика
+    % Кнопки управления инструментами графика
     hZoomButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Zoom', ...
-        'Position', getElementPosition('zoom_btn'), 'Callback', @toggleZoom, 'Tag', 'zoom_btn');
+        'Position', getElementPosition('zoom_btn'), 'Callback', @zoomButtonCallback, 'Tag', 'zoom_btn');
+    btnIcon(hZoomButton, fullfile(assetsPath, 'zoom_btn.png'), false);
     
-    % Кнопка Autoscale для применения оптимальных размеров осей
-    hAutoscaleButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Autoscale', ...
-        'Position', getElementPosition('autoscale_btn'), 'Callback', @applyAutoscale, 'Tag', 'autoscale_btn');
+    hPanButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Pan', ...
+        'Position', getElementPosition('pan_btn'), 'Callback', @panButtonCallback, 'Tag', 'pan_btn');
+    btnIcon(hPanButton, fullfile(assetsPath, 'pan_btn.png'), false);
+    
+    hCursorButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Cursor', ...
+        'Position', getElementPosition('cursor_btn'), 'Callback', @cursorButtonCallback, 'Tag', 'cursor_btn');
+    btnIcon(hCursorButton, fullfile(assetsPath, 'cursor_btn.png'), false);
+    
+    hBrushButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Brush', ...
+        'Position', getElementPosition('brush_btn'), 'Callback', @brushButtonCallback, 'Tag', 'brush_btn');
+    btnIcon(hBrushButton, fullfile(assetsPath, 'brush_btn.png'), false);
+    
+    hHomeButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Home', ...
+        'Position', getElementPosition('home_btn'), 'Callback', @homeButtonCallback, 'Tag', 'home_btn');
+    btnIcon(hHomeButton, fullfile(assetsPath, 'home_btn.png'), false);
 
     % === Кнопки управления трассами (поверх графика) ===
     % Кнопка добавления результата
@@ -634,12 +655,6 @@ end
     hBaselineMarkers = [];% маркеры baseline
     hPeakMarkers = [];    % маркеры peak диапазона
     
-    % Локальные переменные для зума
-    zoom_active = false;
-    zoom_start_rel = 0;    % относительная позиция начала зума по времени (0-1)
-    zoom_end_rel = 1;      % относительная позиция конца зума по времени (0-1)
-    zoom_y_min = [];       % минимальная амплитуда зума
-    zoom_y_max = [];       % максимальная амплитуда зума
     original_ylim = [];    % исходные границы амплитуды для восстановления
     original_xlim = [];    % исходные границы времени для восстановления
     
@@ -651,26 +666,11 @@ end
     mean_signal_data = [];
     mean_signal_time = [];
     
-    % Переменные для перетаскивания области зума
-    pan_active = false;
-    pan_start_mouse_pos = [];
-    pan_start_xlim = [];
-    pan_start_ylim = [];
-    
-    % Флаг для восстановления состояния из метаданных
-    restoring_from_metadata = false;
-    
     % Пытаемся автоматически открыть последний файл при запуске
     autoOpenLastFile();
 
     % Добавляем обработку клавиш для навигации
     set(signalFig, 'KeyPressFcn', @keyPressFunction);
-    
-    % Добавляем обработку колеса мыши для зума
-    set(signalFig, 'WindowScrollWheelFcn', @mouseWheelZoom);
-    
-    % Добавляем обработку правой кнопки мыши для перетаскивания зума
-    set(hPlotAxes, 'ButtonDownFcn', @rightClickPan);
     
     % Добавляем обработчик изменения размера окна для масштабирования элементов
     set(signalFig, 'SizeChangedFcn', @resizeSignalAnalysisWindow);
@@ -1653,17 +1653,6 @@ updateCursorEditFields();
                 end
         end
         
-        % Добавляем информацию о зуме
-        if zoom_active
-            if ~isempty(zoom_y_min) && ~isempty(zoom_y_max)
-                status_text = sprintf('%s | Zoom: %.1f%%-%.1f%% | Y: %.2f-%.2f', status_text, ...
-                    zoom_start_rel*100, zoom_end_rel*100, zoom_y_min, zoom_y_max);
-            else
-                status_text = sprintf('%s | Zoom: %.1f%%-%.1f%%', status_text, ...
-                    zoom_start_rel*100, zoom_end_rel*100);
-            end
-        end
-        
         set(hNavigationStatus, 'String', status_text);
     end
     
@@ -1731,10 +1720,8 @@ updateCursorEditFields();
         % Применяем сохраненные относительные позиции к новому интервалу
         setRelativePositions(baseline_rel, peak_rel);
 
-        % устанавливаем оптимальные границы осей только если зум не активен
-        if ~zoom_active
-            [original_xlim, original_ylim] = calculateOptimalAxisLimits(true);
-        end
+        % устанавливаем оптимальные границы осей
+        [original_xlim, original_ylim] = calculateOptimalAxisLimits(true);
 
         % Обновляем edit fields после изменения позиций
         updateCursorEditFields();
@@ -1797,110 +1784,57 @@ updateCursorEditFields();
         end
     end
     
-
-    
-    function toggleZoom(~, ~)
-        % Переключение между зумом и сбросом
-        zoomBtn = findobj(signalFig, 'Style', 'pushbutton', 'Callback', @toggleZoom);
-        currentText = '';
-        if ~isempty(zoomBtn)
-            currentText = get(zoomBtn, 'String');
-        end
-
-        if zoom_active
-            % Если зум активен - сбрасываем
-
-            resZoom();
-        else
-            % Если зум неактивен - начинаем выбор области
-            % fprintf('DEBUG: Зум неактивен, вызываем startZoomSelection\n');
-            startZoomSelection();
-        end
+    function zoomButtonCallback(src, ~)
+        % Активация встроенного zoom
+        zoom(signalFig, 'off');
+        pan(signalFig, 'off');
+        datacursormode(signalFig, 'off');
+        brush(signalFig, 'off');
+        zoom(signalFig, 'on');
+        zoom(hPlotAxes, 'on');
+        debugState('zoomButtonCallback', 'Built-in zoom activated');
     end
-    
-    function startZoomSelection()
-        % Начинаем выбор области для зума
-        axes(hPlotAxes);
-        debugState('startZoomSelection', 'Select zoom area: click any two points to define the area');
-        
-        % Собираем две точки для зума (с координатами X и Y)
-        [x1, y1] = ginput(1);
-        if isempty(x1)
-            debugState('startZoomSelection', 'Zoom cancelled');
-            return;
-        end
-        
-        % Показываем первую точку
-        hold(hPlotAxes, 'on');
-        current_xlim = xlim(hPlotAxes);
-        current_ylim = ylim(hPlotAxes);
-        hTempLineV = line([x1, x1], current_ylim, 'Color', 'r', 'LineStyle', '--', 'LineWidth', 2);
-        hTempLineH = line(current_xlim, [y1, y1], 'Color', 'r', 'LineStyle', '--', 'LineWidth', 2);
-        debugState('startZoomSelection', 'First point selected: (%.3f, %.3f). Select second point', x1, y1);
-        
-        [x2, y2] = ginput(1);
-        if isempty(x2)
-            delete(hTempLineV);
-            delete(hTempLineH);
-            debugState('startZoomSelection', 'Zoom cancelled');
-            return;
-        end
-        
-        % Удаляем временные линии
-        delete(hTempLineV);
-        delete(hTempLineH);
-        
-        % Применяем зум - порядок точек не важен
-        zoom_x_start = min(x1, x2);
-        zoom_x_end = max(x1, x2);
-        zoom_y_start = min(y1, y2);
-        zoom_y_end = max(y1, y2);
-        
-        % Проверяем что область имеет ненулевой размер
-        if zoom_x_end > zoom_x_start && zoom_y_end > zoom_y_start
-            applyZoom(zoom_x_start, zoom_x_end, zoom_y_start, zoom_y_end);
-        else
-            debugState('startZoomSelection', 'Invalid zoom area: area must have non-zero size');
-        end
+
+    function panButtonCallback(src, ~)
+        % Активация встроенного pan
+        zoom(signalFig, 'off');
+        pan(signalFig, 'off');
+        datacursormode(signalFig, 'off');
+        brush(signalFig, 'off');
+        pan(signalFig, 'on');
+        pan(hPlotAxes, 'on');
+        debugState('panButtonCallback', 'Built-in pan activated');
     end
-    
-    function applyZoom(zoom_start_time, zoom_end_time, zoom_start_y, zoom_end_y)
-        % Применяем зум к выбранной области (время + амплитуда)
-        
-        % fprintf('DEBUG: applyZoom входные данные: время [%.3f, %.3f], амплитуда [%.3f, %.3f]\n', ...
-        %    zoom_start_time, zoom_end_time, zoom_start_y, zoom_end_y);
-                
-        % Сохраняем зум по амплитуде
-        zoom_y_min = min(zoom_start_y, zoom_end_y);
-        zoom_y_max = max(zoom_start_y, zoom_end_y);
-        
-        if zoom_y_max > zoom_y_min
-            zoom_active = true;
-            
-            % Сохраняем исходные границы амплитуды и времени при первом зуме
-            if isempty(original_ylim)
-                original_ylim = ylim(hPlotAxes);
-                original_xlim = xlim(hPlotAxes);
-            end
-            
-            % Вычисляем относительные позиции зума на основе текущих границ осей
-            current_xlim = xlim(hPlotAxes);
-            full_range = current_xlim(2) - current_xlim(1);
-            
-            % Конвертируем абсолютные времена в относительные (0-1)
-            zoom_start_rel = (zoom_start_time - current_xlim(1)) / full_range;
-            zoom_end_rel = (zoom_end_time - current_xlim(1)) / full_range;
-            
-            % Обновляем кнопку зума
-            zoomBtn = findobj(signalFig, 'Style', 'pushbutton', 'Callback', @toggleZoom);
-            if ~isempty(zoomBtn)
-                set(zoomBtn, 'String', 'Reset Zoom');
-            end
-            
-            updateNavigationStatus();
-            xlim([zoom_start_time, zoom_end_time]);
-            ylim([zoom_y_min, zoom_y_max]);
-        end
+
+    function cursorButtonCallback(src, ~)
+        % Активация встроенного data cursor
+        zoom(signalFig, 'off');
+        pan(signalFig, 'off');
+        datacursormode(signalFig, 'off');
+        brush(signalFig, 'off');
+        datacursormode(signalFig, 'on');
+        debugState('cursorButtonCallback', 'Data cursor activated');
+    end
+
+    function brushButtonCallback(src, ~)
+        % Активация встроенного brush
+        zoom(signalFig, 'off');
+        pan(signalFig, 'off');
+        datacursormode(signalFig, 'off');
+        brush(signalFig, 'off');
+        brush(signalFig, 'on');
+        brush(hPlotAxes, 'on');
+        debugState('brushButtonCallback', 'Built-in brush activated');
+    end
+
+    function homeButtonCallback(src, ~)
+        % Сброс всех инструментов и восстановление исходного вида графика
+        zoom(signalFig, 'off');
+        pan(signalFig, 'off');
+        datacursormode(signalFig, 'off');
+        brush(signalFig, 'off');
+        applyAutoscale();
+        debugState('homeButtonCallback', 'All tools reset, view restored');
     end
 
     function [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(should_apply_limits)
@@ -1961,76 +1895,6 @@ updateCursorEditFields();
         end
     end
 
-    function resZoom()
-        % Сбрасываем зум
-        % fprintf('DEBUG: resZoom вызвана\n');
-        zoom_active = false;
-        zoom_start_rel = 0;
-        zoom_end_rel = 1;
-        zoom_y_min = [];
-        zoom_y_max = [];
-        
-        % Применяем original_ylim и original_xlim 
-        ylim(original_ylim);
-        xlim(original_xlim);
-        
-        % Находим кнопку зума в фигуре
-        zoomBtn = findobj(signalFig, 'Style', 'pushbutton', 'Callback', @toggleZoom);
-        if ~isempty(zoomBtn)
-            set(zoomBtn, 'String', 'Zoom');
-            % fprintf('DEBUG: Кнопка сброшена на: %s, zoom_active = %d\n', get(zoomBtn, 'String'), zoom_active);
-        else
-            debugState('resZoom', 'ERROR: Zoom button not found in resZoom!');
-        end
-        
-        debugState('resZoom', '✓ Zoom reset (new optimal boundaries will be calculated)');
-        updateNavigationStatus();
-        updatePlotAndCalculation();
-    end
-    
-    function mouseWheelZoom(~, eventdata)
-        if ~zoom_active
-            return;
-        end
-        
-        % Получаем текущие границы осей
-        current_xlim = xlim(hPlotAxes);
-        current_range = current_xlim(2) - current_xlim(1);
-        
-        % Коэффициент зума
-        zoom_factor = 0.1;
-        
-        if eventdata.VerticalScrollCount > 0
-            new_range = current_range * (1 + zoom_factor);
-        else
-            new_range = current_range * (1 - zoom_factor);
-        end
-        
-        % Проверяем минимальный размер зума
-        if new_range >= (original_xlim(2) - original_xlim(1))
-            resZoom();
-            return;
-        end
-        
-        % Зум от центра текущей области
-        center = (current_xlim(1) + current_xlim(2)) / 2;
-        new_start = center - new_range / 2;
-        new_end = center + new_range / 2;
-        
-        % Применяем новые границы осей
-        xlim([new_start, new_end]);
-        
-        % Обновляем относительные позиции зума
-        full_range = original_xlim(2) - original_xlim(1);
-        zoom_start_rel = (new_start - original_xlim(1)) / full_range;
-        zoom_end_rel = (new_end - original_xlim(1)) / full_range;
-        
-        % Обновляем статус навигации
-        updateNavigationStatus();
-        
-        % Обновляем только позиции линий без пересчета параметров
-        updateLinePositions();
-    end
     
     % === Функции для работы с таблицей результатов ===
     
@@ -2058,16 +1922,6 @@ updateCursorEditFields();
         metadata.slope_percent = slope_measurement_settings.slope_percent;
         metadata.peak_polarity = slope_measurement_settings.peak_polarity;
         metadata.chosen_time_interval = chosen_time_interval;
-        metadata.zoom_active = zoom_active;
-        metadata.zoom_start_rel = zoom_start_rel;
-        metadata.zoom_end_rel = zoom_end_rel;
-        metadata.zoom_y_min = zoom_y_min;
-        metadata.zoom_y_max = zoom_y_max;
-        
-        % вычисляем границы осей
-        [original_xlim, original_ylim] = calculateOptimalAxisLimits(false);
-        metadata.original_xlim = original_xlim;
-        metadata.original_ylim = original_ylim;
         
         metadata.selectedCenter = selectedCenter;
         metadata.event_inx = event_inx;
@@ -2138,16 +1992,6 @@ updateCursorEditFields();
         metadata.slope_percent = slope_measurement_settings.slope_percent;
         metadata.peak_polarity = slope_measurement_settings.peak_polarity;
         metadata.chosen_time_interval = chosen_time_interval;
-        metadata.zoom_active = zoom_active;
-        metadata.zoom_start_rel = zoom_start_rel;
-        metadata.zoom_end_rel = zoom_end_rel;
-        metadata.zoom_y_min = zoom_y_min;
-        metadata.zoom_y_max = zoom_y_max;
-
-        % вычисляем границы осей
-        [original_xlim, original_ylim] = calculateOptimalAxisLimits(false);
-        metadata.original_xlim = original_xlim;
-        metadata.original_ylim = original_ylim;
 
         metadata.selectedCenter = selectedCenter;
         metadata.event_inx = event_inx;
@@ -2298,16 +2142,6 @@ updateCursorEditFields();
         metadata.slope_percent = slope_measurement_settings.slope_percent;
         metadata.peak_polarity = slope_measurement_settings.peak_polarity;
         metadata.chosen_time_interval = chosen_time_interval;
-        metadata.zoom_active = zoom_active;
-        metadata.zoom_start_rel = zoom_start_rel;
-        metadata.zoom_end_rel = zoom_end_rel;
-        metadata.zoom_y_min = zoom_y_min;
-        metadata.zoom_y_max = zoom_y_max;
-        
-        % вычисляем границы осей
-        [original_xlim, original_ylim] = calculateOptimalAxisLimits(false);
-        metadata.original_xlim = original_xlim;
-        metadata.original_ylim = original_ylim;
         
         metadata.selectedCenter = selectedCenter;
         metadata.event_inx = event_inx;
@@ -2710,15 +2544,6 @@ updateCursorEditFields();
         
         % Восстанавливаем временной интервал
         chosen_time_interval = metadata.chosen_time_interval;
-        
-        % Восстанавливаем зум (закомментировано для возможного использования в будущем)
-        % zoom_active = metadata.zoom_active;
-        % zoom_start_rel = metadata.zoom_start_rel;
-        % zoom_end_rel = metadata.zoom_end_rel;
-        % zoom_y_min = metadata.zoom_y_min;
-        % zoom_y_max = metadata.zoom_y_max;
-        % original_ylim = metadata.original_ylim;
-        % original_xlim = metadata.original_xlim;
         
         % Восстанавливаем режим навигации
         selectedCenter = metadata.selectedCenter;
@@ -3866,89 +3691,6 @@ updateCursorEditFields();
         openFile([], []);
     end
 
-    % === Функции для перетаскивания области зума ===
-    
-    function rightClickPan(~, ~)
-        if ~zoom_active
-            return;
-        end
-        
-        % Проверяем, что это правая кнопка мыши
-        if strcmp(get(signalFig, 'SelectionType'), 'alt') % alt = правая кнопка
-            pan_active = true;
-            
-            % Запоминаем начальную позицию мыши и границы зума
-            cp = get(hPlotAxes, 'CurrentPoint');
-            pan_start_mouse_pos = [cp(1,1), cp(1,2)]; % X и Y координаты
-            pan_start_xlim = xlim(hPlotAxes);
-            pan_start_ylim = ylim(hPlotAxes);
-            
-            % Устанавливаем обработчики движения и отпускания мыши
-            set(signalFig, 'WindowButtonMotionFcn', @panZoom);
-            set(signalFig, 'WindowButtonUpFcn', @stopPanZoom);
-        end
-    end
-    
-    function panZoom(~, ~)
-        if ~pan_active
-            return;
-        end
-        
-        % Вычисляем смещение мыши от начальной точки
-        cp = get(hPlotAxes, 'CurrentPoint');
-        mouse_delta_x = cp(1,1) - pan_start_mouse_pos(1);
-        mouse_delta_y = cp(1,2) - pan_start_mouse_pos(2);
-        
-        % Сдвигаем область зума по X на то же расстояние
-        new_xlim = pan_start_xlim - mouse_delta_x;
-        
-        % Проверяем границы по X (не выходим за original_xlim)
-        zoom_width = new_xlim(2) - new_xlim(1);
-        if new_xlim(1) < original_xlim(1)
-            new_xlim = [original_xlim(1), original_xlim(1) + zoom_width];
-        elseif new_xlim(2) > original_xlim(2)
-            new_xlim = [original_xlim(2) - zoom_width, original_xlim(2)];
-        end
-        
-        % Сдвигаем область зума по Y на то же расстояние
-        new_ylim = pan_start_ylim - mouse_delta_y;
-        
-        % Проверяем границы по Y (не выходим за original_ylim)
-        zoom_height = new_ylim(2) - new_ylim(1);
-        if new_ylim(1) < original_ylim(1)
-            new_ylim = [original_ylim(1), original_ylim(1) + zoom_height];
-        elseif new_ylim(2) > original_ylim(2)
-            new_ylim = [original_ylim(2) - zoom_height, original_ylim(2)];
-        end
-        
-        % Применяем новые границы
-        xlim(new_xlim);
-        ylim(new_ylim);
-        
-        % Обновляем zoom_start_rel и zoom_end_rel
-        full_range = original_xlim(2) - original_xlim(1);
-        zoom_start_rel = (new_xlim(1) - original_xlim(1)) / full_range;
-        zoom_end_rel = (new_xlim(2) - original_xlim(1)) / full_range;
-        
-        % Обновляем zoom_y_min и zoom_y_max
-        zoom_y_min = new_ylim(1);
-        zoom_y_max = new_ylim(2);
-        
-        % Обновляем позиции линий только после окончания перетаскивания
-    end
-    
-    function stopPanZoom(~, ~)
-        pan_active = false;
-        set(signalFig, 'WindowButtonMotionFcn', '');
-        set(signalFig, 'WindowButtonUpFcn', '');
-        
-        % Обновляем статус навигации
-        updateNavigationStatus();
-        
-        % После отпускания кнопки обновляем линии и график
-        updateLinePositions();
-        updatePlotAndCalculation();
-    end
     
     function applyAutoscale(~, ~)
         % Применяет оптимальные размеры осей для видимых данных
@@ -3956,20 +3698,11 @@ updateCursorEditFields();
         % Вычисляем и применяем оптимальные границы осей
         [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
         
-        % Сбрасываем зум если он был активен
-        if zoom_active
-            zoom_active = false;
-            zoom_start_rel = 0;
-            zoom_end_rel = 1;
-            zoom_y_min = [];
-            zoom_y_max = [];
-            
-            % Обновляем кнопку зума
-            zoomBtn = findobj(signalFig, 'Style', 'pushbutton', 'Callback', @toggleZoom);
-            if ~isempty(zoomBtn)
-                set(zoomBtn, 'String', 'Zoom');
-            end
-        end
+        % Отключаем все инструменты
+        zoom(signalFig, 'off');
+        pan(signalFig, 'off');
+        datacursormode(signalFig, 'off');
+        brush(signalFig, 'off');
         
         % Обновляем статус навигации
         updateNavigationStatus();
