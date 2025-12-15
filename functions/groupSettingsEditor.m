@@ -5,7 +5,7 @@ function groupSettingsEditor()
     % ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
     global matFilePath newFs shiftCoeff time_back time_forward stim_offset
     global updateTableFunc updateLocalCoefsFunc updatePlotFunc saveChannelSettingsFunc
-    global EV_version numChannels Fs timeUnitFactor selectedUnit updateAnalysisPlotFunc_global
+    global EV_version numChannels Fs timeUnitFactor selectedUnit updatePlotFunc
     global art_rem_window_ms SettingsFilepath
     
     % Проверяем, не открыто ли уже окно
@@ -469,11 +469,11 @@ function groupSettingsEditor()
             
             % === ДОБАВЛЕНО: Обновляем график анализа сигнала ===
             try
-                if ~isempty(updateAnalysisPlotFunc_global)
-                    updateAnalysisPlotFunc_global();
+                if ~isempty(updatePlotFunc)
+                    updatePlotFunc();
                     disp('Analysis plot updated with new group settings');
                 else
-                    warning('updateAnalysisPlotFunc_global not available');
+                    warning('updatePlotFunc not available');
                 end
             catch ME
                 warning('Could not update analysis plot: %s', ME.message);
@@ -581,11 +581,11 @@ function groupSettingsEditor()
             
             % === ДОБАВЛЕНО: Обновляем график анализа сигнала ===
             try
-                if ~isempty(updateAnalysisPlotFunc_global)
-                    updateAnalysisPlotFunc_global();
+                if ~isempty(updatePlotFunc)
+                    updatePlotFunc();
                     disp('Analysis plot updated with reset group settings');
                 else
-                    warning('updateAnalysisPlotFunc_global not available');
+                    warning('updatePlotFunc not available');
                 end
             catch ME
                 warning('Could not update analysis plot: %s', ME.message);

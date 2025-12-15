@@ -1566,7 +1566,6 @@ function signalViewerGUI(editMode)
     end
     % Функция обратного вызова для timeForwardEdit
     function timeForwardEditCallback(src, ~)
-        debugState('timeForwardEditCallback', 'START, selectedCenter=%s, stims_exist=%d', selectedCenter, stims_exist);
 %         disp('time edited')
         windowSize = str2double(get(src, 'String'))/timeUnitFactor;% time_forward - в секундах
         time_forward = windowSize;
@@ -1584,10 +1583,8 @@ function signalViewerGUI(editMode)
                 end
             case 'stimulus'
                 if stims_exist
-                    debugState('timeForwardEditCallback', 'BEFORE stimulus update, stim_inx=%d, numel(stims)=%d', stim_inx, numel(stims));
                     chosen_time_interval(1) = stims(stim_inx);
                     chosen_time_interval(2) = stims(stim_inx)+windowSize;
-                    debugState('timeForwardEditCallback', 'AFTER stimulus update, stims(stim_inx)=%.3f, chosen_time_interval=[%.3f, %.3f]', stims(stim_inx), chosen_time_interval(1), chosen_time_interval(2));
                 end
             case 'sweep'
                 if sweep_info.is_sweep_data && sweep_inx > 0 && sweep_inx <= sweep_info.sweep_count
@@ -1607,10 +1604,8 @@ function signalViewerGUI(editMode)
                 end
         end
         
-        debugState('timeForwardEditCallback', 'BEFORE updatePlot, chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
         saveChannelSettings();
         updatePlot(); % Обновление графика
-        debugState('timeForwardEditCallback', 'AFTER updatePlot');
     end
 
     % Функция обратного вызова для выпадающего списка
@@ -1966,7 +1961,6 @@ function signalViewerGUI(editMode)
 
     function metadata = loadMatFile(filepath)
         metadata = struct('hd', [], 'stims', [], 'filePath', '');
-        debugState('loadMatFile', 'START');
         closeChildWindows();
         debugState('loadMatFile', 'loading mat file:');
         ica_flag = false;
@@ -2007,13 +2001,11 @@ function signalViewerGUI(editMode)
         debugState('loadMatFile', '%s', matFileName);       
         
         % Используем универсальную функцию загрузки
-        debugState('loadMatFile', 'BEFORE load_zav_file');
         data = load_zav_file(filepath, ...
             'auto_set_time_windows', autoSetTimeWindowsFromSweeps, ...
             'auto_set_fs', autoSetNewFsFromFs);
         [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
-        debugState('loadMatFile', 'AFTER load_zav_file, numel(stims)=%d, sweep_info.is_sweep_data=%d, time_forward=%.3f, time_back=%.3f', numel(stims), sweep_info.is_sweep_data, time_forward, time_back);
-        
+
         N = size(lfp, 1);
         Fs = zavp.dwnSmplFrq;
         
@@ -2071,16 +2063,13 @@ function signalViewerGUI(editMode)
             case 'time'
                 chosen_time_interval = [0, windowSize];
         end
-        debugState('loadMatFile', 'AFTER setting chosen_time_interval=[%.3f, %.3f] based on selectedCenter=%s', chosen_time_interval(1), chosen_time_interval(2), selectedCenter);
         
         show_spikes = false;
         show_CSD = false;
         channelNames = hd.recChNames;
         numChannels = length(channelNames);
         
-        debugState('loadMatFile', 'BEFORE resetMainWindowButtons, chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
         resetMainWindowButtons()
-        debugState('loadMatFile', 'AFTER resetMainWindowButtons, chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
         
 
         
@@ -2089,12 +2078,9 @@ function signalViewerGUI(editMode)
         
             % Попытка загрузить настройки каналов
     % Сначала проверяются индивидуальные настройки, затем групповые
-        debugState('loadMatFile', 'BEFORE loadChannelSettings, chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
-        loadChannelSettings();
-        debugState('loadMatFile', 'AFTER loadChannelSettings, chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
-        metadata = struct('hd', hd, 'stims', stims, 'filePath', filepath);
-        debugState('loadMatFile', 'END');
-    end
+       loadChannelSettings();
+       metadata = struct('hd', hd, 'stims', stims, 'filePath', filepath);
+   end
     function closeChildWindows()
         % Список тегов окон для закрытия
         windowTags = {
@@ -2146,7 +2132,6 @@ function signalViewerGUI(editMode)
 
 
     function resetMainWindowButtons()
-        debugState('resetMainWindowButtons', 'START, selectedCenter=%s, chosen_time_interval=[%.3f, %.3f]', selectedCenter, chosen_time_interval(1), chosen_time_interval(2));
         
         % разрешение опций
         set(OptBtn, 'Enable', 'on');
@@ -2168,10 +2153,8 @@ function signalViewerGUI(editMode)
                 set(timeCenterPopup, 'Value', 4);
         end
         
-        debugState('resetMainWindowButtons', 'BEFORE setting timeForwardEdit, time_forward=%.3f', time_forward);
         set(timeBackEdit, 'String', num2str(time_back*timeUnitFactor));% time window before
         set(timeForwardEdit, 'String', num2str(time_forward*timeUnitFactor));% time window after
-        debugState('resetMainWindowButtons', 'AFTER setting timeForwardEdit, chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
         set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
         set(FsCoeffEdit, 'String', num2str(newFs));
         
@@ -2366,7 +2349,6 @@ function loadSettingsFile()
                 otherwise
                     chosen_time_interval = [0, time_forward];
             end
-            debugState('loadSettingsFile', 'AFTER loading time_forward=%.3f, chosen_time_interval=[%.3f, %.3f], selectedCenter=%s', time_forward, chosen_time_interval(1), chosen_time_interval(2), selectedCenter);
         end
     catch
         createNewChoice = questdlg('An error occurred when loading channel settings. Do you want to create new channel settings file?', ...
@@ -2560,7 +2542,6 @@ end
 
     function shiftTime(~, ~, direction, timeForwardEdit)
         
-        debugState('shiftTime', 'START, direction=%d, selectedCenter=%s', direction, selectedCenter);
         
         % Проверяем, не идет ли уже обновление графика
         if plot_updating
@@ -2602,7 +2583,7 @@ end
                 end
             case 'stimulus'
                 if stims_exist
-                    debugState('shiftTime', 'BEFORE stimulus update, stim_inx=%d, numel(stims)=%d', stim_inx, numel(stims));
+                    debugState('shiftTime', 'stim_inx=%d, numel(stims)=%d', stim_inx, numel(stims));
                     if direction == 1% движение вперед  
 %                         disp('stimulus forward')
                         stim_inx = stim_inx+1;                    
@@ -2616,7 +2597,7 @@ end
                     if stim_inx > 0
                         chosen_time_interval(1) = stims(stim_inx);
                         chosen_time_interval(2) = stims(stim_inx)+windowSize;
-                        debugState('shiftTime', 'AFTER stimulus update, stim_inx=%d, stims(stim_inx)=%.3f, chosen_time_interval=[%.3f, %.3f]', stim_inx, stims(stim_inx), chosen_time_interval(1), chosen_time_interval(2));
+                        debugState('shiftTime', 'stim_inx=%d, stims(stim_inx)=%.3f, chosen_time_interval=[%.3f, %.3f]', stim_inx, stims(stim_inx), chosen_time_interval(1), chosen_time_interval(2));
                     else
                         stim_inx = 1;
                     end
@@ -2659,9 +2640,9 @@ end
         end
         
         keyboardpressed = false;
-        debugState('shiftTime', 'BEFORE updatePlot, chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
+        debugState('shiftTime', 'chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
         updatePlot(); % Обновление графика
-        debugState('shiftTime', 'AFTER updatePlot');
+        debugState('shiftTime', 'plot updated');
         
         % Включаем callback нажатия клавиш
 %         set(f, 'KeyPressFcn', @keyPressFunction);

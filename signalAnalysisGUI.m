@@ -142,7 +142,7 @@ end
     global rel_shift
 
     % Глобальные переменные для settingsEditor
-    global EV_version numChannels updateAnalysisPlotFunc_global
+    global EV_version numChannels
     
     % Глобальные переменные для UI элементов
     global hBaselineStartEdit hBaselineEndEdit hPeakStartEdit hPeakEndEdit
@@ -257,7 +257,7 @@ end
     current_measurement_metadata = [];
     
     % Инициализация глобальной функции обновления графика
-    updateAnalysisPlotFunc_global = @updateAnalysisPlotFunc;
+    updatePlotFunc = @updateAnalysisPlotFunc;
     
     % Инициализация флага автоанализа
     auto_analysis_mode = false;
@@ -498,9 +498,8 @@ end
     hNavigationStatus = uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('navigation_status'), ...
         'String', 'Mode: time', 'HorizontalAlignment', 'left', 'Tag', 'navigation_status');
     
-    % Путь к папкам с иконками
+    % Путь к папке с иконками
     assetsPath = fullfile(fileparts(mfilename('fullpath')), 'assets');
-    iconsPath = fullfile(fileparts(mfilename('fullpath')), 'icons');
     
     % Кнопки навигации (сдвигаем вниз)
     hPrevBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', '◀ Previous', ...
@@ -515,15 +514,15 @@ end
     hAutoMeasureBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Auto Measure All', ...
         'Position', getElementPosition('auto_measure_btn'), 'Callback', @autoMeasureAllTimeRanges, 'Tag', 'auto_measure_btn');
     
-    % Кнопка групповых настроек
-    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Settings', ...
-        'Position', getElementPosition('settings_btn'), 'Callback', @openGroupSettingsEditor, 'Tag', 'settings_btn');
+    % Кнопка настроек удаления артефактов
+    hSettingsButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Settings', ...
+        'Position', getElementPosition('settings_btn'), 'Callback', @(~,~)optionsRemovalArtifactsGUI(), 'Tag', 'settings_btn');
+    btnIcon(hSettingsButton, fullfile(assetsPath, 'settings_btn.png'), false);
     
     % Кнопка открытия файла
     hOpenFileButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Open File', ...
         'Position', getElementPosition('open_file_btn'), 'Callback', @openFile, 'Tag', 'open_file_btn');
-    % Используем иконку из icons, так как в assets нет соответствующей иконки
-    btnIcon(hOpenFileButton, fullfile(iconsPath, 'open-file.png'), false);
+    btnIcon(hOpenFileButton, fullfile(assetsPath, 'load_mat_file_btn.png'), false);
     
     % Кнопка File Manager (использует прежние координаты Load Events)
     hFileManagerButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'File Manager', ...

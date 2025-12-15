@@ -1,6 +1,6 @@
 function optionsRemovalArtifactsGUI()
     
-    global art_rem_window_ms SettingsFilepath updateAnalysisPlotFunc_global
+    global art_rem_window_ms SettingsFilepath updatePlotFunc
     
     % Если SettingsFilepath пустая - устанавливаем путь по умолчанию
     if isempty(SettingsFilepath)
@@ -105,10 +105,10 @@ function optionsRemovalArtifactsGUI()
             end
         end
         
-        % Обновляем график в signalAnalysisGUI если он открыт
-        if ~isempty(updateAnalysisPlotFunc_global)
+        % Обновляем график если он открыт
+        if ~isempty(updatePlotFunc)
             try
-                updateAnalysisPlotFunc_global();
+                updatePlotFunc();
             catch
                 % Игнорируем ошибки если функция недоступна
             end
