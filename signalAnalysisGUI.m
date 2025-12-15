@@ -35,7 +35,7 @@ function signalAnalysisGUI(editMode)
     % Глобальные переменные настроек (загружены в app.m)
     global figure_position lastOpenedFiles add_event_settings
     global autodetection_settings lines_and_styles side_panel_visible
-    global auto_open_last_file
+    global auto_open_last_file updatePlotFunc
     
     % Глобальные настройки уже загружены в app.m
     
@@ -3711,7 +3711,6 @@ updateCursorEditFields();
 
     function loadEvents(~, ~)
         % Загружает события из файла используя универсальную функцию
-        global updatePlotFunc
         
         % Сохраняем текущие callback функции
         old_updatePlotFunc = [];
