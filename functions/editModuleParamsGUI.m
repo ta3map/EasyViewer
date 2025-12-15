@@ -122,13 +122,7 @@ function params = editModuleParamsGUI(moduleName)
         updatedJsonText = fileread(jsonPath);
         updatedJsonParams = jsondecode(updatedJsonText);
         
-        % Получаем timeUnitFactor для преобразования параметров с _s
-        global timeUnitFactor
-        if isempty(timeUnitFactor)
-            timeUnitFactor = 1;
-        end
-        
-        % Преобразуем JSON в params структуру
+        % Преобразуем JSON в params структуру (всегда в секундах)
         params = struct();
         jsonSections = fieldnames(updatedJsonParams);
         for i = 1:length(jsonSections)
@@ -137,13 +131,7 @@ function params = editModuleParamsGUI(moduleName)
             for j = 1:length(sectionFields)
                 fieldName = sectionFields{j};
                 value = updatedJsonParams.(sectionName).(fieldName);
-                
-                if endsWith(fieldName, '_s')
-                    paramName = fieldName(1:end-2);
-                    params.(paramName) = value * timeUnitFactor;
-                else
-                    params.(fieldName) = value;
-                end
+                params.(fieldName) = value;
             end
         end
     end
@@ -278,40 +266,60 @@ function params = editModuleParamsGUI(moduleName)
             return;
         end
         
-        allFields = extractAllFields(metaData);
-        if isempty(allFields)
-            msgbox('No fields found in .meta file', 'Error', 'error');
+        % Проверяем наличие переменной params
+        if ~isfield(metaData, 'params')
+            msgbox('No params variable found in .meta file', 'Error', 'error');
             return;
         end
         
-        selectedFields = showFieldSelectionDialog(allFields);
+        paramsFromMeta = metaData.params;
+        
+        % Получаем список параметров модуля из таблицы
+        tableData = get(table, 'Data');
+        moduleParamNames = {};
+        for i = 1:size(tableData, 1)
+            moduleParamNames{end+1} = tableData{i, 2};
+        end
+        
+        % Извлекаем только те поля из params, которые есть в параметрах модуля
+        availableFields = {};
+        availableValues = {};
+        if isstruct(paramsFromMeta)
+            paramFields = fieldnames(paramsFromMeta);
+            for i = 1:length(paramFields)
+                fieldName = paramFields{i};
+                if any(strcmp(moduleParamNames, fieldName))
+                    availableFields{end+1} = fieldName;
+                    availableValues{end+1} = convertValueToString(paramsFromMeta.(fieldName));
+                end
+            end
+        end
+        
+        if isempty(availableFields)
+            msgbox('No matching parameters found in .meta file', 'Import Complete', 'help');
+            return;
+        end
+        
+        % Показываем диалог выбора только для совпадающих параметров
+        selectedFields = showFieldSelectionDialog(availableFields, availableValues);
         if isempty(selectedFields)
             return;
         end
         
-        tableData = get(table, 'Data');
+        % Обновляем параметры в таблице
         updatedCount = 0;
-        
         for i = 1:length(selectedFields)
-            fieldPath = selectedFields{i};
-            value = getFieldValue(metaData, fieldPath);
-            
-            if isempty(value)
-                continue;
-            end
-            
-            fieldName = fieldPath;
-            if contains(fieldPath, '.')
-                parts = strsplit(fieldPath, '.');
-                fieldName = parts{end};
-            end
-            
-            for j = 1:size(tableData, 1)
-                if strcmp(tableData{j, 2}, fieldName)
-                    valueStr = convertValueToString(value);
-                    tableData{j, 3} = valueStr;
-                    updatedCount = updatedCount + 1;
-                    break;
+            fieldName = selectedFields{i};
+            if isfield(paramsFromMeta, fieldName)
+                value = paramsFromMeta.(fieldName);
+                
+                for j = 1:size(tableData, 1)
+                    if strcmp(tableData{j, 2}, fieldName)
+                        valueStr = convertValueToString(value);
+                        tableData{j, 3} = valueStr;
+                        updatedCount = updatedCount + 1;
+                        break;
+                    end
                 end
             end
         end
@@ -319,62 +327,6 @@ function params = editModuleParamsGUI(moduleName)
         set(table, 'Data', tableData);
         if updatedCount > 0
             msgbox(sprintf('Imported %d parameter(s) from .meta file', updatedCount), 'Import Complete', 'help');
-        else
-            msgbox('No matching parameters found in module', 'Import Complete', 'help');
-        end
-    end
-    
-    function fields = extractAllFields(structData)
-        fields = {};
-        fieldNames = fieldnames(structData);
-        for i = 1:numel(fieldNames)
-            fieldName = fieldNames{i};
-            fields = extractFieldsRecursive(structData.(fieldName), fieldName, fields);
-        end
-    end
-    
-    function fields = extractFieldsRecursive(value, prefix, fields)
-        if isstruct(value)
-            if numel(value) == 1
-                fieldNames = fieldnames(value);
-                for i = 1:numel(fieldNames)
-                    subFieldName = fieldNames{i};
-                    newPrefix = sprintf('%s.%s', prefix, subFieldName);
-                    fields = extractFieldsRecursive(value.(subFieldName), newPrefix, fields);
-                end
-            else
-                fields{end+1} = prefix;
-            end
-        elseif iscell(value) && numel(value) > 0 && isstruct(value{1})
-            if numel(value) == 1
-                fieldNames = fieldnames(value{1});
-                for i = 1:numel(fieldNames)
-                    subFieldName = fieldNames{i};
-                    newPrefix = sprintf('%s.%s', prefix, subFieldName);
-                    fields = extractFieldsRecursive(value{1}.(subFieldName), newPrefix, fields);
-                end
-            else
-                fields{end+1} = prefix;
-            end
-        else
-            fields{end+1} = prefix;
-        end
-    end
-    
-    function value = getFieldValue(structData, fieldPath)
-        parts = strsplit(fieldPath, '.');
-        value = structData;
-        for i = 1:numel(parts)
-            if isstruct(value) && numel(value) == 1 && isfield(value, parts{i})
-                value = value.(parts{i});
-            elseif isstruct(value) && numel(value) > 1 && isfield(value(1), parts{i})
-                value = [value.(parts{i})];
-            elseif iscell(value) && numel(value) > 0 && isstruct(value{1}) && isfield(value{1}, parts{i})
-                value = cellfun(@(x) x.(parts{i}), value, 'UniformOutput', false);
-            else
-                value = [];
-                return;
-            end
         end
     end
     
@@ -394,24 +346,24 @@ function params = editModuleParamsGUI(moduleName)
         end
     end
     
-    function selectedFields = showFieldSelectionDialog(allFields)
+    function selectedFields = showFieldSelectionDialog(allFields, allValues)
         selectedFields = [];
         
-        dlg = figure('Position', [400, 400, 500, 400], ...
+        dlg = figure('Position', [400, 400, 600, 400], ...
             'Name', 'Select Parameters to Import', ...
             'NumberTitle', 'off', ...
             'MenuBar', 'none', ...
             'Resize', 'on', ...
             'WindowStyle', 'modal');
         
-        data = [allFields', num2cell(false(numel(allFields), 1))];
+        data = [allFields', allValues', num2cell(false(numel(allFields), 1))];
         fieldTable = uitable('Parent', dlg, ...
-            'Position', [10, 50, 480, 310], ...
+            'Position', [10, 50, 580, 310], ...
             'Data', data, ...
-            'ColumnName', {'Field Name', 'Select'}, ...
-            'ColumnEditable', [false, true], ...
-            'ColumnWidth', {350, 80}, ...
-            'ColumnFormat', {'char', 'logical'});
+            'ColumnName', {'Parameter', 'Value', 'Select'}, ...
+            'ColumnEditable', [false, false, true], ...
+            'ColumnWidth', {200, 300, 60}, ...
+            'ColumnFormat', {'char', 'char', 'logical'});
         
         uicontrol('Parent', dlg, ...
             'Style', 'pushbutton', ...
@@ -427,13 +379,13 @@ function params = editModuleParamsGUI(moduleName)
         
         uicontrol('Parent', dlg, ...
             'Style', 'pushbutton', ...
-            'Position', [350, 10, 70, 30], ...
+            'Position', [450, 10, 70, 30], ...
             'String', 'OK', ...
             'Callback', @(src,evt) uiresume(dlg));
         
         uicontrol('Parent', dlg, ...
             'Style', 'pushbutton', ...
-            'Position', [430, 10, 60, 30], ...
+            'Position', [530, 10, 60, 30], ...
             'String', 'Cancel', ...
             'Callback', @(src,evt) close(dlg));
         
@@ -441,7 +393,7 @@ function params = editModuleParamsGUI(moduleName)
         
         if ishandle(dlg)
             data = fieldTable.Data;
-            selectedIndices = cellfun(@(x) islogical(x) && x, data(:, 2));
+            selectedIndices = cellfun(@(x) islogical(x) && x, data(:, 3));
             selectedFields = allFields(selectedIndices);
             close(dlg);
         end
@@ -450,7 +402,7 @@ function params = editModuleParamsGUI(moduleName)
     function selectAllCallback(table, allFields, select)
         data = table.Data;
         for i = 1:numel(allFields)
-            data{i, 2} = select;
+            data{i, 3} = select;
         end
         table.Data = data;
     end

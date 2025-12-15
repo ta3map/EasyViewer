@@ -67,12 +67,13 @@ end
 function events_detected = detectPeaksInSignal(lfp, time, Fs, timeUnitFactor, channels, params)
     Polarity = params.Polarity;
     MinPeakProminence = params.MinPeakProminence;
-    MinPeakDistance = params.MinPeakDistance_s;
-    max_peak_width = params.MaxPeakWidth_s;
+    % Масштабируем параметры времени для findpeaks (params в секундах, time тоже в секундах)
+    MinPeakDistance = params.MinPeakDistance_s * timeUnitFactor;
+    max_peak_width = params.MaxPeakWidth_s * timeUnitFactor;
     
-    % Размер ядра сглаживания (уже масштабирован после loadModuleParams)
+    % Размер ядра сглаживания
     if isfield(params, 'SmoothingKernel_s')
-        kernel_time_scaled = params.SmoothingKernel_s;
+        kernel_time_scaled = params.SmoothingKernel_s * timeUnitFactor;
     else
         kernel_time_scaled = 0.01 * timeUnitFactor;
     end
@@ -115,7 +116,6 @@ function events_detected = detectPeaksInSignal(lfp, time, Fs, timeUnitFactor, ch
         debugState('detectPeaksInSignal', '99.9%% quantile: %.3f', quantile(Trace_out, 0.999));
         
         % Масштабируем time для findpeaks (в единицах timeUnitFactor)
-        % MinPeakDistance и max_peak_width уже масштабированы после loadModuleParams
         time_scaled = time * timeUnitFactor;
         
         % Детекция пиков

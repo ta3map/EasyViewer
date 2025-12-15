@@ -1,4 +1,4 @@
-function result_info = saveSlopeMeasurementResults(slope_measurement_results, excel_path, timeUnitFactor, matFilePath, matFileName)
+function result_info = saveSlopeMeasurementResults(slope_measurement_results, excel_path, timeUnitFactor, matFilePath, matFileName, params)
     % saveSlopeMeasurementResults - сохранение результатов в Excel и .meta файлы
     % Адаптированная версия saveResults() из signalAnalysisGUI без диалога выбора файла
     %
@@ -151,7 +151,11 @@ function result_info = saveSlopeMeasurementResults(slope_measurement_results, ex
         original_file_info.timestamp = datestr(now);
         
         % Сохраняем метаданные в .meta файл (фактически .mat формат)
-        save(meta_path, 'slope_measurement_results', 'average_values', 'original_file_info', '-v7.3');
+        if nargin >= 6 && ~isempty(params)
+            save(meta_path, 'slope_measurement_results', 'average_values', 'original_file_info', 'params', '-v7.3');
+        else
+            save(meta_path, 'slope_measurement_results', 'average_values', 'original_file_info', '-v7.3');
+        end
         
         result_info.excel_path = excel_path;
         result_info.meta_path = meta_path;

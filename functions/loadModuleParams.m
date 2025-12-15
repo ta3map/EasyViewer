@@ -1,7 +1,8 @@
 function params = loadModuleParams(moduleName, timeUnitFactor)
     % Загружает параметры модуля из JSON файла
     % moduleName - имя модуля (без расширения)
-    % timeUnitFactor - множитель для параметров с суффиксом _s
+    % timeUnitFactor - не используется, оставлен для совместимости
+    % Все параметры возвращаются в секундах (как в JSON)
     
     [functionFolder, ~, ~] = fileparts(mfilename('fullpath'));
     projectRoot = fileparts(functionFolder);
@@ -10,7 +11,7 @@ function params = loadModuleParams(moduleName, timeUnitFactor)
     jsonText = fileread(jsonPath);
     jsonParams = jsondecode(jsonText);
     
-    % Автоматическое присваивание параметров из JSON
+    % Автоматическое присваивание параметров из JSON (всегда в секундах)
     params = struct();
     jsonSections = fieldnames(jsonParams);
     for i = 1:length(jsonSections)
@@ -19,14 +20,7 @@ function params = loadModuleParams(moduleName, timeUnitFactor)
         for j = 1:length(sectionFields)
             fieldName = sectionFields{j};
             value = jsonParams.(sectionName).(fieldName);
-            
-            % Обработка параметров, зависящих от timeUnitFactor (суффикс _s)
-            % Масштабируем значение, но сохраняем оригинальное имя поля
-            if endsWith(fieldName, '_s')
-                params.(fieldName) = value * timeUnitFactor;
-            else
-                params.(fieldName) = value;
-            end
+            params.(fieldName) = value;
         end
     end
 end

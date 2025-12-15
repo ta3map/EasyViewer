@@ -3,6 +3,7 @@ function result = autoSlopeMeasurement(filePath, fileId, params)
     % Использует те же алгоритмы что и signalAnalysisGUI
     
     global zav_calling timeUnitFactor
+    % timeUnitFactor используется только для сохранения результатов, не для расчетов
     global lfp time Fs stims stims_exist
     global art_rem_window_ms mean_group_ch
     
@@ -162,7 +163,7 @@ function result = autoSlopeMeasurement(filePath, fileId, params)
         
         % Сохраняем результаты
         result_info = saveSlopeMeasurementResults(slope_measurement_results, excel_path, timeUnitFactor, ...
-            metadata.filePath, baseName);
+            metadata.filePath, baseName, params);
         
         if result_info.success
             debugState('autoSlopeMeasurement', '✓ Results saved:');

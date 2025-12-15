@@ -2429,8 +2429,26 @@ updateCursorEditFields();
         excel_path = fullfile(pathname, filename);
         
         try
+            % Создаем структуру params из slope_measurement_settings для сохранения
+            params = struct();
+            if ~isempty(slope_measurement_settings)
+                params.channel = slope_measurement_settings.channel;
+                params.baseline_start = slope_measurement_settings.baseline_start;
+                params.baseline_end = slope_measurement_settings.baseline_end;
+                params.peak_start = slope_measurement_settings.peak_start;
+                params.peak_end = slope_measurement_settings.peak_end;
+                params.slope_percent = slope_measurement_settings.slope_percent;
+                params.peak_polarity = slope_measurement_settings.peak_polarity;
+                if isfield(slope_measurement_settings, 'onset_method')
+                    params.onset_method = slope_measurement_settings.onset_method;
+                end
+                if isfield(slope_measurement_settings, 'onset_threshold')
+                    params.onset_threshold = slope_measurement_settings.onset_threshold;
+                end
+            end
+            
             % Используем общую функцию сохранения
-            result_info = saveSlopeMeasurementResults(slope_measurement_results, excel_path, timeUnitFactor, matFilePath, matFileName);
+            result_info = saveSlopeMeasurementResults(slope_measurement_results, excel_path, timeUnitFactor, matFilePath, matFileName, params);
             
             if result_info.success
                 debugState('saveResults', '✓ Results saved:');

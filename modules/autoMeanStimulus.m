@@ -41,7 +41,7 @@ function result = autoMeanStimulus(filePath, fileId, params)
         savefig(meanFig, figPath);
     end
     dataPath = fullfile(folder, [baseName, '_auto_mean.meta']);
-    save(dataPath, '-struct', 'calcResult');
+    save(dataPath, 'calcResult', 'params', '-mat');
     
     result = struct( ...
         'module_name', 'autoMeanStimulus', ...
