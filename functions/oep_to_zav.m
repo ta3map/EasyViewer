@@ -52,6 +52,8 @@ function oep_to_zav(recordedData, zavFilePath, Fs, newFs, detectMua, mua_std_coe
 
     % --- 2. Инициализация mat-файла и метаданных ---
     disp(['Initializing output file: ', zavFilePath]);
+    % Создаем пустой файл в формате v7.3 (HDF5) для поддержки больших массивов
+    save(zavFilePath, '-v7.3');
     m = matfile(zavFilePath, 'Writable', true);
 
     % Сохраняем заголовок (hd)
@@ -76,9 +78,9 @@ function oep_to_zav(recordedData, zavFilePath, Fs, newFs, detectMua, mua_std_coe
     zavp.realStim.f = [];
     m.zavp = zavp; % Сохраняем zavp в файл
 
-    % Инициализация переменной LFP в файле нужного размера и типа (double)
-    % MATLAB создаст переменную в файле, не загружая ее в память
-    m.lfp(final_lfp_length, numChannels) = 0.0; % Используем double
+    % Преаллокация массива lfp убрана - массив будет создаваться автоматически
+    % при первой записи данных канала. Это позволяет избежать ошибки "out of memory"
+    % при работе с большими массивами. Данные записываются напрямую на диск через HDF5.
 
     % Инициализация массива для хранения вариации по каждому каналу
     lfpVar_channelwise = zeros(1, numChannels);
@@ -159,30 +161,25 @@ function oep_to_zav(recordedData, zavFilePath, Fs, newFs, detectMua, mua_std_coe
              clear channel_data_segment; % Освобождаем память сегмента
         end
 
+        % Инициализируем массив lfp при обработке первого канала
+        % Это создаст массив нужного размера в HDF5 файле без загрузки в RAM
+        if chIdx == 1
+            m.lfp(final_lfp_length, numChannels) = 0.0;
+        end
+        
         % Проверяем, совпадает ли длина обработанного канала с ожидаемой
         if length(lfp_channel_processed) ~= final_lfp_length
              warning('MATLAB:LengthMismatch', ...
                  'Length of processed data for channel %s (%d) does not match expected length (%d). Check calculation or data consistency.', ...
                  channelName, length(lfp_channel_processed), final_lfp_length);
-             % Попытка исправить: записываем только до final_lfp_length, если длинее,
-             % или дополняем нулями, если короче (хотя это может исказить данные).
-             % Безопаснее всего остановить или тщательно проверить логику расчета final_lfp_length.
+             % Попытка исправить: записываем только до final_lfp_length, если длинее
              if length(lfp_channel_processed) > final_lfp_length
                  lfp_channel_processed = lfp_channel_processed(1:final_lfp_length);
-             else
-                 % Дополнение нулями может быть нежелательно. Рассмотрим alternative.
-                 % Возможно, стоит пересчитать final_lfp_length более точно.
-                 % пока оставим как есть
              end
-             % Ensure it fits if adjusted
-              if length(lfp_channel_processed) > m.Properties.Size(1)
-                   lfp_channel_processed = lfp_channel_processed(1:m.Properties.Size(1));
-              end
         end
         
         % Записываем обработанные данные канала непосредственно в mat-файл
-        % Используем синтаксис m.variable(rows, cols) = data;
-        % Убедимся что размер не превышает инициализированный
+        % Все записи идут напрямую на диск через HDF5, не накапливаясь в RAM
         rows_to_write = min(length(lfp_channel_processed), final_lfp_length);
         m.lfp(1:rows_to_write, chIdx) = lfp_channel_processed(1:rows_to_write);
 

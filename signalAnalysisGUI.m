@@ -1238,26 +1238,11 @@ updateCursorEditFields();
 
     function interval = getMeasurementInterval()
         % Определяет временной интервал, необходимый для расчетов
-        measurement_points = [
-            slope_measurement_settings.baseline_start, ...
+        interval = getMeasurementInterval(slope_measurement_settings.baseline_start, ...
             slope_measurement_settings.baseline_end, ...
             slope_measurement_settings.peak_start, ...
             slope_measurement_settings.peak_end, ...
-            chosen_time_interval(1) - time_back, ...
-            chosen_time_interval(1) + time_forward];
-        measurement_points = measurement_points(isfinite(measurement_points));
-        if isempty(measurement_points)
-            interval = [chosen_time_interval(1), chosen_time_interval(2)];
-            return;
-        end
-        calc_start = min(measurement_points);
-        calc_end = max(measurement_points);
-        calc_start = max(calc_start, time(1));
-        calc_end = min(calc_end, time(end));
-        if calc_start == calc_end
-            calc_end = calc_start + eps(calc_start + 1);
-        end
-        interval = [calc_start, calc_end];
+            chosen_time_interval, time_back, time_forward, time);
     end
     
     function updatePlotVisualization()
@@ -2446,143 +2431,35 @@ updateCursorEditFields();
         end
         
         % Получаем базовое имя файла без расширения
-        [~, basename, ~] = fileparts(filename);
         excel_path = fullfile(pathname, filename);
-        meta_path = fullfile(pathname, [basename, '.meta']);
         
         try
-            % Подготавливаем данные для Excel
-            excel_data = cell(length(slope_measurement_results) + 1, 13);
+            % Используем общую функцию сохранения
+            result_info = saveSlopeMeasurementResults(slope_measurement_results, excel_path, timeUnitFactor, matFilePath, matFileName);
             
-            % Используем те же названия колонок что и в таблице
-            excel_data(1, :) = table_column_names;
-            
-            % Данные
-            for i = 1:length(slope_measurement_results)
-                metadata = slope_measurement_results(i).metadata;
+            if result_info.success
+                debugState('saveResults', '✓ Results saved:');
+                debugState('saveResults', '  Excel: %s', result_info.excel_path);
+                debugState('saveResults', '  Metadata: %s', result_info.meta_path);
+                debugState('saveResults', '  Total records: %d', length(slope_measurement_results));
                 
-                % Относительное время пика
-                peak_time_rel = slope_measurement_results(i).peak_time * timeUnitFactor;
-                
-                % Абсолютное время пика
-                peak_time_abs = (slope_measurement_results(i).peak_time + metadata.rel_shift) * timeUnitFactor;
-                
-                % Относительное время онсета
-                onset_time_rel = slope_measurement_results(i).onset_time * timeUnitFactor;
-                
-                % Абсолютное время онсета
-                onset_time_abs = (slope_measurement_results(i).onset_time + metadata.rel_shift) * timeUnitFactor;
-                
-                % Номер стимула
-                stimulus_number = metadata.stim_inx;
-                
-                % Разность времени пика и онсета
-                peak_onset_diff = (slope_measurement_results(i).peak_time - slope_measurement_results(i).onset_time) * timeUnitFactor;
-                
-                excel_data{i+1, 1} = stimulus_number;
-                excel_data{i+1, 2} = slope_measurement_results(i).slope_value;
-                excel_data{i+1, 3} = peak_time_rel;
-                excel_data{i+1, 4} = peak_time_abs;
-                excel_data{i+1, 5} = slope_measurement_results(i).peak_value;
-                excel_data{i+1, 6} = slope_measurement_results(i).peak_value - slope_measurement_results(i).baseline_value; % Peak Value (rel)
-                excel_data{i+1, 7} = onset_time_rel;
-                excel_data{i+1, 8} = onset_time_abs;
-                excel_data{i+1, 9} = peak_onset_diff;
-                excel_data{i+1, 10} = slope_measurement_results(i).baseline_value;
-                excel_data{i+1, 11} = metadata.channel;
-                excel_data{i+1, 12} = metadata.stim_time; % Stim Time
-                excel_data{i+1, 13} = getNavigationStatusText(metadata);
-            end
-            
-            % Добавляем пустую строку после основных данных
-            excel_data{end+1, 1} = '';
-            
-            % Добавляем заголовок для средних значений
-            excel_data{end+1, 1} = 'Average Values';
-            
-            % Добавляем названия колонок для средних значений
-            excel_data{end+1, 2} = 'Slope';
-            excel_data{end, 3} = 'Peak Time (rel)';
-            excel_data{end, 5} = 'Peak Amplitude';
-            excel_data{end, 6} = 'Peak Value (rel)';
-            excel_data{end, 7} = 'Onset Time (rel)';
-            excel_data{end, 8} = 'Onset Time (abs)';
-            excel_data{end, 9} = 'Peak - Onset';
-            excel_data{end, 10} = 'Baseline';
-            
-            % Вычисляем средние значения
-            slope_values = [slope_measurement_results.slope_value];
-            peak_time_rel_values = [slope_measurement_results.peak_time] * timeUnitFactor;
-            peak_amplitude_values = [slope_measurement_results.peak_value];
-            peak_value_rel_values = peak_amplitude_values - [slope_measurement_results.baseline_value];
-            onset_time_rel_values = [slope_measurement_results.onset_time] * timeUnitFactor;
-            baseline_values = [slope_measurement_results.baseline_value];
-            peak_onset_diff_values = ([slope_measurement_results.peak_time] - [slope_measurement_results.onset_time]) * timeUnitFactor;
-            
-            % Добавляем средние значения
-            excel_data{end+1, 2} = mean(slope_values, 'omitnan');
-            excel_data{end, 3} = mean(peak_time_rel_values, 'omitnan');
-            excel_data{end, 5} = mean(peak_amplitude_values, 'omitnan');
-            excel_data{end, 6} = mean(peak_value_rel_values, 'omitnan');
-            excel_data{end, 7} = mean(onset_time_rel_values, 'omitnan');
-            excel_data{end, 9} = mean(peak_onset_diff_values, 'omitnan');
-            excel_data{end, 10} = mean(baseline_values, 'omitnan');
-            
-            % Добавляем стандартные отклонения
-            excel_data{end+1, 1} = 'Standard Deviation';
-            excel_data{end+1, 2} = std(slope_values, 'omitnan');
-            excel_data{end, 3} = std(peak_time_rel_values, 'omitnan');
-            excel_data{end, 5} = std(peak_amplitude_values, 'omitnan');
-            excel_data{end, 6} = std(peak_value_rel_values, 'omitnan');
-            excel_data{end, 7} = std(onset_time_rel_values, 'omitnan');
-            excel_data{end, 9} = std(peak_onset_diff_values, 'omitnan');
-            excel_data{end, 10} = std(baseline_values, 'omitnan');
-            
-            % Сохраняем Excel файл
-            writecell(excel_data, excel_path);
-            
-            % Создаем структуру с средними значениями для сохранения в .meta файл
-            average_values = struct();
-            average_values.slope = mean(slope_values, 'omitnan');
-            average_values.peak_time_rel = mean(peak_time_rel_values, 'omitnan');
-            average_values.peak_amplitude = mean(peak_amplitude_values, 'omitnan');
-            average_values.peak_value_rel = mean(peak_value_rel_values, 'omitnan');
-            average_values.onset_time_rel = mean(onset_time_rel_values, 'omitnan');
-            average_values.baseline = mean(baseline_values, 'omitnan');
-            
-            % Добавляем стандартные отклонения
-            average_values.std_slope = std(slope_values, 'omitnan');
-            average_values.std_peak_time_rel = std(peak_time_rel_values, 'omitnan');
-            average_values.std_peak_amplitude = std(peak_amplitude_values, 'omitnan');
-            average_values.std_peak_value_rel = std(peak_value_rel_values, 'omitnan');
-            average_values.std_onset_time_rel = std(onset_time_rel_values, 'omitnan');
-            average_values.std_baseline = std(baseline_values, 'omitnan');
-            
-            % Сохраняем информацию об оригинальном файле
-            original_file_info = struct();
-            original_file_info.matFilePath = matFilePath;
-            original_file_info.matFileName = matFileName;
-            original_file_info.timestamp = datestr(now);
-            
-            % Сохраняем метаданные в .meta файл (фактически .mat формат)
-            save(meta_path, 'slope_measurement_results', 'average_values', 'original_file_info', '-v7.3');
-            
-            debugState('saveResults', '✓ Results saved:');
-            debugState('saveResults', '  Excel: %s', excel_path);
-            debugState('saveResults', '  Metadata: %s', meta_path);
-            debugState('saveResults', '  Total records: %d', length(slope_measurement_results));
-            
-            % Сохраняем результат анализа в базу данных
-            if ~isempty(matFilePath)
-                result = struct( ...
-                    'module_name', 'signalAnalysis', ...
-                    'module_display_name', 'Signal Analysis', ...
-                    'module_description', 'Анализ сигнала с измерениями slope, peak, onset', ...
-                    'report_path', excel_path, ...
-                    'parameters', struct('total_records', length(slope_measurement_results), ...
-                                         'meta_path', meta_path));
-                logAnalysisResult(matFilePath, result);
-                debugState('saveResults', '  Analysis result saved to database');
+                % Сохраняем результат анализа в базу данных
+                if ~isempty(matFilePath)
+                    result = struct( ...
+                        'module_name', 'signalAnalysis', ...
+                        'module_display_name', 'Signal Analysis', ...
+                        'module_description', 'Анализ сигнала с измерениями slope, peak, onset', ...
+                        'report_path', result_info.excel_path, ...
+                        'parameters', struct('total_records', length(slope_measurement_results), ...
+                                             'meta_path', result_info.meta_path));
+                    logAnalysisResult(matFilePath, result);
+                    debugState('saveResults', '  Analysis result saved to database');
+                end
+            else
+                debugState('saveResults', '❌ Error saving results');
+                if isfield(result_info, 'error')
+                    debugState('saveResults', '  Error: %s', result_info.error);
+                end
             end
             
         catch ME
@@ -2648,7 +2525,7 @@ updateCursorEditFields();
             table_data{i, 10} = slope_measurement_results(i).baseline_value;
             table_data{i, 11} = metadata.channel;
             table_data{i, 12} = metadata.stim_time;
-            table_data{i, 13} = getNavigationStatusText(metadata);
+            table_data{i, 13} = getNavigationStatusTextLocal(metadata);
         end
         
         set(hResultsTable, 'Data', table_data);
@@ -2894,36 +2771,10 @@ updateCursorEditFields();
         debugState('restoreStateFromMetadata', '✓ State restored from result #%d', row_index);
     end
     
-    function status_text = getNavigationStatusText(metadata)
+    function status_text = getNavigationStatusTextLocal(metadata)
         % Возвращает текст статуса навигации (аналогично updateNavigationStatus)
-        status_text = sprintf('Mode: %s', metadata.selectedCenter);
-        
-        % Добавляем информацию о текущей позиции
-        switch metadata.selectedCenter
-            case 'event'
-                if events_exist && ~isempty(events)
-                    status_text = sprintf('%s (%d/%d)', status_text, metadata.event_inx, length(events));
-                end
-            case 'stimulus'
-                if stims_exist && ~isempty(stims)
-                    status_text = sprintf('%s (%d/%d)', status_text, metadata.stim_inx, length(stims));
-                end
-            case 'sweep'
-                if isstruct(sweep_info) && sweep_info.is_sweep_data
-                    status_text = sprintf('%s (%d/%d)', status_text, metadata.sweep_inx, sweep_info.sweep_count);
-                end
-        end
-        
-        % Добавляем информацию о зуме
-        if metadata.zoom_active
-            if ~isempty(metadata.zoom_y_min) && ~isempty(metadata.zoom_y_max)
-                status_text = sprintf('%s | Zoom: %.1f%%-%.1f%% | Y: %.2f-%.2f', status_text, ...
-                    metadata.zoom_start_rel*100, metadata.zoom_end_rel*100, metadata.zoom_y_min, metadata.zoom_y_max);
-            else
-                status_text = sprintf('%s | Zoom: %.1f%%-%.1f%%', status_text, ...
-                    metadata.zoom_start_rel*100, metadata.zoom_end_rel*100);
-            end
-        end
+        % Использует функцию из functions/getNavigationStatusText.m
+        status_text = getNavigationStatusTextLocal(metadata);
     end
     
     function toggleMeanResults(~, ~)
@@ -4371,7 +4222,7 @@ updateCursorEditFields();
                 excel_data{current_row, 12} = all_results(i).baseline_value;
                 excel_data{current_row, 13} = metadata.channel;
                 excel_data{current_row, 14} = metadata.stim_time;
-                excel_data{current_row, 15} = getNavigationStatusText(metadata);
+                excel_data{current_row, 15} = getNavigationStatusTextLocal(metadata);
                 
                 current_row = current_row + 1;
             end

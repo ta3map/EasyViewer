@@ -164,6 +164,8 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
     % Initialize MAT file
     debugState('oep_to_zav_streaming', 'Initializing output MAT file...');
     disp(['Initializing output file: ', zavFilePath]);
+    % Создаем пустой файл в формате v7.3 (HDF5) для поддержки больших массивов
+    save(zavFilePath, '-v7.3');
     m = matfile(zavFilePath, 'Writable', true);
     
     % Save header
@@ -188,8 +190,9 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
     zavp.realStim.f = [];
     m.zavp = zavp;
     
-    % Initialize LFP array in file
-    m.lfp(final_lfp_length, numChannels) = 0.0;
+    % Преаллокация массива lfp убрана - массив будет создаваться автоматически
+    % при первой записи данных канала. Это позволяет избежать ошибки "out of memory"
+    % при работе с большими массивами. Данные записываются напрямую на диск через HDF5.
     
     % Initialize progress bar if not already initialized
     waitbar(0, hWaitBar, 'Initializing conversion...');
@@ -232,6 +235,12 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
             muaState = detectMUA_streaming([], hd, mua_std_coef, true, Fs);
         elseif detectMua && ~useStreamingMUA
             lfp_channel_data_for_mua = [];
+        end
+        
+        % Инициализируем массив lfp при обработке первого канала
+        % Это создаст массив нужного размера в HDF5 файле без загрузки в RAM
+        if chIdx == 1
+            m.lfp(final_lfp_length, numChannels) = 0.0;
         end
         
         currentRow = 1;

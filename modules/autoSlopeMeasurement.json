@@ -1,0 +1,21 @@
+{
+  "measurement": {
+    "Channel": 1,
+    "BaselineStart_s": 0,
+    "BaselineEnd_s": 0.01,
+    "PeakStart_s": 0.01,
+    "PeakEnd_s": 0.2,
+    "SlopePercent": 20,
+    "PeakPolarity": "negative"
+  },
+  "time_window": {
+    "TimeBack_s": 0.6,
+    "TimeForward_s": 0.6
+  },
+  "processing": {
+    "SmoothingEnabled": false,
+    "SmoothingSpan": 5,
+    "SmoothingMethod": "moving",
+    "RemoveArtifact": true,
+    "ArtifactWindow_ms": 1
+  }
