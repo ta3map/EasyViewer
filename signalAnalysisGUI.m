@@ -2618,28 +2618,18 @@ updateCursorEditFields();
 
 
 
+        % Вычисляем разность времени пика и онсета для всех результатов
+        peak_onset_diff_values = ([slope_measurement_results.peak_time] - [slope_measurement_results.onset_time]) * timeUnitFactor;
+        
         % Вычисляем средние значения
         avg_slope = mean(slope_values, 'omitnan');
         avg_peak_time_rel = mean(peak_time_rel_values, 'omitnan');
         avg_peak_amplitude = mean(peak_amplitude_values, 'omitnan');
         avg_onset_time_rel = mean(onset_time_rel_values, 'omitnan');
         avg_baseline = mean(baseline_values, 'omitnan');
-        
-
-        
-        % Обновляем таблицу средних значений
-
-        debugState('updateAverageTable', '%s', mat2str(hAverageTable));
-        
-        % Вычисляем разность времени пика и онсета для всех результатов
-        peak_onset_diff_values = ([slope_measurement_results.peak_time] - [slope_measurement_results.onset_time]) * timeUnitFactor;
         avg_peak_onset_diff = mean(peak_onset_diff_values, 'omitnan');
         
-        try
-            set(hAverageTable, 'Data', {avg_slope, avg_peak_time_rel, avg_peak_amplitude, avg_onset_time_rel, avg_baseline, avg_peak_onset_diff});
-        catch ME
-            debugState('updateAverageTable', 'Error updating table: %s', ME.message);
-        end
+        set(hAverageTable, 'Data', {avg_slope, avg_peak_time_rel, avg_peak_amplitude, avg_onset_time_rel, avg_baseline, avg_peak_onset_diff});
     end
     
     function tableSelectionChanged(~, event)
@@ -2760,23 +2750,17 @@ updateCursorEditFields();
         % Обновляем видимость поля порога
         % updateOnsetThresholdVisibility();
         
-        % Актуализируем rel_shift перед автоскейлом
+        % Актуализируем rel_shift перед обновлением
         refreshRelShift();
         
-        % Применяем оптимальные размеры осей ДО обновления курсоров
-        [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
-        
-        % Сохраняем оптимальные границы как original для правильной работы зума
-        original_xlim = optimal_xlim;
-        original_ylim = optimal_ylim;
-        
-        debugState('restoreStateFromMetadata', 'DEBUG: Применены оптимальные границы ylim: %s, xlim: %s', mat2str(optimal_ylim), mat2str(optimal_xlim));
-        
-        % Обновляем edit fields с относительным временем после автоскейла
+        % Обновляем edit fields с относительным временем
         updateCursorEditFields();
         
-        % Сбрасываем зум и перерисовываем график через специальную функцию
-        resZoom();
+        % Обновляем график ПЕРВЫМ (чтобы данные были актуальные)
+        updatePlotAndCalculation();
+        
+        % Применяем автоскейлинг (как если бы пользователь нажал кнопку Autoscale)
+        applyAutoscale();
                 
         % Сбрасываем флаг восстановления
         restoring_from_metadata = false;

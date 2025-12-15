@@ -3,7 +3,7 @@
     "Channel": 1,
     "BaselineStart_s": -0.15,
     "BaselineEnd_s": -0.02,
-    "PeakStart_s": 0.005,
+    "PeakStart_s": 0.001,
     "PeakEnd_s": 0.2,
     "SlopePercent": 20,
     "PeakPolarity": "negative"
