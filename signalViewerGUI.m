@@ -242,8 +242,8 @@ function signalViewerGUI(editMode)
     %% координаты графических элементов - теперь загружаются из JSON файла
         %%
     function saveSettings()
-        % Не сохраняем положение окна - всегда используем базовое из JSON
-        save(SettingsFilepath, 'lastOpenedFiles', 'add_event_settings', '-append');
+        figure_position = f.Position;
+        save(SettingsFilepath, 'lastOpenedFiles', 'add_event_settings', 'figure_position', '-append');
     end
 
     % Идентификатор (tag) для GUI фигуры

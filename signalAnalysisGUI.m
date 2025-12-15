@@ -4352,6 +4352,12 @@ updateCursorEditFields();
     end
 
     function closeSignalAnalysisWindow(src, ~)
+        figure_position = signalFig.Position;
+        
+        if exist(SettingsFilepath, 'file')
+            save(SettingsFilepath, 'figure_position', '-append');
+        end
+        
         % Если был режим редактирования - обновляем координаты
         if strcmp(editMode, 'edit')
             try
@@ -4364,7 +4370,6 @@ updateCursorEditFields();
         % Очистка памяти - очищаем все глобальные переменные
         clear global
         
-        % Не сохраняем положение окна - всегда используем базовое из JSON
         delete(src);
     end
 
