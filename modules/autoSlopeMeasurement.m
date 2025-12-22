@@ -150,6 +150,7 @@ function result = autoSlopeMeasurement(filePath, fileId, params)
     
     % Сохранение результатов
     [folder, baseName, ~] = fileparts(metadata.filePath);
+    baseName = updateBaseName(baseName, params);
     excel_path = fullfile(folder, [baseName, '_auto_slope_measurements.xlsx']);
     
     % Инициализация result_info

@@ -20,6 +20,7 @@ function fileManagerGUI()
         state.fieldNameMap = struct();
         state.selectedRows = [];
         state.selectedModule = [];
+        state.moduleQueue = {};
     end
     
     if ~isfield(state, 'selectedColumn')
@@ -33,6 +34,9 @@ function fileManagerGUI()
     end
     if ~isfield(state, 'selectedModule')
         state.selectedModule = [];
+    end
+    if ~isfield(state, 'moduleQueue')
+        state.moduleQueue = {};
     end
     
     state.dbPath = initDbPath();
@@ -154,12 +158,25 @@ function fileManagerGUI()
         end
     end
     
-    runModuleBtn = uicontrol('Style', 'pushbutton', ...
+    addToQueueBtn = uicontrol('Style', 'pushbutton', ...
         'Position', [1120, 513, 150, 38], ...
+        'String', 'Add to queue', ...
+        'FontSize', 11, ...
+        'Callback', @addModuleToQueue);
+    
+    moduleQueueTable = uitable('Position', [930, 450, 340, 60], ...
+        'ColumnWidth', {30, 290}, ...
+        'ColumnName', {'#', 'Module Name'}, ...
+        'ColumnEditable', [false, false], ...
+        'Tag', 'moduleQueueTable', ...
+        'Data', cell(0, 2));
+    
+    launchQueueBtn = uicontrol('Style', 'pushbutton', ...
+        'Position', [930, 398, 340, 38], ...
         'String', 'Launch Module', ...
         'FontSize', 11, ...
-        'Callback', @callModulesCallback);
-    
+        'Callback', @callModulesCallback, ...
+        'Enable', 'off');
     
     openAnalysisBtn = uicontrol('Style', 'pushbutton', ...
         'Position', [930, 353, 150, 38], ...
@@ -223,6 +240,7 @@ function fileManagerGUI()
         'HorizontalAlignment', 'left');
     
     loadProjectsFromDb();
+    updateQueueTable();
     
     function loadProjectsFromDb()
         if isempty(state.dbPath) || ~isfile(state.dbPath)
@@ -924,48 +942,89 @@ function fileManagerGUI()
         end
     end
     
-    function callModulesCallback(~, ~)
-        if ~isfield(state, 'selectedRows') || isempty(state.selectedRows)
-            return
-        end
-        rows = state.selectedRows(:)';
+    function addModuleToQueue(~, ~)
         moduleName = get(moduleSelect, 'String');
         moduleIdx = get(moduleSelect, 'Value');
         moduleAction = moduleName{moduleIdx};
         
-        % Показываем GUI для редактирования параметров модуля один раз перед обработкой всех файлов
-        paramsApplied = false;
-        try
-            params = editModuleParamsGUI(moduleAction);
-            if ~isempty(fieldnames(params))
-                paramsApplied = true;
-            end
-        catch ME
-            debugState('fileManagerGUI', 'Failed to open parameter editor: %s', ME.message);
-        end
-        
-        if ~paramsApplied
+        state.moduleQueue{end + 1} = moduleAction;
+        updateQueueTable();
+    end
+    
+    function updateQueueTable()
+        if ~exist('moduleQueueTable', 'var') || ~ishandle(moduleQueueTable)
             return
         end
         
-        % Обработка всех выбранных файлов
-        for idx = 1:numel(rows)
-            rowIdx = rows(idx);
-            if rowIdx < 1 || rowIdx > numel(state.files)
-                continue
-            end
-            filePath = state.files(rowIdx).path;
-            fileId = state.files(rowIdx).id;
-            debugState('fileManagerGUI', 'Module %s %d/%d: %s', moduleAction, idx, numel(rows), filePath);
-            result = callModules(moduleAction, filePath, fileId);
-            if ~isempty(result) && isstruct(result)
-                logAnalysisResult(fileId, result);
-                updateAnalysisTable(state.files(rowIdx).id);
+        queueData = cell(numel(state.moduleQueue), 2);
+        for i = 1:numel(state.moduleQueue)
+            queueData{i, 1} = i;
+            queueData{i, 2} = state.moduleQueue{i};
+        end
+        moduleQueueTable.Data = queueData;
+        
+        if exist('launchQueueBtn', 'var') && ishandle(launchQueueBtn)
+            if ~isempty(state.moduleQueue)
+                set(launchQueueBtn, 'Enable', 'on');
+            else
+                set(launchQueueBtn, 'Enable', 'off');
             end
         end
     end
     
-    function result = callModules(action, filePath, fileId)
+    function callModulesCallback(~, ~)
+        if ~isfield(state, 'selectedRows') || isempty(state.selectedRows)
+            return
+        end
+        if isempty(state.moduleQueue)
+            return
+        end
+        
+        rows = state.selectedRows(:)';
+        
+        % Внешний цикл: для каждого модуля в очереди
+        for moduleIdx = 1:numel(state.moduleQueue)
+            moduleAction = state.moduleQueue{moduleIdx};
+            
+            % Показываем GUI для редактирования параметров модуля один раз перед обработкой всех файлов
+            paramsApplied = false;
+            try
+                params = editModuleParamsGUI(moduleAction);
+                if ~isempty(fieldnames(params))
+                    paramsApplied = true;
+                end
+            catch ME
+                debugState('fileManagerGUI', 'Failed to open parameter editor: %s', ME.message);
+            end
+            
+            if ~paramsApplied
+                continue
+            end
+            
+            % Внутренний цикл: обработка всех выбранных файлов
+            for idx = 1:numel(rows)
+                rowIdx = rows(idx);
+                if rowIdx < 1 || rowIdx > numel(state.files)
+                    continue
+                end
+                filePath = state.files(rowIdx).path;
+                fileId = state.files(rowIdx).id;
+                debugState('fileManagerGUI', 'Module %s %d/%d: %s', moduleAction, idx, numel(rows), filePath);
+                updateAnalysisHistory(fileId, moduleAction);
+                result = callModules(moduleAction, filePath, fileId, params);
+                if ~isempty(result) && isstruct(result)
+                    logAnalysisResult(fileId, result);
+                    updateAnalysisTable(state.files(rowIdx).id);
+                end
+            end
+        end
+        
+        % Очистка очереди после выполнения
+        state.moduleQueue = {};
+        updateQueueTable();
+    end
+    
+    function result = callModules(action, filePath, fileId, params)
         result = [];
         if nargin < 2
             filePath = '';
@@ -973,13 +1032,17 @@ function fileManagerGUI()
         if nargin < 3
             fileId = [];
         end
-        
-        global timeUnitFactor
-        if isempty(timeUnitFactor)
-            timeUnitFactor = 1;
+        if nargin < 4
+            params = [];
         end
         
-        params = loadModuleParams(action, timeUnitFactor);
+        if isempty(params)
+            global timeUnitFactor
+            if isempty(timeUnitFactor)
+                timeUnitFactor = 1;
+            end
+            params = loadModuleParams(action, timeUnitFactor);
+        end
         
         try
             macroFunc = str2func(action);

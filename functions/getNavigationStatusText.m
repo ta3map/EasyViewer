@@ -44,3 +44,5 @@ function status_text = getNavigationStatusText(metadata)
     end
 end
 
+
+

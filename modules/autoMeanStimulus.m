@@ -32,6 +32,7 @@ function result = autoMeanStimulus(filePath, fileId, params)
     plotEventsScatter(meanFig, events, calcResult);
     
     [folder, baseName, ~] = fileparts(metadata.filePath);
+    baseName = updateBaseName(baseName, params);
     figureFormat = params.figureFormat;
     if strcmpi(figureFormat, 'png')
         figPath = fullfile(folder, [baseName, '_auto_mean.png']);

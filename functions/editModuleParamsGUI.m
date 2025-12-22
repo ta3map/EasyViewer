@@ -19,6 +19,17 @@ function params = editModuleParamsGUI(moduleName)
     jsonText = fileread(jsonPath);
     jsonParams = jsondecode(jsonText);
     
+    % Проверка и создание секции output с параметрами по умолчанию
+    if ~isfield(jsonParams, 'output')
+        jsonParams.output = struct();
+    end
+    if ~isfield(jsonParams.output, 'AddTimestamp')
+        jsonParams.output.AddTimestamp = false;
+    end
+    if ~isfield(jsonParams.output, 'ResultSuffix')
+        jsonParams.output.ResultSuffix = '';
+    end
+    
     % Подготовка данных для таблицы
     data = {};
     rowNames = {};
@@ -155,6 +166,8 @@ function params = editModuleParamsGUI(moduleName)
                         value = str2num(valueStr); %#ok<ST2NM>
                         if isempty(value)
                             value = strcmpi(valueStr, 'true');
+                        else
+                            value = logical(value);
                         end
                     case 'numeric'
                         value = str2num(valueStr); %#ok<ST2NM>

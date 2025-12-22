@@ -86,3 +86,5 @@ function [channel_data, time_vector] = getSignalDataForInterval(lfp, time, chann
     end
 end
 
+
+
