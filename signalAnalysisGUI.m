@@ -3098,7 +3098,7 @@ updateCursorEditFields();
         try
             % Используем универсальную функцию загрузки
             data = load_zav_file(filepath, ...
-                'auto_set_time_windows', true, ...
+                'auto_set_time_windows', false, ...
                 'auto_set_fs', true);
             [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
             
@@ -3329,7 +3329,6 @@ updateCursorEditFields();
                 mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
                 csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
                 filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
-                channelSettings = loadedSettings.channelSettings;
 
                 % fprintf('DEBUG: loadSettingsFile: Загружено каналов: %d\n', length(channelNames));
             else % неактуально с 1.10.00  
@@ -3375,6 +3374,7 @@ updateCursorEditFields();
             end
             if isfield(loadedSettings, 'time_back')
                 time_back = loadedSettings.time_back;
+                debugState('loadSettingsFileANALYSIS', 'time_back=%f', time_back);
             end
             if isfield(loadedSettings, 'time_forward')
                 time_forward = loadedSettings.time_forward;

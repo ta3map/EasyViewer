@@ -2295,6 +2295,7 @@ function loadSettingsFile()
         end
         if isfield(loadedSettings, 'time_back')
             time_back = loadedSettings.time_back; % time window before (s)
+            debugState('loadSettingsFileVIEWER', 'time_back=%f', time_back);
             set(timeBackEdit, 'String', num2str(time_back * timeUnitFactor));
         end
         if isfield(loadedSettings, 'time_forward')
