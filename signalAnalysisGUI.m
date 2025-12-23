@@ -55,6 +55,7 @@ function signalAnalysisGUI(editMode)
 
     % Глобальные переменные для сохранения результатов
     global matFilePath matFileName
+    global current_loaded_excel_path % путь к загруженному Excel файлу (для сохранения поверх)
     
     % Глобальные переменные для среднего сигнала
     global mean_signal_data mean_signal_time mean_results_active
@@ -255,6 +256,9 @@ end
     
     % Инициализация глобальной переменной для метаданных
     current_measurement_metadata = [];
+    
+    % Инициализация пути к загруженному Excel файлу
+    current_loaded_excel_path = [];
     
     % Инициализация глобальной функции обновления графика
     updatePlotFunc = @updateAnalysisPlotFunc;
@@ -596,9 +600,22 @@ end
     uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save', ...
         'Position', getElementPosition('save_btn'), 'Callback', @saveResults, 'Tag', 'save_btn');
     
+    % Кнопка сохранения результатов как новый файл
+    uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save As', ...
+        'Position', getElementPosition('save_as_btn'), 'Callback', @saveResultsAs, 'Tag', 'save_as_btn');
+    
     % Кнопка сохранения изображения
     uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Save Image', ...
         'Position', getElementPosition('save_image_btn'), 'Callback', @saveImage, 'Tag', 'save_image_btn');
+    
+    % Выпадающий список результатов из базы данных
+    hResultsDropdown = uicontrol(signalFig, 'Style', 'popupmenu', ...
+        'Position', getElementPosition('results_dropdown'), ...
+        'String', {'No results found'}, ...
+        'Callback', @resultsDropdownCallback, ...
+        'Enable', 'off', ...
+        'Tag', 'results_dropdown');
+    setappdata(hResultsDropdown, 'meta_paths', {});
 
     % === Таблица текущих результатов ===
     % Разделитель таблицы текущих результатов
@@ -777,6 +794,18 @@ updateCursorEditFields();
     
     function channelCallback(src, ~)
         slope_measurement_settings.channel = get(src, 'Value');
+        
+        % Сохраняем выбранный канал в глобальные настройки
+        try
+            analysis_selected_channel = slope_measurement_settings.channel;
+            if exist(SettingsFilepath, 'file')
+                save(SettingsFilepath, 'analysis_selected_channel', '-append');
+            else
+                save(SettingsFilepath, 'analysis_selected_channel');
+            end
+        catch
+            % Игнорируем ошибки сохранения
+        end
         
         % Вычисляем и применяем оптимальные границы осей
         [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
@@ -1547,14 +1576,15 @@ updateCursorEditFields();
             loadedSettings.cursor_positions.peak_start = slope_measurement_settings.peak_start - rel_shift;
             loadedSettings.cursor_positions.peak_end = slope_measurement_settings.peak_end - rel_shift;
             
-            
+            % Сохраняем активный канал
+            loadedSettings.analysis_selected_channel = slope_measurement_settings.channel;
             
             % Сохраняем обновленные настройки
             % Используем -append чтобы не перезаписывать существующие настройки
             if exist(SettingsFilepath, 'file')
-                save(SettingsFilepath, '-struct', 'loadedSettings', 'cursor_positions', '-append');
+                save(SettingsFilepath, '-struct', 'loadedSettings', 'cursor_positions', 'analysis_selected_channel', '-append');
             else
-                save(SettingsFilepath, '-struct', 'loadedSettings', 'cursor_positions');
+                save(SettingsFilepath, '-struct', 'loadedSettings', 'cursor_positions', 'analysis_selected_channel');
             end
             
     
@@ -2235,34 +2265,10 @@ updateCursorEditFields();
         end
     end
     
-    function saveResults(~, ~)
-        % Сохраняет результаты в Excel файл и метаданные в .meta файл
-        
-        if isempty(slope_measurement_results)
-            debugState('saveResults', '❌ No results to save');
-            return;
-        end
-
-        % Создаем имя файла по умолчанию на основе исходного файла
-        if ~isempty(matFilePath) && ~isempty(matFileName)
-            [path, name, ~] = fileparts(matFilePath);
-            defaultFileName = fullfile(path, [name, '_slope_measurements.xlsx']);
-        else
-            defaultFileName = 'slope_measurements.xlsx';
-        end
-        
-        % Запрашиваем имя Excel файла для сохранения
-        [filename, pathname] = uiputfile({'*.xlsx', 'Excel Files (*.xlsx)'; ...
-                                        '*.xls', 'Excel Files (*.xls)'}, ...
-                                       'Save Excel Results As', defaultFileName);
-        
-        if isequal(filename, 0) || isequal(pathname, 0)
-            debugState('saveResults', '❌ Save cancelled');
-            return;
-        end
-        
-        % Получаем базовое имя файла без расширения
-        excel_path = fullfile(pathname, filename);
+    function doSaveResults(excel_path, is_overwrite)
+        % Общая функция сохранения результатов
+        % excel_path - путь к Excel файлу
+        % is_overwrite - флаг, сохраняем ли поверх существующего файла
         
         try
             % Создаем структуру params из slope_measurement_settings для сохранения
@@ -2287,13 +2293,16 @@ updateCursorEditFields();
             result_info = saveSlopeMeasurementResults(slope_measurement_results, excel_path, timeUnitFactor, matFilePath, matFileName, params);
             
             if result_info.success
-                debugState('saveResults', '✓ Results saved:');
-                debugState('saveResults', '  Excel: %s', result_info.excel_path);
-                debugState('saveResults', '  Metadata: %s', result_info.meta_path);
-                debugState('saveResults', '  Total records: %d', length(slope_measurement_results));
+                debugState('doSaveResults', '✓ Results saved:');
+                debugState('doSaveResults', '  Excel: %s', result_info.excel_path);
+                debugState('doSaveResults', '  Metadata: %s', result_info.meta_path);
+                debugState('doSaveResults', '  Total records: %d', length(slope_measurement_results));
                 
-                % Сохраняем результат анализа в базу данных
-                if ~isempty(matFilePath)
+                % Сохраняем путь к Excel файлу для возможности сохранения поверх в будущем
+                current_loaded_excel_path = result_info.excel_path;
+                
+                % Сохраняем результат анализа в базу данных только если это новый файл
+                if ~is_overwrite && ~isempty(matFilePath)
                     result = struct( ...
                         'module_name', 'signalAnalysis', ...
                         'module_display_name', 'Signal Analysis', ...
@@ -2302,18 +2311,112 @@ updateCursorEditFields();
                         'parameters', struct('total_records', length(slope_measurement_results), ...
                                              'meta_path', result_info.meta_path));
                     logAnalysisResult(matFilePath, result);
-                    debugState('saveResults', '  Analysis result saved to database');
+                    debugState('doSaveResults', '  Analysis result saved to database');
+                else
+                    debugState('doSaveResults', '  Skipping database update (overwrite mode)');
                 end
+                
+                % Обновляем список результатов в выпадающем списке
+                updateResultsDropdown();
             else
-                debugState('saveResults', '❌ Error saving results');
+                debugState('doSaveResults', '❌ Error saving results');
                 if isfield(result_info, 'error')
-                    debugState('saveResults', '  Error: %s', result_info.error);
+                    debugState('doSaveResults', '  Error: %s', result_info.error);
                 end
             end
             
         catch ME
-            debugState('saveResults', '❌ Error saving: %s', ME.message);
+            debugState('doSaveResults', '❌ Error saving: %s', ME.message);
+            rethrow(ME);
         end
+    end
+    
+    function saveResults(~, ~)
+        % Сохраняет результаты поверх загруженного файла (если есть) или показывает диалог
+        
+        if isempty(slope_measurement_results)
+            debugState('saveResults', '❌ No results to save');
+            return;
+        end
+        
+        % Проверяем, есть ли загруженный Excel путь
+        if ~isempty(current_loaded_excel_path) && exist(current_loaded_excel_path, 'file')
+            % Показываем диалог подтверждения
+            choice = questdlg(...
+                sprintf('Overwrite existing file?\n\nThis will replace both Excel and metadata files:\n%s', current_loaded_excel_path), ...
+                'Confirm Overwrite', ...
+                'Yes', 'No', 'Cancel', 'Cancel');
+            
+            switch choice
+                case 'Yes'
+                    % Сохраняем поверх существующего файла
+                    doSaveResults(current_loaded_excel_path, true);
+                case 'No'
+                    % Показываем диалог выбора файла (как Save As)
+                    saveResultsAs([], []);
+                case 'Cancel'
+                    debugState('saveResults', '❌ Save cancelled by user');
+                    return;
+            end
+        else
+            % Нет загруженного файла - показываем диалог выбора файла
+            % Создаем имя файла по умолчанию на основе исходного файла
+            if ~isempty(matFilePath) && ~isempty(matFileName)
+                [path, name, ~] = fileparts(matFilePath);
+                defaultFileName = fullfile(path, [name, '_slope_measurements.xlsx']);
+            else
+                defaultFileName = 'slope_measurements.xlsx';
+            end
+            
+            % Запрашиваем имя Excel файла для сохранения
+            [filename, pathname] = uiputfile({'*.xlsx', 'Excel Files (*.xlsx)'; ...
+                                            '*.xls', 'Excel Files (*.xls)'}, ...
+                                           'Save Excel Results As', defaultFileName);
+            
+            if isequal(filename, 0) || isequal(pathname, 0)
+                debugState('saveResults', '❌ Save cancelled');
+                return;
+            end
+            
+            % Получаем базовое имя файла без расширения
+            excel_path = fullfile(pathname, filename);
+            
+            % Сохраняем как новый файл
+            doSaveResults(excel_path, false);
+        end
+    end
+    
+    function saveResultsAs(~, ~)
+        % Сохраняет результаты в новый файл (всегда показывает диалог выбора файла)
+        
+        if isempty(slope_measurement_results)
+            debugState('saveResultsAs', '❌ No results to save');
+            return;
+        end
+        
+        % Создаем имя файла по умолчанию на основе исходного файла
+        if ~isempty(matFilePath) && ~isempty(matFileName)
+            [path, name, ~] = fileparts(matFilePath);
+            defaultFileName = fullfile(path, [name, '_slope_measurements.xlsx']);
+        else
+            defaultFileName = 'slope_measurements.xlsx';
+        end
+        
+        % Запрашиваем имя Excel файла для сохранения
+        [filename, pathname] = uiputfile({'*.xlsx', 'Excel Files (*.xlsx)'; ...
+                                        '*.xls', 'Excel Files (*.xls)'}, ...
+                                       'Save Excel Results As', defaultFileName);
+        
+        if isequal(filename, 0) || isequal(pathname, 0)
+            debugState('saveResultsAs', '❌ Save cancelled');
+            return;
+        end
+        
+        % Получаем базовое имя файла без расширения
+        excel_path = fullfile(pathname, filename);
+        
+        % Сохраняем как новый файл
+        doSaveResults(excel_path, false);
     end
     
     function updateResultsTable()
@@ -2588,6 +2691,9 @@ updateCursorEditFields();
         
         % Применяем автоскейлинг (как если бы пользователь нажал кнопку Autoscale)
         applyAutoscale();
+        
+        % Сохраняем позиции курсоров в память после восстановления состояния
+        saveCurrentMarkerPositions();
                 
         % Сбрасываем флаг восстановления
         restoring_from_metadata = false;
@@ -2950,26 +3056,32 @@ updateCursorEditFields();
         updateReplaceButtonState();
     end
     
-    function loadResults(~, ~)
+    function loadResults(~, ~, directPath)
         % Загружает результаты и измерения из .meta файла
+        % Если передан directPath, использует его вместо диалога выбора файла
         
-        % Определяем начальный путь для загрузки (тот же, что и для сохранения)
-        if ~isempty(matFilePath) && ~isempty(matFileName)
-            [path, ~, ~] = fileparts(matFilePath);
-            defaultPath = path;
+        if nargin >= 3 && ~isempty(directPath) && ischar(directPath)
+            % Используем прямой путь к файлу
+            filepath = directPath;
         else
-            defaultPath = pwd; % текущая директория если нет исходного файла
+            % Определяем начальный путь для загрузки (тот же, что и для сохранения)
+            if ~isempty(matFilePath) && ~isempty(matFileName)
+                [path, ~, ~] = fileparts(matFilePath);
+                defaultPath = path;
+            else
+                defaultPath = pwd; % текущая директория если нет исходного файла
+            end
+            
+            % Запрашиваем файл для загрузки
+            [filename, pathname] = uigetfile('*.meta', 'Load Results From', defaultPath);
+            
+            if isequal(filename, 0) || isequal(pathname, 0)
+                debugState('loadResults', '❌ Loading cancelled');
+                return;
+            end
+            
+            filepath = fullfile(pathname, filename);
         end
-        
-        % Запрашиваем файл для загрузки
-        [filename, pathname] = uigetfile('*.meta', 'Load Results From', defaultPath);
-        
-        if isequal(filename, 0) || isequal(pathname, 0)
-            debugState('loadResults', '❌ Loading cancelled');
-            return;
-        end
-        
-        filepath = fullfile(pathname, filename);
         
         try
             % Загружаем данные из файла (фактически .mat файл с расширением .meta)
@@ -3027,14 +3139,39 @@ updateCursorEditFields();
             debugState('loadResults', '  File: %s', filepath);
             debugState('loadResults', '  Results: %d', length(slope_measurement_results));
             
+            % Сохраняем путь к Excel файлу для возможности сохранения поверх
+            % Восстанавливаем Excel путь из .meta пути (заменяем расширение)
+            [path, name, ~] = fileparts(filepath);
+            current_loaded_excel_path = fullfile(path, [name, '.xlsx']);
+            
+            % Проверяем существование Excel файла
+            if ~exist(current_loaded_excel_path, 'file')
+                % Если Excel файл не найден, сбрасываем путь
+                current_loaded_excel_path = [];
+                debugState('loadResults', '⚠️ Excel file not found, save overwrite disabled');
+            else
+                debugState('loadResults', '✓ Excel file path saved for overwrite: %s', current_loaded_excel_path);
+            end
+            
             % Восстанавливаем состояние первого результата если есть
             if ~isempty(slope_measurement_results)
                 restoreStateFromMetadata(1);
+                % Сохраняем позиции курсоров в память после восстановления состояния
+                saveCurrentMarkerPositions();
             end
+            
+            % Обновляем список результатов в выпадающем списке
+            updateResultsDropdown();
             
         catch ME
             debugState('loadResults', '❌ Error loading: %s', ME.message);
         end
+    end
+    
+    function loadResultsFromPath(metaPath)
+        % Вспомогательная функция для загрузки результатов по прямому пути
+        % Используется из resultsDropdownCallback
+        loadResults([], [], metaPath);
     end
     
     function metadata = openFile(varargin)
@@ -3083,7 +3220,9 @@ updateCursorEditFields();
         
         % Очищаем все предыдущие результаты и измерения
         slope_measurement_results = [];
-
+        
+        % Сбрасываем путь к загруженному Excel файлу
+        current_loaded_excel_path = [];
         
         % Сбрасываем выделения
         selected_row_slope = [];
@@ -3154,12 +3293,29 @@ updateCursorEditFields();
             % Загружаем настройки каналов (индивидуальные или групповые)
             loadChannelSettings();
             
+            % Загружаем сохраненный канал из глобальных настроек
+            saved_channel = 1; % значение по умолчанию
+            try
+                if exist(SettingsFilepath, 'file')
+                    loadedSettings = load(SettingsFilepath, '-mat');
+                    if isfield(loadedSettings, 'analysis_selected_channel')
+                        saved_channel = loadedSettings.analysis_selected_channel;
+                    end
+                end
+            catch
+                % Используем значение по умолчанию при ошибке
+            end
+            
             % Обновляем popup каналов
             if exist('hChannelPopup', 'var') && ishandle(hChannelPopup)
                 if isfield(hd, 'recChNames') && iscell(hd.recChNames) && ~isempty(hd.recChNames)
-                    set(hChannelPopup, 'String', hd.recChNames, 'Value', 1);
+                    % Ограничиваем сохраненный канал диапазоном доступных каналов
+                    saved_channel = min(max(1, saved_channel), length(hd.recChNames));
+                    set(hChannelPopup, 'String', hd.recChNames, 'Value', saved_channel);
+                    slope_measurement_settings.channel = saved_channel;
                 else
                     set(hChannelPopup, 'String', {'Ch1'}, 'Value', 1);
+                    slope_measurement_settings.channel = 1;
                 end
             end
             
@@ -3205,6 +3361,9 @@ updateCursorEditFields();
             debugState('openFile', '  Sampling rate: %.1f Hz', Fs);
             debugState('openFile', '  Duration: %.3f s', time(end));
             
+            % Обновляем список результатов в выпадающем списке
+            updateResultsDropdown();
+            
             % Возвращаем метаданные для совместимости с launchFile
             metadata.hd = hd;
             metadata.stims = stims;
@@ -3229,6 +3388,9 @@ updateCursorEditFields();
             case 'Yes'
                 % Очищаем все результаты slope measurement
                 slope_measurement_results = [];
+                
+                % Сбрасываем путь к загруженному Excel файлу
+                current_loaded_excel_path = [];
                 
                 % Сбрасываем выделения
                 selected_row_slope = [];
@@ -3772,6 +3934,128 @@ updateCursorEditFields();
         end
     end
 
+    function results = getAnalysisResultsFromDatabase(fileId)
+        % Запрашивает результаты анализа из базы данных
+        % Фильтрует по модулям 'signalAnalysis' и 'autoSlopeMeasurement'
+        % Возвращает структуру с полями: report_path, module_name, analysis_timestamp
+        
+        results = [];
+        
+        if isempty(fileId) || ~isnumeric(fileId)
+            return;
+        end
+        
+        try
+            % SQL запрос аналогичный updateAnalysisTable() из File Manager
+            % Используем escapeSql для экранирования строковых значений в IN clause
+            query = sprintf(['SELECT report_path, module_name, analysis_timestamp ' ...
+                'FROM analysis_results ' ...
+                'WHERE file_id = %d ' ...
+                'AND module_name IN (''%s'', ''%s'') ' ...
+                'ORDER BY analysis_timestamp DESC'], ...
+                fileId, escapeSql('signalAnalysis'), escapeSql('autoSlopeMeasurement'));
+            
+            rows = sqlFetch(query);
+            
+            if ~isempty(rows)
+                results = struct('report_path', {}, 'module_name', {}, 'analysis_timestamp', {});
+                for i = 1:size(rows, 1)
+                    results(i).report_path = rows{i, 1};
+                    results(i).module_name = rows{i, 2};
+                    results(i).analysis_timestamp = rows{i, 3};
+                end
+            end
+        catch ME
+            debugState('getAnalysisResultsFromDatabase', '❌ Error querying database: %s', ME.message);
+        end
+    end
+    
+    function updateResultsDropdown()
+        % Обновляет содержимое выпадающего списка результатов
+        % Вызывается при открытии файла и после сохранения результатов
+        
+        hResultsDropdown = findobj(signalFig, 'Tag', 'results_dropdown');
+        if isempty(hResultsDropdown) || ~ishandle(hResultsDropdown)
+            return;
+        end
+        
+        % Проверяем, есть ли открытый файл
+        if ~exist('matFilePath', 'var') || isempty(matFilePath)
+            set(hResultsDropdown, 'String', {'No results found'}, 'Enable', 'off');
+            setappdata(hResultsDropdown, 'meta_paths', {});
+            return;
+        end
+        
+        try
+            % Получаем fileId через resolveFileId
+            fileId = resolveFileId(matFilePath);
+            
+            if isempty(fileId)
+                set(hResultsDropdown, 'String', {'No results found'}, 'Enable', 'off');
+                setappdata(hResultsDropdown, 'meta_paths', {});
+                return;
+            end
+            
+            % Получаем результаты из базы данных
+            results = getAnalysisResultsFromDatabase(fileId);
+            
+            if isempty(results)
+                set(hResultsDropdown, 'String', {'No results found'}, 'Enable', 'off');
+                setappdata(hResultsDropdown, 'meta_paths', {});
+            else
+                % Формируем список строк для popupmenu (только имена файлов)
+                displayStrings = cell(length(results), 1);
+                metaPaths = cell(length(results), 1);
+                
+                for i = 1:length(results)
+                    % Преобразуем report_path (Excel) в путь к .meta файлу
+                    [path, name, ~] = fileparts(results(i).report_path);
+                    metaPath = fullfile(path, [name, '.meta']);
+                    metaPaths{i} = metaPath;
+                    
+                    % Используем только имя файла для отображения
+                    [~, fileName, ~] = fileparts(results(i).report_path);
+                    displayStrings{i} = fileName;
+                end
+                
+                set(hResultsDropdown, 'String', displayStrings, 'Enable', 'on', 'Value', 1);
+                setappdata(hResultsDropdown, 'meta_paths', metaPaths);
+            end
+        catch ME
+            debugState('updateResultsDropdown', '❌ Error updating results dropdown: %s', ME.message);
+            set(hResultsDropdown, 'String', {'No results found'}, 'Enable', 'off');
+            setappdata(hResultsDropdown, 'meta_paths', {});
+        end
+    end
+    
+    function resultsDropdownCallback(src, ~)
+        % Обрабатывает выбор результата из выпадающего списка
+        % Открывает выбранный результат через loadResults
+        
+        if ~ishandle(src)
+            return;
+        end
+        
+        selectedIdx = get(src, 'Value');
+        metaPaths = getappdata(src, 'meta_paths');
+        
+        if isempty(metaPaths) || selectedIdx < 1 || selectedIdx > length(metaPaths)
+            return;
+        end
+        
+        metaPath = metaPaths{selectedIdx};
+        
+        % Проверяем существование файла
+        if ~exist(metaPath, 'file')
+            debugState('resultsDropdownCallback', '❌ File not found: %s', metaPath);
+            msgbox(sprintf('File not found: %s', metaPath), 'Error', 'error');
+            return;
+        end
+        
+        % Вызываем loadResults с прямым путем к файлу
+        loadResultsFromPath(metaPath);
+    end
+    
     function collectAllMetadata(~, ~)
         % Функция для сбора всех метаданных из подпапок и создания сводной таблицы
         
