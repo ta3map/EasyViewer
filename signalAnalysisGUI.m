@@ -56,6 +56,7 @@ function signalAnalysisGUI(editMode)
     % Глобальные переменные для сохранения результатов
     global matFilePath matFileName
     global current_loaded_excel_path % путь к загруженному Excel файлу (для сохранения поверх)
+    global hot_resave_enabled % флаг горячего пересохранения (Hot Resave)
     
     % Глобальные переменные для среднего сигнала
     global mean_signal_data mean_signal_time mean_results_active
@@ -259,6 +260,9 @@ end
     
     % Инициализация пути к загруженному Excel файлу
     current_loaded_excel_path = [];
+    
+    % Инициализация флага Hot Resave
+    hot_resave_enabled = false;
     
     % Инициализация глобальной функции обновления графика
     updatePlotFunc = @updateAnalysisPlotFunc;
@@ -616,6 +620,28 @@ end
         'Enable', 'off', ...
         'Tag', 'results_dropdown');
     setappdata(hResultsDropdown, 'meta_paths', {});
+    
+    % Чекбокс Hot Resave
+    uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('hot_resave_label'), ...
+        'String', 'Hot Resave:', 'HorizontalAlignment', 'left', 'Tag', 'hot_resave_label');
+    hHotResaveCheckbox = uicontrol(signalFig, 'Style', 'checkbox', ...
+        'Position', getElementPosition('hot_resave_checkbox'), ...
+        'String', '', ...
+        'Callback', @hotResaveCallback, ...
+        'Enable', 'off', ...
+        'Value', 0, ...
+        'Tag', 'hot_resave_checkbox');
+    
+    % Чекбокс Hot Resave
+    uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('hot_resave_label'), ...
+        'String', 'Hot Resave:', 'HorizontalAlignment', 'left', 'Tag', 'hot_resave_label');
+    hHotResaveCheckbox = uicontrol(signalFig, 'Style', 'checkbox', ...
+        'Position', getElementPosition('hot_resave_checkbox'), ...
+        'String', '', ...
+        'Callback', @hotResaveCallback, ...
+        'Enable', 'off', ...
+        'Value', 0, ...
+        'Tag', 'hot_resave_checkbox');
 
     % === Таблица текущих результатов ===
     % Разделитель таблицы текущих результатов
@@ -1158,6 +1184,20 @@ updateCursorEditFields();
         % Сначала вычисляем все результаты
         [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = calculateResults();
         
+        % Проверка Hot Resave - автоматическое сохранение при изменении курсоров
+        if hot_resave_enabled && ...
+           ~isempty(selected_row_slope) && ...
+           selected_row_slope <= length(slope_measurement_results) && ...
+           ~isempty(current_loaded_excel_path) && ...
+           exist(current_loaded_excel_path, 'file')
+            
+            % Автоматический Replace (без обновления UI)
+            replaceResultSilent();
+            
+            % Автоматическое сохранение поверх (без диалогов)
+            doSaveResults(current_loaded_excel_path, true);
+        end
+        
         % Затем обновляем график и визуализацию
         updatePlotVisualization();
     end
@@ -1409,8 +1449,8 @@ updateCursorEditFields();
                 t_bl_start = (baseline_start - rel_shift) * timeUnitFactor;
                 t_bl_end = (baseline_end - rel_shift) * timeUnitFactor;
             end
-            hBaselineLines(1) = line([t_bl_start, t_bl_start], ylims, 'Color', 'b', 'LineWidth', 2, 'LineStyle', ':');
-            hBaselineLines(2) = line([t_bl_end, t_bl_end], ylims, 'Color', 'b', 'LineWidth', 2, 'LineStyle', ':');
+            hBaselineLines(1) = xline(t_bl_start, 'Color', 'b', 'LineWidth', 2, 'LineStyle', ':');
+            hBaselineLines(2) = xline(t_bl_end, 'Color', 'b', 'LineWidth', 2, 'LineStyle', ':');
             % Горизонтальная линия baseline через весь график (точечный пунктир)
             xlims = xlim;
             hBaselineLines(3) = line([xlims(1), xlims(2)], [baseline_value, baseline_value], 'Color', 'b', 'LineWidth', 1, 'LineStyle', ':');
@@ -1436,8 +1476,8 @@ updateCursorEditFields();
                 t_pk_start = (peak_start - rel_shift) * timeUnitFactor;
                 t_pk_end = (peak_end - rel_shift) * timeUnitFactor;
             end
-            hPeakLines(1) = line([t_pk_start, t_pk_start], ylims, 'Color', 'g', 'LineWidth', 2, 'LineStyle', ':');
-            hPeakLines(2) = line([t_pk_end, t_pk_end], ylims, 'Color', 'g', 'LineWidth', 2, 'LineStyle', ':');
+            hPeakLines(1) = xline(t_pk_start, 'Color', 'g', 'LineWidth', 2, 'LineStyle', ':');
+            hPeakLines(2) = xline(t_pk_end, 'Color', 'g', 'LineWidth', 2, 'LineStyle', ':');
             
             % Подписи диапазонов
             text(t_pk_start, ylims(1) + (ylims(2) - ylims(1)) * 0.05, 'PK', 'HorizontalAlignment', 'center', 'Color', 'g', 'FontWeight', 'bold');
@@ -1596,8 +1636,6 @@ updateCursorEditFields();
     
     function updateLinePositions()
         % Обновляет только позиции линий без пересчета параметров
-        % Получаем текущие границы осей
-        ylims = ylim(hPlotAxes);
         
         % Получаем параметры для отображения линий
         baseline_start = slope_measurement_settings.baseline_start;
@@ -1626,10 +1664,10 @@ updateCursorEditFields();
             
             % Обновляем позиции линий
             if ishandle(hBaselineLines(1))
-                set(hBaselineLines(1), 'XData', [t_bl_start, t_bl_start], 'YData', ylims);
+                set(hBaselineLines(1), 'Value', t_bl_start);
             end
             if ishandle(hBaselineLines(2))
-                set(hBaselineLines(2), 'XData', [t_bl_end, t_bl_end], 'YData', ylims);
+                set(hBaselineLines(2), 'Value', t_bl_end);
             end
             % Не обновляем горизонтальную линию baseline во время перетаскивания
             % Она будет обновлена только после завершения перетаскивания в updatePlotAndCalculation()
@@ -1651,10 +1689,10 @@ updateCursorEditFields();
             
             % Обновляем позиции линий
             if ishandle(hPeakLines(1))
-                set(hPeakLines(1), 'XData', [t_pk_start, t_pk_start], 'YData', ylims);
+                set(hPeakLines(1), 'Value', t_pk_start);
             end
             if ishandle(hPeakLines(2))
-                set(hPeakLines(2), 'XData', [t_pk_end, t_pk_end], 'YData', ylims);
+                set(hPeakLines(2), 'Value', t_pk_end);
             end
         end
         
@@ -2139,26 +2177,23 @@ updateCursorEditFields();
         updateReplaceButtonState();
     end
     
-    function replaceResult(~, ~)
-        % Заменяет выбранный результат текущим измерением
+    function replaceResultSilent()
+        % Заменяет выбранный результат текущим измерением БЕЗ обновления UI
+        % Используется для Hot Resave
         
         if isempty(selected_row_slope) || selected_row_slope > length(slope_measurement_results)
-            debugState('replaceResult', '❌ No selected result to replace');
             return;
         end
         
         % Проверяем, что у нас есть текущие результаты
         if ~exist('slope_value', 'var') || isnan(slope_value)
-            debugState('replaceResult', '❌ No current results to replace');
             return;
         end
         
         % Используем глобальные метаданные если они есть, иначе создаем новые
         if ~isempty(current_measurement_metadata)
-            % Используем существующие метаданные с rel_shift
             metadata = current_measurement_metadata;
         else
-            % Создаем новые метаданные
             metadata = struct();
         end
         
@@ -2212,8 +2247,26 @@ updateCursorEditFields();
             new_result.metadata.stim_time = NaN;
         end
 
-        % Заменяем выбранный результат
+        % Заменяем выбранный результат (без обновления UI)
         slope_measurement_results(selected_row_slope) = new_result;
+    end
+    
+    function replaceResult(~, ~)
+        % Заменяет выбранный результат текущим измерением
+        
+        if isempty(selected_row_slope) || selected_row_slope > length(slope_measurement_results)
+            debugState('replaceResult', '❌ No selected result to replace');
+            return;
+        end
+        
+        % Проверяем, что у нас есть текущие результаты
+        if ~exist('slope_value', 'var') || isnan(slope_value)
+            debugState('replaceResult', '❌ No current results to replace');
+            return;
+        end
+        
+        % Используем replaceResultSilent для замены
+        replaceResultSilent();
         
         % Сохраняем позицию прокрутки перед обновлением таблицы
         global saved_vpos saved_hpos;
@@ -2318,6 +2371,9 @@ updateCursorEditFields();
                 
                 % Обновляем список результатов в выпадающем списке
                 updateResultsDropdown();
+                
+                % Обновляем состояние чекбокса Hot Resave (может стать активным после сохранения)
+                updateHotResaveState();
             else
                 debugState('doSaveResults', '❌ Error saving results');
                 if isfield(result_info, 'error')
@@ -2577,6 +2633,7 @@ updateCursorEditFields();
         if isempty(event.Indices)
             selected_row_slope = [];
             updateReplaceButtonState();
+            updateHotResaveState();
             return;
         end
         
@@ -2596,6 +2653,9 @@ updateCursorEditFields();
             
             % Обновляем состояние кнопки Replace
             updateReplaceButtonState();
+            
+            % Обновляем состояние чекбокса Hot Resave
+            updateHotResaveState();
         end
     end
     
@@ -3163,6 +3223,9 @@ updateCursorEditFields();
             % Обновляем список результатов в выпадающем списке
             updateResultsDropdown();
             
+            % Обновляем состояние чекбокса Hot Resave
+            updateHotResaveState();
+            
         catch ME
             debugState('loadResults', '❌ Error loading: %s', ME.message);
         end
@@ -3364,6 +3427,9 @@ updateCursorEditFields();
             % Обновляем список результатов в выпадающем списке
             updateResultsDropdown();
             
+            % Обновляем состояние чекбокса Hot Resave
+            updateHotResaveState();
+            
             % Возвращаем метаданные для совместимости с launchFile
             metadata.hd = hd;
             metadata.stims = stims;
@@ -3412,6 +3478,9 @@ updateCursorEditFields();
         
         % Обновляем состояние кнопки Replace
         updateReplaceButtonState();
+        
+        % Обновляем состояние чекбокса Hot Resave
+        updateHotResaveState();
         
         debugState('clearAllResults', '✓ All results and measurements cleared');
                 
@@ -3769,6 +3838,66 @@ updateCursorEditFields();
         catch
         end
         updateSmoothingControls();
+        loadHotResaveSettings();
+    end
+    
+    function loadHotResaveSettings()
+        % Загружает состояние чекбокса Hot Resave из настроек
+        try
+            if exist(SettingsFilepath, 'file')
+                loadedSettings = load(SettingsFilepath, '-mat');
+                if isfield(loadedSettings, 'hot_resave_enabled')
+                    hot_resave_enabled = logical(loadedSettings.hot_resave_enabled);
+                else
+                    hot_resave_enabled = false;
+                end
+            else
+                hot_resave_enabled = false;
+            end
+        catch
+            hot_resave_enabled = false;
+        end
+        
+        % Обновляем состояние чекбокса
+        if exist('hHotResaveCheckbox', 'var') && ishandle(hHotResaveCheckbox)
+            set(hHotResaveCheckbox, 'Value', hot_resave_enabled);
+            updateHotResaveState();
+        end
+    end
+    
+    function saveHotResaveSettings()
+        % Сохраняет состояние чекбокса Hot Resave в настройки
+        try
+            if exist(SettingsFilepath, 'file')
+                save(SettingsFilepath, 'hot_resave_enabled', '-append');
+            else
+                save(SettingsFilepath, 'hot_resave_enabled');
+            end
+        catch
+            % Игнорируем ошибки сохранения
+        end
+    end
+    
+    function updateHotResaveState()
+        % Обновляет состояние чекбокса Hot Resave
+        % Синхронизирует UI с глобальной переменной
+        
+        if ~exist('hHotResaveCheckbox', 'var') || ~ishandle(hHotResaveCheckbox)
+            return;
+        end
+        
+        % Чекбокс всегда доступен
+        set(hHotResaveCheckbox, 'Enable', 'on');
+        
+        % Синхронизируем значение чекбокса с глобальной переменной
+        set(hHotResaveCheckbox, 'Value', hot_resave_enabled);
+    end
+    
+    function hotResaveCallback(src, ~)
+        % Callback для чекбокса Hot Resave
+        hot_resave_enabled = logical(get(src, 'Value'));
+        saveHotResaveSettings();
+        debugState('hotResaveCallback', 'Hot Resave %s', char(string(hot_resave_enabled).replace("1", "enabled").replace("0", "disabled")));
     end
     
     function saveSmoothingSettings()
