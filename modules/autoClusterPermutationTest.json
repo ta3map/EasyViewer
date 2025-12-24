@@ -1,0 +1,25 @@
+{
+  "visualization": {
+    "autoScale": true,
+    "xLimits": [
+      -500,
+      500
+    ],
+    "showOriginalTraces": false,
+    "removeBaseline": true,
+    "removeArtifact": true,
+    "artifactWindow_ms": 1,
+    "showBaselinePeriod": true
+  },
+  "test_parameters": {
+    "numPermutations": 1000,
+    "clusterThreshold": 0.05,
+    "minClusterSize_ms": 0,
+    "expectedPolarity": "positive"
+  },
+  "output": {
+    "figureFormat": "png",
+    "AddTimestamp": false,
+    "ResultSuffix": ""
+  }
+}
