@@ -29,7 +29,7 @@ Cluster permutation test for statistical analysis of time series.
 
 Detailed method description: [Cluster Permutation Test](cluster_permutation_test_eng.md)
 
-![Cluster test result](images/placeholder_module_cluster_test.png)
+![Cluster test result](screenshots/placeholder_module_cluster_test.png)
 
 ### autoMeanStimulus
 
@@ -56,7 +56,7 @@ Signal averaging by stimuli with automatic peak detection.
 - Table with detection results
 - Image file (PNG or FIG)
 
-![Mean stimulus result](images/placeholder_module_mean_stimulus.png)
+![Mean stimulus result](screenshots/placeholder_module_mean_stimulus.png)
 
 ### autoDetectStimuli
 
@@ -74,7 +74,7 @@ Automatic detection of stimuli in the signal.
 - Timestamps of detected stimuli
 - Saving stimuli to settings file
 
-![Stimulus detection result](images/placeholder_module_detect_stimuli.png)
+![Stimulus detection result](screenshots/placeholder_module_detect_stimuli.png)
 
 ### autoSlopeMeasurement
 
@@ -104,7 +104,7 @@ Automatic slope measurement for all stimuli.
 - Excel file with measurement results for all stimuli
 - Measurement metadata
 
-![Slope measurement result](images/placeholder_module_slope_measurement.png)
+![Slope measurement result](screenshots/placeholder_module_slope_measurement.png)
 
 ## Using Modules
 
@@ -116,7 +116,7 @@ Automatic slope measurement for all stimuli.
 4. Configure parameters in the opened window
 5. Save parameters
 
-![Module parameters configuration](images/placeholder_module_edit_params.png)
+![Module parameters configuration](screenshots/placeholder_module_edit_params.png)
 
 ### Running Module
 
@@ -134,7 +134,7 @@ Modules can be added to a queue for sequential execution:
 3. Repeat for other modules
 4. Press the **Launch Module** button to execute the entire queue
 
-![Module queue](images/placeholder_module_queue.png)
+![Module queue](screenshots/placeholder_module_queue.png)
 
 ### Viewing Results
 
@@ -144,7 +144,7 @@ Analysis results are saved to the File Manager database. To view:
 2. Results are displayed in the **Results** table
 3. Select a result and press **Open Result** to view
 
-![Module results](images/placeholder_module_results.png)
+![Module results](screenshots/placeholder_module_results.png)
 
 ## Parameter Format
 

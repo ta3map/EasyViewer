@@ -29,7 +29,7 @@
 
 Подробное описание метода: [Кластерный пермутационный тест](cluster_permutation_test_rus.md)
 
-![Результат кластерного теста](images/placeholder_module_cluster_test.png)
+![Результат кластерного теста](screenshots/placeholder_module_cluster_test.png)
 
 ### autoMeanStimulus
 
@@ -56,7 +56,7 @@
 - Таблица с результатами детекции
 - Файл изображения (PNG или FIG)
 
-![Результат усреднения по стимулам](images/placeholder_module_mean_stimulus.png)
+![Результат усреднения по стимулам](screenshots/placeholder_module_mean_stimulus.png)
 
 ### autoDetectStimuli
 
@@ -74,7 +74,7 @@
 - Временные метки обнаруженных стимулов
 - Сохранение стимулов в файл настроек
 
-![Результат обнаружения стимулов](images/placeholder_module_detect_stimuli.png)
+![Результат обнаружения стимулов](screenshots/placeholder_module_detect_stimuli.png)
 
 ### autoSlopeMeasurement
 
@@ -104,7 +104,7 @@
 - Excel файл с результатами измерений для всех стимулов
 - Метаданные измерений
 
-![Результат измерения slope](images/placeholder_module_slope_measurement.png)
+![Результат измерения slope](screenshots/placeholder_module_slope_measurement.png)
 
 ## Использование модулей
 
@@ -116,7 +116,7 @@
 4. Настройте параметры в открывшемся окне
 5. Сохраните параметры
 
-![Настройка параметров модуля](images/placeholder_module_edit_params.png)
+![Настройка параметров модуля](screenshots/placeholder_module_edit_params.png)
 
 ### Запуск модуля
 
@@ -134,7 +134,7 @@
 3. Повторите для других модулей
 4. Нажмите кнопку **Launch Module** для выполнения всей очереди
 
-![Очередь модулей](images/placeholder_module_queue.png)
+![Очередь модулей](screenshots/placeholder_module_queue.png)
 
 ### Просмотр результатов
 
@@ -144,7 +144,7 @@
 2. Результаты отображаются в таблице **Results**
 3. Выберите результат и нажмите **Open Result** для просмотра
 
-![Просмотр результатов модуля](images/placeholder_module_results.png)
+![Просмотр результатов модуля](screenshots/placeholder_module_results.png)
 
 ## Формат параметров
 

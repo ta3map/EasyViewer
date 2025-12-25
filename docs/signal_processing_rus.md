@@ -14,7 +14,7 @@
 
 Кнопки **Select ALL** и **Deselect ALL** управляют выбором всех каналов.
 
-![Выбор каналов для фильтрации](images/placeholder_filtering_channels.png)
+![Выбор каналов для фильтрации](screenshots/placeholder_filtering_channels.png)
 
 ### Типы фильтров
 
@@ -30,13 +30,13 @@
 - **Upper Frequency** - верхняя граница частоты (Гц)
 - **Filter Order** - порядок фильтра (определяет крутизну склона)
 
-![Параметры фильтра](images/placeholder_filtering_params.png)
+![Параметры фильтра](screenshots/placeholder_filtering_params.png)
 
 ### Предпросмотр
 
 Кнопка **Check Filtration** показывает частотную характеристику фильтра на графике в нижней части окна. Это позволяет оценить эффект фильтрации перед применением.
 
-![Частотная характеристика фильтра](images/placeholder_filtering_response.png)
+![Частотная характеристика фильтра](screenshots/placeholder_filtering_response.png)
 
 ### Применение
 
@@ -56,7 +56,7 @@
 
 Кнопки **Select ALL** и **Deselect ALL** управляют выбором каналов.
 
-![Вычитание среднего](images/placeholder_average_subtraction.png)
+![Вычитание среднего](screenshots/placeholder_average_subtraction.png)
 
 ### Применение
 
@@ -79,7 +79,7 @@ CSD визуализирует пространственное распреде
 - **Contrast Coef.** - коэффициент контрастности отображения (улучшает различимость областей)
 - **Smooth Coef.** - коэффициент сглаживания (уменьшает шум)
 
-![Настройки CSD](images/placeholder_csd_settings.png)
+![Настройки CSD](screenshots/placeholder_csd_settings.png)
 
 ### Применение
 
@@ -95,7 +95,7 @@ CSD визуализирует пространственное распреде
 
 - **Artifact Window (ms)** - размер временного окна после стимула, которое исключается из отображения
 
-![Удаление артефактов](images/placeholder_artifact_removal.png)
+![Удаление артефактов](screenshots/placeholder_artifact_removal.png)
 
 ### Применение
 
@@ -119,7 +119,7 @@ CSD визуализирует пространственное распреде
   - **Median** - медианный фильтр
 - **Show Raw** - отображение исходного сигнала вместе со сглаженным
 
-![Настройки сглаживания](images/placeholder_smoothing.png)
+![Настройки сглаживания](screenshots/placeholder_smoothing.png)
 
 ## Настройки каналов для обработки
 
@@ -132,7 +132,7 @@ CSD визуализирует пространственное распреде
 
 Изменения в таблице применяются немедленно.
 
-![Настройки каналов](images/placeholder_channel_processing.png)
+![Настройки каналов](screenshots/placeholder_channel_processing.png)
 
 ## Сохранение настроек обработки
 

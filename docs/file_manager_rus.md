@@ -2,7 +2,7 @@
 
 Файловый менеджер с поддержкой SQL базы данных для организации проектов, групп файлов и метаданных.
 
-![Основное окно File Manager](images/placeholder_file_manager_main.png)
+![Основное окно File Manager](screenshots/placeholder_file_manager_main.png)
 
 ## Структура базы данных
 
@@ -24,7 +24,7 @@ File Manager использует SQLite базу данных для хране
 
 В верхней части окна отображается путь к текущей базе данных. Кнопка **Select Database** позволяет выбрать существующую базу данных или создать новую.
 
-![Выбор базы данных](images/placeholder_file_manager_database.png)
+![Выбор базы данных](screenshots/placeholder_file_manager_database.png)
 
 ## Проекты
 
@@ -32,13 +32,13 @@ File Manager использует SQLite базу данных для хране
 
 Кнопка **New Project** открывает диалог создания нового проекта. Укажите название и описание проекта.
 
-![Создание проекта](images/placeholder_file_manager_new_project.png)
+![Создание проекта](screenshots/placeholder_file_manager_new_project.png)
 
 ### Список проектов
 
 Левая панель содержит список всех проектов в базе данных. Выбор проекта загружает его файлы и группы.
 
-![Список проектов](images/placeholder_file_manager_projects_list.png)
+![Список проектов](screenshots/placeholder_file_manager_projects_list.png)
 
 ### Редактирование проекта
 
@@ -54,13 +54,13 @@ File Manager использует SQLite базу данных для хране
 
 Кнопка **New Group** создает новую группу в текущем проекте. Укажите название группы.
 
-![Создание группы](images/placeholder_file_manager_new_group.png)
+![Создание группы](screenshots/placeholder_file_manager_new_group.png)
 
 ### Список групп
 
 Средняя панель содержит список групп в текущем проекте. Выбор группы фильтрует файлы по группе.
 
-![Список групп](images/placeholder_file_manager_groups_list.png)
+![Список групп](screenshots/placeholder_file_manager_groups_list.png)
 
 ### Редактирование группы
 
@@ -74,7 +74,7 @@ File Manager использует SQLite базу данных для хране
 
 Кнопка **Group Metadata** открывает окно редактирования метаданных группы. Метаданные хранятся как пары поле-значение.
 
-![Метаданные группы](images/placeholder_file_manager_group_metadata.png)
+![Метаданные группы](screenshots/placeholder_file_manager_group_metadata.png)
 
 ## Файлы
 
@@ -82,7 +82,7 @@ File Manager использует SQLite базу данных для хране
 
 Кнопка **Add File** открывает диалог выбора файлов. Выбранные файлы добавляются в текущий проект.
 
-![Добавление файлов](images/placeholder_file_manager_add_file.png)
+![Добавление файлов](screenshots/placeholder_file_manager_add_file.png)
 
 ### Список файлов
 
@@ -93,7 +93,7 @@ File Manager использует SQLite базу данных для хране
 - Группа (если назначена)
 - Метаданные (если заданы)
 
-![Список файлов](images/placeholder_file_manager_files_list.png)
+![Список файлов](screenshots/placeholder_file_manager_files_list.png)
 
 ### Назначение группы
 
@@ -103,7 +103,7 @@ File Manager использует SQLite базу данных для хране
 
 Выберите файл и используйте кнопку **File Metadata** для редактирования метаданных файла.
 
-![Метаданные файла](images/placeholder_file_manager_file_metadata.png)
+![Метаданные файла](screenshots/placeholder_file_manager_file_metadata.png)
 
 ### Удаление файла
 
@@ -124,19 +124,19 @@ File Manager использует SQLite базу данных для хране
 - **autoDetectStimuli** - автоматическое обнаружение стимулов
 - **autoSlopeMeasurement** - автоматическое измерение slope
 
-![Выбор модуля](images/placeholder_file_manager_module_selection.png)
+![Выбор модуля](screenshots/placeholder_file_manager_module_selection.png)
 
 ### Настройка параметров модуля
 
 Кнопка **Edit Module Params** открывает окно редактирования параметров выбранного модуля. Параметры сохраняются в JSON формате.
 
-![Настройка параметров модуля](images/placeholder_file_manager_module_params.png)
+![Настройка параметров модуля](screenshots/placeholder_file_manager_module_params.png)
 
 ### Запуск модуля
 
 Кнопка **Run Module** запускает выбранный модуль для выбранных файлов. Результаты сохраняются в базу данных и отображаются в списке результатов.
 
-![Запуск модуля](images/placeholder_file_manager_run_module.png)
+![Запуск модуля](screenshots/placeholder_file_manager_run_module.png)
 
 ### Очередь модулей
 
@@ -148,7 +148,7 @@ File Manager использует SQLite базу данных для хране
 
 Выберите файл и используйте кнопку **View Results** для просмотра результатов анализа. Отображается список всех результатов для выбранного файла.
 
-![Просмотр результатов](images/placeholder_file_manager_view_results.png)
+![Просмотр результатов](screenshots/placeholder_file_manager_view_results.png)
 
 ### Удаление результатов
 
@@ -158,7 +158,7 @@ File Manager использует SQLite базу данных для хране
 
 Кнопка **Import from Excel** позволяет импортировать список файлов из Excel таблицы. Укажите колонку с путями к файлам.
 
-![Импорт из Excel](images/placeholder_file_manager_import_excel.png)
+![Импорт из Excel](screenshots/placeholder_file_manager_import_excel.png)
 
 ## Экспорт
 
@@ -168,7 +168,7 @@ File Manager использует SQLite базу данных для хране
 
 Поле **Search** позволяет фильтровать файлы по названию или пути.
 
-![Поиск файлов](images/placeholder_file_manager_search.png)
+![Поиск файлов](screenshots/placeholder_file_manager_search.png)
 
 ## Настройки
 
@@ -178,5 +178,5 @@ File Manager использует SQLite базу данных для хране
 - Настройки отображения
 - Настройки модулей
 
-![Настройки File Manager](images/placeholder_file_manager_settings.png)
+![Настройки File Manager](screenshots/placeholder_file_manager_settings.png)
 

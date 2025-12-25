@@ -18,7 +18,7 @@
 - **Filter** - применение фильтрации
 - **Baseline** - вычитание базовой линии
 
-![Таблица каналов](images/placeholder_channel_table.png)
+![Таблица каналов](screenshots/placeholder_channel_table.png)
 
 ### Быстрое управление
 
@@ -53,7 +53,7 @@
 - **Label Background Color** - цвет фона метки
 - **Label Font Weight** - начертание шрифта (normal/bold)
 
-![Настройки стилей линий](images/placeholder_lines_styles.png)
+![Настройки стилей линий](screenshots/placeholder_lines_styles.png)
 
 ## Zoom и Pan
 
@@ -67,7 +67,7 @@
 2. Выделите область на графике для увеличения
 3. Кликните правой кнопкой мыши для уменьшения
 
-![Zoom инструмент](images/placeholder_zoom.png)
+![Zoom инструмент](screenshots/placeholder_zoom.png)
 
 ### Built-in Pan
 
@@ -79,7 +79,7 @@
 2. Зажмите левую кнопку мыши и перемещайте график
 3. Отпустите кнопку для завершения
 
-![Pan инструмент](images/placeholder_pan.png)
+![Pan инструмент](screenshots/placeholder_pan.png)
 
 ### Home
 
@@ -95,13 +95,13 @@
 2. Кликните на графике в интересующей точке
 3. Отображаются координаты точки (время, амплитуда, канал)
 
-![Data Cursor](images/placeholder_data_cursor.png)
+![Data Cursor](screenshots/placeholder_data_cursor.png)
 
 ## Brush
 
 Кнопка **Brush** активирует инструмент выделения данных на графике. Позволяет выделять точки данных для дальнейшего анализа.
 
-![Brush инструмент](images/placeholder_brush.png)
+![Brush инструмент](screenshots/placeholder_brush.png)
 
 ## Сохранение графиков
 
@@ -116,7 +116,7 @@
 - PDF
 - EPS
 
-![Сохранение графика](images/placeholder_save_figure.png)
+![Сохранение графика](screenshots/placeholder_save_figure.png)
 
 ### Сохранение изображения в Signal Analysis
 

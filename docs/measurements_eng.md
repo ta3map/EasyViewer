@@ -22,7 +22,7 @@ Slope (steepness) measures the rate of signal change in a certain range relative
 - **Peak Range** - peak search range (Peak Start, Peak End)
 - **Polarity** - peak polarity (positive/negative)
 
-![Slope measurement](images/placeholder_measurement_slope.png)
+![Slope measurement](screenshots/placeholder_measurement_slope.png)
 
 ### Peak
 
@@ -38,7 +38,7 @@ Peak - maximum or minimum signal value in the specified range.
 - **Peak Range** - peak search range
 - **Polarity** - peak polarity
 
-![Peak measurement](images/placeholder_measurement_peak.png)
+![Peak measurement](screenshots/placeholder_measurement_peak.png)
 
 ### Onset
 
@@ -54,7 +54,7 @@ Onset - moment of signal change start.
 - **Onset Method** - calculation method (derivative/threshold)
 - **Onset Threshold** - threshold for threshold method (in std units)
 
-![Onset measurement](images/placeholder_measurement_onset.png)
+![Onset measurement](screenshots/placeholder_measurement_onset.png)
 
 ### Baseline
 
@@ -69,7 +69,7 @@ Baseline - mean signal value in the specified range before stimulus.
 
 - **Baseline Range** - range for calculation (Baseline Start, Baseline End)
 
-![Baseline measurement](images/placeholder_measurement_baseline.png)
+![Baseline measurement](screenshots/placeholder_measurement_baseline.png)
 
 ## Measurement Configuration
 

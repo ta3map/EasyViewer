@@ -15,7 +15,7 @@ A program for viewing and analyzing electrophysiological signals.
 
 Easy Viewer is designed for visualization and analysis of multi-channel electrophysiological signals (LFP). The program supports working with various data formats, provides tools for signal processing, event detection, parameter measurement, and analysis automation.
 
-![Application main window](images/placeholder_app_main.png)
+![Application main window](docs/screenshots/placeholder_app_main.png)
 
 ## Getting Started
 
@@ -26,7 +26,7 @@ Launch the application by running the `app()` command in the MATLAB command wind
 - **Signal Viewer** - signal viewing mode
 - **Signal Analysis** - analysis and parameter measurement mode
 
-![Application main window](images/placeholder_app_main.png)
+![Application main window](docs/screenshots/placeholder_app_main.png)
 
 ### Selecting Operation Mode
 

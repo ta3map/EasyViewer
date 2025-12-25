@@ -13,7 +13,7 @@ Z-score нормализация преобразует сигнал к стан
 - Выбор каналов для нормализации
 - Метод расчета (по всему сигналу или по окну)
 
-![Z-score нормализация](images/placeholder_zscore.png)
+![Z-score нормализация](screenshots/placeholder_zscore.png)
 
 ## Spectral Density
 
@@ -33,7 +33,7 @@ Z-score нормализация преобразует сигнал к стан
 - График спектральной плотности
 - Таблица с результатами
 
-![Спектральная плотность](images/placeholder_spectral_density.png)
+![Спектральная плотность](screenshots/placeholder_spectral_density.png)
 
 ## Cross-Correlation
 
@@ -51,7 +51,7 @@ Z-score нормализация преобразует сигнал к стан
 - Временное окно корреляции
 - Метод нормализации
 
-![Кросс-корреляция событий](images/placeholder_event_crosscorrelation.png)
+![Кросс-корреляция событий](screenshots/placeholder_event_crosscorrelation.png)
 
 ### Кросс-корреляция каналов
 
@@ -63,7 +63,7 @@ Z-score нормализация преобразует сигнал к стан
 - Временное окно корреляции
 - Метод нормализации
 
-![Кросс-корреляция каналов](images/placeholder_channel_crosscorrelation.png)
+![Кросс-корреляция каналов](screenshots/placeholder_channel_crosscorrelation.png)
 
 ## PCA (Principal Component Analysis)
 
@@ -83,7 +83,7 @@ Z-score нормализация преобразует сигнал к стан
 - Таблица с коэффициентами
 - График объясненной дисперсии
 
-![PCA анализ](images/placeholder_pca.png)
+![PCA анализ](screenshots/placeholder_pca.png)
 
 ## Data Operations
 
@@ -105,7 +105,7 @@ Z-score нормализация преобразует сигнал к стан
 - Тип операции
 - Сохранение результата как нового канала
 
-![Операции с данными](images/placeholder_data_operations.png)
+![Операции с данными](screenshots/placeholder_data_operations.png)
 
 ## Compare Average Data
 
@@ -124,7 +124,7 @@ Z-score нормализация преобразует сигнал к стан
 - График с наложенными средними трейсами
 - Статистические показатели различий
 
-![Сравнение средних данных](images/placeholder_compare_average.png)
+![Сравнение средних данных](screenshots/placeholder_compare_average.png)
 
 ## Boxplot from Table
 
@@ -146,7 +146,7 @@ Z-score нормализация преобразует сигнал к стан
 
 Подробное описание: [Boxplot from Table](boxplotFromTableGUI_eng.md)
 
-![Боксплоты из таблицы](images/placeholder_boxplot_table.png)
+![Боксплоты из таблицы](screenshots/placeholder_boxplot_table.png)
 
 ## Применение инструментов анализа
 

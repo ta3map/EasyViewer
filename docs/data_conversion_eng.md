@@ -21,7 +21,7 @@ Conversion of Neuralynx (.nlx) files to ZAV format.
 
 **Process:** Press **Start Conversion** to begin conversion. Progress is displayed in the window.
 
-![NLX to ZAV conversion](images/placeholder_convert_nlx.png)
+![NLX to ZAV conversion](screenshots/placeholder_convert_nlx.png)
 
 ### ABF to ZAV
 
@@ -36,7 +36,7 @@ Conversion of Axon Binary Format (.abf) files to ZAV format.
 - **Fs, Hz** - output data sampling frequency
 - **Resample** - whether to resample data
 
-![ABF to ZAV conversion](images/placeholder_convert_abf.png)
+![ABF to ZAV conversion](screenshots/placeholder_convert_abf.png)
 
 ### Open Ephys to ZAV
 
@@ -51,7 +51,7 @@ Conversion of Open Ephys files to ZAV format.
 - **Fs, Hz** - output data sampling frequency
 - **Resample** - whether to resample data
 
-![Open Ephys to ZAV conversion](images/placeholder_convert_oep.png)
+![Open Ephys to ZAV conversion](screenshots/placeholder_convert_oep.png)
 
 ### LFP Import
 
@@ -64,7 +64,7 @@ Import of LFP data from other formats or direct input.
 - File selection with data
 - Signal parameter configuration (sampling frequency, channels)
 
-![LFP import](images/placeholder_import_lfp.png)
+![LFP import](screenshots/placeholder_import_lfp.png)
 
 ## ZAV Format
 

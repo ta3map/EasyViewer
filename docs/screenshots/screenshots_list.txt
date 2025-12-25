@@ -1,0 +1,126 @@
+Список необходимых скриншотов для документации Easy Viewer
+============================================================
+
+Основные компоненты:
+--------------------
+placeholder_app_main.png - Главное окно приложения
+
+Signal Viewer:
+--------------
+placeholder_signal_viewer_main.png - Основное окно Signal Viewer
+placeholder_load_zav_file.png - Загрузка ZAV файла
+placeholder_load_ev_file.png - Загрузка EV файла
+placeholder_time_slider.png - Слайдер времени
+placeholder_time_units.png - Единицы измерения времени
+placeholder_time_center_mode.png - Режим просмотра
+placeholder_time_window.png - Временное окно
+placeholder_navigation_buttons.png - Кнопки навигации
+placeholder_additional_params.png - Дополнительные параметры
+placeholder_channel_table.png - Таблица каналов
+placeholder_events_table.png - Таблица событий
+placeholder_manual_event_settings.png - Настройки ручного добавления событий
+placeholder_auto_detection.png - Автоматическое обнаружение событий
+placeholder_edit_events.png - Редактирование событий
+placeholder_stimuli_table.png - Таблица стимулов
+placeholder_edit_stimuli.png - Редактирование стимулов
+placeholder_filtering.png - Настройки фильтрации
+placeholder_average_subtraction.png - Вычитание среднего
+placeholder_csd_settings.png - Настройки CSD
+placeholder_artifact_removal.png - Удаление артефактов
+placeholder_mean_events.png - Средний трейс по событиям
+
+Signal Analysis:
+----------------
+placeholder_signal_analysis_main.png - Основное окно Signal Analysis
+placeholder_analysis_channel.png - Выбор канала
+placeholder_analysis_polarity.png - Полярность пика
+placeholder_analysis_baseline.png - Baseline диапазон
+placeholder_analysis_peak.png - Peak диапазон
+placeholder_analysis_time_window.png - Временное окно
+placeholder_analysis_visualization.png - Визуализация результатов
+placeholder_analysis_current_results.png - Таблица текущих результатов
+placeholder_analysis_smoothing.png - Настройки сглаживания
+placeholder_analysis_navigation_mode.png - Режим навигации
+placeholder_analysis_results_table.png - Таблица результатов
+placeholder_analysis_average_table.png - Таблица средних значений
+placeholder_analysis_hot_resave.png - Hot Resave
+placeholder_analysis_graph_tools.png - Инструменты графика
+
+File Manager:
+-------------
+placeholder_file_manager_main.png - Основное окно File Manager
+placeholder_file_manager_database.png - Выбор базы данных
+placeholder_file_manager_new_project.png - Создание проекта
+placeholder_file_manager_projects_list.png - Список проектов
+placeholder_file_manager_new_group.png - Создание группы
+placeholder_file_manager_groups_list.png - Список групп
+placeholder_file_manager_group_metadata.png - Метаданные группы
+placeholder_file_manager_add_file.png - Добавление файлов
+placeholder_file_manager_files_list.png - Список файлов
+placeholder_file_manager_file_metadata.png - Метаданные файла
+placeholder_file_manager_module_selection.png - Выбор модуля
+placeholder_file_manager_module_params.png - Настройка параметров модуля
+placeholder_file_manager_run_module.png - Запуск модуля
+placeholder_file_manager_view_results.png - Просмотр результатов
+placeholder_file_manager_import_excel.png - Импорт из Excel
+placeholder_file_manager_search.png - Поиск файлов
+placeholder_file_manager_settings.png - Настройки File Manager
+
+Модули автоматизации:
+---------------------
+placeholder_module_cluster_test.png - Результат кластерного теста
+placeholder_module_mean_stimulus.png - Результат усреднения по стимулам
+placeholder_module_detect_stimuli.png - Результат обнаружения стимулов
+placeholder_module_slope_measurement.png - Результат измерения slope
+placeholder_module_edit_params.png - Настройка параметров модуля
+placeholder_module_queue.png - Очередь модулей
+placeholder_module_results.png - Просмотр результатов модуля
+
+Конвертация данных:
+-------------------
+placeholder_convert_nlx.png - Конвертация NLX to ZAV
+placeholder_convert_abf.png - Конвертация ABF to ZAV
+placeholder_convert_oep.png - Конвертация Open Ephys to ZAV
+placeholder_import_lfp.png - Импорт LFP
+
+Обработка сигналов:
+-------------------
+placeholder_filtering_channels.png - Выбор каналов для фильтрации
+placeholder_filtering_params.png - Параметры фильтра
+placeholder_filtering_response.png - Частотная характеристика фильтра
+placeholder_smoothing.png - Настройки сглаживания
+placeholder_channel_processing.png - Настройки каналов для обработки
+
+Инструменты анализа:
+-------------------
+placeholder_zscore.png - Z-score нормализация
+placeholder_spectral_density.png - Спектральная плотность
+placeholder_event_crosscorrelation.png - Кросс-корреляция событий
+placeholder_channel_crosscorrelation.png - Кросс-корреляция каналов
+placeholder_pca.png - PCA анализ
+placeholder_data_operations.png - Операции с данными
+placeholder_compare_average.png - Сравнение средних данных
+placeholder_boxplot_table.png - Боксплоты из таблицы
+
+События и стимулы:
+------------------
+placeholder_lines_styles.png - Стили линий событий и стимулов
+
+Измерения:
+----------
+placeholder_measurement_slope.png - Измерение slope
+placeholder_measurement_peak.png - Измерение peak
+placeholder_measurement_onset.png - Измерение onset
+placeholder_measurement_baseline.png - Измерение baseline
+
+Визуализация:
+-------------
+placeholder_zoom.png - Zoom инструмент
+placeholder_pan.png - Pan инструмент
+placeholder_data_cursor.png - Data Cursor
+placeholder_brush.png - Brush инструмент
+placeholder_save_figure.png - Сохранение графика
+
+============================================================
+Всего: 70 уникальных скриншотов
+

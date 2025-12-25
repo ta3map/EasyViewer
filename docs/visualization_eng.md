@@ -18,7 +18,7 @@ The Signal Viewer side panel contains a channel settings table:
 - **Filter** - application of filtering
 - **Baseline** - baseline subtraction
 
-![Channel table](images/placeholder_channel_table.png)
+![Channel table](screenshots/placeholder_channel_table.png)
 
 ### Quick Management
 
@@ -53,7 +53,7 @@ Menu **View/Lines and styles** opens the line style settings window for events a
 - **Label Background Color** - label background color
 - **Label Font Weight** - font weight (normal/bold)
 
-![Line style settings](images/placeholder_lines_styles.png)
+![Line style settings](screenshots/placeholder_lines_styles.png)
 
 ## Zoom and Pan
 
@@ -67,7 +67,7 @@ Menu **View/Built-in Zoom** or **Zoom** button activates the built-in zoom tool.
 2. Select an area on the graph for zooming
 3. Right-click to zoom out
 
-![Zoom tool](images/placeholder_zoom.png)
+![Zoom tool](screenshots/placeholder_zoom.png)
 
 ### Built-in Pan
 
@@ -79,7 +79,7 @@ Menu **View/Built-in Pan** or **Pan** button activates the built-in panning tool
 2. Hold left mouse button and move the graph
 3. Release button to finish
 
-![Pan tool](images/placeholder_pan.png)
+![Pan tool](screenshots/placeholder_pan.png)
 
 ### Home
 
@@ -95,13 +95,13 @@ Menu **View/Data Cursor** or **Cursor** button activates the data cursor.
 2. Click on the graph at the point of interest
 3. Coordinates are displayed (time, amplitude, channel)
 
-![Data Cursor](images/placeholder_data_cursor.png)
+![Data Cursor](screenshots/placeholder_data_cursor.png)
 
 ## Brush
 
 The **Brush** button activates the data selection tool on the graph. Allows selecting data points for further analysis.
 
-![Brush tool](images/placeholder_brush.png)
+![Brush tool](screenshots/placeholder_brush.png)
 
 ## Saving Graphs
 
@@ -116,7 +116,7 @@ Menu **File/Save figure snapshot** in Signal Viewer saves the current graph to a
 - PDF
 - EPS
 
-![Saving graph](images/placeholder_save_figure.png)
+![Saving graph](screenshots/placeholder_save_figure.png)
 
 ### Saving Image in Signal Analysis
 
