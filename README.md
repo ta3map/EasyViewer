@@ -15,7 +15,7 @@ A program for viewing and analyzing electrophysiological signals.
 
 Easy Viewer is designed for visualization and analysis of multi-channel electrophysiological signals (LFP). The program supports working with various data formats, provides tools for signal processing, event detection, parameter measurement, and analysis automation.
 
-<img src="assets/splash_small.png" alt="Application main window" width="512" height="512">
+![Application main window](assets/splash_small.png)
 
 ## Getting Started
 
