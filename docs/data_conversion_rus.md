@@ -21,7 +21,7 @@
 
 **Процесс:** Нажмите **Start Conversion** для начала конвертации. Прогресс отображается в окне.
 
-![Конвертация NLX to ZAV](screenshots/placeholder_convert_nlx.png)
+![Конвертация NLX to ZAV](screenshots/convert_nlx.png)
 
 ### ABF to ZAV
 
@@ -36,7 +36,7 @@
 - **Fs, Hz** - частота дискретизации выходных данных
 - **Resample** - выполнять ли ресемплинг данных
 
-![Конвертация ABF to ZAV](screenshots/placeholder_convert_abf.png)
+![Конвертация ABF to ZAV](screenshots/convert_abf.png)
 
 ### Open Ephys to ZAV
 
@@ -51,7 +51,7 @@
 - **Fs, Hz** - частота дискретизации выходных данных
 - **Resample** - выполнять ли ресемплинг данных
 
-![Конвертация Open Ephys to ZAV](screenshots/placeholder_convert_oep.png)
+![Конвертация Open Ephys to ZAV](screenshots/convert_oep.png)
 
 ### Импорт LFP
 
@@ -64,7 +64,7 @@
 - Выбор файла с данными
 - Настройка параметров сигнала (частота дискретизации, каналы)
 
-![Импорт LFP](screenshots/placeholder_import_lfp.png)
+![Импорт LFP](screenshots/import_lfp.png)
 
 ## Формат ZAV
 

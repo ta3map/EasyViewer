@@ -13,7 +13,7 @@ Z-score normalization transforms the signal to a standard normal distribution.
 - Channel selection for normalization
 - Calculation method (across entire signal or by window)
 
-![Z-score normalization](screenshots/placeholder_zscore.png)
+![Z-score normalization](screenshots/zscore.png)
 
 ## Spectral Density
 
@@ -33,7 +33,7 @@ Power spectral density shows the distribution of signal power across frequencies
 - Spectral density graph
 - Table with results
 
-![Spectral density](screenshots/placeholder_spectral_density.png)
+![Spectral density](screenshots/spectral_density.png)
 
 ## Cross-Correlation
 
@@ -51,7 +51,7 @@ Analysis of temporal relationships between events.
 - Correlation time window
 - Normalization method
 
-![Event cross-correlation](screenshots/placeholder_event_crosscorrelation.png)
+![Event cross-correlation](screenshots/event_crosscorrelation.png)
 
 ### Channel Cross-Correlation
 
@@ -63,7 +63,7 @@ Analysis of relationships between channels.
 - Correlation time window
 - Normalization method
 
-![Channel cross-correlation](screenshots/placeholder_channel_crosscorrelation.png)
+![Channel cross-correlation](screenshots/channel_crosscorrelation.png)
 
 ## PCA (Principal Component Analysis)
 
@@ -83,7 +83,7 @@ Principal component analysis identifies main patterns in multi-channel data.
 - Table with coefficients
 - Explained variance graph
 
-![PCA analysis](screenshots/placeholder_pca.png)
+![PCA analysis](screenshots/pca.png)
 
 ## Data Operations
 
@@ -105,7 +105,7 @@ Channel data operations allow performing mathematical operations between channel
 - Operation type
 - Saving result as new channel
 
-![Data operations](screenshots/placeholder_data_operations.png)
+![Data operations](screenshots/data_operations.png)
 
 ## Compare Average Data
 
@@ -124,7 +124,7 @@ Comparing averaged data allows comparing mean traces between different condition
 - Graph with overlaid mean traces
 - Statistical difference indicators
 
-![Compare average data](screenshots/placeholder_compare_average.png)
+![Compare average data](screenshots/compare_average.png)
 
 ## Boxplot from Table
 
@@ -146,7 +146,7 @@ Building boxplots from measurement results table.
 
 Detailed description: [Boxplot from Table](boxplotFromTableGUI_eng.md)
 
-![Boxplots from table](screenshots/placeholder_boxplot_table.png)
+![Boxplots from table](screenshots/boxplot_table.png)
 
 ## Using Analysis Tools
 

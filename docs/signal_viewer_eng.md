@@ -2,7 +2,7 @@
 
 The signal viewing window is designed for visualization of multi-channel LFP signals, management of events and stimuli, signal processing, and basic analysis.
 
-![Signal Viewer main window](screenshots/placeholder_signal_viewer_main.png)
+![Signal Viewer main window](screenshots/signal_viewer_main.png)
 
 ## Main Window
 
@@ -24,7 +24,7 @@ To load a file in ZAV format (.mat), use:
 
 After selecting a file, a selection dialog opens. On first load, signals are displayed on all channels by default.
 
-![Loading ZAV file](screenshots/placeholder_load_zav_file.png)
+![Loading ZAV file](screenshots/load_zav_file.png)
 
 ### Loading EV File
 
@@ -35,7 +35,7 @@ To load events in EV format (.ev), use:
 
 After selecting a file, LFP data for corresponding events and the events themselves are loaded. Events are displayed in the events table on the side panel.
 
-![Loading EV file](screenshots/placeholder_load_ev_file.png)
+![Loading EV file](screenshots/load_ev_file.png)
 
 ### Saving File
 
@@ -47,7 +47,7 @@ To save the current file, use menu **File/Save ZAV(.mat) file**. All channel set
 
 The slider at the bottom of the window allows navigation along the time axis of the data. Dragging the slider changes the displayed time interval.
 
-![Time slider](screenshots/placeholder_time_slider.png)
+![Time slider](screenshots/time_slider.png)
 
 ### Time Units
 
@@ -59,7 +59,7 @@ The time units dropdown allows selection of:
 
 The selected unit is applied to all time parameters and time axis display.
 
-![Time units](screenshots/placeholder_time_units.png)
+![Time units](screenshots/time_units.png)
 
 ### View Mode
 
@@ -72,26 +72,26 @@ The view mode dropdown determines the reference point for navigation:
 
 When stimulus/event/sweep mode is selected, the slider and navigation buttons move between corresponding points.
 
-![View mode](screenshots/placeholder_time_center_mode.png)
+![View mode](screenshots/time_center_mode.png)
 
 ### Time Window
 
 The **before** and **after** fields define the size of the time window displayed around the current point. Values are specified in the selected units.
 
-![Time window](screenshots/placeholder_time_window.png)
+![Time window](screenshots/time_window.png)
 
 ### Navigation Buttons
 
 The **Previous** and **Next** buttons move the displayed interval one step backward or forward. Step size is determined by the time window size.
 
-![Navigation buttons](screenshots/placeholder_navigation_buttons.png)
+![Navigation buttons](screenshots/navigation_buttons.png)
 
 ### Additional Parameters
 
 - **Fs** - sampling frequency of the displayed signal. Changing the value applies to the display.
 - **Ch. Shift** - vertical offset between channels in signal amplitude units.
 
-![Additional parameters](screenshots/placeholder_additional_params.png)
+![Additional parameters](screenshots/additional_params.png)
 
 ## Channel Settings
 
@@ -107,7 +107,7 @@ The side panel contains a channel settings table. Each channel has the following
 - **Filter** - application of filtering to the channel
 - **Baseline** - baseline subtraction
 
-![Channel table](screenshots/placeholder_channel_table.png)
+![Channel table](screenshots/channel_table.png)
 
 ### Quick Channel Management
 
@@ -132,7 +132,7 @@ The events table is displayed in the lower part of the side panel. Contains colu
 - **Time** - event timestamp
 - **Comment** - event comment
 
-![Events table](screenshots/placeholder_events_table.png)
+![Events table](screenshots/events_table.png)
 
 ### Adding Event
 
@@ -161,7 +161,7 @@ Menu **Options/Manual events settings** opens the settings window:
 - **Polarity** - extremum search polarity (positive/negative)
 - **Time Window** - extremum search time window in milliseconds (for locked mode)
 
-![Manual event addition settings](screenshots/placeholder_manual_event_settings.png)
+![Manual event addition settings](screenshots/manual_event_settings.png)
 
 ### Automatic Event Detection
 
@@ -181,13 +181,13 @@ Detection parameters:
 
 The **Check Detection** button shows preliminary results on the graph. The **Apply** button applies detection and adds events to the table.
 
-![Automatic event detection](screenshots/placeholder_auto_detection.png)
+![Automatic event detection](screenshots/auto_detection.png)
 
 ### Editing Events
 
 Menu **Options/Edit events** opens the events editing window. Allows changing event timestamps and comments.
 
-![Editing events](screenshots/placeholder_edit_events.png)
+![Editing events](screenshots/edit_events.png)
 
 ### Saving and Loading Events
 
@@ -199,13 +199,13 @@ Events are automatically saved when saving a ZAV file. For separate event saving
 
 Stimuli are displayed in the middle part of the side panel. The list shows stimulus timestamps.
 
-![Stimuli table](screenshots/placeholder_stimuli_table.png)
+![Stimuli table](screenshots/stimuli_table.png)
 
 ### Editing Stimuli
 
 The **Edit** button next to the "Stimuli" header or menu **Options/Edit stimulus times** opens the stimulus timestamp editing window.
 
-![Editing stimuli](screenshots/placeholder_edit_stimuli.png)
+![Editing stimuli](screenshots/edit_stimuli.png)
 
 ### Hiding Stimuli
 
@@ -239,7 +239,7 @@ The **Check Filtration** button shows the filter frequency response on the graph
 
 **Apply** and **Cancel** buttons apply or cancel settings.
 
-![Filtering settings](screenshots/placeholder_filtering.png)
+![Filtering settings](screenshots/filtering.png)
 
 ### Mean Subtraction
 
@@ -251,7 +251,7 @@ The left panel contains a list of channels with checkboxes. Selected channels pa
 
 The **Apply** button applies settings.
 
-![Average subtraction](screenshots/placeholder_average_subtraction.png)
+![Average subtraction](screenshots/average_subtraction.png)
 
 ### CSD Display
 
@@ -268,7 +268,7 @@ Visualization parameters:
 
 The **Apply** button applies settings.
 
-![CSD settings](screenshots/placeholder_csd_settings.png)
+![CSD settings](screenshots/csd_settings.png)
 
 ### Artifact Removal
 
@@ -276,7 +276,7 @@ Menu **Options/Removal of Artifacts** opens the artifact removal settings window
 
 The **Artifact Window (ms)** parameter sets the size of the time window after stimulus that is excluded from display.
 
-![Artifact removal](screenshots/placeholder_artifact_removal.png)
+![Artifact removal](screenshots/artifact_removal.png)
 
 ### MUA Display
 
@@ -299,7 +299,7 @@ Parameters:
 
 The **Calculate** button builds the averaged signal graph.
 
-![Mean trace by events](screenshots/placeholder_mean_events.png)
+![Mean trace by events](screenshots/mean_events.png)
 
 ## File Menu
 

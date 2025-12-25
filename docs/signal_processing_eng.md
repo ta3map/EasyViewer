@@ -14,7 +14,7 @@ The left panel contains a list of all channels with checkboxes. Select channels 
 
 **Select ALL** and **Deselect ALL** buttons control selection of all channels.
 
-![Channel selection for filtering](screenshots/placeholder_filtering_channels.png)
+![Channel selection for filtering](screenshots/filtering_channels.png)
 
 ### Filter Types
 
@@ -30,13 +30,13 @@ The **Filter Type** dropdown allows selection of filter type:
 - **Upper Frequency** - upper frequency limit (Hz)
 - **Filter Order** - filter order (determines slope steepness)
 
-![Filter parameters](screenshots/placeholder_filtering_params.png)
+![Filter parameters](screenshots/filtering_params.png)
 
 ### Preview
 
 The **Check Filtration** button shows the filter frequency response on the graph at the bottom of the window. This allows evaluating the filtering effect before application.
 
-![Filter frequency response](screenshots/placeholder_filtering_response.png)
+![Filter frequency response](screenshots/filtering_response.png)
 
 ### Application
 
@@ -56,7 +56,7 @@ The mean value is calculated across all selected channels and subtracted from ea
 
 **Select ALL** and **Deselect ALL** buttons control channel selection.
 
-![Mean subtraction](screenshots/placeholder_average_subtraction.png)
+![Mean subtraction](screenshots/average_subtraction.png)
 
 ### Application
 
@@ -79,7 +79,7 @@ The left panel contains a list of channels with checkboxes. Select channels that
 - **Contrast Coef.** - display contrast coefficient (improves region distinction)
 - **Smooth Coef.** - smoothing coefficient (reduces noise)
 
-![CSD settings](screenshots/placeholder_csd_settings.png)
+![CSD settings](screenshots/csd_settings.png)
 
 ### Application
 
@@ -95,7 +95,7 @@ Artifact removal excludes a short period immediately after stimulus from display
 
 - **Artifact Window (ms)** - size of time window after stimulus that is excluded from display
 
-![Artifact removal](screenshots/placeholder_artifact_removal.png)
+![Artifact removal](screenshots/artifact_removal.png)
 
 ### Application
 
@@ -119,7 +119,7 @@ The **Enable** checkbox enables or disables signal smoothing.
   - **Median** - median filter
 - **Show Raw** - display original signal together with smoothed
 
-![Smoothing settings](screenshots/placeholder_smoothing.png)
+![Smoothing settings](screenshots/smoothing.png)
 
 ## Channel Processing Settings
 
@@ -132,7 +132,7 @@ In the channel table on the Signal Viewer side panel, you can control applicatio
 
 Changes in the table are applied immediately.
 
-![Channel processing settings](screenshots/placeholder_channel_processing.png)
+![Channel processing settings](screenshots/channel_processing.png)
 
 ## Saving Processing Settings
 

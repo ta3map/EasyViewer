@@ -2,7 +2,7 @@
 
 The analysis window is designed for measuring signal parameters relative to stimuli or events.
 
-![Signal Analysis main window](screenshots/placeholder_signal_analysis_main.png)
+![Signal Analysis main window](screenshots/signal_analysis_main.png)
 
 ## Main Window
 
@@ -35,7 +35,7 @@ The **File Manager** button opens the file manager for working with projects and
 
 The **Channel** dropdown allows selection of a channel for analysis. When the channel is changed, the graph updates automatically.
 
-![Channel selection](screenshots/placeholder_analysis_channel.png)
+![Channel selection](screenshots/analysis_channel.png)
 
 ### Peak Polarity
 
@@ -44,7 +44,7 @@ The **Polarity** dropdown determines the direction of peak search:
 - **Positive** - search for positive peak (maximum)
 - **Negative** - search for negative peak (minimum)
 
-![Peak polarity](screenshots/placeholder_analysis_polarity.png)
+![Peak polarity](screenshots/analysis_polarity.png)
 
 ### Slope Percent
 
@@ -56,7 +56,7 @@ The **Baseline Start** and **Baseline End** fields define the time range for bas
 
 The **★** button next to the field allows selecting a point on the graph with a mouse click.
 
-![Baseline range](screenshots/placeholder_analysis_baseline.png)
+![Baseline range](screenshots/analysis_baseline.png)
 
 ### Peak Range
 
@@ -64,13 +64,13 @@ The **Peak Start** and **Peak End** fields define the time range for peak search
 
 The **★** button next to the field allows selecting a point on the graph with a mouse click.
 
-![Peak range](screenshots/placeholder_analysis_peak.png)
+![Peak range](screenshots/analysis_peak.png)
 
 ### Time Window
 
 The **before** and **after** fields define the size of the time window displayed around the current point. Values are specified in selected time units.
 
-![Time window](screenshots/placeholder_analysis_time_window.png)
+![Time window](screenshots/analysis_time_window.png)
 
 ## Results Visualization
 
@@ -83,7 +83,7 @@ Checkboxes in the **Results** section control visibility of elements on the grap
 - **Slope** - display slope regression line
 - **Onset** - display onset marker
 
-![Results visualization](screenshots/placeholder_analysis_visualization.png)
+![Results visualization](screenshots/analysis_visualization.png)
 
 ### Current Results Table
 
@@ -95,7 +95,7 @@ The table shows results for the current measurement:
 - **Onset Time (rel)** - onset time relative to reference point
 - **Baseline** - baseline value
 
-![Current results table](screenshots/placeholder_analysis_current_results.png)
+![Current results table](screenshots/analysis_current_results.png)
 
 ## Signal Smoothing
 
@@ -111,7 +111,7 @@ The **Enable** checkbox enables or disables signal smoothing before measurement 
   - **Median** - median filter
 - **Show Raw** - display original signal together with smoothed
 
-![Smoothing settings](screenshots/placeholder_analysis_smoothing.png)
+![Smoothing settings](screenshots/analysis_smoothing.png)
 
 ## Navigation
 
@@ -126,7 +126,7 @@ The **Mode** status line shows the current navigation mode:
 
 The mode is determined automatically based on loaded data.
 
-![Navigation mode](screenshots/placeholder_analysis_navigation_mode.png)
+![Navigation mode](screenshots/analysis_navigation_mode.png)
 
 ### Navigation Buttons
 
@@ -172,7 +172,7 @@ The table contains the following columns:
 - **Stim Time** - stimulus/event time
 - **Info** - additional information
 
-![Results table](screenshots/placeholder_analysis_results_table.png)
+![Results table](screenshots/analysis_results_table.png)
 
 ### Average Values Table
 
@@ -185,7 +185,7 @@ The table shows average values across all measurements in the results table:
 - **Baseline** - average baseline value
 - **Peak - Onset** - average difference between peak and onset
 
-![Average values table](screenshots/placeholder_analysis_average_table.png)
+![Average values table](screenshots/analysis_average_table.png)
 
 ## Mean Trace
 
@@ -203,7 +203,7 @@ The **Save As** button always opens a path selection dialog to save results to a
 
 The **Hot Resave** checkbox enables automatic re-saving of results on each addition or modification of a result. Works only if a file was loaded previously.
 
-![Hot Resave](screenshots/placeholder_analysis_hot_resave.png)
+![Hot Resave](screenshots/analysis_hot_resave.png)
 
 ### Loading Results
 
@@ -237,7 +237,7 @@ The **Brush** button activates data selection mode on the graph.
 
 The **Home** button resets all tools and restores the original graph view.
 
-![Graph tools](screenshots/placeholder_analysis_graph_tools.png)
+![Graph tools](screenshots/analysis_graph_tools.png)
 
 ## Saving Image
 

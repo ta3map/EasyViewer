@@ -2,7 +2,7 @@
 
 Окно анализа предназначено для измерения параметров сигнала относительно стимулов или событий.
 
-![Основное окно Signal Analysis](screenshots/placeholder_signal_analysis_main.png)
+![Основное окно Signal Analysis](screenshots/signal_analysis_main.png)
 
 ## Основное окно
 
@@ -35,7 +35,7 @@
 
 Выпадающий список **Channel** позволяет выбрать канал для анализа. При изменении канала график обновляется автоматически.
 
-![Выбор канала](screenshots/placeholder_analysis_channel.png)
+![Выбор канала](screenshots/analysis_channel.png)
 
 ### Полярность пика
 
@@ -44,7 +44,7 @@
 - **Positive** - поиск положительного пика (максимума)
 - **Negative** - поиск отрицательного пика (минимума)
 
-![Полярность пика](screenshots/placeholder_analysis_polarity.png)
+![Полярность пика](screenshots/analysis_polarity.png)
 
 ### Процент для slope
 
@@ -56,7 +56,7 @@
 
 Кнопка **★** рядом с полем позволяет выбрать точку на графике кликом мыши.
 
-![Baseline диапазон](screenshots/placeholder_analysis_baseline.png)
+![Baseline диапазон](screenshots/analysis_baseline.png)
 
 ### Peak диапазон
 
@@ -64,13 +64,13 @@
 
 Кнопка **★** рядом с полем позволяет выбрать точку на графике кликом мыши.
 
-![Peak диапазон](screenshots/placeholder_analysis_peak.png)
+![Peak диапазон](screenshots/analysis_peak.png)
 
 ### Временное окно
 
 Поля **before** и **after** определяют размер временного окна отображаемого вокруг текущей точки. Значения задаются в выбранных единицах времени.
 
-![Временное окно](screenshots/placeholder_analysis_time_window.png)
+![Временное окно](screenshots/analysis_time_window.png)
 
 ## Визуализация результатов
 
@@ -83,7 +83,7 @@
 - **Slope** - отображение линии регрессии slope
 - **Onset** - отображение маркера онсета
 
-![Визуализация результатов](screenshots/placeholder_analysis_visualization.png)
+![Визуализация результатов](screenshots/analysis_visualization.png)
 
 ### Таблица текущих результатов
 
@@ -95,7 +95,7 @@
 - **Onset Time (rel)** - время онсета относительно точки отсчета
 - **Baseline** - значение базовой линии
 
-![Таблица текущих результатов](screenshots/placeholder_analysis_current_results.png)
+![Таблица текущих результатов](screenshots/analysis_current_results.png)
 
 ## Сглаживание сигнала
 
@@ -111,7 +111,7 @@
   - **Median** - медианный фильтр
 - **Show Raw** - отображение исходного сигнала вместе со сглаженным
 
-![Настройки сглаживания](screenshots/placeholder_analysis_smoothing.png)
+![Настройки сглаживания](screenshots/analysis_smoothing.png)
 
 ## Навигация
 
@@ -126,7 +126,7 @@
 
 Режим определяется автоматически на основе загруженных данных.
 
-![Режим навигации](screenshots/placeholder_analysis_navigation_mode.png)
+![Режим навигации](screenshots/analysis_navigation_mode.png)
 
 ### Кнопки навигации
 
@@ -172,7 +172,7 @@
 - **Stim Time** - время стимула/события
 - **Info** - дополнительная информация
 
-![Таблица результатов](screenshots/placeholder_analysis_results_table.png)
+![Таблица результатов](screenshots/analysis_results_table.png)
 
 ### Таблица средних значений
 
@@ -185,7 +185,7 @@
 - **Baseline** - среднее значение baseline
 - **Peak - Onset** - средняя разница между пиком и онсетом
 
-![Таблица средних значений](screenshots/placeholder_analysis_average_table.png)
+![Таблица средних значений](screenshots/analysis_average_table.png)
 
 ## Средний трейс
 
@@ -203,7 +203,7 @@
 
 Чекбокс **Hot Resave** включает автоматическое пересохранение результатов при каждом добавлении или изменении результата. Работает только если файл был загружен ранее.
 
-![Hot Resave](screenshots/placeholder_analysis_hot_resave.png)
+![Hot Resave](screenshots/analysis_hot_resave.png)
 
 ### Загрузка результатов
 
@@ -237,7 +237,7 @@
 
 Кнопка **Home** сбрасывает все инструменты и восстанавливает исходный вид графика.
 
-![Инструменты графика](screenshots/placeholder_analysis_graph_tools.png)
+![Инструменты графика](screenshots/analysis_graph_tools.png)
 
 ## Сохранение изображения
 

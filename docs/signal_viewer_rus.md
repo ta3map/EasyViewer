@@ -2,7 +2,7 @@
 
 Окно просмотра сигналов предназначено для визуализации многоканальных LFP сигналов, управления событиями и стимулами, обработки сигналов и базового анализа.
 
-![Основное окно Signal Viewer](screenshots/placeholder_signal_viewer_main.png)
+![Основное окно Signal Viewer](screenshots/signal_viewer_main.png)
 
 ## Основное окно
 
@@ -24,7 +24,7 @@
 
 После выбора файла откроется диалог выбора. При первой загрузке файла сигналы отображаются на всех каналах по умолчанию.
 
-![Загрузка ZAV файла](screenshots/placeholder_load_zav_file.png)
+![Загрузка ZAV файла](screenshots/load_zav_file.png)
 
 ### Загрузка EV файла
 
@@ -35,7 +35,7 @@
 
 После выбора файла загружаются LFP данные для соответствующих событий и сами события. События отображаются в таблице событий на боковой панели.
 
-![Загрузка EV файла](screenshots/placeholder_load_ev_file.png)
+![Загрузка EV файла](screenshots/load_ev_file.png)
 
 ### Сохранение файла
 
@@ -47,7 +47,7 @@
 
 Слайдер в нижней части окна позволяет перемещаться по временной оси данных. Перетаскивание ползунка изменяет отображаемый временной интервал.
 
-![Слайдер времени](screenshots/placeholder_time_slider.png)
+![Слайдер времени](screenshots/time_slider.png)
 
 ### Единицы измерения времени
 
@@ -58,7 +58,7 @@
 
 Выбранная единица применяется ко всем временным параметрам и отображению на оси времени.
 
-![Единицы измерения времени](screenshots/placeholder_time_units.png)
+![Единицы измерения времени](screenshots/time_units.png)
 
 ### Режим просмотра
 
@@ -71,26 +71,26 @@
 
 При выборе режима стимул/событие/свип слайдер и кнопки навигации перемещаются между соответствующими точками.
 
-![Режим просмотра](screenshots/placeholder_time_center_mode.png)
+![Режим просмотра](screenshots/time_center_mode.png)
 
 ### Временное окно
 
 Поля **before** и **after** определяют размер временного окна отображаемого вокруг текущей точки. Значения задаются в выбранных единицах измерения.
 
-![Временное окно](screenshots/placeholder_time_window.png)
+![Временное окно](screenshots/time_window.png)
 
 ### Кнопки навигации
 
 Кнопки **Previous** и **Next** перемещают отображаемый интервал на один шаг назад или вперед. Размер шага определяется размером временного окна.
 
-![Кнопки навигации](screenshots/placeholder_navigation_buttons.png)
+![Кнопки навигации](screenshots/navigation_buttons.png)
 
 ### Дополнительные параметры
 
 - **Fs** - частота дискретизации отображаемого сигнала. Изменение значения применяется к отображению.
 - **Ch. Shift** - величина вертикального смещения между каналами в единицах амплитуды сигнала.
 
-![Дополнительные параметры](screenshots/placeholder_additional_params.png)
+![Дополнительные параметры](screenshots/additional_params.png)
 
 ## Настройки каналов
 
@@ -106,7 +106,7 @@
 - **Filter** - применение фильтрации к каналу
 - **Baseline** - вычитание базовой линии
 
-![Таблица каналов](screenshots/placeholder_channel_table.png)
+![Таблица каналов](screenshots/channel_table.png)
 
 ### Быстрое управление каналами
 
@@ -131,7 +131,7 @@
 - **Time** - временная метка события
 - **Comment** - комментарий к событию
 
-![Таблица событий](screenshots/placeholder_events_table.png)
+![Таблица событий](screenshots/events_table.png)
 
 ### Добавление события
 
@@ -160,7 +160,7 @@
 - **Polarity** - полярность поиска экстремума (positive/negative)
 - **Time Window** - временное окно поиска экстремума в миллисекундах (для режима locked)
 
-![Настройки ручного добавления событий](screenshots/placeholder_manual_event_settings.png)
+![Настройки ручного добавления событий](screenshots/manual_event_settings.png)
 
 ### Автоматическое обнаружение событий
 
@@ -180,13 +180,13 @@
 
 Кнопка **Check Detection** показывает предварительные результаты на графике. Кнопка **Apply** применяет обнаружение и добавляет события в таблицу.
 
-![Автоматическое обнаружение событий](screenshots/placeholder_auto_detection.png)
+![Автоматическое обнаружение событий](screenshots/auto_detection.png)
 
 ### Редактирование событий
 
 Меню **Options/Edit events** открывает окно редактирования событий. Позволяет изменять временные метки и комментарии событий.
 
-![Редактирование событий](screenshots/placeholder_edit_events.png)
+![Редактирование событий](screenshots/edit_events.png)
 
 ### Сохранение и загрузка событий
 
@@ -198,13 +198,13 @@
 
 Стимулы отображаются в средней части боковой панели. Список показывает временные метки стимулов.
 
-![Таблица стимулов](screenshots/placeholder_stimuli_table.png)
+![Таблица стимулов](screenshots/stimuli_table.png)
 
 ### Редактирование стимулов
 
 Кнопка **Edit** рядом с заголовком "Stimuli" или меню **Options/Edit stimulus times** открывает окно редактирования временных меток стимулов.
 
-![Редактирование стимулов](screenshots/placeholder_edit_stimuli.png)
+![Редактирование стимулов](screenshots/edit_stimuli.png)
 
 ### Скрытие стимулов
 
@@ -238,7 +238,7 @@
 
 Кнопки **Apply** и **Cancel** применяют или отменяют настройки.
 
-![Настройки фильтрации](screenshots/placeholder_filtering.png)
+![Настройки фильтрации](screenshots/filtering.png)
 
 ### Вычитание среднего
 
@@ -250,7 +250,7 @@
 
 Кнопка **Apply** применяет настройки.
 
-![Вычитание среднего](screenshots/placeholder_average_subtraction.png)
+![Вычитание среднего](screenshots/average_subtraction.png)
 
 ### Отображение CSD
 
@@ -267,7 +267,7 @@
 
 Кнопка **Apply** применяет настройки.
 
-![Настройки CSD](screenshots/placeholder_csd_settings.png)
+![Настройки CSD](screenshots/csd_settings.png)
 
 ### Удаление артефактов
 
@@ -275,7 +275,7 @@
 
 Параметр **Artifact Window (ms)** задает размер временного окна после стимула, которое исключается из отображения.
 
-![Удаление артефактов](screenshots/placeholder_artifact_removal.png)
+![Удаление артефактов](screenshots/artifact_removal.png)
 
 ### Отображение MUA
 
@@ -298,7 +298,7 @@
 
 Кнопка **Calculate** строит график усредненного сигнала.
 
-![Средний трейс по событиям](screenshots/placeholder_mean_events.png)
+![Средний трейс по событиям](screenshots/mean_events.png)
 
 ## Меню File
 

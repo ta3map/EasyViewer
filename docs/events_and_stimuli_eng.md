@@ -13,7 +13,7 @@ The events table is displayed in the lower part of the Signal Viewer side panel.
 - **Time** - event timestamp
 - **Comment** - event comment
 
-![Events table](screenshots/placeholder_events_table.png)
+![Events table](screenshots/events_table.png)
 
 ### Adding Event
 
@@ -37,7 +37,7 @@ Menu **Options/Manual events settings** opens the settings window:
 
 In **locked** mode, the program searches for a local extremum (maximum or minimum depending on polarity) in the specified time window and places the event at the found point.
 
-![Manual event addition settings](screenshots/placeholder_manual_event_settings.png)
+![Manual event addition settings](screenshots/manual_event_settings.png)
 
 ### Automatic Event Detection
 
@@ -61,7 +61,7 @@ Menu **Analysis/Autodetection** or **Auto Event Detection** button opens the aut
 2. Press **Check Detection** for preliminary preview
 3. Press **Apply** to apply detection and add events to the table
 
-![Automatic event detection](screenshots/placeholder_auto_detection.png)
+![Automatic event detection](screenshots/auto_detection.png)
 
 ### Editing Events
 
@@ -71,7 +71,7 @@ Menu **Options/Edit events** opens the events editing window. Allows:
 - Changing event comments
 - Deleting events
 
-![Editing events](screenshots/placeholder_edit_events.png)
+![Editing events](screenshots/edit_events.png)
 
 ### Deleting Event
 
@@ -98,13 +98,13 @@ Stimuli represent timestamps of stimulus delivery in the experiment.
 
 Stimuli are displayed in the middle part of the Signal Viewer side panel. The list shows stimulus timestamps.
 
-![Stimuli table](screenshots/placeholder_stimuli_table.png)
+![Stimuli table](screenshots/stimuli_table.png)
 
 ### Editing Stimuli
 
 The **Edit** button next to the "Stimuli" header or menu **Options/Edit stimulus times** opens the stimulus timestamp editing window.
 
-![Editing stimuli](screenshots/placeholder_edit_stimuli.png)
+![Editing stimuli](screenshots/edit_stimuli.png)
 
 ### Hiding Stimuli
 
@@ -133,7 +133,7 @@ Menu **Options/Mean Events** opens the settings window for averaging signal arou
 
 The **Calculate** button builds the averaged signal graph.
 
-![Mean trace by events](screenshots/placeholder_mean_events.png)
+![Mean trace by events](screenshots/mean_events.png)
 
 ## Mean Trace by Stimuli
 
@@ -151,7 +151,7 @@ Navigation by events and stimuli is available in Signal Viewer and Signal Analys
 
 Events and stimuli are displayed on the graph as vertical lines. Line color and style are configured through menu **View/Lines and styles**.
 
-![Event and stimulus line styles](screenshots/placeholder_lines_styles.png)
+![Event and stimulus line styles](screenshots/lines_styles.png)
 
 ## Event Metadata
 

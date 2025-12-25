@@ -22,7 +22,7 @@ Slope (крутизна) измеряет скорость изменения с
 - **Peak Range** - диапазон поиска пика (Peak Start, Peak End)
 - **Polarity** - полярность пика (positive/negative)
 
-![Измерение slope](screenshots/placeholder_measurement_slope.png)
+![Измерение slope](screenshots/measurement_slope.png)
 
 ### Peak
 
@@ -38,7 +38,7 @@ Peak (пик) - максимальное или минимальное знач�
 - **Peak Range** - диапазон поиска пика
 - **Polarity** - полярность пика
 
-![Измерение peak](screenshots/placeholder_measurement_peak.png)
+![Измерение peak](screenshots/measurement_peak.png)
 
 ### Onset
 
@@ -54,7 +54,7 @@ Onset (начало) - момент начала изменения сигнал
 - **Onset Method** - метод расчета (derivative/threshold)
 - **Onset Threshold** - порог для метода threshold (в единицах std)
 
-![Измерение onset](screenshots/placeholder_measurement_onset.png)
+![Измерение onset](screenshots/measurement_onset.png)
 
 ### Baseline
 
@@ -69,7 +69,7 @@ Baseline (базовая линия) - среднее значение сигн�
 
 - **Baseline Range** - диапазон для расчета (Baseline Start, Baseline End)
 
-![Измерение baseline](screenshots/placeholder_measurement_baseline.png)
+![Измерение baseline](screenshots/measurement_baseline.png)
 
 ## Настройка измерений
 
