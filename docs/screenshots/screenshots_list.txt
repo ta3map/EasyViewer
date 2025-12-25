@@ -31,7 +31,7 @@ Signal Viewer:
 
 Signal Analysis:
 ----------------
-[ ] signal_analysis_main.png - Основное окно Signal Analysis
+[x] signal_analysis_main.png - Основное окно Signal Analysis
 [ ] analysis_channel.png - Выбор канала
 [ ] analysis_polarity.png - Полярность пика
 [ ] analysis_baseline.png - Baseline диапазон
@@ -48,7 +48,7 @@ Signal Analysis:
 
 File Manager:
 -------------
-[ ] file_manager_main.png - Основное окно File Manager
+[x] file_manager_main.png - Основное окно File Manager
 [ ] file_manager_database.png - Выбор базы данных
 [ ] file_manager_new_project.png - Создание проекта
 [ ] file_manager_projects_list.png - Список проектов
