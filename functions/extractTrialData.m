@@ -1,4 +1,4 @@
-function [baselineData, postStimData, fullTrialData, timeAxis] = extractTrialData(lfp, time, Fs, N, stims, xLimits, timeUnitFactor, removeBaseline, removeArtifact, artifactWindow_ms)
+function [baselineData, postStimData, fullTrialData, timeAxis] = extractTrialData(lfp, time, Fs, N, stims, xLimits, timeUnitFactor, removeBaseline, removeArtifact, artifactWindow_ms, startTrial, endTrial, removeEdgeTrials)
     % Извлекает данные по триалам вокруг стимулов с разделением на baseline и post-stimulus
     % 
     % Входные параметры:
@@ -12,6 +12,9 @@ function [baselineData, postStimData, fullTrialData, timeAxis] = extractTrialDat
     %   removeBaseline - флаг удаления базовой линии
     %   removeArtifact - флаг удаления артефакта стимула
     %   artifactWindow_ms - окно удаления артефакта в миллисекундах
+    %   startTrial - опционально: начальный индекс триала (по умолчанию 1)
+    %   endTrial - опционально: конечный индекс триала (по умолчанию numStims)
+    %   removeEdgeTrials - опционально: флаг удаления краевых триалов вместо ротации (по умолчанию false)
     %
     % Выходные данные:
     %   baselineData - массив триалов baseline (trials × timepoints × channels)
@@ -38,6 +41,21 @@ function [baselineData, postStimData, fullTrialData, timeAxis] = extractTrialDat
     numStims = length(stims);
     numChannels = size(lfp, 2);
     
+    % Определяем диапазон триалов для анализа
+    if nargin < 11 || isempty(startTrial)
+        startTrial = 1;
+    end
+    if nargin < 12 || isempty(endTrial)
+        endTrial = numStims;
+    end
+    if nargin < 13 || isempty(removeEdgeTrials)
+        removeEdgeTrials = false;
+    end
+    
+    % Валидация индексов
+    startTrial = max(1, min(startTrial, numStims));
+    endTrial = max(startTrial, min(endTrial, numStims));
+    
     % Предварительное выделение памяти (оценка размера)
     windowSize = round(meanWindow * Fs);
     baselineTrials = {};
@@ -48,39 +66,26 @@ function [baselineData, postStimData, fullTrialData, timeAxis] = extractTrialDat
     requiredSamples = round(meanWindow * Fs);
     timeAxis = linspace(windowStart_relative, windowEnd_relative, requiredSamples)';
     
-    % Извлечение данных по триалам с циклическим закольцовыванием
-    for i = 1:numStims
+    % Извлечение данных по триалам
+    for i = startTrial:endTrial
         eventIdx = round(stims(i) * Fs);
         
         % Вычисляем индексы окна
         windowStart_abs = eventIdx + round(windowStart_relative * Fs);
         windowEnd_abs = eventIdx + round(windowEnd_relative * Fs);
         
-        % Инициализируем массив для триала
-        eventDataRaw = nan(requiredSamples, numChannels);
-        
-        % Заполняем данные с циклическим закольцовыванием
-        for sample = 1:requiredSamples
-            absIdx = windowStart_abs + sample - 1;
-            
-            if absIdx < 1
-                % Выход за начало: берем с конца данных (циклическое закольцовывание)
-                wrappedIdx = N + absIdx;
-                if wrappedIdx < 1
-                    wrappedIdx = 1; % fallback
+        % Выбор режима обработки краевых триалов
+        switch removeEdgeTrials
+            case true
+                [eventDataRaw, shouldSkip] = extractTrialSkip(...
+                    lfp, windowStart_abs, windowEnd_abs, requiredSamples, numChannels, N);
+                if shouldSkip
+                    continue;
                 end
-                eventDataRaw(sample, :) = lfp(wrappedIdx, :);
-            elseif absIdx > N
-                % Выход за конец: берем с начала данных (циклическое закольцовывание)
-                wrappedIdx = absIdx - N;
-                if wrappedIdx > N
-                    wrappedIdx = N; % fallback
-                end
-                eventDataRaw(sample, :) = lfp(wrappedIdx, :);
-            else
-                % Нормальный случай: данные в пределах
-                eventDataRaw(sample, :) = lfp(absIdx, :);
-            end
+                
+            case false
+                eventDataRaw = extractTrialWrap(...
+                    lfp, windowStart_abs, requiredSamples, numChannels, N);
         end
         
         % Удаление базовой линии (медиана)
@@ -136,3 +141,58 @@ function [baselineData, postStimData, fullTrialData, timeAxis] = extractTrialDat
     end
 end
 
+function [eventDataRaw, shouldSkip] = extractTrialSkip(lfp, windowStart_abs, windowEnd_abs, requiredSamples, numChannels, N)
+    % Извлекает данные триала без циклического закольцовывания
+    % Если триал выходит за границы данных, возвращает shouldSkip = true
+    
+    shouldSkip = false;
+    
+    % Проверяем, выходит ли триал за границы данных
+    if windowStart_abs < 1 || windowEnd_abs > N
+        shouldSkip = true;
+        eventDataRaw = nan(requiredSamples, numChannels);
+        return;
+    end
+    
+    % Инициализируем массив для триала
+    eventDataRaw = nan(requiredSamples, numChannels);
+    
+    % Простое извлечение без ротации (триалы уже проверены на границы)
+    for sample = 1:requiredSamples
+        absIdx = windowStart_abs + sample - 1;
+        if absIdx >= 1 && absIdx <= N
+            eventDataRaw(sample, :) = lfp(absIdx, :);
+        end
+    end
+end
+
+function eventDataRaw = extractTrialWrap(lfp, windowStart_abs, requiredSamples, numChannels, N)
+    % Извлекает данные триала с циклическим закольцовыванием
+    
+    % Инициализируем массив для триала
+    eventDataRaw = nan(requiredSamples, numChannels);
+    
+    % Заполняем данные с циклическим закольцовыванием
+    for sample = 1:requiredSamples
+        absIdx = windowStart_abs + sample - 1;
+        
+        if absIdx < 1
+            % Выход за начало: берем с конца данных (циклическое закольцовывание)
+            wrappedIdx = N + absIdx;
+            if wrappedIdx < 1
+                wrappedIdx = 1; % fallback
+            end
+            eventDataRaw(sample, :) = lfp(wrappedIdx, :);
+        elseif absIdx > N
+            % Выход за конец: берем с начала данных (циклическое закольцовывание)
+            wrappedIdx = absIdx - N;
+            if wrappedIdx > N
+                wrappedIdx = N; % fallback
+            end
+            eventDataRaw(sample, :) = lfp(wrappedIdx, :);
+        else
+            % Нормальный случай: данные в пределах
+            eventDataRaw(sample, :) = lfp(absIdx, :);
+        end
+    end
+end

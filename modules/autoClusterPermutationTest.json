@@ -2,20 +2,23 @@
   "visualization": {
     "autoScale": true,
     "xLimits": [
-      -500,
-      500
+      -200,
+      200
     ],
     "showOriginalTraces": false,
     "removeBaseline": true,
     "removeArtifact": true,
     "artifactWindow_ms": 1,
-    "showBaselinePeriod": true
+    "showBaselinePeriod": true,
+    "showMeanSignal": true
   },
   "test_parameters": {
     "numPermutations": 1000,
     "clusterThreshold": 0.05,
-    "minClusterSize_ms": 0,
-    "expectedPolarity": "positive"
+    "minClusterSize_ms": 20,
+    "startTrial": "[]",
+    "endTrial": "[]",
+    "removeEdgeTrials": false
   },
   "output": {
     "figureFormat": "png",

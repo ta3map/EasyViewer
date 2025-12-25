@@ -1,6 +1,18 @@
-function fig = plotClusterPermutationResults(testResult, timeAxis, channelLabels, timeUnitFactor, showBaseline)
+function fig = plotClusterPermutationResults(testResult, timeAxis, channelLabels, timeUnitFactor, showBaseline, fileName, numTrials, fullTrialData, showMeanSignal)
     if nargin < 5
         showBaseline = false; % по умолчанию не показываем baseline
+    end
+    if nargin < 6
+        fileName = ''; % имя файла для заголовка
+    end
+    if nargin < 7
+        numTrials = []; % количество триалов (опционально)
+    end
+    if nargin < 8
+        fullTrialData = []; % данные триалов (опционально)
+    end
+    if nargin < 9
+        showMeanSignal = false; % по умолчанию не показываем средний сигнал
     end
     % Вспомогательная функция для определения единиц времени
     function unitLabel = getTimeUnitLabel(factor)
@@ -25,10 +37,36 @@ function fig = plotClusterPermutationResults(testResult, timeAxis, channelLabels
         downsampleFactor = ceil(numTimepoints / maxPointsForVisualization);
     end
     
-    fig = figure('Name', 'Cluster Permutation Test Results', 'Tag', 'clusterPermutationResult');
-    fig.Position = [32, 64, 1024, 768];
+    % Ищем существующую фигуру с тегом
+    figTag = 'clusterPermutationResult';
+    existingFig = findobj('Type', 'figure', 'Tag', figTag);
     
-    t = tiledlayout(fig, numChannels, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+    if ~isempty(existingFig)
+        % Используем существующую фигуру и очищаем её
+        fig = existingFig(1);
+        clf(fig);
+    else
+        % Создаем новую фигуру
+        fig = figure('Name', 'Cluster Permutation Test Results', 'Tag', figTag);
+        fig.Position = [32, 64, 1024, 768];
+    end
+    
+    % Устанавливаем заголовок с именем файла
+    if ~isempty(fileName)
+        [~, name, ext] = fileparts(fileName);
+        fig.Name = sprintf('Cluster Permutation Test: %s%s', name, ext);
+    else
+        fig.Name = 'Cluster Permutation Test Results';
+    end
+    
+    % Определяем количество строк в зависимости от showMeanSignal
+    if showMeanSignal && ~isempty(fullTrialData)
+        numRows = numChannels * 2; % два subplot на канал
+    else
+        numRows = numChannels; % один subplot на канал
+    end
+    
+    t = tiledlayout(fig, numRows, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
     
     % Теперь timeAxis должен соответствовать numTimepoints (весь трейс)
     % Проверяем соответствие размеров
@@ -66,7 +104,90 @@ function fig = plotClusterPermutationResults(testResult, timeAxis, channelLabels
     end
     
     for ch = 1:numChannels
-        ax = nexttile(t);
+        % Если включена визуализация среднего сигнала, создаем два subplot
+        if showMeanSignal && ~isempty(fullTrialData)
+            % Верхний subplot для среднего сигнала
+            ax_mean = nexttile(t);
+            
+            % Вычисляем средний сигнал и границы диапазона для текущего канала
+            channelData = fullTrialData(:, :, ch); % trials × timepoints
+            meanSignal = mean(channelData, 1, 'omitnan'); % среднее по триалам
+            meanSignal = meanSignal(:); % преобразуем в вектор-столбец
+            minSignal = min(channelData, [], 1, 'omitnan'); % минимум по триалам в каждой временной точке
+            minSignal = minSignal(:); % преобразуем в вектор-столбец
+            maxSignal = max(channelData, [], 1, 'omitnan'); % максимум по триалам в каждой временной точке
+            maxSignal = maxSignal(:); % преобразуем в вектор-столбец
+            
+            % Проверяем соответствие размеров
+            if length(meanSignal) ~= length(timeAxis_scaled)
+                if length(meanSignal) > length(timeAxis_scaled)
+                    meanSignal = meanSignal(1:length(timeAxis_scaled));
+                    minSignal = minSignal(1:length(timeAxis_scaled));
+                    maxSignal = maxSignal(1:length(timeAxis_scaled));
+                elseif length(meanSignal) < length(timeAxis_scaled)
+                    meanSignal = [meanSignal; nan(length(timeAxis_scaled) - length(meanSignal), 1)];
+                    minSignal = [minSignal; nan(length(timeAxis_scaled) - length(minSignal), 1)];
+                    maxSignal = [maxSignal; nan(length(timeAxis_scaled) - length(maxSignal), 1)];
+                end
+            end
+            
+            hold(ax_mean, 'on');
+            
+            % Затененная область (диапазон от минимума до максимума среди триалов)
+            upperBound = maxSignal;
+            lowerBound = minSignal;
+            x_fill = [timeAxis_scaled(:); flipud(timeAxis_scaled(:))];
+            y_fill = [upperBound(:); flipud(lowerBound(:))];
+            fill(ax_mean, x_fill, y_fill, [0.7, 0.7, 0.9], 'FaceAlpha', 0.3, 'EdgeColor', 'none');
+            
+            % Средний сигнал жирной линией
+            plot(ax_mean, timeAxis_scaled, meanSignal, 'b-', 'LineWidth', 2);
+            
+            % Вертикальные красные пунктирные линии для онсетов кластеров
+            clusters = testResult.clusters{ch};
+            if ~isempty(clusters) && ~isempty(timeAxis_scaled)
+                for c = 1:length(clusters)
+                    cluster = clusters(c);
+                    if isfield(cluster, 'p_value') && ~isnan(cluster.p_value) && cluster.p_value < 0.05
+                        if isfield(cluster, 'onset_timepoint') && ~isnan(cluster.onset_timepoint)
+                            onset_idx = cluster.onset_timepoint;
+                            if onset_idx > 0 && onset_idx <= length(timeAxis_scaled)
+                                onset_time_scaled = timeAxis_scaled(onset_idx);
+                                xline(ax_mean, onset_time_scaled, 'r--', 'LineWidth', 1.5);
+                            end
+                        end
+                    end
+                end
+            end
+            
+            % Вертикальная линия на t=0 (момент стимула)
+            xline(ax_mean, 0, 'k-', 'LineWidth', 1.5);
+            
+            % Заголовок для графика среднего сигнала
+            if ~isempty(fileName)
+                [~, name, ext] = fileparts(fileName);
+                if ~isempty(numTrials)
+                    title(ax_mean, {sprintf('File: %s%s', name, ext), sprintf('Channel: %s - Mean Signal (n=%d trials)', channelLabels{ch}, numTrials)}, 'Interpreter', 'none');
+                else
+                    title(ax_mean, {sprintf('File: %s%s', name, ext), sprintf('Channel: %s - Mean Signal', channelLabels{ch})}, 'Interpreter', 'none');
+                end
+            else
+                if ~isempty(numTrials)
+                    title(ax_mean, sprintf('Channel: %s - Mean Signal (n=%d trials)', channelLabels{ch}, numTrials));
+                else
+                    title(ax_mean, sprintf('Channel: %s - Mean Signal', channelLabels{ch}));
+                end
+            end
+            grid(ax_mean, 'on');
+            ylabel(ax_mean, 'Amplitude', 'FontSize', 10);
+            hold(ax_mean, 'off');
+            
+            % Нижний subplot для t-statistic
+            ax = nexttile(t);
+        else
+            % Обычный режим - один subplot на канал
+            ax = nexttile(t);
+        end
         
         t_obs = testResult.t_observed(:, ch);
         perm_lower = squeeze(testResult.perm_percentiles(1, :, ch));
@@ -185,8 +306,21 @@ function fig = plotClusterPermutationResults(testResult, timeAxis, channelLabels
         
         % Baseline период уже включен в t_obs, так что ничего дополнительного не нужно
         
-        % Убираем дублирование подписей - оставляем только title
-        title(ax, sprintf('%s', channelLabels{ch}));
+        % Заголовок с именем канала и файла
+        if ~isempty(fileName)
+            [~, name, ext] = fileparts(fileName);
+            if ~isempty(numTrials)
+                title(ax, {sprintf('File: %s%s', name, ext), sprintf('Channel: %s (n=%d trials)', channelLabels{ch}, numTrials)}, 'Interpreter', 'none');
+            else
+                title(ax, {sprintf('File: %s%s', name, ext), sprintf('Channel: %s', channelLabels{ch})}, 'Interpreter', 'none');
+            end
+        else
+            if ~isempty(numTrials)
+                title(ax, sprintf('Channel: %s (n=%d trials)', channelLabels{ch}, numTrials));
+            else
+                title(ax, sprintf('Channel: %s', channelLabels{ch}));
+            end
+        end
         grid(ax, 'on');
         
         hold(ax, 'off');
@@ -194,6 +328,12 @@ function fig = plotClusterPermutationResults(testResult, timeAxis, channelLabels
     
     % Подписи осей только на tiledlayout
     xlabel(t, sprintf('Time (%s)', getTimeUnitLabel(timeUnitFactor)), 'FontSize', 12);
-    ylabel(t, 't-statistic', 'FontSize', 12);
+    if ~showMeanSignal || isempty(fullTrialData)
+        ylabel(t, 't-statistic', 'FontSize', 12);
+    else
+        % Если показываем средний сигнал, подпись Y только для нижних subplot (t-statistic)
+        % Верхние subplot уже имеют свою подпись Y
+        ylabel(t, 't-statistic', 'FontSize', 12);
+    end
 end
 

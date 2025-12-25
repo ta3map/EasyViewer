@@ -52,9 +52,31 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
         end
     end
     
+    % Извлечение параметров диапазона триалов
+    startTrial = [];
+    endTrial = [];
+    removeEdgeTrials = false;
+    if isfield(params, 'test_parameters')
+        if isfield(params.test_parameters, 'startTrial') && ~isempty(params.test_parameters.startTrial)
+            startTrial = params.test_parameters.startTrial;
+        end
+        if isfield(params.test_parameters, 'endTrial') && ~isempty(params.test_parameters.endTrial)
+            endTrial = params.test_parameters.endTrial;
+        end
+        if isfield(params.test_parameters, 'removeEdgeTrials')
+            removeEdgeTrials = logical(params.test_parameters.removeEdgeTrials);
+            if ~isscalar(removeEdgeTrials)
+                removeEdgeTrials = any(removeEdgeTrials);
+            end
+        end
+    end
+    
     [baselineData, postStimData, fullTrialData, timeAxis] = extractTrialData(...
         lfp, time, Fs, N, stims, xLimits, timeUnitFactor, ...
-        removeBaseline, removeArtifact, artifactWindow_ms);
+        removeBaseline, removeArtifact, artifactWindow_ms, startTrial, endTrial, removeEdgeTrials);
+    
+    % Количество проанализированных триалов
+    numTrials = size(fullTrialData, 1);
     
     % Параметры теста
     testParams = struct();
@@ -64,21 +86,11 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
         if isfield(params.test_parameters, 'minClusterSize_ms')
             testParams.minClusterSize_ms = params.test_parameters.minClusterSize_ms;
         end
-        if isfield(params.test_parameters, 'expectedPolarity')
-            testParams.expectedPolarity = params.test_parameters.expectedPolarity;
-        else
-            testParams.expectedPolarity = 'positive';
-        end
     else
         testParams.numPermutations = params.numPermutations;
         testParams.clusterThreshold = params.clusterThreshold;
         if isfield(params, 'minClusterSize_ms')
             testParams.minClusterSize_ms = params.minClusterSize_ms;
-        end
-        if isfield(params, 'expectedPolarity')
-            testParams.expectedPolarity = params.expectedPolarity;
-        else
-            testParams.expectedPolarity = 'positive';
         end
     end
     
@@ -141,14 +153,19 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
     fprintf('\nTotal significant clusters: %d\n', totalSignificantClusters);
     fprintf('==========================================\n\n');
     
-    % Собираем онсеты значимых кластеров всех каналов в одномерный массив
-    cluster_onsets = [];
+    % Собираем онсеты значимых кластеров всех каналов в одномерный массив (в миллисекундах)
+    cluster_onsets_ms = [];
     for ch = 1:numChannels
         clusters = testResult.clusters{ch};
         for c = 1:length(clusters)
             if isfield(clusters(c), 'p_value') && ~isnan(clusters(c).p_value) && clusters(c).p_value < 0.05
                 if isfield(clusters(c), 'onset_timepoint')
-                    cluster_onsets(end+1) = clusters(c).onset_timepoint;
+                    onset_idx = clusters(c).onset_timepoint;
+                    if onset_idx > 0 && onset_idx <= length(timeAxis)
+                        onset_time_sec = timeAxis(onset_idx);
+                        onset_time_ms = onset_time_sec * 1000; % преобразуем в миллисекунды
+                        cluster_onsets_ms(end+1) = onset_time_ms;
+                    end
                 end
             end
         end
@@ -162,7 +179,23 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
         showBaseline = params.showBaselinePeriod;
     end
     
-    fig = plotClusterPermutationResults(testResult, timeAxis, channelLabels, timeUnitFactor, showBaseline);
+    % Параметр показа среднего сигнала
+    showMeanSignal = false;
+    if isfield(params, 'visualization') && isfield(params.visualization, 'showMeanSignal')
+        showMeanSignal = logical(params.visualization.showMeanSignal);
+        if ~isscalar(showMeanSignal)
+            showMeanSignal = any(showMeanSignal);
+        end
+    elseif isfield(params, 'showMeanSignal')
+        showMeanSignal = logical(params.showMeanSignal);
+        if ~isscalar(showMeanSignal)
+            showMeanSignal = any(showMeanSignal);
+        end
+    end
+    
+    % Получаем имя файла из metadata
+    [~, fileName, ~] = fileparts(metadata.filePath);
+    fig = plotClusterPermutationResults(testResult, timeAxis, channelLabels, timeUnitFactor, showBaseline, fileName, numTrials, fullTrialData, showMeanSignal);
     
     [folder, baseName, ~] = fileparts(metadata.filePath);
     baseName = updateBaseName(baseName, params);
@@ -182,7 +215,7 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
     end
     
     dataPath = fullfile(folder, [baseName, '_cluster_perm.meta']);
-    save(dataPath, 'testResult', 'params', 'timeAxis', 'cluster_onsets', '-mat');
+    save(dataPath, 'testResult', 'params', 'timeAxis', 'cluster_onsets_ms', '-mat');
     
     result = struct( ...
         'module_name', 'autoClusterPermutationTest', ...

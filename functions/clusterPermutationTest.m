@@ -9,7 +9,7 @@ function testResult = clusterPermutationTest(baselineData, postStimData, fullTri
     %   params - структура с параметрами:
     %       numPermutations - количество пермутаций (по умолчанию 1000)
     %       clusterThreshold - порог значимости для t-статистики (по умолчанию 0.05)
-    %       minClusterSize_ms - минимальный размер кластера в мс (по умолчанию 0)
+    %       minClusterSize_ms - минимальный размер кластера в мс (по умолчанию 20)
     %
     % Выходные данные:
     %   testResult - структура с результатами:
@@ -32,7 +32,7 @@ function testResult = clusterPermutationTest(baselineData, postStimData, fullTri
         clusterThreshold = params.clusterThreshold;
     end
     
-    minClusterSize_ms = 0;
+    minClusterSize_ms = 20;
     if isfield(params, 'minClusterSize_ms')
         minClusterSize_ms = params.minClusterSize_ms;
     end
@@ -73,11 +73,7 @@ function testResult = clusterPermutationTest(baselineData, postStimData, fullTri
                 baseline_mean = baseline_means(trial, ch);
                 point_val = fullTrialData(trial, tp, ch);
                 if ~isnan(baseline_mean) && ~isnan(point_val)
-                    if isfield(params, 'expectedPolarity') && strcmpi(params.expectedPolarity, 'positive')
-                        differences(trial) = point_val - baseline_mean;
-                    else
-                        differences(trial) = baseline_mean - point_val;
-                    end
+                    differences(trial) = point_val - baseline_mean;
                 end
             end
             
@@ -104,6 +100,7 @@ function testResult = clusterPermutationTest(baselineData, postStimData, fullTri
     
     % Порог t-статистики на основе clusterThreshold (двусторонний тест)
     % Для парного t-теста: df = n - 1, где n - количество триалов
+    % Порог рассчитывается динамически в зависимости от количества триалов
     df = numTrials - 1;
     threshold_t = tinv(1 - clusterThreshold/2, df);
     
@@ -134,8 +131,8 @@ function testResult = clusterPermutationTest(baselineData, postStimData, fullTri
                 end
             end
             
-            % Сумма абсолютных значений t-статистик в кластере
-            t_sum = sum(abs(t_observed(cluster_tp, ch)));
+            % Сумма t-статистик в кластере (с сохранением знаков для двустороннего теста)
+            t_sum = sum(t_observed(cluster_tp, ch));
             
             % Первая временная точка кластера (onset эффекта)
             onset_timepoint = min(cluster_tp);
@@ -171,11 +168,7 @@ function testResult = clusterPermutationTest(baselineData, postStimData, fullTri
                     baseline_mean = baseline_means(trial, ch);
                     point_val = fullTrialData(trial, tp, ch);
                     if ~isnan(baseline_mean) && ~isnan(point_val)
-                        if isfield(params, 'expectedPolarity') && strcmpi(params.expectedPolarity, 'positive')
-                            differences(trial) = point_val - baseline_mean;
-                        else
-                            differences(trial) = baseline_mean - point_val;
-                        end
+                        differences(trial) = point_val - baseline_mean;
                     end
                 end
                 
@@ -243,9 +236,10 @@ function testResult = clusterPermutationTest(baselineData, postStimData, fullTri
                 perm_cluster_sums = [];
                 for pc = 1:perm_numClusters
                     perm_cluster_tp = find(perm_labeled == pc);
-                    perm_cluster_sums(end+1) = sum(abs(perm_t_ch(perm_cluster_tp)));
+                    perm_cluster_sums(end+1) = sum(perm_t_ch(perm_cluster_tp));
                 end
-                max_cluster_stats(perm, ch) = max(perm_cluster_sums);
+                % Для двустороннего теста сравниваем абсолютные значения статистик
+                max_cluster_stats(perm, ch) = max(abs(perm_cluster_sums));
             else
                 max_cluster_stats(perm, ch) = 0;
             end
@@ -299,7 +293,8 @@ function testResult = clusterPermutationTest(baselineData, postStimData, fullTri
             cluster = channelClusters(c);
             
             % P-значение: доля пермутаций с кластерами >= наблюдаемого
-            num_exceeding = sum(max_perm_t_sums >= cluster.t_sum);
+            % Для двустороннего теста сравниваем абсолютные значения статистик
+            num_exceeding = sum(max_perm_t_sums >= abs(cluster.t_sum));
             p_value = num_exceeding / numPermutations;
             if p_value == 0
                 p_value = 1 / numPermutations; % минимальное p-значение
