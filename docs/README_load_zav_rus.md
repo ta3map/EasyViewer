@@ -135,7 +135,7 @@
 
 - `load_zav_file.m` - основной скрипт загрузки
 - `example_load_zav.m` - примеры использования
-- `README_load_zav.md` - данная документация
+- `README_load_zav_rus.md` - данная документация
 
 ## Примечания
 
