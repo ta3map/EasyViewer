@@ -42,6 +42,8 @@ function boxplotFromTableGUI(filePath)
     state.nextGroupNumber = 1;
     state.showStatistics = true;
     state.showAllPvalues = true;
+    state.showFileIds = false;
+    state.showYValues = false;
     state.yAxisRange = 'auto';
     state.yAxisMin = [];
     state.yAxisMax = [];
@@ -194,6 +196,20 @@ function createUI(fig)
     
     yPos = yPos - 25 - 5;
     
+    showFileIdsCheck = uicontrol('Parent', fig, 'Style', 'checkbox', ...
+        'Position', [margin, yPos, 200, 20], ...
+        'String', 'Show File IDs', ...
+        'Value', 0, ...
+        'Tag', 'showFileIdsCheck');
+    
+    showYValuesCheck = uicontrol('Parent', fig, 'Style', 'checkbox', ...
+        'Position', [220, yPos, 200, 20], ...
+        'String', 'Show Y Values', ...
+        'Value', 0, ...
+        'Tag', 'showYValuesCheck');
+    
+    yPos = yPos - 25 - 5;
+    
     % Y-ось
     uicontrol('Parent', fig, 'Style', 'text', ...
         'Position', [margin, yPos, 100, lineHeight], ...
@@ -296,6 +312,8 @@ function saveStateCallback(fig)
         savedState.nextGroupNumber = state.nextGroupNumber;
         savedState.showStatistics = state.showStatistics;
         savedState.showAllPvalues = state.showAllPvalues;
+        savedState.showFileIds = state.showFileIds;
+        savedState.showYValues = state.showYValues;
         savedState.yAxisRange = state.yAxisRange;
         savedState.yAxisMin = state.yAxisMin;
         savedState.yAxisMax = state.yAxisMax;
@@ -364,6 +382,16 @@ function loadStateCallback(fig)
         if isfield(savedState, 'showAllPvalues')
             state.showAllPvalues = savedState.showAllPvalues;
         end
+        if isfield(savedState, 'showFileIds')
+            state.showFileIds = savedState.showFileIds;
+        else
+            state.showFileIds = false;
+        end
+        if isfield(savedState, 'showYValues')
+            state.showYValues = savedState.showYValues;
+        else
+            state.showYValues = false;
+        end
         if isfield(savedState, 'yAxisRange')
             state.yAxisRange = savedState.yAxisRange;
         end
@@ -391,6 +419,16 @@ function loadStateCallback(fig)
         showAllPvaluesCheck = findobj(fig, 'Tag', 'showAllPvaluesCheck');
         if ~isempty(showAllPvaluesCheck)
             set(showAllPvaluesCheck, 'Value', state.showAllPvalues);
+        end
+        
+        showFileIdsCheck = findobj(fig, 'Tag', 'showFileIdsCheck');
+        if ~isempty(showFileIdsCheck)
+            set(showFileIdsCheck, 'Value', state.showFileIds);
+        end
+        
+        showYValuesCheck = findobj(fig, 'Tag', 'showYValuesCheck');
+        if ~isempty(showYValuesCheck)
+            set(showYValuesCheck, 'Value', state.showYValues);
         end
         
         yAxisPopup = findobj(fig, 'Tag', 'yAxisPopup');
@@ -801,6 +839,8 @@ function plotBoxplotCallback(fig)
     paramsTable = findobj(fig, 'Tag', 'paramsTable');
     showStatsCheck = findobj(fig, 'Tag', 'showStatsCheck');
     showAllPvaluesCheck = findobj(fig, 'Tag', 'showAllPvaluesCheck');
+    showFileIdsCheck = findobj(fig, 'Tag', 'showFileIdsCheck');
+    showYValuesCheck = findobj(fig, 'Tag', 'showYValuesCheck');
     yAxisPopup = findobj(fig, 'Tag', 'yAxisPopup');
     yAxisMinEdit = findobj(fig, 'Tag', 'yAxisMinEdit');
     yAxisMaxEdit = findobj(fig, 'Tag', 'yAxisMaxEdit');
@@ -809,6 +849,12 @@ function plotBoxplotCallback(fig)
     try
         state.showStatistics = get(showStatsCheck, 'Value');
         state.showAllPvalues = get(showAllPvaluesCheck, 'Value');
+        if ~isempty(showFileIdsCheck)
+            state.showFileIds = get(showFileIdsCheck, 'Value');
+        end
+        if ~isempty(showYValuesCheck)
+            state.showYValues = get(showYValuesCheck, 'Value');
+        end
         if get(yAxisPopup, 'Value') == 1
             state.yAxisRange = 'auto';
         else
@@ -992,19 +1038,30 @@ function updateFilteredDataStructure(fig)
         end
         
         filteredData = [];
+        fileIds = [];
         if ~isempty(filterStr)
             parsedFilters = boxplotParseGroupFilters(filterStr);
             if ~isempty(parsedFilters)
                 filteredTable = boxplotApplyGroupFilters(state.table, parsedFilters);
                 if ~isempty(filteredTable) && ismember(columnName, filteredTable.Properties.VariableNames)
                     filteredData = filteredTable{:, columnName};
-                    filteredData = filteredData(~isnan(filteredData) & ~isinf(filteredData));
+                    validIndices = ~isnan(filteredData) & ~isinf(filteredData);
+                    filteredData = filteredData(validIndices);
+                    % Извлекаем File ID для валидных строк
+                    if ismember('FileID', filteredTable.Properties.VariableNames)
+                        fileIds = filteredTable{validIndices, 'FileID'};
+                    end
                 end
             end
         else
             % Нет фильтра - используем все данные
             filteredData = state.table{:, columnName};
-            filteredData = filteredData(~isnan(filteredData) & ~isinf(filteredData));
+            validIndices = ~isnan(filteredData) & ~isinf(filteredData);
+            filteredData = filteredData(validIndices);
+            % Извлекаем File ID для валидных строк
+            if ismember('FileID', state.table.Properties.VariableNames)
+                fileIds = state.table{validIndices, 'FileID'};
+            end
         end
         
         % Рассчитываем статистику для отфильтрованных данных
@@ -1064,7 +1121,8 @@ function updateFilteredDataStructure(fig)
             'groupNumber', paramStruct.groupNumber, ...
             'filter', filterStr, ...
             'fieldName', fieldName, ...
-            'stats', stats);
+            'stats', stats, ...
+            'fileIds', fileIds);
         
         % Выводим превью в консоль
         filterDisplay = filterStr;
@@ -1085,6 +1143,14 @@ function createBoxplotFigure(fig, state)
     % Дебаг в начале функции
     debugState('createBoxplotFigure', 'Entered function:');
     debugState('createBoxplotFigure', '  using filteredData structure');
+    
+    % Инициализация полей, если они отсутствуют (для совместимости со старыми состояниями)
+    if ~isfield(state, 'showFileIds')
+        state.showFileIds = false;
+    end
+    if ~isfield(state, 'showYValues')
+        state.showYValues = false;
+    end
     
     % Находим панель для графиков
     plotPanel = findobj(fig, 'Tag', 'plotPanel');
@@ -1151,6 +1217,7 @@ function createBoxplotFigure(fig, state)
         % Строим боксплоты для всех параметров в группе используя структуру filteredData
         allDataForGroup = [];
         groupLabelsForBoxplot = {};
+        fileIdsForGroup = []; % Массив File ID, параллельный allDataForGroup
         displayLabelToParamData = containers.Map(); % Map для быстрого доступа к paramData по displayLabel
         paramDataMap = containers.Map(); % Для статистики - объединенные данные каждого параметра (по fieldName для уникальности)
         
@@ -1180,6 +1247,14 @@ function createBoxplotFigure(fig, state)
                 allDataForGroup = [allDataForGroup; data];
                 groupLabelsForBoxplot = [groupLabelsForBoxplot; repmat({displayLabel}, length(data), 1)];
                 
+                % Добавляем File ID для каждой точки
+                if isfield(paramData, 'fileIds') && ~isempty(paramData.fileIds) && length(paramData.fileIds) == length(data)
+                    fileIdsForGroup = [fileIdsForGroup; paramData.fileIds(:)];
+                else
+                    % Если File ID нет, заполняем NaN
+                    fileIdsForGroup = [fileIdsForGroup; NaN(length(data), 1)];
+                end
+                
                 % Сохраняем paramData для быстрого доступа по displayLabel
                 if ~isKey(displayLabelToParamData, displayLabel)
                     displayLabelToParamData(displayLabel) = paramData;
@@ -1192,7 +1267,7 @@ function createBoxplotFigure(fig, state)
         
         % Построение боксплотов
         if ~isempty(allDataForGroup)
-            boxplot(ax, allDataForGroup, groupLabelsForBoxplot);
+            boxplot(ax, allDataForGroup, groupLabelsForBoxplot, 'Symbol', '');
             hold(ax, 'on');
             
             % Применение цветов к боксплотам
@@ -1272,6 +1347,7 @@ function createBoxplotFigure(fig, state)
                 displayLabel = uniqueDisplayLabels{g};
                 mask = strcmp(groupLabelsForBoxplot, displayLabel);
                 data = allDataForGroup(mask);
+                fileIdsForLabel = fileIdsForGroup(mask);
                 
                 if ~isempty(data)
                     x_pos = g;
@@ -1280,6 +1356,7 @@ function createBoxplotFigure(fig, state)
                     % Получаем paramData из Map
                     color = [0 0 0]; % черный по умолчанию
                     paramLineWidth = 1; % по умолчанию
+                    paramDataForLabel = [];
                     if isKey(displayLabelToParamData, displayLabel)
                         paramDataForLabel = displayLabelToParamData(displayLabel);
                         color = paramDataForLabel.parsedColor;
@@ -1296,10 +1373,49 @@ function createBoxplotFigure(fig, state)
                         'LineWidth', paramLineWidth, ...
                         'MarkerFaceAlpha', 1);
                     
+                    % Отображение File ID рядом с точками (если включено)
+                    if state.showFileIds && ~isempty(fileIdsForLabel)
+                        dataRange = max(data) - min(data);
+                        if dataRange == 0
+                            dataRange = abs(max(data)) * 0.01;
+                            if dataRange == 0
+                                dataRange = 1;
+                            end
+                        end
+                        for i = 1:length(data)
+                            if ~isnan(fileIdsForLabel(i))
+                                text(ax, x_jitter(i) - 0.05, data(i) + 0.01 * dataRange, num2str(fileIdsForLabel(i)), ...
+                                    'HorizontalAlignment', 'right', ...
+                                    'VerticalAlignment', 'bottom', ...
+                                    'FontSize', 7, ...
+                                    'Color', [1 1 1], ...
+                                    'BackgroundColor', [0 0 0]);
+                            end
+                        end
+                    end
+                    
+                    % Отображение значений Y рядом с точками (если включено)
+                    if state.showYValues
+                        dataRange = max(data) - min(data);
+                        if dataRange == 0
+                            dataRange = abs(max(data)) * 0.01;
+                            if dataRange == 0
+                                dataRange = 1;
+                            end
+                        end
+                        for i = 1:length(data)
+                            text(ax, x_jitter(i) + 0.05, data(i) + 0.01 * dataRange, sprintf('%.3f', data(i)), ...
+                                'HorizontalAlignment', 'left', ...
+                                'VerticalAlignment', 'bottom', ...
+                                'FontSize', 7, ...
+                                'Color', [0 0 0], ...
+                                'BackgroundColor', [1 1 1]);
+                        end
+                    end
+                    
                     % Аннотация n=X (используем медиану из stats)
                     medianVal = NaN;
-                    if isKey(displayLabelToParamData, displayLabel)
-                        paramDataForLabel = displayLabelToParamData(displayLabel);
+                    if ~isempty(paramDataForLabel)
                         medianVal = paramDataForLabel.stats.median;
                     end
                     if isnan(medianVal)
