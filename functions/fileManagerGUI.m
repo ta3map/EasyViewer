@@ -741,10 +741,9 @@ function fileManagerGUI()
             state.metadataData.(fileIdStr).(safeFieldName) = '';
         end
         
-        debugState('fileManagerGUI', 'addMetadataField: saving field "%s" to database for all files', originalFieldName);
-        for i = 1:numel(state.files)
-            fileId = state.files(i).id;
-            syncMetadataForFile(fileId);
+        debugState('fileManagerGUI', 'addMetadataField: saving field "%s" to database for first file', originalFieldName);
+        if ~isempty(state.files)
+            syncMetadataForFile(state.files(1).id);
         end
         
         updateTable(state.files);
@@ -1230,12 +1229,9 @@ function fileManagerGUI()
         if isempty(data)
             return
         end
-        selectedRows = getSelectedAnalysisRows(size(data, 1));
-        if isempty(selectedRows)
-            return
-        end
-        reportPaths = cellfun(@(v) normalizePath(v), data(selectedRows, 2), 'UniformOutput', false);
-        fileIds = cellfun(@(v) v, data(selectedRows, 1), 'UniformOutput', false);
+        allRows = 1:size(data, 1);
+        reportPaths = cellfun(@(v) normalizePath(v), data(allRows, 2), 'UniformOutput', false);
+        fileIds = cellfun(@(v) v, data(allRows, 1), 'UniformOutput', false);
         validIndices = ~cellfun(@isempty, reportPaths);
         validPaths = reportPaths(validIndices);
         validFileIds = fileIds(validIndices);
@@ -2360,6 +2356,18 @@ function fileManagerGUI()
                         fieldValue = data{i, j};
                         if isempty(fieldValue)
                             fieldValue = '';
+                        elseif isnumeric(fieldValue)
+                            fieldValue = num2str(fieldValue);
+                        elseif islogical(fieldValue)
+                            if fieldValue
+                                fieldValue = 'true';
+                            else
+                                fieldValue = 'false';
+                            end
+                        elseif isdatetime(fieldValue)
+                            fieldValue = datestr(fieldValue);
+                        elseif isduration(fieldValue)
+                            fieldValue = char(fieldValue);
                         end
                         if ischar(fieldValue) || isstring(fieldValue)
                             saveFileMetadata(newFileId, fieldName, char(fieldValue));

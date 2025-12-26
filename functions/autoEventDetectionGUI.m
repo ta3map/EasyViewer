@@ -61,7 +61,7 @@ function autoEventDetectionGUI()
     hMinPeakProminence = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(6), 130, 20], 'String', '50');
 
     % Чекбокс для применения сглаживания
-    hApplySmoothing = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', [10, ypos(7), 150, 20], 'String', 'Apply smoothing', 'Value', 0, 'Callback', @changeDetectionType);
+    hApplySmoothing = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', [10, ypos(7)+10, 150, 20], 'String', 'Apply smoothing', 'Value', 0, 'Callback', @changeDetectionType);
     
     % Поле ввода размера окна сглаживания (в миллисекундах) - рядом с чекбоксом
     hSmoothingSpan_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [170, ypos(7), 80, 20], 'String', 'Window (ms):');

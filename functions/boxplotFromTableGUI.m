@@ -1164,25 +1164,11 @@ function createBoxplotFigure(fig, state)
             % Получаем данные из структуры
             data = paramData.data;
             
-            % Получаем метку - используем fieldName для уникальности
+            % Получаем метку - используем label или column
             if ~isempty(paramData.label)
-                baseLabel = paramData.label;
+                displayLabel = paramData.label;
             else
-                baseLabel = paramData.column;
-            end
-            
-            % Используем fieldName для создания уникальной метки
-            if strcmp(paramData.fieldName, paramData.column)
-                % Первое вхождение - используем базовую метку
-                displayLabel = baseLabel;
-            else
-                % Повторное вхождение - используем fieldName для уникальности
-                if strcmp(baseLabel, paramData.column)
-                    displayLabel = paramData.fieldName;
-                else
-                    % Добавляем суффикс из fieldName для уникальности
-                    displayLabel = sprintf('%s (%s)', baseLabel, paramData.fieldName);
-                end
+                displayLabel = paramData.column;
             end
             
             % Получаем цвет и lineWidth из структуры (уже распарсены)
@@ -1359,6 +1345,27 @@ function createBoxplotFigure(fig, state)
                 paramKey = sprintf('Group%d', groupNum);
                 paramKeyValid = matlab.lang.makeValidName(paramKey);
                 statisticalTests.(paramKeyValid) = testResultsForGroup;
+                
+                % Вывод статистических тестов в консоль
+                if ~isempty(testResultsForGroup) && ~isempty(fieldnames(testResultsForGroup))
+                    fprintf('\n=== Statistical Tests for Group %d ===\n', groupNum);
+                    fprintf('%-30s %-30s %12s %8s %8s %12s\n', 'Parameter 1', 'Parameter 2', 'p-value', 'n1', 'n2', 'Significant');
+                    fprintf('%s\n', repmat('-', 1, 100));
+                    testFields = fieldnames(testResultsForGroup);
+                    for i = 1:length(testFields)
+                        testKey = testFields{i};
+                        testData = testResultsForGroup.(testKey);
+                        significant = testData.pvalue < 0.05;
+                        sigStr = 'Yes';
+                        if ~significant
+                            sigStr = 'No';
+                        end
+                        fprintf('%-30s %-30s %12.6f %8d %8d %12s\n', ...
+                            testData.group1, testData.group2, testData.pvalue, ...
+                            testData.n1, testData.n2, sigStr);
+                    end
+                    fprintf('\n');
+                end
             end
         end
         

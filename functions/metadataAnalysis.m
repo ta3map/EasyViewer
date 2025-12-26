@@ -24,8 +24,7 @@ function metadataAnalysis(metaPaths, fileIds, fileTableData, fileTableColumns)
     try
         firstMeta = load(firstMetaPath, '-mat');
     catch ME
-        debugState('metadataAnalysis', 'Failed to load first .meta file: %s', ME.message);
-        msgbox(sprintf('Failed to load first .meta file: %s', ME.message), 'Error', 'error');
+        handleMetadataError(ME, 'Failed to load first .meta file', true);
         return
     end
     
@@ -51,11 +50,14 @@ function metadataAnalysis(metaPaths, fileIds, fileTableData, fileTableColumns)
     
     debugState('metadataAnalysis', 'Found %d metadata fields', numel(allFields));
     
-    selectedFields = showFieldSelectionDialog(allFields);
-    if isempty(selectedFields)
+    selectionResult = showFieldSelectionDialog(allFields);
+    if isempty(selectionResult) || isempty(selectionResult.fields)
         debugState('metadataAnalysis', 'No fields selected, cancelling');
         return
     end
+    
+    selectedFields = selectionResult.fields;
+    sqlFormats = selectionResult.sqlFormats;
     
     debugState('metadataAnalysis', 'Selected %d field(s) for analysis', numel(selectedFields));
     
@@ -70,13 +72,18 @@ function metadataAnalysis(metaPaths, fileIds, fileTableData, fileTableColumns)
     
     debugState('metadataAnalysis', 'Saving directly to MAT file (streaming)');
     if nargin >= 3 && ~isempty(fileTableData) && nargin >= 4 && ~isempty(fileTableColumns)
-        success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath, fileTableData, fileTableColumns);
+        [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath, fileTableData, fileTableColumns, sqlFormats);
     else
-        success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath);
+        [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath, [], [], sqlFormats);
     end
     if ~success
-        debugState('metadataAnalysis', 'Failed to create and save table');
-        msgbox('Failed to create and save table', 'Error', 'error');
+        if ~isempty(errorInfo)
+            handleMetadataError(errorInfo, 'Failed to create and save table', true);
+        else
+            fprintf('ERROR in metadataAnalysis: Failed to create and save table\n');
+            fprintf('Check debug logs for details\n');
+            msgbox('Failed to create and save table', 'Error', 'error');
+        end
         return
     end
     
@@ -134,23 +141,41 @@ function fields = extractFieldsRecursive(value, prefix, fields)
     end
 end
 
-function selectedFields = showFieldSelectionDialog(allFields)
-    selectedFields = [];
+function result = showFieldSelectionDialog(allFields)
+    result = struct('fields', {}, 'sqlFormats', containers.Map());
     
-    fig = figure('Position', [300, 300, 500, 400], ...
+    fig = figure('Position', [300, 300, 600, 400], ...
         'Name', 'Select Metadata Fields', ...
         'NumberTitle', 'off', ...
         'MenuBar', 'none', ...
         'Resize', 'on');
     
-    data = [allFields', num2cell(false(numel(allFields), 1))];
+    numFields = numel(allFields);
+    formatColumn = cell(numFields, 1);
+    isSqlField = false(numFields, 1);
+    
+    for i = 1:numFields
+        if strncmp(allFields{i}, 'sql.', 4)
+            isSqlField(i) = true;
+            formatColumn{i} = 'Text';
+        else
+            formatColumn{i} = '';
+        end
+    end
+    
+    data = [allFields', num2cell(false(numFields, 1)), formatColumn];
+    
+    columnEditable = [false, true, true];
+    
+    columnFormat = {'char', 'logical', {'Text', 'Number', 'Logical', 'Date', 'DateTime'}};
+    
     fieldTable = uitable('Parent', fig, ...
-        'Position', [10, 50, 480, 310], ...
+        'Position', [10, 50, 580, 310], ...
         'Data', data, ...
-        'ColumnName', {'Field Name', 'Select'}, ...
-        'ColumnEditable', [false, true], ...
-        'ColumnWidth', {250, 80}, ...
-        'ColumnFormat', {'char', 'logical'});
+        'ColumnName', {'Field Name', 'Select', 'Format'}, ...
+        'ColumnEditable', columnEditable, ...
+        'ColumnWidth', {300, 80, 150}, ...
+        'ColumnFormat', columnFormat);
     
     selectAllBtn = uicontrol('Parent', fig, ...
         'Style', 'pushbutton', ...
@@ -166,13 +191,13 @@ function selectedFields = showFieldSelectionDialog(allFields)
     
     okBtn = uicontrol('Parent', fig, ...
         'Style', 'pushbutton', ...
-        'Position', [350, 10, 70, 30], ...
+        'Position', [450, 10, 70, 30], ...
         'String', 'OK', ...
         'Callback', @(src,evt) uiresume(fig));
     
     cancelBtn = uicontrol('Parent', fig, ...
         'Style', 'pushbutton', ...
-        'Position', [430, 10, 60, 30], ...
+        'Position', [530, 10, 60, 30], ...
         'String', 'Cancel', ...
         'Callback', @(src,evt) close(fig));
     
@@ -182,6 +207,31 @@ function selectedFields = showFieldSelectionDialog(allFields)
         data = fieldTable.Data;
         selectedIndices = cellfun(@(x) islogical(x) && x, data(:, 2));
         selectedFields = allFields(selectedIndices);
+        
+        sqlFormats = containers.Map();
+        for i = 1:numFields
+            if selectedIndices(i) && isSqlField(i)
+                formatValue = data{i, 3};
+                if ischar(formatValue)
+                    formatLower = lower(formatValue);
+                    if strcmp(formatLower, 'number')
+                        sqlFormats(allFields{i}) = 'number';
+                    elseif strcmp(formatLower, 'logical')
+                        sqlFormats(allFields{i}) = 'logical';
+                    elseif strcmp(formatLower, 'date')
+                        sqlFormats(allFields{i}) = 'date';
+                    elseif strcmp(formatLower, 'datetime')
+                        sqlFormats(allFields{i}) = 'datetime';
+                    else
+                        sqlFormats(allFields{i}) = 'text';
+                    end
+                else
+                    sqlFormats(allFields{i}) = 'text';
+                end
+            end
+        end
+        
+        result = struct('fields', {selectedFields}, 'sqlFormats', sqlFormats);
         close(fig);
     end
 end
@@ -462,8 +512,9 @@ function flatTable = createFlatTable(collectedData, selectedFields)
     flatTable = table(tableData{:}, 'VariableNames', columnNames);
 end
 
-function success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath, fileTableData, fileTableColumns)
+function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath, fileTableData, fileTableColumns, sqlFormats)
     success = false;
+    errorInfo = [];
     
     if isempty(metaPaths) || isempty(selectedFields)
         return
@@ -472,13 +523,24 @@ function success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath,
     numFiles = numel(metaPaths);
     hasFileTableData = nargin >= 5 && ~isempty(fileTableData) && nargin >= 6 && ~isempty(fileTableColumns);
     
+    if nargin < 7 || isempty(sqlFormats)
+        sqlFormats = containers.Map();
+    end
+    
     try
+        wb = waitbar(0, 'Initializing metadata analysis...', 'Name', 'Metadata Analysis');
+        debugState('metadataAnalysis', 'Initializing metadata analysis...');
+        
         debugState('metadataAnalysis', 'Analyzing field structure from all files');
+        waitbar(0.01, wb, 'Analyzing field structure from all files...');
         
         fieldInfo = cell(numel(selectedFields), 1);
         globalMaxSize = 0;
         
         for fileIdx = 1:numFiles
+            progress = 0.01 + 0.29 * (fileIdx / numFiles);
+            waitbar(progress, wb, sprintf('Analyzing file %d/%d...', fileIdx, numFiles));
+            debugState('metadataAnalysis', 'Analyzing file %d/%d for field structure', fileIdx, numFiles);
             metaPath = metaPaths{fileIdx};
             if ~exist(metaPath, 'file')
                 continue
@@ -492,10 +554,17 @@ function success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath,
             for fieldIdx = 1:numel(selectedFields)
                 fieldPath = selectedFields{fieldIdx};
                 
-                % Skip SQL fields during structure analysis (they are always strings)
+                % Handle SQL fields during structure analysis
                 if strncmp(fieldPath, 'sql.', 4)
                     if isempty(fieldInfo{fieldIdx})
-                        fieldInfo{fieldIdx} = struct('isText', true, 'isStruct', false, 'isCellArray', false, 'maxSize', 1);
+                        isText = true;
+                        if sqlFormats.isKey(fieldPath)
+                            formatValue = sqlFormats(fieldPath);
+                            if strcmp(formatValue, 'number') || strcmp(formatValue, 'logical') || strcmp(formatValue, 'date') || strcmp(formatValue, 'datetime')
+                                isText = false;
+                            end
+                        end
+                        fieldInfo{fieldIdx} = struct('isText', isText, 'isStruct', false, 'isCellArray', false, 'maxSize', 1);
                     end
                     continue
                 end
@@ -575,14 +644,22 @@ function success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath,
         end
         
         if globalMaxSize == 0
+            if exist('wb', 'var') && ishandle(wb)
+                close(wb);
+            end
             return
         end
         
         debugState('metadataAnalysis', 'Creating MAT file: %s (globalMaxSize: %d)', savePath, globalMaxSize);
+        waitbar(0.30, wb, 'Processing files and creating table...');
+        debugState('metadataAnalysis', 'Processing files and creating table...');
         
         allTables = {};
         
         for fileIdx = 1:numFiles
+            progress = 0.30 + 0.65 * (fileIdx / numFiles);
+            waitbar(progress, wb, sprintf('Processing file %d/%d...', fileIdx, numFiles));
+            
             metaPath = metaPaths{fileIdx};
             fileId = fileIds(fileIdx);
             
@@ -640,6 +717,80 @@ function success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath,
                     if isempty(value)
                         value = '';
                     end
+                    
+                    % Convert value based on selected format
+                    if sqlFormats.isKey(fieldPath)
+                        formatType = sqlFormats(fieldPath);
+                        
+                        if strcmp(formatType, 'number')
+                            if ischar(value) || isstring(value)
+                                if isempty(value)
+                                    value = NaN;
+                                else
+                                    numValue = str2double(value);
+                                    if ~isnan(numValue)
+                                        value = numValue;
+                                    end
+                                end
+                            elseif isnumeric(value)
+                                value = value;
+                            end
+                        elseif strcmp(formatType, 'logical')
+                            if ischar(value) || isstring(value)
+                                if isempty(value)
+                                    value = false;
+                                else
+                                    valueLower = lower(strtrim(char(value)));
+                                    if strcmp(valueLower, 'true') || strcmp(valueLower, '1') || strcmp(valueLower, 'yes') || strcmp(valueLower, 'on')
+                                        value = true;
+                                    elseif strcmp(valueLower, 'false') || strcmp(valueLower, '0') || strcmp(valueLower, 'no') || strcmp(valueLower, 'off')
+                                        value = false;
+                                    else
+                                        numValue = str2double(value);
+                                        if ~isnan(numValue)
+                                            value = logical(numValue ~= 0);
+                                        end
+                                    end
+                                end
+                            elseif isnumeric(value)
+                                value = logical(value ~= 0);
+                            elseif islogical(value)
+                                value = value;
+                            end
+                        elseif strcmp(formatType, 'date')
+                            if ischar(value) || isstring(value)
+                                if isempty(value)
+                                    value = NaN;
+                                else
+                                    try
+                                        dateValue = datenum(value);
+                                        if ~isnan(dateValue)
+                                            value = dateValue;
+                                        end
+                                    catch
+                                    end
+                                end
+                            elseif isnumeric(value)
+                                value = value;
+                            end
+                        elseif strcmp(formatType, 'datetime')
+                            if ischar(value) || isstring(value)
+                                if isempty(value)
+                                    value = NaN;
+                                else
+                                    try
+                                        dateValue = datenum(value);
+                                        if ~isnan(dateValue)
+                                            value = dateValue;
+                                        end
+                                    catch
+                                    end
+                                end
+                            elseif isnumeric(value)
+                                value = value;
+                            end
+                        end
+                    end
                 else
                     % Regular .meta file field
                     value = getFieldValue(meta, fieldPath);
@@ -669,9 +820,14 @@ function success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath,
         end
         
         if isempty(allTables)
+            if exist('wb', 'var') && ishandle(wb)
+                close(wb);
+            end
             return
         end
         
+        waitbar(0.95, wb, 'Finalizing and saving files...');
+        debugState('metadataAnalysis', 'Finalizing and saving files...');
         debugState('metadataAnalysis', 'Final combining and saving to MAT file');
         if numel(allTables) == 1
             flatTable = allTables{1};
@@ -683,11 +839,47 @@ function success = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath,
         end
         clear allTables;
         
+        % Remove duplicate rows (handling NaN properly)
+        waitbar(0.96, wb, 'Removing duplicate rows...');
+        debugState('metadataAnalysis', 'Removing duplicate rows...');
+        originalRows = height(flatTable);
+        flatTable = removeDuplicateRows(flatTable, wb);
+        removedRows = originalRows - height(flatTable);
+        if removedRows > 0
+            debugState('metadataAnalysis', 'Removed %d duplicate row(s), %d row(s) remaining', removedRows, height(flatTable));
+        end
+        
+        waitbar(0.97, wb, 'Saving MAT file...');
+        debugState('metadataAnalysis', 'Saving MAT file...');
         save(savePath, 'flatTable', '-v7.3');
+        debugState('metadataAnalysis', 'MAT file saved successfully: %s', savePath);
+        
+        % Save to Excel with same name
+        waitbar(0.98, wb, 'Saving Excel file...');
+        debugState('metadataAnalysis', 'Saving Excel file...');
+        [excelPath, excelName, ~] = fileparts(savePath);
+        excelPath = fullfile(excelPath, [excelName, '.xlsx']);
+        try
+            debugState('metadataAnalysis', 'Saving to Excel file: %s', excelPath);
+            writetable(flatTable, excelPath);
+            debugState('metadataAnalysis', 'Table successfully saved to Excel: %s', excelPath);
+        catch ME
+            handleMetadataError(ME, 'Failed to save Excel file', false);
+        end
+        
+        waitbar(1.0, wb, 'Completed!');
+        debugState('metadataAnalysis', 'Metadata analysis completed successfully');
+        pause(0.1);
+        close(wb);
+        
         clear flatTable;
         success = true;
     catch ME
-        debugState('metadataAnalysis', 'Failed to save MAT file: %s', ME.message);
+        if exist('wb', 'var') && ishandle(wb)
+            close(wb);
+        end
+        handleMetadataError(ME, 'Failed to save MAT file', false);
+        errorInfo = ME;
     end
 end
 
@@ -716,21 +908,18 @@ function flatTable = createFlatTableWithStructure(collectedData, selectedFields,
     for fieldIdx = 1:numFields
         fieldName = selectedFields{fieldIdx};
         info = fieldInfo{fieldIdx};
-        axisColumnName = [fieldName, 'Axis'];
         
         debugState('metadataAnalysis', 'createFlatTableWithStructure: Processing field %d/%d: %s (isText=%d, isStruct=%d, maxSize=%d)', fieldIdx, numFields, fieldName, info.isText, info.isStruct, info.maxSize);
         
         columnNames{end+1} = fieldName;
-        columnNames{end+1} = axisColumnName;
         
         if info.isText || info.isStruct || info.isCellArray
             fieldColumn = cell(numel(fileIdColumn), 1);
         else
             fieldColumn = nan(numel(fileIdColumn), 1);
         end
-        axisColumn = nan(numel(fileIdColumn), 1);
         
-        debugState('metadataAnalysis', 'createFlatTableWithStructure: Created columns for field %s, sizes: fieldColumn=%d, axisColumn=%d', fieldName, numel(fieldColumn), numel(axisColumn));
+        debugState('metadataAnalysis', 'createFlatTableWithStructure: Created column for field %s, size: fieldColumn=%d', fieldName, numel(fieldColumn));
         
         rowIdx = 1;
         for fileIdx = 1:numFiles
@@ -754,7 +943,6 @@ function flatTable = createFlatTableWithStructure(collectedData, selectedFields,
                                 fieldColumn{vIdx} = value;
                             end
                         end
-                        axisColumn(rowIdx:endIdx) = 1;
                     else
                         debugState('metadataAnalysis', 'createFlatTableWithStructure: WARNING - rowIdx (%d) > fieldColumn size (%d)', rowIdx, numel(fieldColumn));
                     end
@@ -779,8 +967,6 @@ function flatTable = createFlatTableWithStructure(collectedData, selectedFields,
                             debugState('metadataAnalysis', 'createFlatTableWithStructure: Setting scalar numeric value, rowIdx=%d, endIdx=%d', rowIdx, endIdx);
                             fieldColumn(rowIdx:endIdx) = value;
                         end
-                        debugState('metadataAnalysis', 'createFlatTableWithStructure: Setting axis column for scalar, rowIdx=%d, endIdx=%d, axisColumn size=%d', rowIdx, endIdx, numel(axisColumn));
-                        axisColumn(rowIdx:endIdx) = 1;
                     else
                         debugState('metadataAnalysis', 'createFlatTableWithStructure: WARNING - rowIdx (%d) > fieldColumn size (%d)', rowIdx, numel(fieldColumn));
                     end
@@ -818,8 +1004,6 @@ function flatTable = createFlatTableWithStructure(collectedData, selectedFields,
                                     fieldColumn{rowIdx + vIdx - 1} = flattened{vIdx};
                                 end
                             end
-                            axisIndices = generateAxisIndices(dims, actualSize);
-                            axisColumn(rowIdx:endIdx) = axisIndices(1:min(actualSize, endIdx - rowIdx + 1));
                         end
                     elseif info.isText || isCellArrayOfStrings
                         dimsChar = size(value);
@@ -879,11 +1063,6 @@ function flatTable = createFlatTableWithStructure(collectedData, selectedFields,
                             debugState('metadataAnalysis', 'createFlatTableWithStructure: Numeric processing, setting fieldColumn(rowIdx:endIdx), rowIdx=%d, endIdx=%d, flattened size=%d', rowIdx, endIdx, numel(flattened));
                             fieldColumn(rowIdx:endIdx) = flattened(1:min(actualSize, endIdx - rowIdx + 1));
                         end
-                        
-                        debugState('metadataAnalysis', 'createFlatTableWithStructure: Generating axis indices, dims=%s, actualSize=%d', mat2str(dims), actualSize);
-                        axisIndices = generateAxisIndices(dims, actualSize);
-                        debugState('metadataAnalysis', 'createFlatTableWithStructure: Generated axis indices, size=%d, setting axisColumn(rowIdx:endIdx), rowIdx=%d, endIdx=%d, axisColumn size=%d', numel(axisIndices), rowIdx, endIdx, numel(axisColumn));
-                        axisColumn(rowIdx:endIdx) = axisIndices(1:min(actualSize, endIdx - rowIdx + 1));
                     else
                         debugState('metadataAnalysis', 'createFlatTableWithStructure: Skipping - actualSize=%d or rowIdx (%d) > fieldColumn size (%d)', actualSize, rowIdx, numel(fieldColumn));
                     end
@@ -898,7 +1077,6 @@ function flatTable = createFlatTableWithStructure(collectedData, selectedFields,
         end
         
         columnData{end+1} = fieldColumn;
-        columnData{end+1} = axisColumn;
     end
     
     totalRows = numel(fileIdColumn);
@@ -946,31 +1124,89 @@ function str = struct2str(s)
     end
 end
 
-function indices = generateAxisIndices(dims, numElements)
-    debugState('metadataAnalysis', 'generateAxisIndices: dims=%s, numElements=%d', mat2str(dims), numElements);
+function handleMetadataError(ME, contextMessage, showMsgbox)
+    if nargin < 3
+        showMsgbox = false;
+    end
     
-    if numel(dims) == 2 && dims(1) > 1 && dims(2) > 1
-        debugState('metadataAnalysis', 'generateAxisIndices: Matrix case, dims(1)=%d, dims(2)=%d', dims(1), dims(2));
-        indices = zeros(numElements, 1);
-        idx = 1;
-        for col = 1:dims(2)
-            for row = 1:dims(1)
-                if idx <= numElements
-                    indices(idx) = col;
-                    idx = idx + 1;
-                else
-                    debugState('metadataAnalysis', 'generateAxisIndices: WARNING - idx (%d) > numElements (%d)', idx, numElements);
-                    break
-                end
-            end
-            if idx > numElements
-                break
-            end
-        end
-        debugState('metadataAnalysis', 'generateAxisIndices: Generated %d indices', numel(indices));
-    else
-        debugState('metadataAnalysis', 'generateAxisIndices: Vector/scalar case, creating ones');
-        indices = ones(numElements, 1);
-        debugState('metadataAnalysis', 'generateAxisIndices: Generated %d indices', numel(indices));
+    debugState('metadataAnalysis', '%s: %s', contextMessage, ME.message);
+    fprintf('ERROR in metadataAnalysis: %s\n', contextMessage);
+    fprintf('%s\n', getReport(ME, 'extended'));
+    
+    if showMsgbox
+        msgbox(sprintf('%s: %s', contextMessage, ME.message), 'Error', 'error');
     end
 end
+
+function uniqueTable = removeDuplicateRows(inputTable, wb)
+    if isempty(inputTable) || height(inputTable) == 0
+        uniqueTable = inputTable;
+        return
+    end
+    
+    numRows = height(inputTable);
+    numCols = width(inputTable);
+    keepRows = false(numRows, 1);
+    hashMap = containers.Map('KeyType', 'char', 'ValueType', 'logical');
+    
+    for i = 1:numRows
+        if nargin >= 2 && ishandle(wb)
+            progress = 0.96 + 0.01 * (i / numRows);
+            waitbar(progress, wb, sprintf('Removing duplicates: %d/%d rows...', i, numRows));
+        end
+        
+        hashStr = createRowHash(inputTable(i, :), numCols);
+        
+        if ~hashMap.isKey(hashStr)
+            hashMap(hashStr) = true;
+            keepRows(i) = true;
+        end
+    end
+    
+    uniqueTable = inputTable(keepRows, :);
+end
+
+function hashStr = createRowHash(row, numCols)
+    parts = cell(numCols, 1);
+    
+    for col = 1:numCols
+        val = row{1, col};
+        
+        if isnumeric(val)
+            if isnan(val)
+                parts{col} = '<NaN>';
+            else
+                parts{col} = sprintf('%.15g', val);
+            end
+        elseif islogical(val)
+            if val
+                parts{col} = '<TRUE>';
+            else
+                parts{col} = '<FALSE>';
+            end
+        elseif ischar(val) || isstring(val)
+            parts{col} = ['<STR:', char(val), '>'];
+        elseif iscell(val)
+            if isempty(val)
+                parts{col} = '<EMPTY_CELL>';
+            else
+                try
+                    parts{col} = ['<CELL:', mat2str(cell2mat(val(:)'))];
+                catch
+                    parts{col} = ['<CELL:', class(val), '>'];
+                end
+            end
+        elseif isempty(val)
+            parts{col} = '<EMPTY>';
+        else
+            try
+                parts{col} = ['<', class(val), ':', mat2str(val), '>'];
+            catch
+                parts{col} = ['<', class(val), '>'];
+            end
+        end
+    end
+    
+    hashStr = strjoin(parts, '|');
+end
+

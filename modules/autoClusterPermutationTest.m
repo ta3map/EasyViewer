@@ -6,69 +6,30 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
     
     % Извлечение параметров из структуры params
     if isfield(params, 'visualization')
-        visParams = params.visualization;
-        xLimits = visParams.xLimits;
-        if isfield(visParams, 'removeBaseline')
-            removeBaseline = logical(visParams.removeBaseline);
-            if ~isscalar(removeBaseline)
-                removeBaseline = any(removeBaseline);
-            end
-        else
-            removeBaseline = false;
-        end
-        if isfield(visParams, 'removeArtifact')
-            removeArtifact = logical(visParams.removeArtifact);
-            if ~isscalar(removeArtifact)
-                removeArtifact = any(removeArtifact);
-            end
-        else
-            removeArtifact = false;
-        end
-        artifactWindow_ms = 1;
-        if isfield(visParams, 'artifactWindow_ms')
-            artifactWindow_ms = visParams.artifactWindow_ms;
-        end
+        sourceParams = params.visualization;
+        xLimits = sourceParams.xLimits;
     else
+        sourceParams = params;
         xLimits = params.xLimits;
-        if isfield(params, 'removeBaseline')
-            removeBaseline = logical(params.removeBaseline);
-            if ~isscalar(removeBaseline)
-                removeBaseline = any(removeBaseline);
-            end
-        else
-            removeBaseline = false;
-        end
-        if isfield(params, 'removeArtifact')
-            removeArtifact = logical(params.removeArtifact);
-            if ~isscalar(removeArtifact)
-                removeArtifact = any(removeArtifact);
-            end
-        else
-            removeArtifact = false;
-        end
-        artifactWindow_ms = 1;
-        if isfield(params, 'artifactWindow_ms')
-            artifactWindow_ms = params.artifactWindow_ms;
-        end
     end
+    
+    removeBaseline = getBoolParam(sourceParams, 'removeBaseline', false);
+    removeArtifact = getBoolParam(sourceParams, 'removeArtifact', false);
+    artifactWindow_ms = getNumericParam(sourceParams, 'artifactWindow_ms', 1);
     
     % Извлечение параметров диапазона триалов
     startTrial = [];
     endTrial = [];
     removeEdgeTrials = false;
     if isfield(params, 'test_parameters')
-        if isfield(params.test_parameters, 'startTrial') && ~isempty(params.test_parameters.startTrial)
-            startTrial = params.test_parameters.startTrial;
+        testParamsSource = params.test_parameters;
+        if isfield(testParamsSource, 'startTrial') && ~isempty(testParamsSource.startTrial)
+            startTrial = testParamsSource.startTrial;
         end
-        if isfield(params.test_parameters, 'endTrial') && ~isempty(params.test_parameters.endTrial)
-            endTrial = params.test_parameters.endTrial;
+        if isfield(testParamsSource, 'endTrial') && ~isempty(testParamsSource.endTrial)
+            endTrial = testParamsSource.endTrial;
         end
-        if isfield(params.test_parameters, 'removeEdgeTrials')
-            removeEdgeTrials = logical(params.test_parameters.removeEdgeTrials);
-            if ~isscalar(removeEdgeTrials)
-                removeEdgeTrials = any(removeEdgeTrials);
-            end
-        end
+        removeEdgeTrials = getBoolParam(testParamsSource, 'removeEdgeTrials', false);
     end
     
     [baselineData, postStimData, fullTrialData, timeAxis] = extractTrialData(...
@@ -79,19 +40,16 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
     numTrials = size(fullTrialData, 1);
     
     % Параметры теста
-    testParams = struct();
     if isfield(params, 'test_parameters')
-        testParams.numPermutations = params.test_parameters.numPermutations;
-        testParams.clusterThreshold = params.test_parameters.clusterThreshold;
-        if isfield(params.test_parameters, 'minClusterSize_ms')
-            testParams.minClusterSize_ms = params.test_parameters.minClusterSize_ms;
-        end
+        testParamsSource = params.test_parameters;
     else
-        testParams.numPermutations = params.numPermutations;
-        testParams.clusterThreshold = params.clusterThreshold;
-        if isfield(params, 'minClusterSize_ms')
-            testParams.minClusterSize_ms = params.minClusterSize_ms;
-        end
+        testParamsSource = params;
+    end
+    testParams = struct();
+    testParams.numPermutations = testParamsSource.numPermutations;
+    testParams.clusterThreshold = testParamsSource.clusterThreshold;
+    if isfield(testParamsSource, 'minClusterSize_ms')
+        testParams.minClusterSize_ms = testParamsSource.minClusterSize_ms;
     end
     
     testResult = clusterPermutationTest(baselineData, postStimData, fullTrialData, timeAxis, testParams);
@@ -117,37 +75,37 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
     totalSignificantClusters = 0;
     for ch = 1:numChannels
         clusters = testResult.clusters{ch};
-        significantClusters = 0;
-        for c = 1:length(clusters)
-            if isfield(clusters(c), 'p_value') && ~isnan(clusters(c).p_value) && clusters(c).p_value < 0.05
-                significantClusters = significantClusters + 1;
-            end
+        if isempty(clusters)
+            continue;
         end
         
-        if significantClusters > 0 || length(clusters) > 0
-            fprintf('Channel %s: %d cluster(s) found', channelLabels{ch}, length(clusters));
-            if significantClusters > 0
-                fprintf(', %d significant (p < 0.05)', significantClusters);
-                fprintf('\n');
-                for c = 1:length(clusters)
-                    if isfield(clusters(c), 'p_value') && ~isnan(clusters(c).p_value) && clusters(c).p_value < 0.05
-                        fprintf('  Cluster %d: size = %d timepoints, p = %.4f, t_sum = %.2f\n', ...
-                            c, length(clusters(c).timepoints), clusters(c).p_value, clusters(c).t_sum);
-                    end
-                end
-            else
-                fprintf(' (none significant)');
-                % Выводим информацию о кластерах даже если они не значимы
-                for c = 1:length(clusters)
-                    if isfield(clusters(c), 'p_value')
-                        fprintf('\n  Cluster %d: size = %d timepoints, p = %.4f (not significant)', ...
-                            c, length(clusters(c).timepoints), clusters(c).p_value);
-                    end
-                end
-                fprintf('\n');
+        % Подсчет значимых кластеров одним проходом
+        significantMask = false(length(clusters), 1);
+        for c = 1:length(clusters)
+            if isfield(clusters(c), 'p_value') && ~isnan(clusters(c).p_value) && clusters(c).p_value < 0.05
+                significantMask(c) = true;
             end
         end
+        significantClusters = sum(significantMask);
         totalSignificantClusters = totalSignificantClusters + significantClusters;
+        
+        fprintf('Channel %s: %d cluster(s) found', channelLabels{ch}, length(clusters));
+        if significantClusters > 0
+            fprintf(', %d significant (p < 0.05)\n', significantClusters);
+            for c = find(significantMask)'
+                fprintf('  Cluster %d: size = %d timepoints, p = %.4f, t_sum = %.2f\n', ...
+                    c, length(clusters(c).timepoints), clusters(c).p_value, clusters(c).t_sum);
+            end
+        else
+            fprintf(' (none significant)');
+            for c = 1:length(clusters)
+                if isfield(clusters(c), 'p_value')
+                    fprintf('\n  Cluster %d: size = %d timepoints, p = %.4f (not significant)', ...
+                        c, length(clusters(c).timepoints), clusters(c).p_value);
+                end
+            end
+            fprintf('\n');
+        end
     end
     
     fprintf('\nTotal significant clusters: %d\n', totalSignificantClusters);
@@ -162,36 +120,16 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
                 if isfield(clusters(c), 'onset_timepoint')
                     onset_idx = clusters(c).onset_timepoint;
                     if onset_idx > 0 && onset_idx <= length(timeAxis)
-                        onset_time_sec = timeAxis(onset_idx);
-                        onset_time_ms = onset_time_sec * 1000; % преобразуем в миллисекунды
-                        cluster_onsets_ms(end+1) = onset_time_ms;
+                        cluster_onsets_ms(end+1) = timeAxis(onset_idx) * 1000;
                     end
                 end
             end
         end
     end
     
-    % Параметр показа baseline периода
-    showBaseline = true;
-    if isfield(params, 'visualization') && isfield(params.visualization, 'showBaselinePeriod')
-        showBaseline = params.visualization.showBaselinePeriod;
-    elseif isfield(params, 'showBaselinePeriod')
-        showBaseline = params.showBaselinePeriod;
-    end
-    
-    % Параметр показа среднего сигнала
-    showMeanSignal = false;
-    if isfield(params, 'visualization') && isfield(params.visualization, 'showMeanSignal')
-        showMeanSignal = logical(params.visualization.showMeanSignal);
-        if ~isscalar(showMeanSignal)
-            showMeanSignal = any(showMeanSignal);
-        end
-    elseif isfield(params, 'showMeanSignal')
-        showMeanSignal = logical(params.showMeanSignal);
-        if ~isscalar(showMeanSignal)
-            showMeanSignal = any(showMeanSignal);
-        end
-    end
+    % Параметры визуализации
+    showBaseline = getBoolParam(params, 'showBaselinePeriod', true, 'visualization');
+    showMeanSignal = getBoolParam(params, 'showMeanSignal', false, 'visualization');
     
     % Получаем имя файла из metadata
     [~, fileName, ~] = fileparts(metadata.filePath);
@@ -225,5 +163,41 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
         'data_path', dataPath, ...
         'parameters', params, ...
         'test_result', testResult);
+end
+
+% Вспомогательная функция для извлечения boolean параметров
+function val = getBoolParam(params, fieldName, defaultValue, subStruct)
+    if nargin < 4
+        subStruct = '';
+    end
+    
+    if ~isempty(subStruct) && isfield(params, subStruct) && isfield(params.(subStruct), fieldName)
+        source = params.(subStruct);
+    elseif isfield(params, fieldName)
+        source = params;
+    else
+        val = defaultValue;
+        return;
+    end
+    
+    val = logical(source.(fieldName));
+    if ~isscalar(val)
+        val = any(val);
+    end
+end
+
+% Вспомогательная функция для извлечения числовых параметров
+function val = getNumericParam(params, fieldName, defaultValue, subStruct)
+    if nargin < 4
+        subStruct = '';
+    end
+    
+    if ~isempty(subStruct) && isfield(params, subStruct) && isfield(params.(subStruct), fieldName)
+        val = params.(subStruct).(fieldName);
+    elseif isfield(params, fieldName)
+        val = params.(fieldName);
+    else
+        val = defaultValue;
+    end
 end
 

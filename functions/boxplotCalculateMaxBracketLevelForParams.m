@@ -39,9 +39,15 @@ function maxLevel = boxplotCalculateMaxBracketLevelForParams(testResults, params
     end
     
     % Находим позиции параметров на оси X
+    % Используем fieldName для сопоставления с testResults
     paramPositions = containers.Map();
     for i = 1:length(paramsInGroup)
-        paramPositions(paramsInGroup{i}.column) = i;
+        if isfield(paramsInGroup{i}, 'fieldName')
+            paramPositions(paramsInGroup{i}.fieldName) = i;
+        else
+            % Fallback на column, если fieldName отсутствует
+            paramPositions(paramsInGroup{i}.column) = i;
+        end
     end
     
     % Определяем уровни для скобок
