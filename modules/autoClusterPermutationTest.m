@@ -127,6 +127,13 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
         end
     end
     
+    % Первый онсет ответа (первый онсет больше нуля)
+    positive_onsets = cluster_onsets_ms(cluster_onsets_ms > 0);
+    first_onset_ms = [];
+    if ~isempty(positive_onsets)
+        first_onset_ms = min(positive_onsets);
+    end
+    
     % Параметры визуализации
     showBaseline = getBoolParam(params, 'showBaselinePeriod', true, 'visualization');
     showMeanSignal = getBoolParam(params, 'showMeanSignal', false, 'visualization');
@@ -153,7 +160,7 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
     end
     
     dataPath = fullfile(folder, [baseName, '_cluster_perm.meta']);
-    save(dataPath, 'testResult', 'params', 'timeAxis', 'cluster_onsets_ms', '-mat');
+    save(dataPath, 'testResult', 'params', 'timeAxis', 'cluster_onsets_ms', 'first_onset_ms', '-mat');
     
     result = struct( ...
         'module_name', 'autoClusterPermutationTest', ...

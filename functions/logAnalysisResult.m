@@ -55,13 +55,13 @@ function logAnalysisResult(fileIdOrPath, result)
             return
         end
         
-        % Проверяем, есть ли уже запись с таким report_path
-        checkQuery = sprintf('SELECT id FROM analysis_results WHERE report_path = ''%s'' LIMIT 1', ...
-            escapeSql(reportPath));
+        % Проверяем, есть ли уже запись для этого файла с таким module_name
+        checkQuery = sprintf('SELECT id FROM analysis_results WHERE file_id = %d AND module_name = ''%s'' LIMIT 1', ...
+            fileId, escapeSql(moduleName));
         existingRecord = sqlFetchWithConn(conn, checkQuery);
         
         if ~isempty(existingRecord)
-            debugState('logAnalysisResult', 'Analysis result already exists for report_path=%s. Skipping insert.', reportPath);
+            debugState('logAnalysisResult', 'Analysis result already exists for file_id=%d, module_name=%s. Skipping insert.', fileId, moduleName);
             closeJdbcResource(conn);
             return
         end

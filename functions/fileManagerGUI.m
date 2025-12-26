@@ -2229,7 +2229,11 @@ function fileManagerGUI()
                         if isempty(escapedModuleDesc)
                             escapedModuleDesc = '';
                         end
-                        escapedReportPath = escapeSql(analysisRows{i, 7});
+                        reportPath = analysisRows{i, 7};
+                        if isAnalysisResultExistsByPath(targetConn, reportPath)
+                            continue
+                        end
+                        escapedReportPath = escapeSql(reportPath);
                         escapedParams = escapeSql(analysisRows{i, 8});
                         if isempty(escapedParams)
                             escapedParams = '';
@@ -2404,6 +2408,9 @@ function fileManagerGUI()
                                 end
                                 
                                 escapedModuleName = escapeSql(char(moduleName));
+                                if isAnalysisResultExistsByPath([], reportPath)
+                                    continue
+                                end
                                 escapedReportPath = escapeSql(char(reportPath));
                                 timestamp = round(now * 86400000);
                                 insertAnalysis = sprintf(['INSERT INTO analysis_results (file_id, module_name, report_path, analysis_timestamp, created_at) ' ...
@@ -2737,5 +2744,21 @@ function storeCurrentProjectId(projectId)
     catch ME
         warning('Failed to save selected project: %s', ME.message);
     end
+end
+
+function exists = isAnalysisResultExistsByPath(conn, reportPath)
+    exists = false;
+    if isempty(reportPath)
+        return
+    end
+    reportPath = char(reportPath);
+    escapedPath = escapeSql(reportPath);
+    query = sprintf('SELECT 1 FROM analysis_results WHERE report_path = ''%s'' LIMIT 1', escapedPath);
+    if isempty(conn)
+        rows = sqlFetch(query);
+    else
+        rows = sqlFetchWithConn(conn, query);
+    end
+    exists = ~isempty(rows);
 end
 
