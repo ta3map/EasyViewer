@@ -53,6 +53,7 @@ function boxplotFromTableGUI(filePath)
     state.yAxisMax = [];
     state.title = 'Boxplot Comparison';
     state.filteredData = struct(); % Структура с отфильтрованными данными для каждого параметра
+    state.plotMode = 'BoxPlot'; % Режим визуализации: 'BoxPlot' или 'Correlation'
     
     set(fig, 'UserData', state);
     
@@ -227,16 +228,23 @@ function createUI(fig)
         'String', 'Boxplot Comparison', ...
         'Tag', 'titleEdit');
     
+    % Режим визуализации (выпадающий список на месте кнопки Plot)
+    plotModePopup = uicontrol('Parent', fig, 'Style', 'popupmenu', ...
+        'Position', [margin, margin, 150, buttonHeight], ...
+        'String', {'BoxPlot', 'Correlation'}, ...
+        'Tag', 'plotModePopup', ...
+        'Value', 1);
+    
     % Кнопки (размещаем внизу с отступом)
     plotBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
-        'Position', [margin, margin, 150, buttonHeight], ...
+        'Position', [margin + 160, margin, 150, buttonHeight], ...
         'String', 'Plot', ...
         'FontSize', 11, ...
         'Callback', @(~,~) plotBoxplotCallback(fig));
     
     exportBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
-        'Position', [160, margin, 150, buttonHeight], ...
-        'String', 'Export Plot', ...
+        'Position', [margin + 320, margin, 75, buttonHeight], ...
+        'String', 'Export', ...
         'FontSize', 11, ...
         'Callback', @(~,~) exportPlotCallback(fig));
     
@@ -356,6 +364,7 @@ function saveStateCallback(fig)
         savedState.yAxisMin = state.yAxisMin;
         savedState.yAxisMax = state.yAxisMax;
         savedState.title = state.title;
+        savedState.plotMode = state.plotMode;
         
         save(filePath, 'savedState', '-mat');
         fprintf('State saved to: %s\n', filePath);
@@ -498,11 +507,26 @@ function loadStateCallback(fig)
         if isfield(savedState, 'title')
             state.title = savedState.title;
         end
+        if isfield(savedState, 'plotMode')
+            state.plotMode = savedState.plotMode;
+        else
+            state.plotMode = 'BoxPlot';
+        end
         
         set(fig, 'UserData', state);
         
         % 3. Обновляем UI
         updateAnalysisColumnsDisplay(fig);
+        
+        % Обновляем выпадающий список режима
+        plotModePopup = findobj(fig, 'Tag', 'plotModePopup');
+        if ~isempty(plotModePopup)
+            if strcmp(state.plotMode, 'Correlation')
+                set(plotModePopup, 'Value', 2);
+            else
+                set(plotModePopup, 'Value', 1);
+            end
+        end
         
         % Обновляем чекбоксы и поля
         showStatsCheck = findobj(fig, 'Tag', 'showStatsCheck');
@@ -1086,8 +1110,19 @@ function plotBoxplotCallback(fig)
     yAxisMinEdit = findobj(fig, 'Tag', 'yAxisMinEdit');
     yAxisMaxEdit = findobj(fig, 'Tag', 'yAxisMaxEdit');
     titleEdit = findobj(fig, 'Tag', 'titleEdit');
+    plotModePopup = findobj(fig, 'Tag', 'plotModePopup');
     
     try
+        % Определяем режим визуализации
+        if ~isempty(plotModePopup)
+            selectedValue = get(plotModePopup, 'Value');
+            if selectedValue == 2
+                state.plotMode = 'Correlation';
+            else
+                state.plotMode = 'BoxPlot';
+            end
+        end
+        
         state.showStatistics = get(showStatsCheck, 'Value');
         state.showAllPvalues = get(showAllPvaluesCheck, 'Value');
         if ~isempty(showFileIdsCheck)
@@ -1111,8 +1146,13 @@ function plotBoxplotCallback(fig)
         
         % Создаем прогресс-бар
         figPos = get(fig, 'Position');
+        if strcmp(state.plotMode, 'Correlation')
+            wbName = 'Correlation Plot Generation';
+        else
+            wbName = 'Boxplot Generation';
+        end
         wb = waitbar(0, 'Initializing...', ...
-            'Name', 'Boxplot Generation', ...
+            'Name', wbName, ...
             'WindowStyle', 'modal');
         wbPos = get(wb, 'Position');
         % Центрируем относительно главного окна
@@ -1132,7 +1172,11 @@ function plotBoxplotCallback(fig)
             % Этап 3/3: Построение графика
             waitbar(3/3, wb, 'Creating plot...');
             state = get(fig, 'UserData');
-            createBoxplotFigure(fig, state);
+            if strcmp(state.plotMode, 'Correlation')
+                createCorrelationFigure(fig, state);
+            else
+                createBoxplotFigure(fig, state);
+            end
             
             % Закрываем прогресс-бар
             close(wb);
@@ -1302,6 +1346,7 @@ function saveBoxplotStateToGlobalSettings(fig)
     boxplot_state.yAxisMin = state.yAxisMin;
     boxplot_state.yAxisMax = state.yAxisMax;
     boxplot_state.title = state.title;
+    boxplot_state.plotMode = state.plotMode;
     
     % Сохраняем в глобальные настройки
     try
@@ -1383,6 +1428,11 @@ function loadBoxplotStateFromGlobalSettings(fig)
         if isfield(savedState, 'title')
             state.title = savedState.title;
         end
+        if isfield(savedState, 'plotMode')
+            state.plotMode = savedState.plotMode;
+        else
+            state.plotMode = 'BoxPlot';
+        end
         
         set(fig, 'UserData', state);
         
@@ -1443,6 +1493,16 @@ function updateUIFromState(fig)
     titleEdit = findobj(fig, 'Tag', 'titleEdit');
     if ~isempty(titleEdit) && ~isempty(state.title)
         set(titleEdit, 'String', state.title);
+    end
+    
+    % Обновляем выпадающий список режима
+    plotModePopup = findobj(fig, 'Tag', 'plotModePopup');
+    if ~isempty(plotModePopup)
+        if isfield(state, 'plotMode') && strcmp(state.plotMode, 'Correlation')
+            set(plotModePopup, 'Value', 2);
+        else
+            set(plotModePopup, 'Value', 1);
+        end
     end
     
     updateYAxisControls(fig);
@@ -1598,6 +1658,238 @@ function updateFilteredDataStructure(fig)
     end
     
     set(fig, 'UserData', state);
+end
+
+function createCorrelationFigure(fig, state)
+    % Построение корреляционных графиков
+    % Группирует параметры по одинаковому фильтру и строит пары
+    
+    % Находим панель для графиков
+    plotPanel = findobj(fig, 'Tag', 'plotPanel');
+    
+    % Очищаем содержимое панели
+    delete(plotPanel.Children);
+    
+    % Проверяем наличие структуры с данными
+    if isempty(state.filteredData) || isempty(fieldnames(state.filteredData))
+        return
+    end
+    
+    % Получаем все поля из структуры filteredData
+    filteredDataFields = fieldnames(state.filteredData);
+    
+    % Группируем параметры по фильтру
+    filterGroups = containers.Map();
+    for i = 1:length(filteredDataFields)
+        fieldName = filteredDataFields{i};
+        paramData = state.filteredData.(fieldName);
+        if ~isstruct(paramData)
+            continue
+        end
+        
+        filterKey = paramData.filter;
+        if isempty(filterKey)
+            filterKey = '';
+        end
+        
+        if ~isKey(filterGroups, filterKey)
+            filterGroups(filterKey) = {};
+        end
+        paramData.fieldName = fieldName;
+        filterGroups(filterKey) = [filterGroups(filterKey), {paramData}];
+    end
+    
+    % Подсчитываем общее количество графиков (пар + одиночные)
+    totalPlots = 0;
+    filterKeys = keys(filterGroups);
+    for i = 1:length(filterKeys)
+        filterKey = filterKeys{i};
+        paramsInFilter = filterGroups(filterKey);
+        numParams = length(paramsInFilter);
+        % Количество пар
+        numPairs = floor(numParams / 2);
+        totalPlots = totalPlots + numPairs;
+        % Если нечетное количество, добавляем одиночный график
+        if mod(numParams, 2) == 1
+            totalPlots = totalPlots + 1;
+        end
+    end
+    
+    if totalPlots == 0
+        return
+    end
+    
+    % Вычисляем позиции для subplots
+    margin = 0.05;
+    spacing = 0.03;
+    totalHeight = 1 - 2*margin;
+    subplotHeight = (totalHeight - (totalPlots - 1) * spacing) / totalPlots;
+    
+    plotIdx = 1;
+    
+    % Обрабатываем каждую группу фильтров
+    for filterIdx = 1:length(filterKeys)
+        filterKey = filterKeys{filterIdx};
+        paramsInFilter = filterGroups(filterKey);
+        
+        % Формируем пары по порядку следования
+        numParams = length(paramsInFilter);
+        numPairs = floor(numParams / 2);
+        
+        % Строим пары
+        for pairIdx = 1:numPairs
+            param1 = paramsInFilter{2*pairIdx - 1};
+            param2 = paramsInFilter{2*pairIdx};
+            
+            if isempty(param1.data) || isempty(param2.data)
+                continue
+            end
+            
+            % Вычисляем позицию subplot
+            subplotBottom = 1 - margin - plotIdx * subplotHeight - (plotIdx - 1) * spacing;
+            subplotPosition = [0.1, subplotBottom, 0.85, subplotHeight];
+            
+            ax = axes('Parent', plotPanel, 'Position', subplotPosition);
+            hold(ax, 'on');
+            
+            % Получаем данные
+            xData = param1.data;
+            yData = param2.data;
+            
+            % Синхронизируем размеры данных (берем минимум)
+            minLength = min(length(xData), length(yData));
+            xData = xData(1:minLength);
+            yData = yData(1:minLength);
+            
+            % Удаляем NaN и Inf
+            validIndices = ~isnan(xData) & ~isnan(yData) & ~isinf(xData) & ~isinf(yData);
+            xData = xData(validIndices);
+            yData = yData(validIndices);
+            
+            if length(xData) < 2
+                delete(ax);
+                continue
+            end
+            
+            % Получаем цвета и метки
+            color1 = param1.parsedColor;
+            color2 = param2.parsedColor;
+            % Используем средний цвет для точек
+            pointColor = (color1 + color2) / 2;
+            lineColor = color1;
+            
+            label1 = param1.label;
+            if isempty(label1)
+                label1 = param1.column;
+            end
+            label2 = param2.label;
+            if isempty(label2)
+                label2 = param2.column;
+            end
+            
+            % Scatter plot
+            scatter(ax, xData, yData, 50, pointColor, 'o', ...
+                'MarkerFaceColor', pointColor, ...
+                'MarkerEdgeColor', 'white', ...
+                'LineWidth', 1, ...
+                'MarkerFaceAlpha', 0.7);
+            
+            % Линия регрессии
+            p = polyfit(xData, yData, 1);
+            xFit = linspace(min(xData), max(xData), 100);
+            yFit = polyval(p, xFit);
+            plot(ax, xFit, yFit, 'Color', lineColor, 'LineWidth', 2, 'LineStyle', '--');
+            
+            % Вычисление корреляции
+            R = corrcoef(xData, yData);
+            if size(R, 1) == 2 && size(R, 2) == 2
+                corrCoeff = R(1, 2);
+                R2 = corrCoeff^2;
+            else
+                corrCoeff = NaN;
+                R2 = NaN;
+            end
+            
+            % Статистика регрессии для p-value
+            pValue = NaN;
+            if length(xData) >= 2
+                try
+                    [b, bint, r, rint, stats] = regress(yData, [ones(length(xData), 1), xData]);
+                    if length(stats) >= 3
+                        pValue = stats(3);
+                    end
+                catch
+                    % Игнорируем ошибки регрессии
+                end
+            end
+            
+            % Подписи осей
+            xlabel(ax, label1);
+            ylabel(ax, label2);
+            
+            % Заголовок с корреляцией
+            if ~isnan(corrCoeff) && ~isnan(pValue)
+                titleStr = sprintf('R=%.3f, R²=%.3f, p=%.4f, n=%d', corrCoeff, R2, pValue, length(xData));
+            else
+                titleStr = sprintf('n=%d', length(xData));
+            end
+            title(ax, titleStr, 'FontSize', 10);
+            
+            % Сетка
+            grid(ax, 'on');
+            
+            plotIdx = plotIdx + 1;
+        end
+        
+        % Если нечетное количество параметров, показываем последний отдельно
+        if mod(numParams, 2) == 1
+            param = paramsInFilter{end};
+            
+            if ~isempty(param.data)
+                % Вычисляем позицию subplot
+                subplotBottom = 1 - margin - plotIdx * subplotHeight - (plotIdx - 1) * spacing;
+                subplotPosition = [0.1, subplotBottom, 0.85, subplotHeight];
+                
+                ax = axes('Parent', plotPanel, 'Position', subplotPosition);
+                hold(ax, 'on');
+                
+                data = param.data;
+                validIndices = ~isnan(data) & ~isinf(data);
+                data = data(validIndices);
+                
+                if length(data) > 0
+                    label = param.label;
+                    if isempty(label)
+                        label = param.column;
+                    end
+                    
+                    % Простой scatter plot по индексам
+                    scatter(ax, 1:length(data), data, 50, param.parsedColor, 'o', ...
+                        'MarkerFaceColor', param.parsedColor, ...
+                        'MarkerEdgeColor', 'white', ...
+                        'LineWidth', 1, ...
+                        'MarkerFaceAlpha', 0.7);
+                    
+                    xlabel(ax, 'Index');
+                    ylabel(ax, label);
+                    title(ax, sprintf('Single parameter: n=%d', length(data)), 'FontSize', 10);
+                    grid(ax, 'on');
+                else
+                    delete(ax);
+                end
+                
+                plotIdx = plotIdx + 1;
+            end
+        end
+    end
+    
+    % Добавляем общий заголовок для первого subplot
+    allAxes = findobj(plotPanel, 'Type', 'axes');
+    if ~isempty(allAxes)
+        title(allAxes(1), state.title, 'FontSize', 14, 'FontWeight', 'bold');
+        zoom(fig, 'on');
+        pan(fig, 'on');
+    end
 end
 
 function createBoxplotFigure(fig, state)
