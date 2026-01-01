@@ -126,21 +126,26 @@ function createUI(fig)
     paramsTable = uitable('Parent', fig, ...
         'Position', [margin, 335, panelWidth - 2*margin, 120], ...
         'ColumnName', {'Group', 'Column', 'Filter', 'Label', 'Color', 'LineWidth'}, ...
-        'ColumnEditable', [true, false, true, true, true, true], ...
+        'ColumnEditable', [true, false, false, true, true, true], ...
         'ColumnWidth', {50, 100, 80, 80, 70, 70}, ...
         'Data', cell(0, 6), ...
         'Tag', 'paramsTable', ...
         'CellEditCallback', @(~,~) paramsTableEditCallback(fig), ...
         'CellSelectionCallback', @paramsTableSelectionCallback);
     
+    editFilterBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
+        'Position', [margin, 310, 180, 25], ...
+        'String', 'Edit Filter', ...
+        'Callback', @(~,~) editFilterCallback(fig));
+    
     uicontrol('Parent', fig, 'Style', 'text', ...
-        'Position', [margin, 300, 200, lineHeight], ...
-        'String', 'Column Data Preview', ...
-        'FontSize', 10, ...
+        'Position', [margin, 275, 200, lineHeight], ...
+        'String', 'Data Preview', ...
+        'FontSize', 11, 'FontWeight', 'bold', ...
         'HorizontalAlignment', 'left');
     
     dataTable = uitable('Parent', fig, ...
-        'Position', [margin, 215, panelWidth - 2*margin, 80], ...
+        'Position', [margin, 200, panelWidth - 2*margin, 80], ...
         'ColumnEditable', false, ...
         'Tag', 'dataTable', ...
         'Data', cell(0, 1), ...
@@ -612,11 +617,15 @@ function paramsTableSelectionCallback(src, event)
     state = get(fig, 'UserData');
     
     if isempty(event.Indices)
+        set(src, 'UserData', []);
         return
     end
     
     % Получаем все выделенные строки
     selectedRows = unique(event.Indices(:, 1));
+    
+    % Сохраняем выделение в UserData таблицы для использования в editFilterCallback
+    set(src, 'UserData', event.Indices);
     
     if isempty(selectedRows)
         return
@@ -836,6 +845,105 @@ function paramsTableEditCallback(fig)
     
     set(fig, 'UserData', state);
     updateFilteredDataStructure(fig);
+end
+
+function editFilterCallback(fig)
+    paramsTable = findobj(fig, 'Tag', 'paramsTable');
+    if isempty(paramsTable)
+        return
+    end
+    
+    state = get(fig, 'UserData');
+    if isempty(state.parameters)
+        msgbox('No parameters to edit', 'Warning', 'warn');
+        return
+    end
+    
+    selectedIndices = get(paramsTable, 'UserData');
+    if isempty(selectedIndices)
+        msgbox('Please select a row to edit filter', 'Warning', 'warn');
+        return
+    end
+    
+    selectedRows = unique(selectedIndices(:, 1));
+    if isempty(selectedRows) || selectedRows(1) < 1 || selectedRows(1) > length(state.parameters)
+        msgbox('Please select a valid row to edit filter', 'Warning', 'warn');
+        return
+    end
+    
+    selectedRow = selectedRows(1);
+    
+    currentFilter = '';
+    if selectedRow <= length(state.parameters) && isfield(state.parameters{selectedRow}, 'filter')
+        currentFilter = state.parameters{selectedRow}.filter;
+        if isempty(currentFilter)
+            currentFilter = '';
+        end
+    end
+    
+    createFilterEditDialog(fig, selectedRow, currentFilter);
+end
+
+function createFilterEditDialog(fig, rowIndex, currentFilter)
+    dialogWidth = 500;
+    dialogHeight = 300;
+    dialogFig = figure('Position', [100, 100, dialogWidth, dialogHeight], ...
+        'Name', 'Edit Filter', ...
+        'NumberTitle', 'off', ...
+        'MenuBar', 'none', ...
+        'Resize', 'off', ...
+        'WindowStyle', 'modal');
+    
+    margin = 10;
+    buttonHeight = 30;
+    buttonWidth = 80;
+    
+    filterEdit = uicontrol('Parent', dialogFig, 'Style', 'edit', ...
+        'Position', [margin, margin + buttonHeight + 10, dialogWidth - 2*margin, dialogHeight - 2*margin - buttonHeight - 20], ...
+        'String', currentFilter, ...
+        'Max', 10, ...
+        'HorizontalAlignment', 'left', ...
+        'Tag', 'filterEdit', ...
+        'FontName', 'Courier New');
+    
+    applyBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+        'Position', [dialogWidth - 2*margin - 2*buttonWidth - 10, margin, buttonWidth, buttonHeight], ...
+        'String', 'Apply', ...
+        'Callback', @(src,~) applyFilterEdit(src, fig, rowIndex));
+    
+    cancelBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+        'Position', [dialogWidth - margin - buttonWidth, margin, buttonWidth, buttonHeight], ...
+        'String', 'Cancel', ...
+        'Callback', @(src,~) cancelFilterEdit(src));
+    
+    uicontrol(filterEdit);
+end
+
+function applyFilterEdit(src, fig, rowIndex)
+    dialogFig = ancestor(src, 'figure');
+    filterEdit = findobj(dialogFig, 'Tag', 'filterEdit');
+    
+    if isempty(filterEdit)
+        close(dialogFig);
+        return
+    end
+    
+    newFilter = get(filterEdit, 'String');
+    
+    state = get(fig, 'UserData');
+    if rowIndex >= 1 && rowIndex <= length(state.parameters)
+        state.parameters{rowIndex}.filter = newFilter;
+        set(fig, 'UserData', state);
+        updateAnalysisColumnsDisplay(fig);
+        updateFilteredDataStructure(fig);
+    end
+    
+    close(dialogFig);
+end
+
+function cancelFilterEdit(src)
+    dialogFig = ancestor(src, 'figure');
+    close(dialogFig);
 end
 
 
