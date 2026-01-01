@@ -722,6 +722,7 @@ function paramsTableSelectionCallback(src, event)
     % Собираем данные для всех выделенных строк
     allColumnData = {};
     columnNames = {};
+    allParamData = {}; % Сохраняем paramData для статистики
     
     for rowIdx = selectedRows(:)'
         if rowIdx < 1 || rowIdx > length(state.parameters)
@@ -766,6 +767,7 @@ function paramsTableSelectionCallback(src, event)
         end
         
         allColumnData{end+1} = displayData;
+        allParamData{end+1} = paramData;
         
         % Формируем название колонки - используем Label
         if ~isempty(param.label)
@@ -780,23 +782,60 @@ function paramsTableSelectionCallback(src, event)
         return
     end
     
-    % Определяем максимальную длину
-    maxLength = 0;
+    % Определяем максимальную длину данных
+    maxDataLength = 0;
     for i = 1:length(allColumnData)
-        maxLength = max(maxLength, length(allColumnData{i}));
+        maxDataLength = max(maxDataLength, length(allColumnData{i}));
     end
     
-    % Создаем таблицу с выравниванием по максимальной длине
-    tableData = cell(maxLength, length(allColumnData));
+    % Количество строк статистики
+    numStatsRows = 8; % n, mean, median, std, Q25, Q75, min, max
+    statsLabels = {'n', 'mean', 'median', 'std', 'Q25', 'Q75', 'min', 'max'};
+    
+    % Создаем таблицу с данными и статистикой (статистика вверху)
+    tableData = cell(numStatsRows + maxDataLength, length(allColumnData));
+    
+    % Заполняем данные и статистику
     for col = 1:length(allColumnData)
         colData = allColumnData{col};
-        for row = 1:maxLength
-            if row <= length(colData)
-                tableData{row, col} = colData{row};
-            else
+        paramData = allParamData{col};
+        
+        % Сначала заполняем статистику вверху
+        if isfield(paramData, 'stats') && isnumeric(paramData.data)
+            stats = paramData.stats;
+            tableData{1, col} = stats.count;
+            tableData{2, col} = sprintf('%.4f', stats.mean);
+            tableData{3, col} = sprintf('%.4f', stats.median);
+            tableData{4, col} = sprintf('%.4f', stats.std);
+            tableData{5, col} = sprintf('%.4f', stats.q25);
+            tableData{6, col} = sprintf('%.4f', stats.q75);
+            tableData{7, col} = sprintf('%.4f', stats.min);
+            tableData{8, col} = sprintf('%.4f', stats.max);
+        else
+            % Если статистики нет или данные не числовые, заполняем пустыми строками
+            for row = 1:numStatsRows
                 tableData{row, col} = '';
             end
         end
+        
+        % Затем заполняем данные
+        for row = 1:maxDataLength
+            dataRow = numStatsRows + row;
+            if row <= length(colData)
+                tableData{dataRow, col} = colData{row};
+            else
+                tableData{dataRow, col} = '';
+            end
+        end
+    end
+    
+    % Формируем имена строк: лейблы статистики вверху, номера для данных
+    rowNames = cell(numStatsRows + maxDataLength, 1);
+    for i = 1:numStatsRows
+        rowNames{i} = statsLabels{i};
+    end
+    for row = 1:maxDataLength
+        rowNames{numStatsRows + row} = num2str(row);
     end
     
     % Update table
@@ -804,6 +843,7 @@ function paramsTableSelectionCallback(src, event)
     if ~isempty(dataTable)
         set(dataTable, 'Data', tableData);
         set(dataTable, 'ColumnName', columnNames);
+        set(dataTable, 'RowName', rowNames);
     end
 end
 
@@ -1492,6 +1532,8 @@ function updateFilteredDataStructure(fig)
             stats.median = median(filteredData);
             stats.q25 = prctile(filteredData, 25);
             stats.q75 = prctile(filteredData, 75);
+            stats.min = min(filteredData);
+            stats.max = max(filteredData);
             stats.count = length(filteredData);
         else
             stats.mean = NaN;
@@ -1499,6 +1541,8 @@ function updateFilteredDataStructure(fig)
             stats.median = NaN;
             stats.q25 = NaN;
             stats.q75 = NaN;
+            stats.min = NaN;
+            stats.max = NaN;
             stats.count = 0;
         end
         
@@ -2005,5 +2049,6 @@ function createBoxplotFigure(fig, state)
         pan(fig, 'on');
     end
 end
+
 
 
