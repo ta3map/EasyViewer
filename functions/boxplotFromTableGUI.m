@@ -76,25 +76,19 @@ function createUI(fig)
     buttonHeight = 35;
     
     % Загрузка данных
-
-    
-    loadBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
-        'Position', [margin, 610, 100, 30], ...
-        'String', 'Load File', ...
-        'Callback', @(~,~) loadFileCallback(fig));
+    loadActionPopup = uicontrol('Parent', fig, 'Style', 'popupmenu', ...
+        'Position', [margin, 610, 150, 30], ...
+        'String', {'Load File', 'Load State'}, ...
+        'Tag', 'loadActionPopup', ...
+        'Callback', @(~,~) loadActionCallback(fig));
     
     saveStateBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
-        'Position', [110, 610, 80, 30], ...
-        'String', 'Save', ...
+        'Position', [160, 610, 90, 30], ...
+        'String', 'Save State', ...
         'Callback', @(~,~) saveStateCallback(fig));
     
-    loadStateBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
-        'Position', [200, 610, 80, 30], ...
-        'String', 'Load', ...
-        'Callback', @(~,~) loadStateCallback(fig));
-    
     filePathText = uicontrol('Parent', fig, 'Style', 'text', ...
-        'Position', [290, 610, 110, 30], ...
+        'Position', [250, 610, 140, 30], ...
         'String', 'No file loaded', ...
         'HorizontalAlignment', 'left', ...
         'Tag', 'filePathText');
@@ -254,6 +248,23 @@ function loadFileCallback(fig)
     loadFileInGUI(fig, filePath);
 end
 
+function loadActionCallback(fig)
+    loadActionPopup = findobj(fig, 'Tag', 'loadActionPopup');
+    if isempty(loadActionPopup)
+        return
+    end
+    
+    selectedValue = get(loadActionPopup, 'Value');
+    
+    if selectedValue == 1
+        loadFileCallback(fig);
+    elseif selectedValue == 2
+        loadStateCallback(fig);
+    end
+    
+    set(loadActionPopup, 'Value', 1);
+end
+
 function saveStateCallback(fig)
     % Сохранение состояния в .meta файл
     state = get(fig, 'UserData');
@@ -322,14 +333,44 @@ function loadStateCallback(fig)
         % Восстанавливаем состояние через вызовы функций
         % 1. Загружаем данные
         if isfield(savedState, 'filePath') && ~isempty(savedState.filePath)
-            if exist(savedState.filePath, 'file')
-                loadFileInGUI(fig, savedState.filePath);
-            else
-                errorMsg = sprintf('Data file not found: %s', savedState.filePath);
-                fprintf('ERROR: %s\n', errorMsg);
-                msgbox(errorMsg, 'Error', 'error');
-                return
+            dataFilePath = savedState.filePath;
+            
+            if ~exist(dataFilePath, 'file')
+                [statePath, ~, ~] = fileparts(filePath);
+                
+                if isempty(statePath)
+                    statePath = pwd;
+                end
+                
+                originalPath = savedState.filePath;
+                originalPath = strrep(originalPath, '\', '/');
+                pathParts = strsplit(originalPath, '/');
+                if isempty(pathParts{end})
+                    pathParts = pathParts(1:end-1);
+                end
+                fileNameWithExt = pathParts{end};
+                
+                if ~isempty(fileNameWithExt)
+                    alternativePath = fullfile(statePath, fileNameWithExt);
+                    
+                    if exist(alternativePath, 'file')
+                        dataFilePath = alternativePath;
+                        fprintf('Data file found in state folder: %s\n', dataFilePath);
+                    else
+                        errorMsg = sprintf('Data file not found: %s\nAlso checked: %s', savedState.filePath, alternativePath);
+                        fprintf('ERROR: %s\n', errorMsg);
+                        msgbox(errorMsg, 'Error', 'error');
+                        return
+                    end
+                else
+                    errorMsg = sprintf('Data file not found: %s', savedState.filePath);
+                    fprintf('ERROR: %s\n', errorMsg);
+                    msgbox(errorMsg, 'Error', 'error');
+                    return
+                end
             end
+            
+            loadFileInGUI(fig, dataFilePath);
         else
             errorMsg = 'State file does not contain filePath';
             fprintf('ERROR: %s\n', errorMsg);
