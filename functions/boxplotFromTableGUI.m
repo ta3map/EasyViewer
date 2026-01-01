@@ -119,10 +119,12 @@ function createUI(fig)
         'String', 'Add to Analysis', ...
         'Callback', @(~,~) addColumnToAnalysis(fig));
     
-    clearAnalysisBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
+    analysisActionsPopup = uicontrol('Parent', fig, 'Style', 'popupmenu', ...
         'Position', [190, 480, 180, 25], ...
-        'String', 'Clear Analysis', ...
-        'Callback', @(~,~) clearAnalysisColumns(fig));
+        'String', {'Actions...', 'Clear All', 'Delete Selected', 'Move Up', 'Move Down'}, ...
+        'Tag', 'analysisActionsPopup', ...
+        'Value', 1, ...
+        'Callback', @(~,~) analysisActionsCallback(fig));
     
     % Настройка анализа
     uicontrol('Parent', fig, 'Style', 'text', ...
@@ -914,6 +916,30 @@ function addColumnToAnalysis(fig)
     updateFilteredDataStructure(fig);
 end
 
+function analysisActionsCallback(fig)
+    % Обработчик действий с таблицей анализа
+    analysisActionsPopup = findobj(fig, 'Tag', 'analysisActionsPopup');
+    if isempty(analysisActionsPopup)
+        return
+    end
+    
+    selectedValue = get(analysisActionsPopup, 'Value');
+    
+    % Возвращаем значение в исходное состояние
+    set(analysisActionsPopup, 'Value', 1);
+    
+    switch selectedValue
+        case 2  % Clear All
+            clearAnalysisColumns(fig);
+        case 3  % Delete Selected
+            deleteSelectedRow(fig);
+        case 4  % Move Up
+            moveRowUp(fig);
+        case 5  % Move Down
+            moveRowDown(fig);
+    end
+end
+
 function clearAnalysisColumns(fig)
     % Очистка поля анализа
     state = get(fig, 'UserData');
@@ -923,6 +949,136 @@ function clearAnalysisColumns(fig)
     set(fig, 'UserData', state);
     updateAnalysisColumnsDisplay(fig);
     updateFilteredDataStructure(fig);
+end
+
+function deleteSelectedRow(fig)
+    % Удаление выделенной строки из таблицы анализа
+    state = get(fig, 'UserData');
+    paramsTable = findobj(fig, 'Tag', 'paramsTable');
+    
+    if isempty(paramsTable) || isempty(state.parameters)
+        return
+    end
+    
+    % Получаем выделенные строки
+    tableData = get(paramsTable, 'Data');
+    if isempty(tableData)
+        return
+    end
+    
+    % Получаем выделение из UserData таблицы
+    selectedIndices = get(paramsTable, 'UserData');
+    if isempty(selectedIndices)
+        return
+    end
+    
+    selectedRows = unique(selectedIndices(:, 1));
+    if isempty(selectedRows)
+        return
+    end
+    
+    % Удаляем выделенные строки (в обратном порядке, чтобы индексы не сдвигались)
+    selectedRows = sort(selectedRows, 'descend');
+    for i = 1:length(selectedRows)
+        rowIdx = selectedRows(i);
+        if rowIdx >= 1 && rowIdx <= length(state.parameters)
+            state.parameters(rowIdx) = [];
+        end
+    end
+    
+    set(fig, 'UserData', state);
+    updateAnalysisColumnsDisplay(fig);
+    updateFilteredDataStructure(fig);
+end
+
+function moveRowUp(fig)
+    % Перемещение выделенной строки вверх
+    state = get(fig, 'UserData');
+    paramsTable = findobj(fig, 'Tag', 'paramsTable');
+    
+    if isempty(paramsTable) || isempty(state.parameters) || length(state.parameters) < 2
+        return
+    end
+    
+    % Получаем выделенные строки
+    selectedIndices = get(paramsTable, 'UserData');
+    if isempty(selectedIndices)
+        return
+    end
+    
+    selectedRows = unique(selectedIndices(:, 1));
+    if isempty(selectedRows) || any(selectedRows == 1)
+        % Нельзя переместить первую строку вверх
+        return
+    end
+    
+    % Сортируем по возрастанию и перемещаем вверх
+    selectedRows = sort(selectedRows, 'ascend');
+    for i = 1:length(selectedRows)
+        rowIdx = selectedRows(i);
+        if rowIdx > 1 && rowIdx <= length(state.parameters)
+            % Меняем местами с предыдущей строкой
+            temp = state.parameters{rowIdx};
+            state.parameters{rowIdx} = state.parameters{rowIdx - 1};
+            state.parameters{rowIdx - 1} = temp;
+        end
+    end
+    
+    set(fig, 'UserData', state);
+    updateAnalysisColumnsDisplay(fig);
+    updateFilteredDataStructure(fig);
+    
+    % Восстанавливаем выделение (смещаем на одну позицию вверх)
+    newSelectedRows = selectedRows - 1;
+    if ~isempty(newSelectedRows)
+        newIndices = [newSelectedRows(:), ones(length(newSelectedRows), 1)];
+        set(paramsTable, 'UserData', newIndices);
+    end
+end
+
+function moveRowDown(fig)
+    % Перемещение выделенной строки вниз
+    state = get(fig, 'UserData');
+    paramsTable = findobj(fig, 'Tag', 'paramsTable');
+    
+    if isempty(paramsTable) || isempty(state.parameters) || length(state.parameters) < 2
+        return
+    end
+    
+    % Получаем выделенные строки
+    selectedIndices = get(paramsTable, 'UserData');
+    if isempty(selectedIndices)
+        return
+    end
+    
+    selectedRows = unique(selectedIndices(:, 1));
+    if isempty(selectedRows) || any(selectedRows == length(state.parameters))
+        % Нельзя переместить последнюю строку вниз
+        return
+    end
+    
+    % Сортируем по убыванию и перемещаем вниз
+    selectedRows = sort(selectedRows, 'descend');
+    for i = 1:length(selectedRows)
+        rowIdx = selectedRows(i);
+        if rowIdx >= 1 && rowIdx < length(state.parameters)
+            % Меняем местами со следующей строкой
+            temp = state.parameters{rowIdx};
+            state.parameters{rowIdx} = state.parameters{rowIdx + 1};
+            state.parameters{rowIdx + 1} = temp;
+        end
+    end
+    
+    set(fig, 'UserData', state);
+    updateAnalysisColumnsDisplay(fig);
+    updateFilteredDataStructure(fig);
+    
+    % Восстанавливаем выделение (смещаем на одну позицию вниз)
+    newSelectedRows = selectedRows + 1;
+    if ~isempty(newSelectedRows)
+        newIndices = [newSelectedRows(:), ones(length(newSelectedRows), 1)];
+        set(paramsTable, 'UserData', newIndices);
+    end
 end
 
 function updateAnalysisColumnsDisplay(fig)
