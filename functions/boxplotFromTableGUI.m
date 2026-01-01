@@ -6,6 +6,10 @@ function boxplotFromTableGUI(filePath)
     % Optional input:
     %   filePath - path to MAT file (with flatTable) or Excel file to load automatically
     
+    % Загружаем глобальные настройки
+    loadGlobalSettings();
+    global SettingsFilepath
+    
     if nargin < 1
         filePath = '';
     end
@@ -58,7 +62,10 @@ function boxplotFromTableGUI(filePath)
     % Загрузка координат если есть
     loadCoords(fig);
     
-    % Если передан путь к файлу, загружаем его автоматически
+    % Загрузка состояния из глобальных настроек
+    loadBoxplotStateFromGlobalSettings(fig);
+    
+    % Если передан путь к файлу, загружаем его автоматически (имеет приоритет)
     if ~isempty(filePath)
         loadFileInGUI(fig, filePath);
     end
@@ -240,17 +247,40 @@ function createUI(fig)
 end
 
 function loadFileCallback(fig)
-    [file, path] = uigetfile({'*.mat;*.xlsx;*.xls', 'Data Files (*.mat, *.xlsx, *.xls)'; ...
-                              '*.mat', 'MAT Files (*.mat)'; ...
-                              '*.xlsx;*.xls', 'Excel Files (*.xlsx, *.xls)'}, ...
-                             'Select Data File');
+    % Получаем начальную папку из глобальных настроек
+    initialPath = getBoxplotInitialPath();
     
-    if isequal(file, 0)
-        return
+    % Сохраняем текущую директорию
+    oldDir = pwd;
+    
+    try
+        % Переходим в папку из настроек
+        if exist(initialPath, 'dir')
+            cd(initialPath);
+        end
+        
+        [file, path] = uigetfile({'*.mat;*.xlsx;*.xls', 'Data Files (*.mat, *.xlsx, *.xls)'; ...
+                                  '*.mat', 'MAT Files (*.mat)'; ...
+                                  '*.xlsx;*.xls', 'Excel Files (*.xlsx, *.xls)'}, ...
+                                 'Select Data File');
+        
+        % Возвращаемся в исходную директорию
+        cd(oldDir);
+        
+        if isequal(file, 0)
+            return
+        end
+        
+        filePath = fullfile(path, file);
+        loadFileInGUI(fig, filePath);
+    catch ME
+        % В случае ошибки возвращаемся в исходную директорию
+        try
+            cd(oldDir);
+        catch
+        end
+        rethrow(ME);
     end
-    
-    filePath = fullfile(path, file);
-    loadFileInGUI(fig, filePath);
 end
 
 function loadActionCallback(fig)
@@ -281,13 +311,36 @@ function saveStateCallback(fig)
         return
     end
     
-    [file, path] = uiputfile('*.meta', 'Save State', 'boxplot_state.meta');
+    % Получаем начальную папку из глобальных настроек
+    initialPath = getBoxplotInitialPath();
     
-    if isequal(file, 0)
-        return
+    % Сохраняем текущую директорию
+    oldDir = pwd;
+    
+    try
+        % Переходим в папку из настроек
+        if exist(initialPath, 'dir')
+            cd(initialPath);
+        end
+        
+        [file, path] = uiputfile('*.meta', 'Save State', 'boxplot_state.meta');
+        
+        % Возвращаемся в исходную директорию
+        cd(oldDir);
+        
+        if isequal(file, 0)
+            return
+        end
+        
+        filePath = fullfile(path, file);
+    catch ME
+        % В случае ошибки возвращаемся в исходную директорию
+        try
+            cd(oldDir);
+        catch
+        end
+        rethrow(ME);
     end
-    
-    filePath = fullfile(path, file);
     
     try
         % Сохраняем только необходимые поля для восстановления
@@ -306,6 +359,9 @@ function saveStateCallback(fig)
         
         save(filePath, 'savedState', '-mat');
         fprintf('State saved to: %s\n', filePath);
+        
+        % Сохраняем также в глобальные настройки
+        saveBoxplotStateToGlobalSettings(fig);
     catch ME
         errorMsg = sprintf('Ошибка при сохранении: %s', ME.message);
         fprintf('ERROR: %s\n', errorMsg);
@@ -315,13 +371,36 @@ end
 
 function loadStateCallback(fig)
     % Загрузка состояния из .meta файла
-    [file, path] = uigetfile('*.meta', 'Load State');
+    % Получаем начальную папку из глобальных настроек
+    initialPath = getBoxplotInitialPath();
     
-    if isequal(file, 0)
-        return
+    % Сохраняем текущую директорию
+    oldDir = pwd;
+    
+    try
+        % Переходим в папку из настроек
+        if exist(initialPath, 'dir')
+            cd(initialPath);
+        end
+        
+        [file, path] = uigetfile('*.meta', 'Load State');
+        
+        % Возвращаемся в исходную директорию
+        cd(oldDir);
+        
+        if isequal(file, 0)
+            return
+        end
+        
+        filePath = fullfile(path, file);
+    catch ME
+        % В случае ошибки возвращаемся в исходную директорию
+        try
+            cd(oldDir);
+        catch
+        end
+        rethrow(ME);
     end
-    
-    filePath = fullfile(path, file);
     
     try
         data = load(filePath, '-mat');
@@ -474,6 +553,9 @@ function loadStateCallback(fig)
         
         % 4. Обновляем структуру filteredData
         updateFilteredDataStructure(fig);
+        
+        % 5. Синхронизируем с глобальными настройками
+        saveBoxplotStateToGlobalSettings(fig);
         
         fprintf('State loaded from: %s\n', filePath);
     catch ME
@@ -986,8 +1068,43 @@ function plotBoxplotCallback(fig)
         
         set(fig, 'UserData', state);
         
-        % Построение графика
-        createBoxplotFigure(fig, state);
+        % Создаем прогресс-бар
+        figPos = get(fig, 'Position');
+        wb = waitbar(0, 'Initializing...', ...
+            'Name', 'Boxplot Generation', ...
+            'WindowStyle', 'modal');
+        wbPos = get(wb, 'Position');
+        % Центрируем относительно главного окна
+        set(wb, 'Position', [figPos(1) + figPos(3)/2 - wbPos(3)/2, ...
+                             figPos(2) + figPos(4)/2 - wbPos(4)/2, ...
+                             wbPos(3), wbPos(4)]);
+        
+        try
+            % Этап 1/3: Сохранение состояния
+            waitbar(1/3, wb, 'Saving state...');
+            saveBoxplotStateToGlobalSettings(fig);
+            
+            % Этап 2/3: Подготовка данных
+            waitbar(2/3, wb, 'Preparing data...');
+            updateFilteredDataStructure(fig);
+            
+            % Этап 3/3: Построение графика
+            waitbar(3/3, wb, 'Creating plot...');
+            state = get(fig, 'UserData');
+            createBoxplotFigure(fig, state);
+            
+            % Закрываем прогресс-бар
+            close(wb);
+        catch ME
+            % Закрываем прогресс-бар при ошибке
+            if exist('wb', 'var') && isvalid(wb)
+                close(wb);
+            end
+            errorMsg = sprintf('Ошибка при построении графика: %s', ME.message);
+            fprintf('ERROR: %s\n', errorMsg);
+            msgbox(errorMsg, 'Error', 'error');
+            debugState('boxplotFromTableGUI', 'Error: %s', ME.message);
+        end
         
     catch ME
         errorMsg = sprintf('Ошибка при построении графика: %s', ME.message);
@@ -1105,6 +1222,190 @@ function loadCoords(fig)
             % Игнорируем ошибки загрузки координат
         end
     end
+end
+
+function initialPath = getBoxplotInitialPath()
+    % Получает начальную папку из глобальных настроек boxplot_state.filePath
+    global SettingsFilepath
+    initialPath = pwd;
+    
+    if exist(SettingsFilepath, 'file')
+        try
+            data = load(SettingsFilepath);
+            if isfield(data, 'boxplot_state') && isfield(data.boxplot_state, 'filePath')
+                savedFilePath = data.boxplot_state.filePath;
+                if ~isempty(savedFilePath) && exist(savedFilePath, 'file')
+                    [initialPath, ~, ~] = fileparts(savedFilePath);
+                end
+            end
+        catch
+            % Игнорируем ошибки загрузки настроек
+        end
+    end
+end
+
+function saveBoxplotStateToGlobalSettings(fig)
+    global SettingsFilepath
+    state = get(fig, 'UserData');
+    
+    % Создаем структуру для сохранения (исключаем большие данные)
+    boxplot_state = struct();
+    boxplot_state.filePath = state.filePath;
+    boxplot_state.parameters = state.parameters;
+    boxplot_state.nextGroupNumber = state.nextGroupNumber;
+    boxplot_state.showStatistics = state.showStatistics;
+    boxplot_state.showAllPvalues = state.showAllPvalues;
+    boxplot_state.showFileIds = state.showFileIds;
+    boxplot_state.showYValues = state.showYValues;
+    boxplot_state.yAxisRange = state.yAxisRange;
+    boxplot_state.yAxisMin = state.yAxisMin;
+    boxplot_state.yAxisMax = state.yAxisMax;
+    boxplot_state.title = state.title;
+    
+    % Сохраняем в глобальные настройки
+    try
+        if exist(SettingsFilepath, 'file')
+            save(SettingsFilepath, 'boxplot_state', '-append');
+        else
+            save(SettingsFilepath, 'boxplot_state');
+        end
+    catch ME
+        warning('Failed to save boxplot state to global settings: %s', ME.message);
+    end
+end
+
+function loadBoxplotStateFromGlobalSettings(fig)
+    global SettingsFilepath auto_open_last_file
+    state = get(fig, 'UserData');
+    
+    % Проверяем, включено ли автоматическое открытие файлов
+    if ~exist('auto_open_last_file', 'var') || ~auto_open_last_file
+        return
+    end
+    
+    if ~exist(SettingsFilepath, 'file')
+        return
+    end
+    
+    try
+        data = load(SettingsFilepath);
+        
+        if ~isfield(data, 'boxplot_state')
+            return
+        end
+        
+        savedState = data.boxplot_state;
+        
+        % Сохраняем параметры перед загрузкой файла (loadFileInGUI очищает их)
+        savedParameters = {};
+        savedNextGroupNumber = 1;
+        if isfield(savedState, 'parameters')
+            savedParameters = savedState.parameters;
+        end
+        if isfield(savedState, 'nextGroupNumber')
+            savedNextGroupNumber = savedState.nextGroupNumber;
+        end
+        
+        % 1. Сначала загружаем файл если есть
+        if isfield(savedState, 'filePath') && ...
+           ~isempty(savedState.filePath) && ...
+           exist(savedState.filePath, 'file')
+            loadFileInGUI(fig, savedState.filePath);
+        end
+        
+        % 2. Восстанавливаем параметры и настройки после загрузки файла
+        state = get(fig, 'UserData');
+        state.parameters = savedParameters;
+        state.nextGroupNumber = savedNextGroupNumber;
+        
+        if isfield(savedState, 'showStatistics')
+            state.showStatistics = savedState.showStatistics;
+        end
+        if isfield(savedState, 'showAllPvalues')
+            state.showAllPvalues = savedState.showAllPvalues;
+        end
+        if isfield(savedState, 'showFileIds')
+            state.showFileIds = savedState.showFileIds;
+        end
+        if isfield(savedState, 'showYValues')
+            state.showYValues = savedState.showYValues;
+        end
+        if isfield(savedState, 'yAxisRange')
+            state.yAxisRange = savedState.yAxisRange;
+        end
+        if isfield(savedState, 'yAxisMin')
+            state.yAxisMin = savedState.yAxisMin;
+        end
+        if isfield(savedState, 'yAxisMax')
+            state.yAxisMax = savedState.yAxisMax;
+        end
+        if isfield(savedState, 'title')
+            state.title = savedState.title;
+        end
+        
+        set(fig, 'UserData', state);
+        
+        % 3. Обновляем UI
+        updateAnalysisColumnsDisplay(fig);
+        updateUIFromState(fig);
+        
+        % 4. Обновляем структуру filteredData
+        updateFilteredDataStructure(fig);
+    catch ME
+        warning('Failed to load boxplot state from global settings: %s', ME.message);
+    end
+end
+
+function updateUIFromState(fig)
+    state = get(fig, 'UserData');
+    
+    % Обновляем чекбоксы и поля
+    showStatsCheck = findobj(fig, 'Tag', 'showStatsCheck');
+    if ~isempty(showStatsCheck)
+        set(showStatsCheck, 'Value', state.showStatistics);
+    end
+    
+    showAllPvaluesCheck = findobj(fig, 'Tag', 'showAllPvaluesCheck');
+    if ~isempty(showAllPvaluesCheck)
+        set(showAllPvaluesCheck, 'Value', state.showAllPvalues);
+    end
+    
+    showFileIdsCheck = findobj(fig, 'Tag', 'showFileIdsCheck');
+    if ~isempty(showFileIdsCheck)
+        set(showFileIdsCheck, 'Value', state.showFileIds);
+    end
+    
+    showYValuesCheck = findobj(fig, 'Tag', 'showYValuesCheck');
+    if ~isempty(showYValuesCheck)
+        set(showYValuesCheck, 'Value', state.showYValues);
+    end
+    
+    yAxisPopup = findobj(fig, 'Tag', 'yAxisPopup');
+    if ~isempty(yAxisPopup)
+        if strcmp(state.yAxisRange, 'auto')
+            set(yAxisPopup, 'Value', 1);
+        else
+            set(yAxisPopup, 'Value', 2);
+        end
+    end
+    
+    yAxisMinEdit = findobj(fig, 'Tag', 'yAxisMinEdit');
+    if ~isempty(yAxisMinEdit) && ~isempty(state.yAxisMin)
+        set(yAxisMinEdit, 'String', num2str(state.yAxisMin));
+    end
+    
+    yAxisMaxEdit = findobj(fig, 'Tag', 'yAxisMaxEdit');
+    if ~isempty(yAxisMaxEdit) && ~isempty(state.yAxisMax)
+        set(yAxisMaxEdit, 'String', num2str(state.yAxisMax));
+    end
+    
+    titleEdit = findobj(fig, 'Tag', 'titleEdit');
+    if ~isempty(titleEdit) && ~isempty(state.title)
+        set(titleEdit, 'String', state.title);
+    end
+    
+    updateYAxisControls(fig);
+    updateAnalysisColumnsDisplay(fig);
 end
 
 % ============================================================================
