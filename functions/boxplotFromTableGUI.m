@@ -51,7 +51,7 @@ function boxplotFromTableGUI(filePath)
     state.yAxisRange = 'auto';
     state.yAxisMin = [];
     state.yAxisMax = [];
-    state.title = 'Boxplot Comparison';
+    state.title = ' ';
     state.filteredData = struct(); % Структура с отфильтрованными данными для каждого параметра
     state.plotMode = 'BoxPlot'; % Режим визуализации: 'BoxPlot' или 'Correlation'
     
@@ -115,12 +115,12 @@ function createUI(fig)
         'Callback', @(~,~) columnSelectedCallback(fig));
     
     addToAnalysisBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
-        'Position', [margin, 500, 180, 25], ...
+        'Position', [margin, 480, 180, 25], ...
         'String', 'Add to Analysis', ...
         'Callback', @(~,~) addColumnToAnalysis(fig));
     
     clearAnalysisBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
-        'Position', [190, 500, 180, 25], ...
+        'Position', [190, 480, 180, 25], ...
         'String', 'Clear Analysis', ...
         'Callback', @(~,~) clearAnalysisColumns(fig));
     
@@ -225,7 +225,7 @@ function createUI(fig)
     
     titleEdit = uicontrol('Parent', fig, 'Style', 'edit', ...
         'Position', [110, 50, 280, 25], ...
-        'String', 'Boxplot Comparison', ...
+        'String', ' ', ...
         'Tag', 'titleEdit');
     
     % Режим визуализации (выпадающий список на месте кнопки Plot)
@@ -1585,16 +1585,29 @@ function updateFilteredDataStructure(fig)
         end
         
         % Рассчитываем статистику для отфильтрованных данных
+        % Дополнительно фильтруем NaN и Inf перед расчетом статистики
         stats = struct();
         if ~isempty(filteredData)
-            stats.mean = mean(filteredData);
-            stats.std = std(filteredData);
-            stats.median = median(filteredData);
-            stats.q25 = prctile(filteredData, 25);
-            stats.q75 = prctile(filteredData, 75);
-            stats.min = min(filteredData);
-            stats.max = max(filteredData);
-            stats.count = length(filteredData);
+            validData = filteredData(~isnan(filteredData) & ~isinf(filteredData));
+            if ~isempty(validData)
+                stats.mean = mean(validData);
+                stats.std = std(validData);
+                stats.median = median(validData);
+                stats.q25 = prctile(validData, 25);
+                stats.q75 = prctile(validData, 75);
+                stats.min = min(validData);
+                stats.max = max(validData);
+                stats.count = length(validData);
+            else
+                stats.mean = NaN;
+                stats.std = NaN;
+                stats.median = NaN;
+                stats.q25 = NaN;
+                stats.q75 = NaN;
+                stats.min = NaN;
+                stats.max = NaN;
+                stats.count = 0;
+            end
         else
             stats.mean = NaN;
             stats.std = NaN;
@@ -1752,19 +1765,49 @@ function createCorrelationFigure(fig, state)
             ax = axes('Parent', plotPanel, 'Position', subplotPosition);
             hold(ax, 'on');
             
-            % Получаем данные
-            xData = param1.data;
-            yData = param2.data;
+            % Получаем данные из исходной таблицы с одинаковым фильтром
+            % Если фильтр одинаковый, данные должны быть синхронизированы по строкам
+            filterStr = param1.filter;
+            if isempty(filterStr)
+                filterStr = '';
+            end
             
-            % Синхронизируем размеры данных (берем минимум)
-            minLength = min(length(xData), length(yData));
-            xData = xData(1:minLength);
-            yData = yData(1:minLength);
+            % Применяем фильтр к исходной таблице один раз
+            if ~isempty(filterStr)
+                parsedFilters = boxplotParseGroupFilters(filterStr);
+                if ~isempty(parsedFilters)
+                    filteredTable = boxplotApplyGroupFilters(state.table, parsedFilters);
+                else
+                    filteredTable = state.table;
+                end
+            else
+                filteredTable = state.table;
+            end
             
-            % Удаляем NaN и Inf
+            if isempty(filteredTable) || ...
+               ~ismember(param1.column, filteredTable.Properties.VariableNames) || ...
+               ~ismember(param2.column, filteredTable.Properties.VariableNames)
+                delete(ax);
+                continue
+            end
+            
+            % Получаем данные из отфильтрованной таблицы
+            xData = filteredTable{:, param1.column};
+            yData = filteredTable{:, param2.column};
+            
+            % Получаем FileID если доступен
+            fileIds = [];
+            if ismember('FileID', filteredTable.Properties.VariableNames)
+                fileIds = filteredTable{:, 'FileID'};
+            end
+            
+            % Удаляем только строки, где хотя бы одно значение NaN или Inf
             validIndices = ~isnan(xData) & ~isnan(yData) & ~isinf(xData) & ~isinf(yData);
             xData = xData(validIndices);
             yData = yData(validIndices);
+            if ~isempty(fileIds)
+                fileIds = fileIds(validIndices);
+            end
             
             if length(xData) < 2
                 delete(ax);
@@ -1793,6 +1836,60 @@ function createCorrelationFigure(fig, state)
                 'MarkerEdgeColor', 'white', ...
                 'LineWidth', 1, ...
                 'MarkerFaceAlpha', 0.7);
+            
+            % Отображение File ID рядом с точками (если включено)
+            if state.showFileIds && ~isempty(fileIds)
+                xRange = max(xData) - min(xData);
+                yRange = max(yData) - min(yData);
+                if xRange == 0
+                    xRange = abs(max(xData)) * 0.01;
+                    if xRange == 0
+                        xRange = 1;
+                    end
+                end
+                if yRange == 0
+                    yRange = abs(max(yData)) * 0.01;
+                    if yRange == 0
+                        yRange = 1;
+                    end
+                end
+                for i = 1:length(xData)
+                    if ~isnan(fileIds(i))
+                        text(ax, xData(i) - 0.01 * xRange, yData(i) + 0.01 * yRange, num2str(fileIds(i)), ...
+                            'HorizontalAlignment', 'right', ...
+                            'VerticalAlignment', 'bottom', ...
+                            'FontSize', 7, ...
+                            'Color', [1 1 1], ...
+                            'BackgroundColor', [0 0 0]);
+                    end
+                end
+            end
+            
+            % Отображение значений Y рядом с точками (если включено)
+            if state.showYValues
+                xRange = max(xData) - min(xData);
+                yRange = max(yData) - min(yData);
+                if xRange == 0
+                    xRange = abs(max(xData)) * 0.01;
+                    if xRange == 0
+                        xRange = 1;
+                    end
+                end
+                if yRange == 0
+                    yRange = abs(max(yData)) * 0.01;
+                    if yRange == 0
+                        yRange = 1;
+                    end
+                end
+                for i = 1:length(xData)
+                    text(ax, xData(i) + 0.01 * xRange, yData(i) + 0.01 * yRange, sprintf('(%.3f,%.3f)', xData(i), yData(i)), ...
+                        'HorizontalAlignment', 'left', ...
+                        'VerticalAlignment', 'bottom', ...
+                        'FontSize', 7, ...
+                        'Color', [0 0 0], ...
+                        'BackgroundColor', [1 1 1]);
+                end
+            end
             
             % Линия регрессии
             p = polyfit(xData, yData, 1);
@@ -1827,13 +1924,58 @@ function createCorrelationFigure(fig, state)
             xlabel(ax, label1);
             ylabel(ax, label2);
             
-            % Заголовок с корреляцией
-            if ~isnan(corrCoeff) && ~isnan(pValue)
-                titleStr = sprintf('R=%.3f, R²=%.3f, p=%.4f, n=%d', corrCoeff, R2, pValue, length(xData));
-            else
-                titleStr = sprintf('n=%d', length(xData));
+            % Заголовок
+            title(ax, sprintf('%s vs %s', label1, label2), 'FontSize', 10);
+            
+            % Настройка диапазона Y-оси
+            if strcmp(state.yAxisRange, 'manual') && ~isempty(state.yAxisMin) && ~isempty(state.yAxisMax)
+                ylim(ax, [state.yAxisMin, state.yAxisMax]);
+            elseif strcmp(state.yAxisRange, 'auto')
+                % Автоматический расчет пределов по процентилям 0.001 и 99.99
+                if ~isempty(yData)
+                    yMin = prctile(yData, 0.001);
+                    yMax = prctile(yData, 99.99);
+                    % Если все значения одинаковые, добавляем небольшой отступ
+                    if yMin == yMax
+                        if yMin == 0
+                            yMin = -0.1;
+                            yMax = 0.1;
+                        else
+                            offset = abs(yMin) * 0.01;
+                            yMin = yMin - offset;
+                            yMax = yMax + offset;
+                        end
+                    end
+                    ylim(ax, [yMin, yMax]);
+                end
             end
-            title(ax, titleStr, 'FontSize', 10);
+            
+            % Отображение статистики рядом с линией регрессии (после установки пределов Y)
+            if state.showStatistics && ~isnan(R2) && ~isnan(pValue)
+                % Позиция текста - в правом верхнем углу графика (используем текущие пределы)
+                xLim = xlim(ax);
+                yLim = ylim(ax);
+                xPos = xLim(2) - 0.05 * (xLim(2) - xLim(1));
+                yPos = yLim(2) - 0.05 * (yLim(2) - yLim(1));
+                
+                if state.showAllPvalues
+                    statsText = sprintf('R²=%.3f, p=%.4f, n=%d', R2, pValue, length(xData));
+                else
+                    if pValue < 0.05
+                        statsText = sprintf('R²=%.3f, p=%.4f*, n=%d', R2, pValue, length(xData));
+                    else
+                        statsText = sprintf('R²=%.3f, n=%d', R2, length(xData));
+                    end
+                end
+                
+                text(ax, xPos, yPos, statsText, ...
+                    'HorizontalAlignment', 'right', ...
+                    'VerticalAlignment', 'top', ...
+                    'FontSize', 9, ...
+                    'BackgroundColor', 'white', ...
+                    'EdgeColor', lineColor, ...
+                    'LineWidth', 1);
+            end
             
             % Сетка
             grid(ax, 'on');
