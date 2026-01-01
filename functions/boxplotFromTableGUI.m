@@ -767,10 +767,11 @@ function paramsTableSelectionCallback(src, event)
         
         allColumnData{end+1} = displayData;
         
-        % Формируем название колонки
-        columnDisplayName = param.column;
-        if isfield(param, 'filter') && ~isempty(param.filter)
-            columnDisplayName = sprintf('%s [filter: %s]', columnDisplayName, param.filter);
+        % Формируем название колонки - используем Label
+        if ~isempty(param.label)
+            columnDisplayName = param.label;
+        else
+            columnDisplayName = param.column;
         end
         columnNames{end+1} = columnDisplayName;
     end
@@ -1637,8 +1638,8 @@ function createBoxplotFigure(fig, state)
         allDataForGroup = [];
         groupLabelsForBoxplot = {};
         fileIdsForGroup = []; % Массив File ID, параллельный allDataForGroup
-        displayLabelToParamData = containers.Map(); % Map для быстрого доступа к paramData по displayLabel
-        paramDataMap = containers.Map(); % Для статистики - объединенные данные каждого параметра (по fieldName для уникальности)
+        paramDataByFieldName = containers.Map(); % Map для доступа к paramData по fieldName
+        displayLabelToFieldName = containers.Map(); % Map для связи displayLabel -> fieldName
         
         for p = 1:length(paramsInGroup)
             paramData = paramsInGroup{p};
@@ -1674,13 +1675,13 @@ function createBoxplotFigure(fig, state)
                     fileIdsForGroup = [fileIdsForGroup; NaN(length(data), 1)];
                 end
                 
-                % Сохраняем paramData для быстрого доступа по displayLabel
-                if ~isKey(displayLabelToParamData, displayLabel)
-                    displayLabelToParamData(displayLabel) = paramData;
-                end
+                % Сохраняем paramData по fieldName
+                paramDataByFieldName(paramData.fieldName) = paramData;
                 
-                % Сохраняем для статистики (используем fieldName для уникальности)
-                paramDataMap(paramData.fieldName) = data;
+                % Сохраняем связь displayLabel -> fieldName (берем первый fieldName для каждого displayLabel)
+                if ~isKey(displayLabelToFieldName, displayLabel)
+                    displayLabelToFieldName(displayLabel) = paramData.fieldName;
+                end
             end
         end
         
@@ -1691,6 +1692,25 @@ function createBoxplotFigure(fig, state)
             
             % Применение цветов к боксплотам
             uniqueDisplayLabels = unique(groupLabelsForBoxplot, 'stable');
+            
+            % Создаем Map fieldNameToPosition по порядку displayLabel
+            fieldNameToPosition = containers.Map();
+            for g = 1:length(uniqueDisplayLabels)
+                displayLabel = uniqueDisplayLabels{g};
+                % Находим все fieldName с этим displayLabel
+                fieldNames = keys(paramDataByFieldName);
+                for f = 1:length(fieldNames)
+                    fieldName = fieldNames{f};
+                    paramData = paramDataByFieldName(fieldName);
+                    paramDisplayLabel = paramData.label;
+                    if isempty(paramDisplayLabel)
+                        paramDisplayLabel = paramData.column;
+                    end
+                    if strcmp(paramDisplayLabel, displayLabel)
+                        fieldNameToPosition(fieldName) = g;
+                    end
+                end
+            end
             
             % Находим все patch объекты (боксы)
             allChildren = get(ax, 'Children');
@@ -1729,10 +1749,13 @@ function createBoxplotFigure(fig, state)
                 % Получаем paramData из Map
                 color = [0.5 0.5 0.5]; % серый по умолчанию
                 paramLineWidth = 1; % по умолчанию
-                if isKey(displayLabelToParamData, displayLabel)
-                    paramDataForLabel = displayLabelToParamData(displayLabel);
-                    color = paramDataForLabel.parsedColor;
-                    paramLineWidth = paramDataForLabel.lineWidth;
+                if isKey(displayLabelToFieldName, displayLabel)
+                    fieldName = displayLabelToFieldName(displayLabel);
+                    if isKey(paramDataByFieldName, fieldName)
+                        paramDataForLabel = paramDataByFieldName(fieldName);
+                        color = paramDataForLabel.parsedColor;
+                        paramLineWidth = paramDataForLabel.lineWidth;
+                    end
                 end
                 
                 % Применяем цвет к боксу (patch) - по порядку после сортировки
@@ -1776,10 +1799,13 @@ function createBoxplotFigure(fig, state)
                     color = [0 0 0]; % черный по умолчанию
                     paramLineWidth = 1; % по умолчанию
                     paramDataForLabel = [];
-                    if isKey(displayLabelToParamData, displayLabel)
-                        paramDataForLabel = displayLabelToParamData(displayLabel);
-                        color = paramDataForLabel.parsedColor;
-                        paramLineWidth = paramDataForLabel.lineWidth;
+                    if isKey(displayLabelToFieldName, displayLabel)
+                        fieldName = displayLabelToFieldName(displayLabel);
+                        if isKey(paramDataByFieldName, fieldName)
+                            paramDataForLabel = paramDataByFieldName(fieldName);
+                            color = paramDataForLabel.parsedColor;
+                            paramLineWidth = paramDataForLabel.lineWidth;
+                        end
                     end
                     
                     % Размер маркера = lineWidth * 30
@@ -1847,17 +1873,17 @@ function createBoxplotFigure(fig, state)
             end
             
             % Вычисляем статистические тесты между параметрами на этом полотне
-            if state.showStatistics && length(paramDataMap) >= 2
+            if state.showStatistics && length(paramDataByFieldName) >= 2
                 % Выполняем попарные тесты между параметрами
-                paramKeys = keys(paramDataMap);
+                paramKeys = keys(paramDataByFieldName);
                 testResultsForGroup = struct();
                 for i = 1:length(paramKeys)
                     for j = i+1:length(paramKeys)
                         param1 = paramKeys{i};
                         param2 = paramKeys{j};
                         
-                        data1 = paramDataMap(param1);
-                        data2 = paramDataMap(param2);
+                        data1 = paramDataByFieldName(param1).data;
+                        data2 = paramDataByFieldName(param2).data;
                         
                         if length(data1) > 0 && length(data2) > 0
                             try
@@ -1947,10 +1973,10 @@ function createBoxplotFigure(fig, state)
                 currentYLim = ylim(ax);
                 
                 % Вычисляем максимальный уровень скобок
-                maxLevel = boxplotCalculateMaxBracketLevelForParams(statisticalTests.(paramKeyValid), paramsInGroup, state.showAllPvalues);
+                maxLevel = boxplotCalculateMaxBracketLevelForParams(statisticalTests.(paramKeyValid), fieldNameToPosition, state.showAllPvalues);
                 
                 % Рисуем скобки между параметрами
-                boxplotAddSignificanceBracketsForParams(ax, paramsInGroup, ...
+                boxplotAddSignificanceBracketsForParams(ax, fieldNameToPosition, ...
                     statisticalTests.(paramKeyValid), ...
                     state.showAllPvalues, currentYLim);
                 

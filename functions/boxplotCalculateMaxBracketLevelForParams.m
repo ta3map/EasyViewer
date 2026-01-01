@@ -1,10 +1,10 @@
-function maxLevel = boxplotCalculateMaxBracketLevelForParams(testResults, paramsInGroup, showAllPvalues)
+function maxLevel = boxplotCalculateMaxBracketLevelForParams(testResults, fieldNameToPosition, showAllPvalues)
     % boxplotCalculateMaxBracketLevelForParams - Вычисление максимального уровня скобок
     % Определяет максимальный уровень вложенности скобок значимости для тестов между параметрами
     % 
     % Входные параметры:
     %   testResults - структура с результатами статистических тестов
-    %   paramsInGroup - массив параметров в группе
+    %   fieldNameToPosition - Map от fieldName к позиции на оси X
     %   showAllPvalues - показывать ли все p-values или только значимые (<0.05)
     %
     % Выходные параметры:
@@ -38,20 +38,8 @@ function maxLevel = boxplotCalculateMaxBracketLevelForParams(testResults, params
         return
     end
     
-    % Находим позиции параметров на оси X
-    % Используем fieldName для сопоставления с testResults
-    paramPositions = containers.Map();
-    for i = 1:length(paramsInGroup)
-        if isfield(paramsInGroup{i}, 'fieldName')
-            paramPositions(paramsInGroup{i}.fieldName) = i;
-        else
-            % Fallback на column, если fieldName отсутствует
-            paramPositions(paramsInGroup{i}.column) = i;
-        end
-    end
-    
     % Определяем уровни для скобок
-    levels = boxplotAssignBracketLevelsForParams(significantPairs, paramPositions);
+    levels = boxplotAssignBracketLevelsForParams(significantPairs, fieldNameToPosition);
     
     if isempty(levels)
         maxLevel = -1;

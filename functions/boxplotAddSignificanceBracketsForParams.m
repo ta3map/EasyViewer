@@ -1,10 +1,10 @@
-function boxplotAddSignificanceBracketsForParams(ax, paramsInGroup, testResults, showAllPvalues, yLimits)
+function boxplotAddSignificanceBracketsForParams(ax, fieldNameToPosition, testResults, showAllPvalues, yLimits)
     % boxplotAddSignificanceBracketsForParams - Добавление скобок значимости между параметрами на график
     % Рисует скобки значимости с p-values между параметрами на графике
     % 
     % Входные параметры:
     %   ax - axes объект для рисования
-    %   paramsInGroup - массив параметров в группе
+    %   fieldNameToPosition - Map от fieldName к позиции на оси X
     %   testResults - структура с результатами статистических тестов
     %   showAllPvalues - показывать ли все p-values или только значимые (<0.05)
     %   yLimits - пределы Y-оси [yMin, yMax]
@@ -36,20 +36,8 @@ function boxplotAddSignificanceBracketsForParams(ax, paramsInGroup, testResults,
         return
     end
     
-    % Находим позиции параметров на оси X
-    % Используем fieldName для сопоставления с testResults
-    paramPositions = containers.Map();
-    for i = 1:length(paramsInGroup)
-        if isfield(paramsInGroup{i}, 'fieldName')
-            paramPositions(paramsInGroup{i}.fieldName) = i;
-        else
-            % Fallback на column, если fieldName отсутствует
-            paramPositions(paramsInGroup{i}.column) = i;
-        end
-    end
-    
     % Определяем уровни для скобок
-    levels = boxplotAssignBracketLevelsForParams(significantPairs, paramPositions);
+    levels = boxplotAssignBracketLevelsForParams(significantPairs, fieldNameToPosition);
     
     % Параметры для позиционирования скобок
     yRange = yLimits(2) - yLimits(1);
@@ -68,12 +56,12 @@ function boxplotAddSignificanceBracketsForParams(ax, paramsInGroup, testResults,
         param1 = pair.param1;
         param2 = pair.param2;
         
-        if ~isKey(paramPositions, param1) || ~isKey(paramPositions, param2)
+        if ~isKey(fieldNameToPosition, param1) || ~isKey(fieldNameToPosition, param2)
             continue
         end
         
-        pos1 = paramPositions(param1);
-        pos2 = paramPositions(param2);
+        pos1 = fieldNameToPosition(param1);
+        pos2 = fieldNameToPosition(param2);
         
         yLine = yLimits(2) + yBaseOffset + level * yLevelSpacing;
         yWallBottom = yLine - bracketWallHeight;
