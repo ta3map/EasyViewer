@@ -122,13 +122,6 @@ function createUI(fig)
         'String', 'Add to Analysis', ...
         'Callback', @(~,~) addColumnToAnalysis(fig));
     
-    analysisActionsPopup = uicontrol('Parent', fig, 'Style', 'popupmenu', ...
-        'Position', [190, 480, 180, 25], ...
-        'String', {'Actions...', 'Clear All', 'Delete Selected', 'Move Up', 'Move Down'}, ...
-        'Tag', 'analysisActionsPopup', ...
-        'Value', 1, ...
-        'Callback', @(~,~) analysisActionsCallback(fig));
-    
     % Настройка анализа
     uicontrol('Parent', fig, 'Style', 'text', ...
         'Position', [margin, 460, 380, lineHeight], ...
@@ -139,7 +132,7 @@ function createUI(fig)
     paramsTable = uitable('Parent', fig, ...
         'Position', [margin, 335, panelWidth - 2*margin, 120], ...
         'ColumnName', {'Group', 'Column', 'Filter', 'Label', 'Color', 'LineWidth'}, ...
-        'ColumnEditable', [true, false, false, true, true, true], ...
+        'ColumnEditable', [true, false, true, true, true, true], ...
         'ColumnWidth', {50, 100, 80, 80, 70, 70}, ...
         'Data', cell(0, 6), ...
         'Tag', 'paramsTable', ...
@@ -150,6 +143,13 @@ function createUI(fig)
         'Position', [margin, 310, 180, 25], ...
         'String', 'Edit Filter', ...
         'Callback', @(~,~) editFilterCallback(fig));
+    
+    analysisActionsPopup = uicontrol('Parent', fig, 'Style', 'popupmenu', ...
+        'Position', [margin + 190, 310, 180, 25], ...
+        'String', {'Actions...', 'Clear All', 'Delete Selected', 'Move Up', 'Move Down'}, ...
+        'Tag', 'analysisActionsPopup', ...
+        'Value', 1, ...
+        'Callback', @(~,~) analysisActionsCallback(fig));
     
     uicontrol('Parent', fig, 'Style', 'text', ...
         'Position', [margin, 275, 200, lineHeight], ...
@@ -282,7 +282,7 @@ function createUI(fig)
     
     % Область для графика под полем для ввода названия графика
     plotPanel = uipanel('Parent', fig, ...
-        'Position', [400, 65, 800, 585], ...
+        'Position', [panelWidth/fig.Position(3), 0.04, 1 - panelWidth/fig.Position(3), 0.9], ...
         'Tag', 'plotPanel');
 end
 
@@ -2039,11 +2039,8 @@ function createCorrelationFigure(fig, state)
         return
     end
     
-    % Вычисляем позиции для subplots
-    margin = 0.05;
-    spacing = 0.03;
-    totalHeight = 1 - 2*margin;
-    subplotHeight = (totalHeight - (totalPlots - 1) * spacing) / totalPlots;
+    % Создаем tiledlayout для автоматического управления расположением осей
+    t = tiledlayout(plotPanel, totalPlots, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
     
     plotIdx = 1;
     
@@ -2065,11 +2062,8 @@ function createCorrelationFigure(fig, state)
                 continue
             end
             
-            % Вычисляем позицию subplot
-            subplotBottom = 1 - margin - plotIdx * subplotHeight - (plotIdx - 1) * spacing;
-            subplotPosition = [0.1, subplotBottom, 0.85, subplotHeight];
-            
-            ax = axes('Parent', plotPanel, 'Position', subplotPosition);
+            % Создаем ось через nexttile (tiledlayout автоматически управляет позицией)
+            ax = nexttile(t);
             hold(ax, 'on');
             
             % Получаем данные из исходной таблицы с одинаковым фильтром
@@ -2167,7 +2161,8 @@ function createCorrelationFigure(fig, state)
                             'VerticalAlignment', 'bottom', ...
                             'FontSize', 7, ...
                             'Color', [1 1 1], ...
-                            'BackgroundColor', [0 0 0]);
+                            'BackgroundColor', [0 0 0], ...
+                            'Interpreter', 'none');
                     end
                 end
             end
@@ -2194,7 +2189,8 @@ function createCorrelationFigure(fig, state)
                         'VerticalAlignment', 'bottom', ...
                         'FontSize', 7, ...
                         'Color', [0 0 0], ...
-                        'BackgroundColor', [1 1 1]);
+                        'BackgroundColor', [1 1 1], ...
+                        'Interpreter', 'none');
                 end
             end
             
@@ -2228,11 +2224,11 @@ function createCorrelationFigure(fig, state)
             end
             
             % Подписи осей
-            xlabel(ax, label1);
-            ylabel(ax, label2);
+            xlabel(ax, label1, 'Interpreter', 'none');
+            ylabel(ax, label2, 'Interpreter', 'none');
             
             % Заголовок
-            title(ax, sprintf('%s vs %s', label1, label2), 'FontSize', 10);
+            title(ax, sprintf('%s vs %s', label1, label2), 'FontSize', 10, 'Interpreter', 'none');
             
             % Настройка диапазона Y-оси
             if strcmp(state.yAxisRange, 'manual') && ~isempty(state.yAxisMin) && ~isempty(state.yAxisMax)
@@ -2304,7 +2300,8 @@ function createCorrelationFigure(fig, state)
                     'FontSize', 9, ...
                     'BackgroundColor', 'white', ...
                     'EdgeColor', lineColor, ...
-                    'LineWidth', 1);
+                    'LineWidth', 1, ...
+                    'Interpreter', 'none');
             end
             
             % Сетка
@@ -2318,11 +2315,8 @@ function createCorrelationFigure(fig, state)
             param = paramsInFilter{end};
             
             if ~isempty(param.data)
-                % Вычисляем позицию subplot
-                subplotBottom = 1 - margin - plotIdx * subplotHeight - (plotIdx - 1) * spacing;
-                subplotPosition = [0.1, subplotBottom, 0.85, subplotHeight];
-                
-                ax = axes('Parent', plotPanel, 'Position', subplotPosition);
+                % Создаем ось через nexttile (tiledlayout автоматически управляет позицией)
+                ax = nexttile(t);
                 hold(ax, 'on');
                 
                 data = param.data;
@@ -2342,9 +2336,9 @@ function createCorrelationFigure(fig, state)
                         'LineWidth', 1, ...
                         'MarkerFaceAlpha', 0.7);
                     
-                    xlabel(ax, 'Index');
-                    ylabel(ax, label);
-                    title(ax, sprintf('Single parameter: n=%d', length(data)), 'FontSize', 10);
+                    xlabel(ax, 'Index', 'Interpreter', 'none');
+                    ylabel(ax, label, 'Interpreter', 'none');
+                    title(ax, sprintf('Single parameter: n=%d', length(data)), 'FontSize', 10, 'Interpreter', 'none');
                     grid(ax, 'on');
                 else
                     delete(ax);
@@ -2355,10 +2349,9 @@ function createCorrelationFigure(fig, state)
         end
     end
     
-    % Добавляем общий заголовок для первого subplot
-    allAxes = findobj(plotPanel, 'Type', 'axes');
-    if ~isempty(allAxes)
-        title(allAxes(1), state.title, 'FontSize', 14, 'FontWeight', 'bold');
+    % Добавляем общий заголовок через tiledlayout
+    if totalPlots > 0
+        title(t, state.title, 'FontSize', 14, 'FontWeight', 'bold', 'Interpreter', 'none');
         zoom(fig, 'on');
         pan(fig, 'on');
     end
@@ -2404,6 +2397,9 @@ function createHistogramFigure(fig, state)
     uniqueGroupNumbers = unique(groupNumbers);
     nPlotGroups = length(uniqueGroupNumbers);
     
+    % Создаем tiledlayout для автоматического управления расположением осей
+    t = tiledlayout(plotPanel, nPlotGroups, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+    
     % Строим графики по группам (как в boxplot)
     for plotGroupIdx = 1:nPlotGroups
         groupNum = uniqueGroupNumbers(plotGroupIdx);
@@ -2426,15 +2422,8 @@ function createHistogramFigure(fig, state)
             continue
         end
         
-        % Вычисляем позицию для subplot
-        margin = 0.05;
-        spacing = 0.03;
-        totalHeight = 1 - 2*margin;
-        subplotHeight = (totalHeight - (nPlotGroups - 1) * spacing) / nPlotGroups;
-        subplotBottom = 1 - margin - plotGroupIdx * subplotHeight - (plotGroupIdx - 1) * spacing;
-        subplotPosition = [0.1, subplotBottom, 0.85, subplotHeight];
-        
-        ax = axes('Parent', plotPanel, 'Position', subplotPosition);
+        % Создаем ось через nexttile (tiledlayout автоматически управляет позицией)
+        ax = nexttile(t);
         hold(ax, 'on');
         
         % Для каждого параметра в группе получаем данные, группируя по колонке Group из таблицы
@@ -2534,28 +2523,45 @@ function createHistogramFigure(fig, state)
             continue
         end
         
-        % Определяем количество бинов (правило Стёрджеса)
-        n = length(allData);
-        nBins = ceil(1 + log2(n));
-        if nBins < 10
-            nBins = 10;
-        elseif nBins > 50
-            nBins = 50;
-        end
-        
-        % Определяем диапазон для бинов
-        dataMin = min(allData);
-        dataMax = max(allData);
-        if dataMin == dataMax
-            if dataMin == 0
-                dataMin = -0.1;
-                dataMax = 0.1;
-            else
-                offset = abs(dataMin) * 0.01;
-                dataMin = dataMin - offset;
-                dataMax = dataMax + offset;
+        % Определяем диапазон и количество бинов
+        if strcmp(state.xAxisRange, 'manual') && ~isempty(state.xAxisMin) && ~isempty(state.xAxisMax)
+            % Если X-ось в manual режиме, используем лимиты X
+            dataMin = state.xAxisMin;
+            dataMax = state.xAxisMax;
+            
+            % Вычисляем количество бинов, кратное 10
+            range = dataMax - dataMin;
+            nBins = round(range);
+            % Округляем до ближайшего кратного 10
+            nBins = round(nBins / 10) * 10;
+            if nBins < 10
+                nBins = 10;
+            end
+        else
+            % Автоматический режим: используем правило Стёрджеса
+            n = length(allData);
+            nBins = ceil(1 + log2(n));
+            if nBins < 10
+                nBins = 10;
+            elseif nBins > 50
+                nBins = 50;
+            end
+            
+            % Определяем диапазон для бинов из данных
+            dataMin = min(allData);
+            dataMax = max(allData);
+            if dataMin == dataMax
+                if dataMin == 0
+                    dataMin = -0.1;
+                    dataMax = 0.1;
+                else
+                    offset = abs(dataMin) * 0.01;
+                    dataMin = dataMin - offset;
+                    dataMax = dataMax + offset;
+                end
             end
         end
+        
         binEdges = linspace(dataMin, dataMax, nBins + 1);
         
         % Строим гистограммы для каждой группы
@@ -2579,16 +2585,13 @@ function createHistogramFigure(fig, state)
             if isempty(label)
                 label = paramsInGroup{1}.column;
             end
-            xlabel(ax, label);
+            xlabel(ax, label, 'Interpreter', 'none');
         else
-            xlabel(ax, sprintf('Group %d', groupNum));
+            xlabel(ax, sprintf('Group %d', groupNum), 'Interpreter', 'none');
         end
-        ylabel(ax, 'Frequency');
+        ylabel(ax, 'N', 'Interpreter', 'none');
         
-        % Заголовок
-        if plotGroupIdx == 1
-            title(ax, state.title, 'FontSize', 14, 'FontWeight', 'bold');
-        end
+        % Заголовок будет добавлен через tiledlayout после цикла
         
         % Настройка диапазона Y-оси
         if strcmp(state.yAxisRange, 'manual') && ~isempty(state.yAxisMin) && ~isempty(state.yAxisMax)
@@ -2600,30 +2603,22 @@ function createHistogramFigure(fig, state)
             xlim(ax, [state.xAxisMin, state.xAxisMax]);
         end
         
-        % Легенда (если есть несколько групп из колонки Group)
-        if useGroupColumn && length(paramGroups) > 1
+        % Легенда (показываем источник данных - Column)
+        if length(paramGroups) > 0
             groupLabels = cell(length(paramGroups), 1);
             for g = 1:length(paramGroups)
-                if ~isempty(paramGroups{g}.groupValue)
-                    groupLabels{g} = string(paramGroups{g}.groupValue);
-                else
-                    label = paramGroups{g}.label;
-                    if isempty(label)
-                        label = paramGroups{g}.column;
-                    end
-                    groupLabels{g} = label;
-                end
+                groupLabels{g} = paramGroups{g}.column;
             end
-            legend(ax, groupLabels, 'Location', 'best');
+            legend(ax, groupLabels, 'Location', 'best', 'Interpreter', 'none');
         end
         
         % Сетка
         grid(ax, 'on');
     end
     
-    % Активация инструментов
-    allAxes = findobj(plotPanel, 'Type', 'axes');
-    if ~isempty(allAxes)
+    % Добавляем общий заголовок через tiledlayout
+    if nPlotGroups > 0
+        title(t, state.title, 'FontSize', 14, 'FontWeight', 'bold', 'Interpreter', 'none');
         zoom(fig, 'on');
         pan(fig, 'on');
     end
@@ -2676,6 +2671,9 @@ function createBoxplotFigure(fig, state)
     uniqueGroupNumbers = unique(groupNumbers);
     nPlotGroups = length(uniqueGroupNumbers);
     
+    % Создаем tiledlayout для автоматического управления расположением осей
+    t = tiledlayout(plotPanel, nPlotGroups, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+    
     % Строим графики по группам
     for plotGroupIdx = 1:nPlotGroups
         groupNum = uniqueGroupNumbers(plotGroupIdx);
@@ -2696,15 +2694,8 @@ function createBoxplotFigure(fig, state)
             end
         end
         
-        % Вычисляем позицию для subplot внутри панели
-        margin = 0.05;
-        spacing = 0.03; % увеличен на 10% (было 0.02)
-        totalHeight = 1 - 2*margin;
-        subplotHeight = (totalHeight - (nPlotGroups - 1) * spacing) / nPlotGroups;
-        subplotBottom = 1 - margin - plotGroupIdx * subplotHeight - (plotGroupIdx - 1) * spacing;
-        subplotPosition = [0.1, subplotBottom, 0.85, subplotHeight];
-        
-        ax = axes('Parent', plotPanel, 'Position', subplotPosition);
+        % Создаем ось через nexttile (tiledlayout автоматически управляет позицией)
+        ax = nexttile(t);
         hold(ax, 'on');
         
         % Строим боксплоты для всех параметров в группе используя структуру filteredData
@@ -2907,7 +2898,8 @@ function createBoxplotFigure(fig, state)
                                     'VerticalAlignment', 'bottom', ...
                                     'FontSize', 7, ...
                                     'Color', [1 1 1], ...
-                                    'BackgroundColor', [0 0 0]);
+                                    'BackgroundColor', [0 0 0], ...
+                                    'Interpreter', 'none');
                             end
                         end
                     end
@@ -2927,7 +2919,8 @@ function createBoxplotFigure(fig, state)
                                 'VerticalAlignment', 'bottom', ...
                                 'FontSize', 7, ...
                                 'Color', [0 0 0], ...
-                                'BackgroundColor', [1 1 1]);
+                                'BackgroundColor', [1 1 1], ...
+                                'Interpreter', 'none');
                         end
                     end
                     
@@ -2941,7 +2934,8 @@ function createBoxplotFigure(fig, state)
                     end
                     text(ax, x_pos, medianVal, sprintf('n=%d', length(data)), ...
                         'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', ...
-                        'FontSize', 9, 'BackgroundColor', 'white');
+                        'FontSize', 9, 'BackgroundColor', 'white', ...
+                        'Interpreter', 'none');
                 end
             end
             
@@ -3009,9 +3003,9 @@ function createBoxplotFigure(fig, state)
         else
             yLabelText = sprintf('Group %d', groupNum);
         end
-        ylabel(ax, yLabelText);
+        ylabel(ax, yLabelText, 'Interpreter', 'none');
         if plotGroupIdx == nPlotGroups
-            xlabel(ax, 'Groups');
+            xlabel(ax, 'Groups', 'Interpreter', 'none');
         end
         
         % Настройка диапазона Y-оси
@@ -3070,15 +3064,11 @@ function createBoxplotFigure(fig, state)
             end
         end
         
-        % Добавляем заголовок для первого subplot
-        if plotGroupIdx == 1
-            title(ax, state.title, 'FontSize', 14, 'FontWeight', 'bold');
-        end
     end
     
-    % Активация инструментов для всех axes в панели
-    allAxes = findobj(plotPanel, 'Type', 'axes');
-    if ~isempty(allAxes)
+    % Добавляем общий заголовок через tiledlayout
+    if nPlotGroups > 0
+        title(t, state.title, 'FontSize', 14, 'FontWeight', 'bold', 'Interpreter', 'none');
         zoom(fig, 'on');
         pan(fig, 'on');
     end
