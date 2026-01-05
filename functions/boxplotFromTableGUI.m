@@ -48,6 +48,7 @@ function boxplotFromTableGUI(filePath)
     state.showAllPvalues = true;
     state.showFileIds = false;
     state.showYValues = false;
+    state.showLegend = true;
     state.yAxisRange = 'auto';
     state.yAxisMin = [];
     state.yAxisMax = [];
@@ -276,9 +277,15 @@ function createUI(fig)
         'Tag', 'titleLabel');
     
     titleEdit = uicontrol('Parent', fig, 'Style', 'edit', ...
-        'Position', [480, 620, 710, 25], ...
+        'Position', [480, 620, 237, 25], ...
         'String', ' ', ...
         'Tag', 'titleEdit');
+    
+    showLegendCheck = uicontrol('Parent', fig, 'Style', 'checkbox', ...
+        'Position', [727, 620, 150, 25], ...
+        'String', 'Show Legend', ...
+        'Value', 1, ...
+        'Tag', 'showLegendCheck');
     
     % Область для графика под полем для ввода названия графика
     plotPanel = uipanel('Parent', fig, ...
@@ -286,41 +293,65 @@ function createUI(fig)
         'Tag', 'plotPanel');
 end
 
-function loadFileCallback(fig)
-    % Получаем начальную папку из глобальных настроек
-    initialPath = getBoxplotInitialPath();
+function showError(errorMsg)
+    % showError - Показ ошибки пользователю
+    % Входные параметры:
+    %   errorMsg - текст сообщения об ошибке
+    fprintf('ERROR: %s\n', errorMsg);
+    msgbox(errorMsg, 'Error', 'error');
+end
+
+function filePath = getFileWithInitialPath(filter, dialogTitle, defaultName)
+    % getFileWithInitialPath - Получение пути к файлу с переходом в начальную директорию
+    % Входные параметры:
+    %   filter - фильтр файлов для uigetfile/uiputfile
+    %   dialogTitle - заголовок диалога
+    %   defaultName - имя файла по умолчанию (для uiputfile, опционально)
+    % Выходные параметры:
+    %   filePath - путь к выбранному файлу (пустая строка, если отменено)
     
-    % Сохраняем текущую директорию
+    initialPath = getBoxplotInitialPath();
     oldDir = pwd;
     
     try
-        % Переходим в папку из настроек
         if exist(initialPath, 'dir')
             cd(initialPath);
         end
         
-        [file, path] = uigetfile({'*.mat;*.xlsx;*.xls', 'Data Files (*.mat, *.xlsx, *.xls)'; ...
-                                  '*.mat', 'MAT Files (*.mat)'; ...
-                                  '*.xlsx;*.xls', 'Excel Files (*.xlsx, *.xls)'}, ...
-                                 'Select Data File');
+        if nargin >= 3
+            [file, path] = uiputfile(filter, dialogTitle, defaultName);
+        else
+            [file, path] = uigetfile(filter, dialogTitle);
+        end
         
-        % Возвращаемся в исходную директорию
         cd(oldDir);
         
         if isequal(file, 0)
+            filePath = '';
             return
         end
         
         filePath = fullfile(path, file);
-        loadFileInGUI(fig, filePath);
     catch ME
-        % В случае ошибки возвращаемся в исходную директорию
         try
             cd(oldDir);
         catch
         end
         rethrow(ME);
     end
+end
+
+function loadFileCallback(fig)
+    filePath = getFileWithInitialPath({'*.mat;*.xlsx;*.xls', 'Data Files (*.mat, *.xlsx, *.xls)'; ...
+                                       '*.mat', 'MAT Files (*.mat)'; ...
+                                       '*.xlsx;*.xls', 'Excel Files (*.xlsx, *.xls)'}, ...
+                                      'Select Data File');
+    
+    if isempty(filePath)
+        return
+    end
+    
+    loadFileInGUI(fig, filePath);
 end
 
 function loadActionCallback(fig)
@@ -340,119 +371,155 @@ function loadActionCallback(fig)
     set(loadActionPopup, 'Value', 1);
 end
 
+function savedState = createSavedStateFromState(state)
+    % createSavedStateFromState - Создание структуры savedState из state
+    % Входные параметры:
+    %   state - структура состояния GUI
+    % Выходные параметры:
+    %   savedState - структура для сохранения
+    
+    savedState = struct();
+    savedState.filePath = state.filePath;
+    savedState.parameters = state.parameters;
+    savedState.nextGroupNumber = state.nextGroupNumber;
+    savedState.showStatistics = state.showStatistics;
+    savedState.showAllPvalues = state.showAllPvalues;
+    savedState.showFileIds = state.showFileIds;
+    savedState.showYValues = state.showYValues;
+    savedState.showLegend = state.showLegend;
+    savedState.yAxisRange = state.yAxisRange;
+    savedState.yAxisMin = state.yAxisMin;
+    savedState.yAxisMax = state.yAxisMax;
+    savedState.xAxisRange = state.xAxisRange;
+    savedState.xAxisMin = state.xAxisMin;
+    savedState.xAxisMax = state.xAxisMax;
+    savedState.title = state.title;
+    savedState.plotMode = state.plotMode;
+end
+
+function state = restoreStateFromSavedState(state, savedState)
+    % restoreStateFromSavedState - Восстановление state из savedState
+    % Входные параметры:
+    %   state - текущая структура состояния GUI
+    %   savedState - структура сохраненного состояния
+    % Выходные параметры:
+    %   state - обновленная структура состояния
+    
+    if isfield(savedState, 'parameters')
+        state.parameters = savedState.parameters;
+    end
+    if isfield(savedState, 'nextGroupNumber')
+        state.nextGroupNumber = savedState.nextGroupNumber;
+    end
+    if isfield(savedState, 'showStatistics')
+        state.showStatistics = savedState.showStatistics;
+    end
+    if isfield(savedState, 'showAllPvalues')
+        state.showAllPvalues = savedState.showAllPvalues;
+    end
+    if isfield(savedState, 'showFileIds')
+        state.showFileIds = savedState.showFileIds;
+    else
+        state.showFileIds = false;
+    end
+    if isfield(savedState, 'showYValues')
+        state.showYValues = savedState.showYValues;
+    else
+        state.showYValues = false;
+    end
+    if isfield(savedState, 'showLegend')
+        state.showLegend = savedState.showLegend;
+    else
+        state.showLegend = true;
+    end
+    if isfield(savedState, 'yAxisRange')
+        state.yAxisRange = savedState.yAxisRange;
+    end
+    if isfield(savedState, 'yAxisMin')
+        state.yAxisMin = savedState.yAxisMin;
+    end
+    if isfield(savedState, 'yAxisMax')
+        state.yAxisMax = savedState.yAxisMax;
+    end
+    if isfield(savedState, 'xAxisRange')
+        state.xAxisRange = savedState.xAxisRange;
+    end
+    if isfield(savedState, 'xAxisMin')
+        state.xAxisMin = savedState.xAxisMin;
+    end
+    if isfield(savedState, 'xAxisMax')
+        state.xAxisMax = savedState.xAxisMax;
+    end
+    if ~isfield(state, 'xAxisRange')
+        state.xAxisRange = 'auto';
+    end
+    if ~isfield(state, 'xAxisMin')
+        state.xAxisMin = [];
+    end
+    if ~isfield(state, 'xAxisMax')
+        state.xAxisMax = [];
+    end
+    if isfield(savedState, 'title')
+        state.title = savedState.title;
+    end
+    if isfield(savedState, 'plotMode')
+        state.plotMode = savedState.plotMode;
+    else
+        state.plotMode = 'BoxPlot';
+    end
+end
+
+function saveStateToFile(fig, filePath)
+    % saveStateToFile - Сохранение состояния в .meta файл
+    % Входные параметры:
+    %   fig - handle фигуры GUI
+    %   filePath - путь к файлу для сохранения
+    
+    state = get(fig, 'UserData');
+    savedState = createSavedStateFromState(state);
+    
+    save(filePath, 'savedState', '-mat');
+    fprintf('State saved to: %s\n', filePath);
+    
+    % Сохраняем также в глобальные настройки
+    saveBoxplotStateToGlobalSettings(fig);
+end
+
 function saveStateCallback(fig)
     % Сохранение состояния в .meta файл
     state = get(fig, 'UserData');
     
     if isempty(state.filePath)
-        errorMsg = 'Сначала загрузите файл с данными';
-        fprintf('ERROR: %s\n', errorMsg);
-        msgbox(errorMsg, 'Error', 'error');
+        showError('Сначала загрузите файл с данными');
         return
     end
     
-    % Получаем начальную папку из глобальных настроек
-    initialPath = getBoxplotInitialPath();
+    filePath = getFileWithInitialPath('*.meta', 'Save State', 'boxplot_state.meta');
     
-    % Сохраняем текущую директорию
-    oldDir = pwd;
-    
-    try
-        % Переходим в папку из настроек
-        if exist(initialPath, 'dir')
-            cd(initialPath);
-        end
-        
-        [file, path] = uiputfile('*.meta', 'Save State', 'boxplot_state.meta');
-        
-        % Возвращаемся в исходную директорию
-        cd(oldDir);
-        
-        if isequal(file, 0)
-            return
-        end
-        
-        filePath = fullfile(path, file);
-    catch ME
-        % В случае ошибки возвращаемся в исходную директорию
-        try
-            cd(oldDir);
-        catch
-        end
-        rethrow(ME);
+    if isempty(filePath)
+        return
     end
     
     try
-        % Сохраняем только необходимые поля для восстановления
-        savedState = struct();
-        savedState.filePath = state.filePath;
-        savedState.parameters = state.parameters;
-        savedState.nextGroupNumber = state.nextGroupNumber;
-        savedState.showStatistics = state.showStatistics;
-        savedState.showAllPvalues = state.showAllPvalues;
-        savedState.showFileIds = state.showFileIds;
-        savedState.showYValues = state.showYValues;
-        savedState.yAxisRange = state.yAxisRange;
-        savedState.yAxisMin = state.yAxisMin;
-        savedState.yAxisMax = state.yAxisMax;
-        savedState.xAxisRange = state.xAxisRange;
-        savedState.xAxisMin = state.xAxisMin;
-        savedState.xAxisMax = state.xAxisMax;
-        savedState.title = state.title;
-        savedState.plotMode = state.plotMode;
-        
-        save(filePath, 'savedState', '-mat');
-        fprintf('State saved to: %s\n', filePath);
-        
-        % Сохраняем также в глобальные настройки
-        saveBoxplotStateToGlobalSettings(fig);
+        saveStateToFile(fig, filePath);
     catch ME
-        errorMsg = sprintf('Ошибка при сохранении: %s', ME.message);
-        fprintf('ERROR: %s\n', errorMsg);
-        msgbox(errorMsg, 'Error', 'error');
+        showError(sprintf('Ошибка при сохранении: %s', ME.message));
     end
 end
 
 function loadStateCallback(fig)
     % Загрузка состояния из .meta файла
-    % Получаем начальную папку из глобальных настроек
-    initialPath = getBoxplotInitialPath();
+    filePath = getFileWithInitialPath('*.meta', 'Load State');
     
-    % Сохраняем текущую директорию
-    oldDir = pwd;
-    
-    try
-        % Переходим в папку из настроек
-        if exist(initialPath, 'dir')
-            cd(initialPath);
-        end
-        
-        [file, path] = uigetfile('*.meta', 'Load State');
-        
-        % Возвращаемся в исходную директорию
-        cd(oldDir);
-        
-        if isequal(file, 0)
-            return
-        end
-        
-        filePath = fullfile(path, file);
-    catch ME
-        % В случае ошибки возвращаемся в исходную директорию
-        try
-            cd(oldDir);
-        catch
-        end
-        rethrow(ME);
+    if isempty(filePath)
+        return
     end
     
     try
         data = load(filePath, '-mat');
         
         if ~isfield(data, 'savedState')
-            errorMsg = 'Invalid state file format';
-            fprintf('ERROR: %s\n', errorMsg);
-            msgbox(errorMsg, 'Error', 'error');
+            showError('Invalid state file format');
             return
         end
         
@@ -485,170 +552,28 @@ function loadStateCallback(fig)
                         dataFilePath = alternativePath;
                         fprintf('Data file found in state folder: %s\n', dataFilePath);
                     else
-                        errorMsg = sprintf('Data file not found: %s\nAlso checked: %s', savedState.filePath, alternativePath);
-                        fprintf('ERROR: %s\n', errorMsg);
-                        msgbox(errorMsg, 'Error', 'error');
+                        showError(sprintf('Data file not found: %s\nAlso checked: %s', savedState.filePath, alternativePath));
                         return
                     end
                 else
-                    errorMsg = sprintf('Data file not found: %s', savedState.filePath);
-                    fprintf('ERROR: %s\n', errorMsg);
-                    msgbox(errorMsg, 'Error', 'error');
+                    showError(sprintf('Data file not found: %s', savedState.filePath));
                     return
                 end
             end
             
             loadFileInGUI(fig, dataFilePath);
         else
-            errorMsg = 'State file does not contain filePath';
-            fprintf('ERROR: %s\n', errorMsg);
-            msgbox(errorMsg, 'Error', 'error');
+            showError('State file does not contain filePath');
             return
         end
         
         % 2. Восстанавливаем параметры и настройки
         state = get(fig, 'UserData');
-        if isfield(savedState, 'parameters')
-            state.parameters = savedState.parameters;
-        end
-        if isfield(savedState, 'nextGroupNumber')
-            state.nextGroupNumber = savedState.nextGroupNumber;
-        end
-        if isfield(savedState, 'showStatistics')
-            state.showStatistics = savedState.showStatistics;
-        end
-        if isfield(savedState, 'showAllPvalues')
-            state.showAllPvalues = savedState.showAllPvalues;
-        end
-        if isfield(savedState, 'showFileIds')
-            state.showFileIds = savedState.showFileIds;
-        else
-            state.showFileIds = false;
-        end
-        if isfield(savedState, 'showYValues')
-            state.showYValues = savedState.showYValues;
-        else
-            state.showYValues = false;
-        end
-        if isfield(savedState, 'yAxisRange')
-            state.yAxisRange = savedState.yAxisRange;
-        end
-        if isfield(savedState, 'yAxisMin')
-            state.yAxisMin = savedState.yAxisMin;
-        end
-        if isfield(savedState, 'yAxisMax')
-            state.yAxisMax = savedState.yAxisMax;
-        end
-        if isfield(savedState, 'xAxisRange')
-            state.xAxisRange = savedState.xAxisRange;
-        end
-        if isfield(savedState, 'xAxisMin')
-            state.xAxisMin = savedState.xAxisMin;
-        end
-        if isfield(savedState, 'xAxisMax')
-            state.xAxisMax = savedState.xAxisMax;
-        end
-        if ~isfield(state, 'xAxisRange')
-            state.xAxisRange = 'auto';
-        end
-        if ~isfield(state, 'xAxisMin')
-            state.xAxisMin = [];
-        end
-        if ~isfield(state, 'xAxisMax')
-            state.xAxisMax = [];
-        end
-        if isfield(savedState, 'title')
-            state.title = savedState.title;
-        end
-        if isfield(savedState, 'plotMode')
-            state.plotMode = savedState.plotMode;
-        else
-            state.plotMode = 'BoxPlot';
-        end
-        
+        state = restoreStateFromSavedState(state, savedState);
         set(fig, 'UserData', state);
         
         % 3. Обновляем UI
-        updateAnalysisColumnsDisplay(fig);
-        
-        % Обновляем выпадающий список режима
-        plotModePopup = findobj(fig, 'Tag', 'plotModePopup');
-        if ~isempty(plotModePopup)
-            if strcmp(state.plotMode, 'Correlation')
-                set(plotModePopup, 'Value', 2);
-            elseif strcmp(state.plotMode, 'Histogram')
-                set(plotModePopup, 'Value', 3);
-            else
-                set(plotModePopup, 'Value', 1);
-            end
-        end
-        
-        % Обновляем чекбоксы и поля
-        showStatsCheck = findobj(fig, 'Tag', 'showStatsCheck');
-        if ~isempty(showStatsCheck)
-            set(showStatsCheck, 'Value', state.showStatistics);
-        end
-        
-        showAllPvaluesCheck = findobj(fig, 'Tag', 'showAllPvaluesCheck');
-        if ~isempty(showAllPvaluesCheck)
-            set(showAllPvaluesCheck, 'Value', state.showAllPvalues);
-        end
-        
-        showFileIdsCheck = findobj(fig, 'Tag', 'showFileIdsCheck');
-        if ~isempty(showFileIdsCheck)
-            set(showFileIdsCheck, 'Value', state.showFileIds);
-        end
-        
-        showYValuesCheck = findobj(fig, 'Tag', 'showYValuesCheck');
-        if ~isempty(showYValuesCheck)
-            set(showYValuesCheck, 'Value', state.showYValues);
-        end
-        
-        yAxisPopup = findobj(fig, 'Tag', 'yAxisPopup');
-        if ~isempty(yAxisPopup)
-            if strcmp(state.yAxisRange, 'auto')
-                set(yAxisPopup, 'Value', 1);
-            else
-                set(yAxisPopup, 'Value', 2);
-            end
-        end
-        
-        yAxisMinEdit = findobj(fig, 'Tag', 'yAxisMinEdit');
-        if ~isempty(yAxisMinEdit) && ~isempty(state.yAxisMin)
-            set(yAxisMinEdit, 'String', num2str(state.yAxisMin));
-        end
-        
-        yAxisMaxEdit = findobj(fig, 'Tag', 'yAxisMaxEdit');
-        if ~isempty(yAxisMaxEdit) && ~isempty(state.yAxisMax)
-            set(yAxisMaxEdit, 'String', num2str(state.yAxisMax));
-        end
-        
-        xAxisPopup = findobj(fig, 'Tag', 'xAxisPopup');
-        if ~isempty(xAxisPopup)
-            if strcmp(state.xAxisRange, 'auto')
-                set(xAxisPopup, 'Value', 1);
-            else
-                set(xAxisPopup, 'Value', 2);
-            end
-        end
-        
-        xAxisMinEdit = findobj(fig, 'Tag', 'xAxisMinEdit');
-        if ~isempty(xAxisMinEdit) && ~isempty(state.xAxisMin)
-            set(xAxisMinEdit, 'String', num2str(state.xAxisMin));
-        end
-        
-        xAxisMaxEdit = findobj(fig, 'Tag', 'xAxisMaxEdit');
-        if ~isempty(xAxisMaxEdit) && ~isempty(state.xAxisMax)
-            set(xAxisMaxEdit, 'String', num2str(state.xAxisMax));
-        end
-        
-        titleEdit = findobj(fig, 'Tag', 'titleEdit');
-        if ~isempty(titleEdit) && ~isempty(state.title)
-            set(titleEdit, 'String', state.title);
-        end
-        
-        updateYAxisControls(fig);
-        updateXAxisControls(fig);
+        updateUIFromState(fig);
         
         % 4. Обновляем структуру filteredData
         updateFilteredDataStructure(fig);
@@ -657,10 +582,12 @@ function loadStateCallback(fig)
         saveBoxplotStateToGlobalSettings(fig);
         
         fprintf('State loaded from: %s\n', filePath);
+        
+        % 6. Автоматически строим график после успешного восстановления состояния
+        pause(0.1);
+        plotBoxplotCallback(fig);
     catch ME
-        errorMsg = sprintf('Ошибка при загрузке: %s', ME.message);
-        fprintf('ERROR: %s\n', errorMsg);
-        msgbox(errorMsg, 'Error', 'error');
+        showError(sprintf('Ошибка при загрузке: %s', ME.message));
     end
 end
 
@@ -675,17 +602,13 @@ function loadFileInGUI(fig, filePath)
             if isfield(data, 'flatTable')
                 state.table = data.flatTable;
             else
-                errorMsg = 'MAT file does not contain variable "flatTable"';
-                fprintf('ERROR: %s\n', errorMsg);
-                msgbox(errorMsg, 'Error', 'error');
+                showError('MAT file does not contain variable "flatTable"');
                 return
             end
         elseif any(strcmpi(ext, {'.xlsx', '.xls'}))
             state.table = readtable(filePath);
         else
-            errorMsg = 'Unsupported file format';
-            fprintf('ERROR: %s\n', errorMsg);
-            msgbox(errorMsg, 'Error', 'error');
+            showError('Unsupported file format');
             return
         end
         
@@ -718,9 +641,7 @@ function loadFileInGUI(fig, filePath)
         % Update analysis columns display
         updateAnalysisColumnsDisplay(fig);
     catch ME
-        errorMsg = sprintf('Error loading file: %s', ME.message);
-        fprintf('ERROR: %s\n', errorMsg);
-        msgbox(errorMsg, 'Error', 'error');
+        showError(sprintf('Error loading file: %s', ME.message));
     end
 end
 
@@ -1335,6 +1256,7 @@ function plotBoxplotCallback(fig)
     showAllPvaluesCheck = findobj(fig, 'Tag', 'showAllPvaluesCheck');
     showFileIdsCheck = findobj(fig, 'Tag', 'showFileIdsCheck');
     showYValuesCheck = findobj(fig, 'Tag', 'showYValuesCheck');
+    showLegendCheck = findobj(fig, 'Tag', 'showLegendCheck');
     yAxisPopup = findobj(fig, 'Tag', 'yAxisPopup');
     yAxisMinEdit = findobj(fig, 'Tag', 'yAxisMinEdit');
     yAxisMaxEdit = findobj(fig, 'Tag', 'yAxisMaxEdit');
@@ -1364,6 +1286,9 @@ function plotBoxplotCallback(fig)
         end
         if ~isempty(showYValuesCheck)
             state.showYValues = get(showYValuesCheck, 'Value');
+        end
+        if ~isempty(showLegendCheck)
+            state.showLegend = get(showLegendCheck, 'Value');
         end
         if get(yAxisPopup, 'Value') == 1
             state.yAxisRange = 'auto';
@@ -1432,16 +1357,12 @@ function plotBoxplotCallback(fig)
             if exist('wb', 'var') && isvalid(wb)
                 close(wb);
             end
-            errorMsg = sprintf('Ошибка при построении графика: %s', ME.message);
-            fprintf('ERROR: %s\n', errorMsg);
-            msgbox(errorMsg, 'Error', 'error');
+            showError(sprintf('Ошибка при построении графика: %s', ME.message));
             debugState('boxplotFromTableGUI', 'Error: %s', ME.message);
         end
         
     catch ME
-        errorMsg = sprintf('Ошибка при построении графика: %s', ME.message);
-        fprintf('ERROR: %s\n', errorMsg);
-        msgbox(errorMsg, 'Error', 'error');
+        showError(sprintf('Ошибка при построении графика: %s', ME.message));
         debugState('boxplotFromTableGUI', 'Error: %s', ME.message);
     end
 end
@@ -1497,18 +1418,24 @@ function exportPlotCallback(fig)
             case '.eps'
                 print(exportFig, '-depsc', '-r300', filePath);
             otherwise
-                errorMsg = 'Неподдерживаемый формат файла';
-                fprintf('ERROR: %s\n', errorMsg);
-                msgbox(errorMsg, 'Error', 'error');
+                showError('Неподдерживаемый формат файла');
                 close(exportFig);
                 return
         end
         
         close(exportFig);
+        
+        % Сохраняем состояние в .meta файл рядом с экспортированным графиком
+        try
+            [filePathDir, fileName, ~] = fileparts(filePath);
+            metaFilePath = fullfile(filePathDir, [fileName, '.meta']);
+            saveStateToFile(fig, metaFilePath);
+        catch ME_meta
+            % Игнорируем ошибки сохранения .meta файла, не прерываем экспорт
+            warning('Failed to save state file: %s', ME_meta.message);
+        end
     catch ME
-        errorMsg = sprintf('Ошибка при экспорте: %s', ME.message);
-        fprintf('ERROR: %s\n', errorMsg);
-        msgbox(errorMsg, 'Error', 'error');
+        showError(sprintf('Ошибка при экспорте: %s', ME.message));
         debugState('boxplotFromTableGUI', 'Export error: %s', ME.message);
         if exist('exportFig', 'var') && isvalid(exportFig)
             close(exportFig);
@@ -1595,23 +1522,8 @@ function saveBoxplotStateToGlobalSettings(fig)
     global SettingsFilepath
     state = get(fig, 'UserData');
     
-    % Создаем структуру для сохранения (исключаем большие данные)
-    boxplot_state = struct();
-    boxplot_state.filePath = state.filePath;
-    boxplot_state.parameters = state.parameters;
-    boxplot_state.nextGroupNumber = state.nextGroupNumber;
-    boxplot_state.showStatistics = state.showStatistics;
-    boxplot_state.showAllPvalues = state.showAllPvalues;
-    boxplot_state.showFileIds = state.showFileIds;
-    boxplot_state.showYValues = state.showYValues;
-    boxplot_state.yAxisRange = state.yAxisRange;
-    boxplot_state.yAxisMin = state.yAxisMin;
-    boxplot_state.yAxisMax = state.yAxisMax;
-    boxplot_state.xAxisRange = state.xAxisRange;
-    boxplot_state.xAxisMin = state.xAxisMin;
-    boxplot_state.xAxisMax = state.xAxisMax;
-    boxplot_state.title = state.title;
-    boxplot_state.plotMode = state.plotMode;
+    % Используем общую функцию для создания структуры состояния
+    boxplot_state = createSavedStateFromState(state);
     
     % Сохраняем в глобальные настройки
     try
@@ -1668,55 +1580,7 @@ function loadBoxplotStateFromGlobalSettings(fig)
         state = get(fig, 'UserData');
         state.parameters = savedParameters;
         state.nextGroupNumber = savedNextGroupNumber;
-        
-        if isfield(savedState, 'showStatistics')
-            state.showStatistics = savedState.showStatistics;
-        end
-        if isfield(savedState, 'showAllPvalues')
-            state.showAllPvalues = savedState.showAllPvalues;
-        end
-        if isfield(savedState, 'showFileIds')
-            state.showFileIds = savedState.showFileIds;
-        end
-        if isfield(savedState, 'showYValues')
-            state.showYValues = savedState.showYValues;
-        end
-        if isfield(savedState, 'yAxisRange')
-            state.yAxisRange = savedState.yAxisRange;
-        end
-        if isfield(savedState, 'yAxisMin')
-            state.yAxisMin = savedState.yAxisMin;
-        end
-        if isfield(savedState, 'yAxisMax')
-            state.yAxisMax = savedState.yAxisMax;
-        end
-        if isfield(savedState, 'xAxisRange')
-            state.xAxisRange = savedState.xAxisRange;
-        end
-        if isfield(savedState, 'xAxisMin')
-            state.xAxisMin = savedState.xAxisMin;
-        end
-        if isfield(savedState, 'xAxisMax')
-            state.xAxisMax = savedState.xAxisMax;
-        end
-        if ~isfield(state, 'xAxisRange')
-            state.xAxisRange = 'auto';
-        end
-        if ~isfield(state, 'xAxisMin')
-            state.xAxisMin = [];
-        end
-        if ~isfield(state, 'xAxisMax')
-            state.xAxisMax = [];
-        end
-        if isfield(savedState, 'title')
-            state.title = savedState.title;
-        end
-        if isfield(savedState, 'plotMode')
-            state.plotMode = savedState.plotMode;
-        else
-            state.plotMode = 'BoxPlot';
-        end
-        
+        state = restoreStateFromSavedState(state, savedState);
         set(fig, 'UserData', state);
         
         % 3. Обновляем UI
@@ -1725,6 +1589,10 @@ function loadBoxplotStateFromGlobalSettings(fig)
         
         % 4. Обновляем структуру filteredData
         updateFilteredDataStructure(fig);
+        
+        % 5. Автоматически строим график после успешного восстановления состояния
+        pause(0.1);
+        plotBoxplotCallback(fig);
     catch ME
         warning('Failed to load boxplot state from global settings: %s', ME.message);
     end
@@ -1752,6 +1620,11 @@ function updateUIFromState(fig)
     showYValuesCheck = findobj(fig, 'Tag', 'showYValuesCheck');
     if ~isempty(showYValuesCheck)
         set(showYValuesCheck, 'Value', state.showYValues);
+    end
+    
+    showLegendCheck = findobj(fig, 'Tag', 'showLegendCheck');
+    if ~isempty(showLegendCheck)
+        set(showLegendCheck, 'Value', state.showLegend);
     end
     
     yAxisPopup = findobj(fig, 'Tag', 'yAxisPopup');
@@ -2066,6 +1939,10 @@ function createCorrelationFigure(fig, state)
         uniqueXLabels = {};
         uniqueYLabels = {};
         
+        % Массивы для легенды
+        legendHandles = {};
+        legendLabels = {};
+        
         % Обрабатываем каждую группу фильтров внутри этой группы
         for filterIdx = 1:length(filterKeys)
             filterKey = filterKeys{filterIdx};
@@ -2149,15 +2026,12 @@ function createCorrelationFigure(fig, state)
                 continue
             end
             
-            % Получаем цвета
-            color1 = param1.parsedColor;
-            color2 = param2.parsedColor;
-            % Используем средний цвет для точек
-            pointColor = (color1 + color2) / 2;
-            lineColor = color1;
+            % Получаем цвет X параметра
+            pointColor = param1.parsedColor;
+            lineColor = param1.parsedColor;
             
             % Scatter plot
-            scatter(ax, xData, yData, 50, pointColor, 'o', ...
+            hScatter = scatter(ax, xData, yData, 50, pointColor, 'o', ...
                 'MarkerFaceColor', pointColor, ...
                 'MarkerEdgeColor', 'white', ...
                 'LineWidth', 1, ...
@@ -2219,42 +2093,47 @@ function createCorrelationFigure(fig, state)
                 end
             end
             
-            % Линия регрессии
-            p = polyfit(xData, yData, 1);
-            xFit = linspace(min(xData), max(xData), 100);
-            yFit = polyval(p, xFit);
-            plot(ax, xFit, yFit, 'Color', lineColor, 'LineWidth', 2, 'LineStyle', '--');
+            % Добавляем в легенду (только точки, цвет определяется по X параметру)
+            pairLabel = sprintf('%s vs %s', label1, label2);
+            legendHandles{end+1} = hScatter;
+            legendLabels{end+1} = pairLabel;
             
-            % Вычисление корреляции
-            R = corrcoef(xData, yData);
-            if size(R, 1) == 2 && size(R, 2) == 2
-                corrCoeff = R(1, 2);
-                R2 = corrCoeff^2;
-            else
-                corrCoeff = NaN;
-                R2 = NaN;
-            end
-            
-            % Статистика регрессии для p-value
-            pValue = NaN;
-            if length(xData) >= 2
-                try
-                    [b, bint, r, rint, stats] = regress(yData, [ones(length(xData), 1), xData]);
-                    if length(stats) >= 3
-                        pValue = stats(3);
-                    end
-                catch
-                    % Игнорируем ошибки регрессии
+            % Линия регрессии и статистика (только если showStatistics включен)
+            if state.showStatistics
+                % Вычисление корреляции
+                R = corrcoef(xData, yData);
+                if size(R, 1) == 2 && size(R, 2) == 2
+                    corrCoeff = R(1, 2);
+                    R2 = corrCoeff^2;
+                else
+                    corrCoeff = NaN;
+                    R2 = NaN;
                 end
-            end
-            
-            % Отображение статистики рядом с линией регрессии
-            if state.showStatistics && ~isnan(R2) && ~isnan(pValue)
-                % Позиция текста - в правом верхнем углу графика (используем текущие пределы)
-                xLim = xlim(ax);
-                yLim = ylim(ax);
-                xPos = xLim(2) - 0.05 * (xLim(2) - xLim(1));
-                yPos = yLim(2) - 0.05 * (yLim(2) - yLim(1));
+                
+                % Статистика регрессии для p-value
+                pValue = NaN;
+                if length(xData) >= 2
+                    try
+                        [b, bint, r, rint, stats] = regress(yData, [ones(length(xData), 1), xData]);
+                        if length(stats) >= 3
+                            pValue = stats(3);
+                        end
+                    catch
+                        % Игнорируем ошибки регрессии
+                    end
+                end
+                
+                % Линия регрессии
+                p = polyfit(xData, yData, 1);
+                xFit = linspace(min(xData), max(xData), 100);
+                yFit = polyval(p, xFit);
+                plot(ax, xFit, yFit, 'Color', lineColor, 'LineWidth', 2, 'LineStyle', '--');
+                
+                % Отображение статистики рядом с линией регрессии
+                if ~isnan(R2) && ~isnan(pValue)
+                % Позиция текста - на середине линии регрессии
+                xPos = (min(xData) + max(xData)) / 2;
+                yPos = polyval(p, xPos);
                 
                 if state.showAllPvalues
                     statsText = sprintf('R²=%.3f, p=%.4f, n=%d', R2, pValue, length(xData));
@@ -2267,13 +2146,14 @@ function createCorrelationFigure(fig, state)
                 end
                 
                 text(ax, xPos, yPos, statsText, ...
-                    'HorizontalAlignment', 'right', ...
-                    'VerticalAlignment', 'top', ...
+                    'HorizontalAlignment', 'center', ...
+                    'VerticalAlignment', 'middle', ...
                     'FontSize', 9, ...
                     'BackgroundColor', 'white', ...
                     'EdgeColor', lineColor, ...
                     'LineWidth', 1, ...
                     'Interpreter', 'none');
+                end
             end
             
         end
@@ -2301,14 +2181,23 @@ function createCorrelationFigure(fig, state)
                 
                 if length(data) > 0
                     % Простой scatter plot по индексам на том же axes
-                    scatter(ax, 1:length(data), data, 50, param.parsedColor, 'o', ...
+                    hScatterSingle = scatter(ax, 1:length(data), data, 50, param.parsedColor, 'o', ...
                         'MarkerFaceColor', param.parsedColor, ...
                         'MarkerEdgeColor', 'white', ...
                         'LineWidth', 1, ...
                         'MarkerFaceAlpha', 0.7);
+                    
+                    % Добавляем в легенду
+                    legendHandles{end+1} = hScatterSingle;
+                    legendLabels{end+1} = label;
                 end
             end
         end
+        end
+        
+        % Добавляем легенду
+        if state.showLegend && ~isempty(legendHandles)
+            legend(ax, [legendHandles{:}], legendLabels, 'Location', 'best', 'Interpreter', 'none');
         end
         
         % Настройка диапазонов осей (после всех графиков на axes)
@@ -2607,7 +2496,7 @@ function createHistogramFigure(fig, state)
         end
         
         % Легенда (показываем источник данных - Column)
-        if length(paramGroups) > 0
+        if state.showLegend && length(paramGroups) > 0
             groupLabels = cell(length(paramGroups), 1);
             for g = 1:length(paramGroups)
                 groupLabels{g} = paramGroups{g}.column;
@@ -2641,6 +2530,9 @@ function createBoxplotFigure(fig, state)
     end
     if ~isfield(state, 'showYValues')
         state.showYValues = false;
+    end
+    if ~isfield(state, 'showLegend')
+        state.showLegend = true;
     end
     
     % Находим панель для графиков
