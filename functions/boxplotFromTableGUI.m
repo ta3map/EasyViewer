@@ -1998,73 +1998,109 @@ function createCorrelationFigure(fig, state)
     % Получаем все поля из структуры filteredData
     filteredDataFields = fieldnames(state.filteredData);
     
-    % Группируем параметры по фильтру
-    filterGroups = containers.Map();
+    % Группируем параметры по groupNumber
+    groupNumbers = [];
     for i = 1:length(filteredDataFields)
         fieldName = filteredDataFields{i};
         paramData = state.filteredData.(fieldName);
-        if ~isstruct(paramData)
-            continue
-        end
-        
-        filterKey = paramData.filter;
-        if isempty(filterKey)
-            filterKey = '';
-        end
-        
-        if ~isKey(filterGroups, filterKey)
-            filterGroups(filterKey) = {};
-        end
-        paramData.fieldName = fieldName;
-        filterGroups(filterKey) = [filterGroups(filterKey), {paramData}];
-    end
-    
-    % Подсчитываем общее количество графиков (пар + одиночные)
-    totalPlots = 0;
-    filterKeys = keys(filterGroups);
-    for i = 1:length(filterKeys)
-        filterKey = filterKeys{i};
-        paramsInFilter = filterGroups(filterKey);
-        numParams = length(paramsInFilter);
-        % Количество пар
-        numPairs = floor(numParams / 2);
-        totalPlots = totalPlots + numPairs;
-        % Если нечетное количество, добавляем одиночный график
-        if mod(numParams, 2) == 1
-            totalPlots = totalPlots + 1;
+        if isstruct(paramData)
+            groupNumbers(end+1) = paramData.groupNumber;
+        else
+            groupNumbers(end+1) = 1;
         end
     end
+    uniqueGroupNumbers = unique(groupNumbers);
+    nPlotGroups = length(uniqueGroupNumbers);
     
-    if totalPlots == 0
+    if nPlotGroups == 0
         return
     end
     
     % Создаем tiledlayout для автоматического управления расположением осей
-    t = tiledlayout(plotPanel, totalPlots, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+    t = tiledlayout(plotPanel, nPlotGroups, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
     
-    plotIdx = 1;
-    
-    % Обрабатываем каждую группу фильтров
-    for filterIdx = 1:length(filterKeys)
-        filterKey = filterKeys{filterIdx};
-        paramsInFilter = filterGroups(filterKey);
+    % Обрабатываем каждую группу
+    for plotGroupIdx = 1:nPlotGroups
+        groupNum = uniqueGroupNumbers(plotGroupIdx);
         
-        % Формируем пары по порядку следования
-        numParams = length(paramsInFilter);
-        numPairs = floor(numParams / 2);
+        % Находим все параметры с этим номером группы
+        paramsInGroup = {};
+        for i = 1:length(filteredDataFields)
+            fieldName = filteredDataFields{i};
+            paramData = state.filteredData.(fieldName);
+            if isstruct(paramData) && paramData.groupNumber == groupNum
+                paramData.fieldName = fieldName;
+                paramsInGroup{end+1} = paramData;
+            elseif isstruct(paramData) && paramData.groupNumber == 1 && groupNum == 1
+                paramData.fieldName = fieldName;
+                paramsInGroup{end+1} = paramData;
+            end
+        end
         
-        % Строим пары
-        for pairIdx = 1:numPairs
-            param1 = paramsInFilter{2*pairIdx - 1};
-            param2 = paramsInFilter{2*pairIdx};
-            
-            if isempty(param1.data) || isempty(param2.data)
-                continue
+        if isempty(paramsInGroup)
+            continue
+        end
+        
+        % Создаем ось для этой группы
+        ax = nexttile(t);
+        hold(ax, 'on');
+        
+        % Группируем параметры внутри группы по фильтру
+        filterGroups = containers.Map();
+        for i = 1:length(paramsInGroup)
+            paramData = paramsInGroup{i};
+            filterKey = paramData.filter;
+            if isempty(filterKey)
+                filterKey = '';
             end
             
-            % Создаем ось через nexttile (tiledlayout автоматически управляет позицией)
-            ax = nexttile(t);
-            hold(ax, 'on');
+            if ~isKey(filterGroups, filterKey)
+                filterGroups(filterKey) = {};
+            end
+            filterGroups(filterKey) = [filterGroups(filterKey), {paramData}];
+        end
+        
+        filterKeys = keys(filterGroups);
+        
+        % Собираем уникальные Label для X и Y осей
+        uniqueXLabels = {};
+        uniqueYLabels = {};
+        
+        % Обрабатываем каждую группу фильтров внутри этой группы
+        for filterIdx = 1:length(filterKeys)
+            filterKey = filterKeys{filterIdx};
+            paramsInFilter = filterGroups(filterKey);
+            
+            % Формируем пары по порядку следования
+            numParams = length(paramsInFilter);
+            numPairs = floor(numParams / 2);
+            
+            % Строим пары на том же axes
+            for pairIdx = 1:numPairs
+                param1 = paramsInFilter{2*pairIdx - 1};
+                param2 = paramsInFilter{2*pairIdx};
+                
+                % Собираем Label для X-оси (из param1)
+                label1 = param1.label;
+                if isempty(label1)
+                    label1 = param1.column;
+                end
+                if ~ismember(label1, uniqueXLabels)
+                    uniqueXLabels{end+1} = label1;
+                end
+                
+                % Собираем Label для Y-оси (из param2)
+                label2 = param2.label;
+                if isempty(label2)
+                    label2 = param2.column;
+                end
+                if ~ismember(label2, uniqueYLabels)
+                    uniqueYLabels{end+1} = label2;
+                end
+                
+                if isempty(param1.data) || isempty(param2.data)
+                    continue
+                end
             
             % Получаем данные из исходной таблицы с одинаковым фильтром
             % Если фильтр одинаковый, данные должны быть синхронизированы по строкам
@@ -2088,7 +2124,6 @@ function createCorrelationFigure(fig, state)
             if isempty(filteredTable) || ...
                ~ismember(param1.column, filteredTable.Properties.VariableNames) || ...
                ~ismember(param2.column, filteredTable.Properties.VariableNames)
-                delete(ax);
                 continue
             end
             
@@ -2111,25 +2146,15 @@ function createCorrelationFigure(fig, state)
             end
             
             if length(xData) < 2
-                delete(ax);
                 continue
             end
             
-            % Получаем цвета и метки
+            % Получаем цвета
             color1 = param1.parsedColor;
             color2 = param2.parsedColor;
             % Используем средний цвет для точек
             pointColor = (color1 + color2) / 2;
             lineColor = color1;
-            
-            label1 = param1.label;
-            if isempty(label1)
-                label1 = param1.column;
-            end
-            label2 = param2.label;
-            if isempty(label2)
-                label2 = param2.column;
-            end
             
             % Scatter plot
             scatter(ax, xData, yData, 50, pointColor, 'o', ...
@@ -2223,60 +2248,7 @@ function createCorrelationFigure(fig, state)
                 end
             end
             
-            % Подписи осей
-            xlabel(ax, label1, 'Interpreter', 'none');
-            ylabel(ax, label2, 'Interpreter', 'none');
-            
-            % Заголовок
-            title(ax, sprintf('%s vs %s', label1, label2), 'FontSize', 10, 'Interpreter', 'none');
-            
-            % Настройка диапазона Y-оси
-            if strcmp(state.yAxisRange, 'manual') && ~isempty(state.yAxisMin) && ~isempty(state.yAxisMax)
-                ylim(ax, [state.yAxisMin, state.yAxisMax]);
-            elseif strcmp(state.yAxisRange, 'auto')
-                % Автоматический расчет пределов по процентилям 0.001 и 99.99
-                if ~isempty(yData)
-                    yMin = prctile(yData, 0.001);
-                    yMax = prctile(yData, 99.99);
-                    % Если все значения одинаковые, добавляем небольшой отступ
-                    if yMin == yMax
-                        if yMin == 0
-                            yMin = -0.1;
-                            yMax = 0.1;
-                        else
-                            offset = abs(yMin) * 0.01;
-                            yMin = yMin - offset;
-                            yMax = yMax + offset;
-                        end
-                    end
-                    ylim(ax, [yMin, yMax]);
-                end
-            end
-            
-            % Настройка диапазона X-оси
-            if strcmp(state.xAxisRange, 'manual') && ~isempty(state.xAxisMin) && ~isempty(state.xAxisMax)
-                xlim(ax, [state.xAxisMin, state.xAxisMax]);
-            elseif strcmp(state.xAxisRange, 'auto')
-                % Автоматический расчет пределов по процентилям 0.001 и 99.99
-                if ~isempty(xData)
-                    xMin = prctile(xData, 0.001);
-                    xMax = prctile(xData, 99.99);
-                    % Если все значения одинаковые, добавляем небольшой отступ
-                    if xMin == xMax
-                        if xMin == 0
-                            xMin = -0.1;
-                            xMax = 0.1;
-                        else
-                            offset = abs(xMin) * 0.01;
-                            xMin = xMin - offset;
-                            xMax = xMax + offset;
-                        end
-                    end
-                    xlim(ax, [xMin, xMax]);
-                end
-            end
-            
-            % Отображение статистики рядом с линией регрессии (после установки пределов Y)
+            % Отображение статистики рядом с линией регрессии
             if state.showStatistics && ~isnan(R2) && ~isnan(pValue)
                 % Позиция текста - в правом верхнем углу графика (используем текущие пределы)
                 xLim = xlim(ax);
@@ -2304,53 +2276,84 @@ function createCorrelationFigure(fig, state)
                     'Interpreter', 'none');
             end
             
-            % Сетка
-            grid(ax, 'on');
-            
-            plotIdx = plotIdx + 1;
         end
         
-        % Если нечетное количество параметров, показываем последний отдельно
+        % Если нечетное количество параметров, показываем последний отдельно на том же axes
         if mod(numParams, 2) == 1
             param = paramsInFilter{end};
             
+            % Собираем Label для одиночного параметра (добавляем в X и Y)
+            label = param.label;
+            if isempty(label)
+                label = param.column;
+            end
+            if ~ismember(label, uniqueXLabels)
+                uniqueXLabels{end+1} = label;
+            end
+            if ~ismember(label, uniqueYLabels)
+                uniqueYLabels{end+1} = label;
+            end
+            
             if ~isempty(param.data)
-                % Создаем ось через nexttile (tiledlayout автоматически управляет позицией)
-                ax = nexttile(t);
-                hold(ax, 'on');
-                
                 data = param.data;
                 validIndices = ~isnan(data) & ~isinf(data);
                 data = data(validIndices);
                 
                 if length(data) > 0
-                    label = param.label;
-                    if isempty(label)
-                        label = param.column;
-                    end
-                    
-                    % Простой scatter plot по индексам
+                    % Простой scatter plot по индексам на том же axes
                     scatter(ax, 1:length(data), data, 50, param.parsedColor, 'o', ...
                         'MarkerFaceColor', param.parsedColor, ...
                         'MarkerEdgeColor', 'white', ...
                         'LineWidth', 1, ...
                         'MarkerFaceAlpha', 0.7);
-                    
-                    xlabel(ax, 'Index', 'Interpreter', 'none');
-                    ylabel(ax, label, 'Interpreter', 'none');
-                    title(ax, sprintf('Single parameter: n=%d', length(data)), 'FontSize', 10, 'Interpreter', 'none');
-                    grid(ax, 'on');
-                else
-                    delete(ax);
                 end
-                
-                plotIdx = plotIdx + 1;
             end
         end
+        end
+        
+        % Настройка диапазонов осей (после всех графиков на axes)
+        if strcmp(state.yAxisRange, 'manual') && ~isempty(state.yAxisMin) && ~isempty(state.yAxisMax)
+            ylim(ax, [state.yAxisMin, state.yAxisMax]);
+        elseif strcmp(state.yAxisRange, 'auto')
+            % Автоматический расчет пределов по всем данным на axes
+            yLimits = ylim(ax);
+            if ~isinf(yLimits(1)) && ~isinf(yLimits(2))
+                ylim(ax, yLimits);
+            end
+        end
+        
+        if strcmp(state.xAxisRange, 'manual') && ~isempty(state.xAxisMin) && ~isempty(state.xAxisMax)
+            xlim(ax, [state.xAxisMin, state.xAxisMax]);
+        elseif strcmp(state.xAxisRange, 'auto')
+            % Автоматический расчет пределов по всем данным на axes
+            xLimits = xlim(ax);
+            if ~isinf(xLimits(1)) && ~isinf(xLimits(2))
+                xlim(ax, xLimits);
+            end
+        end
+        
+        % Подписи осей для группы (после обработки всех фильтров)
+        % Используем уникальные Label
+        if ~isempty(uniqueXLabels)
+            xLabelText = strjoin(uniqueXLabels, ', ');
+            xlabel(ax, xLabelText, 'Interpreter', 'none');
+        else
+            xlabel(ax, sprintf('Group %d', groupNum), 'Interpreter', 'none');
+        end
+        
+        if ~isempty(uniqueYLabels)
+            yLabelText = strjoin(uniqueYLabels, ', ');
+            ylabel(ax, yLabelText, 'Interpreter', 'none');
+        else
+            ylabel(ax, sprintf('Group %d', groupNum), 'Interpreter', 'none');
+        end
+        
+        % Сетка
+        grid(ax, 'on');
     end
     
     % Добавляем общий заголовок через tiledlayout
-    if totalPlots > 0
+    if nPlotGroups > 0
         title(t, state.title, 'FontSize', 14, 'FontWeight', 'bold', 'Interpreter', 'none');
         zoom(fig, 'on');
         pan(fig, 'on');
@@ -2589,7 +2592,7 @@ function createHistogramFigure(fig, state)
         else
             xlabel(ax, sprintf('Group %d', groupNum), 'Interpreter', 'none');
         end
-        ylabel(ax, 'N', 'Interpreter', 'none');
+        ylabel(ax, 'N', 'Interpreter', 'none', 'rotation', 0);
         
         % Заголовок будет добавлен через tiledlayout после цикла
         
