@@ -41,7 +41,7 @@ function metadataAnalysis(metaPaths, fileIds, fileTableData, fileTableColumns)
         sqlFields = {};
         if numel(fileTableColumns) > 3
             for i = 4:numel(fileTableColumns)
-                sqlFields{end+1} = sprintf('sql.%s', fileTableColumns{i});
+                sqlFields{end+1} = fileTableColumns{i};
             end
         end
         allFields = [allFields, sqlFields];
@@ -50,7 +50,11 @@ function metadataAnalysis(metaPaths, fileIds, fileTableData, fileTableColumns)
     
     debugState('metadataAnalysis', 'Found %d metadata fields', numel(allFields));
     
-    selectionResult = showFieldSelectionDialog(allFields);
+    if nargin >= 4 && ~isempty(fileTableColumns)
+        selectionResult = showFieldSelectionDialog(allFields, fileTableColumns);
+    else
+        selectionResult = showFieldSelectionDialog(allFields, {});
+    end
     if isempty(selectionResult) || isempty(selectionResult.fields)
         debugState('metadataAnalysis', 'No fields selected, cancelling');
         return
@@ -141,7 +145,7 @@ function fields = extractFieldsRecursive(value, prefix, fields)
     end
 end
 
-function result = showFieldSelectionDialog(allFields)
+function result = showFieldSelectionDialog(allFields, fileTableColumns)
     result = struct('fields', {}, 'sqlFormats', containers.Map());
     
     fig = figure('Position', [300, 300, 600, 400], ...
@@ -155,8 +159,10 @@ function result = showFieldSelectionDialog(allFields)
     isSqlField = false(numFields, 1);
     
     for i = 1:numFields
-        if strncmp(allFields{i}, 'sql.', 4)
-            isSqlField(i) = true;
+        if numel(fileTableColumns) > 3
+            isSqlField(i) = any(strcmp(allFields{i}, fileTableColumns(4:end)));
+        end
+        if isSqlField(i)
             formatColumn{i} = 'Text';
         else
             formatColumn{i} = '';
@@ -555,7 +561,8 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
                 fieldPath = selectedFields{fieldIdx};
                 
                 % Handle SQL fields during structure analysis
-                if strncmp(fieldPath, 'sql.', 4)
+                isSqlField = hasFileTableData && numel(fileTableColumns) > 3 && any(strcmp(fieldPath, fileTableColumns(4:end)));
+                if isSqlField
                     if isempty(fieldInfo{fieldIdx})
                         isText = true;
                         if sqlFormats.isKey(fieldPath)
@@ -687,14 +694,12 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
                 fieldPath = selectedFields{fieldIdx};
                 
                 % Check if this is a SQL field
-                if strncmp(fieldPath, 'sql.', 4) && hasFileTableData
-                    % Extract SQL field name (remove "sql." prefix)
-                    sqlFieldName = fieldPath(5:end);
-                    
+                isSqlField = hasFileTableData && numel(fileTableColumns) > 3 && any(strcmp(fieldPath, fileTableColumns(4:end)));
+                if isSqlField
                     % Find column index in fileTableColumns
                     colIdx = [];
                     for c = 1:numel(fileTableColumns)
-                        if strcmp(fileTableColumns{c}, sqlFieldName)
+                        if strcmp(fileTableColumns{c}, fieldPath)
                             colIdx = c;
                             break
                         end

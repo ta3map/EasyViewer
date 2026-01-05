@@ -51,6 +51,9 @@ function boxplotFromTableGUI(filePath)
     state.yAxisRange = 'auto';
     state.yAxisMin = [];
     state.yAxisMax = [];
+    state.xAxisRange = 'auto';
+    state.xAxisMin = [];
+    state.xAxisMax = [];
     state.title = ' ';
     state.filteredData = struct(); % Структура с отфильтрованными данными для каждого параметра
     state.plotMode = 'BoxPlot'; % Режим визуализации: 'BoxPlot', 'Correlation' или 'Histogram'
@@ -218,17 +221,31 @@ function createUI(fig)
         'Visible', 'off', ...
         'Tag', 'yAxisMaxEdit');
     
-    % Заголовок
+    % X-ось
     uicontrol('Parent', fig, 'Style', 'text', ...
-        'Position', [margin, 50, 100, lineHeight], ...
-        'String', 'Title:', ...
+        'Position', [margin, 55, 100, lineHeight], ...
+        'String', 'X-axis Range:', ...
         'FontSize', 10, ...
         'HorizontalAlignment', 'left');
     
-    titleEdit = uicontrol('Parent', fig, 'Style', 'edit', ...
-        'Position', [110, 50, 280, 25], ...
-        'String', ' ', ...
-        'Tag', 'titleEdit');
+    xAxisPopup = uicontrol('Parent', fig, 'Style', 'popupmenu', ...
+        'Position', [110, 55, 150, 25], ...
+        'String', {'Auto', 'Manual'}, ...
+        'Tag', 'xAxisPopup', ...
+        'Callback', @(~,~) updateXAxisControls(fig));
+    
+    xAxisMinEdit = uicontrol('Parent', fig, 'Style', 'edit', ...
+        'Position', [270, 55, 60, 25], ...
+        'String', '', ...
+        'Visible', 'off', ...
+        'Tag', 'xAxisMinEdit');
+    
+    xAxisMaxEdit = uicontrol('Parent', fig, 'Style', 'edit', ...
+        'Position', [340, 55, 60, 25], ...
+        'String', '', ...
+        'Visible', 'off', ...
+        'Tag', 'xAxisMaxEdit');
+    
     
     % Режим визуализации (выпадающий список на месте кнопки Plot)
     plotModePopup = uicontrol('Parent', fig, 'Style', 'popupmenu', ...
@@ -250,9 +267,22 @@ function createUI(fig)
         'FontSize', 11, ...
         'Callback', @(~,~) exportPlotCallback(fig));
     
-    % Область для графика
+    % Поле для ввода названия графика (над контейнером графиков)
+    titleLabel = uicontrol('Parent', fig, 'Style', 'text', ...
+        'Position', [410, 620, 60, 25], ...
+        'String', 'Title:', ...
+        'FontSize', 10, ...
+        'HorizontalAlignment', 'left', ...
+        'Tag', 'titleLabel');
+    
+    titleEdit = uicontrol('Parent', fig, 'Style', 'edit', ...
+        'Position', [480, 620, 710, 25], ...
+        'String', ' ', ...
+        'Tag', 'titleEdit');
+    
+    % Область для графика под полем для ввода названия графика
     plotPanel = uipanel('Parent', fig, ...
-        'Position', [panelWidth/fig.Position(3), 0, 1 - panelWidth/fig.Position(3), 1], ...
+        'Position', [400, 65, 800, 585], ...
         'Tag', 'plotPanel');
 end
 
@@ -365,6 +395,9 @@ function saveStateCallback(fig)
         savedState.yAxisRange = state.yAxisRange;
         savedState.yAxisMin = state.yAxisMin;
         savedState.yAxisMax = state.yAxisMax;
+        savedState.xAxisRange = state.xAxisRange;
+        savedState.xAxisMin = state.xAxisMin;
+        savedState.xAxisMax = state.xAxisMax;
         savedState.title = state.title;
         savedState.plotMode = state.plotMode;
         
@@ -506,6 +539,24 @@ function loadStateCallback(fig)
         if isfield(savedState, 'yAxisMax')
             state.yAxisMax = savedState.yAxisMax;
         end
+        if isfield(savedState, 'xAxisRange')
+            state.xAxisRange = savedState.xAxisRange;
+        end
+        if isfield(savedState, 'xAxisMin')
+            state.xAxisMin = savedState.xAxisMin;
+        end
+        if isfield(savedState, 'xAxisMax')
+            state.xAxisMax = savedState.xAxisMax;
+        end
+        if ~isfield(state, 'xAxisRange')
+            state.xAxisRange = 'auto';
+        end
+        if ~isfield(state, 'xAxisMin')
+            state.xAxisMin = [];
+        end
+        if ~isfield(state, 'xAxisMax')
+            state.xAxisMax = [];
+        end
         if isfield(savedState, 'title')
             state.title = savedState.title;
         end
@@ -572,12 +623,32 @@ function loadStateCallback(fig)
             set(yAxisMaxEdit, 'String', num2str(state.yAxisMax));
         end
         
+        xAxisPopup = findobj(fig, 'Tag', 'xAxisPopup');
+        if ~isempty(xAxisPopup)
+            if strcmp(state.xAxisRange, 'auto')
+                set(xAxisPopup, 'Value', 1);
+            else
+                set(xAxisPopup, 'Value', 2);
+            end
+        end
+        
+        xAxisMinEdit = findobj(fig, 'Tag', 'xAxisMinEdit');
+        if ~isempty(xAxisMinEdit) && ~isempty(state.xAxisMin)
+            set(xAxisMinEdit, 'String', num2str(state.xAxisMin));
+        end
+        
+        xAxisMaxEdit = findobj(fig, 'Tag', 'xAxisMaxEdit');
+        if ~isempty(xAxisMaxEdit) && ~isempty(state.xAxisMax)
+            set(xAxisMaxEdit, 'String', num2str(state.xAxisMax));
+        end
+        
         titleEdit = findobj(fig, 'Tag', 'titleEdit');
         if ~isempty(titleEdit) && ~isempty(state.title)
             set(titleEdit, 'String', state.title);
         end
         
         updateYAxisControls(fig);
+        updateXAxisControls(fig);
         
         % 4. Обновляем структуру filteredData
         updateFilteredDataStructure(fig);
@@ -1267,6 +1338,9 @@ function plotBoxplotCallback(fig)
     yAxisPopup = findobj(fig, 'Tag', 'yAxisPopup');
     yAxisMinEdit = findobj(fig, 'Tag', 'yAxisMinEdit');
     yAxisMaxEdit = findobj(fig, 'Tag', 'yAxisMaxEdit');
+    xAxisPopup = findobj(fig, 'Tag', 'xAxisPopup');
+    xAxisMinEdit = findobj(fig, 'Tag', 'xAxisMinEdit');
+    xAxisMaxEdit = findobj(fig, 'Tag', 'xAxisMaxEdit');
     titleEdit = findobj(fig, 'Tag', 'titleEdit');
     plotModePopup = findobj(fig, 'Tag', 'plotModePopup');
     
@@ -1299,6 +1373,15 @@ function plotBoxplotCallback(fig)
         if strcmp(state.yAxisRange, 'manual')
             state.yAxisMin = str2double(get(yAxisMinEdit, 'String'));
             state.yAxisMax = str2double(get(yAxisMaxEdit, 'String'));
+        end
+        if get(xAxisPopup, 'Value') == 1
+            state.xAxisRange = 'auto';
+        else
+            state.xAxisRange = 'manual';
+        end
+        if strcmp(state.xAxisRange, 'manual')
+            state.xAxisMin = str2double(get(xAxisMinEdit, 'String'));
+            state.xAxisMax = str2double(get(xAxisMaxEdit, 'String'));
         end
         state.title = get(titleEdit, 'String');
         
@@ -1459,6 +1542,21 @@ function updateYAxisControls(fig)
     end
 end
 
+function updateXAxisControls(fig)
+    xAxisPopup = findobj(fig, 'Tag', 'xAxisPopup');
+    xAxisMinEdit = findobj(fig, 'Tag', 'xAxisMinEdit');
+    xAxisMaxEdit = findobj(fig, 'Tag', 'xAxisMaxEdit');
+    
+    isManual = get(xAxisPopup, 'Value') == 2;
+    if isManual
+        set(xAxisMinEdit, 'Visible', 'on');
+        set(xAxisMaxEdit, 'Visible', 'on');
+    else
+        set(xAxisMinEdit, 'Visible', 'off');
+        set(xAxisMaxEdit, 'Visible', 'off');
+    end
+end
+
 function loadCoords(fig)
     coordsFile = fullfile(fileparts(mfilename('fullpath')), '..', 'boxplotFromTableGUI_coords.json');
     if exist(coordsFile, 'file')
@@ -1509,6 +1607,9 @@ function saveBoxplotStateToGlobalSettings(fig)
     boxplot_state.yAxisRange = state.yAxisRange;
     boxplot_state.yAxisMin = state.yAxisMin;
     boxplot_state.yAxisMax = state.yAxisMax;
+    boxplot_state.xAxisRange = state.xAxisRange;
+    boxplot_state.xAxisMin = state.xAxisMin;
+    boxplot_state.xAxisMax = state.xAxisMax;
     boxplot_state.title = state.title;
     boxplot_state.plotMode = state.plotMode;
     
@@ -1589,6 +1690,24 @@ function loadBoxplotStateFromGlobalSettings(fig)
         if isfield(savedState, 'yAxisMax')
             state.yAxisMax = savedState.yAxisMax;
         end
+        if isfield(savedState, 'xAxisRange')
+            state.xAxisRange = savedState.xAxisRange;
+        end
+        if isfield(savedState, 'xAxisMin')
+            state.xAxisMin = savedState.xAxisMin;
+        end
+        if isfield(savedState, 'xAxisMax')
+            state.xAxisMax = savedState.xAxisMax;
+        end
+        if ~isfield(state, 'xAxisRange')
+            state.xAxisRange = 'auto';
+        end
+        if ~isfield(state, 'xAxisMin')
+            state.xAxisMin = [];
+        end
+        if ~isfield(state, 'xAxisMax')
+            state.xAxisMax = [];
+        end
         if isfield(savedState, 'title')
             state.title = savedState.title;
         end
@@ -1654,6 +1773,25 @@ function updateUIFromState(fig)
         set(yAxisMaxEdit, 'String', num2str(state.yAxisMax));
     end
     
+    xAxisPopup = findobj(fig, 'Tag', 'xAxisPopup');
+    if ~isempty(xAxisPopup)
+        if isfield(state, 'xAxisRange') && strcmp(state.xAxisRange, 'auto')
+            set(xAxisPopup, 'Value', 1);
+        elseif isfield(state, 'xAxisRange')
+            set(xAxisPopup, 'Value', 2);
+        end
+    end
+    
+    xAxisMinEdit = findobj(fig, 'Tag', 'xAxisMinEdit');
+    if ~isempty(xAxisMinEdit) && isfield(state, 'xAxisMin') && ~isempty(state.xAxisMin)
+        set(xAxisMinEdit, 'String', num2str(state.xAxisMin));
+    end
+    
+    xAxisMaxEdit = findobj(fig, 'Tag', 'xAxisMaxEdit');
+    if ~isempty(xAxisMaxEdit) && isfield(state, 'xAxisMax') && ~isempty(state.xAxisMax)
+        set(xAxisMaxEdit, 'String', num2str(state.xAxisMax));
+    end
+    
     titleEdit = findobj(fig, 'Tag', 'titleEdit');
     if ~isempty(titleEdit) && ~isempty(state.title)
         set(titleEdit, 'String', state.title);
@@ -1674,6 +1812,7 @@ function updateUIFromState(fig)
     end
     
     updateYAxisControls(fig);
+    updateXAxisControls(fig);
     updateAnalysisColumnsDisplay(fig);
 end
 
@@ -2118,6 +2257,29 @@ function createCorrelationFigure(fig, state)
                 end
             end
             
+            % Настройка диапазона X-оси
+            if strcmp(state.xAxisRange, 'manual') && ~isempty(state.xAxisMin) && ~isempty(state.xAxisMax)
+                xlim(ax, [state.xAxisMin, state.xAxisMax]);
+            elseif strcmp(state.xAxisRange, 'auto')
+                % Автоматический расчет пределов по процентилям 0.001 и 99.99
+                if ~isempty(xData)
+                    xMin = prctile(xData, 0.001);
+                    xMax = prctile(xData, 99.99);
+                    % Если все значения одинаковые, добавляем небольшой отступ
+                    if xMin == xMax
+                        if xMin == 0
+                            xMin = -0.1;
+                            xMax = 0.1;
+                        else
+                            offset = abs(xMin) * 0.01;
+                            xMin = xMin - offset;
+                            xMax = xMax + offset;
+                        end
+                    end
+                    xlim(ax, [xMin, xMax]);
+                end
+            end
+            
             % Отображение статистики рядом с линией регрессии (после установки пределов Y)
             if state.showStatistics && ~isnan(R2) && ~isnan(pValue)
                 % Позиция текста - в правом верхнем углу графика (используем текущие пределы)
@@ -2431,6 +2593,11 @@ function createHistogramFigure(fig, state)
         % Настройка диапазона Y-оси
         if strcmp(state.yAxisRange, 'manual') && ~isempty(state.yAxisMin) && ~isempty(state.yAxisMax)
             ylim(ax, [state.yAxisMin, state.yAxisMax]);
+        end
+        
+        % Настройка диапазона X-оси
+        if strcmp(state.xAxisRange, 'manual') && ~isempty(state.xAxisMin) && ~isempty(state.xAxisMax)
+            xlim(ax, [state.xAxisMin, state.xAxisMax]);
         end
         
         % Легенда (если есть несколько групп из колонки Group)
@@ -2868,6 +3035,11 @@ function createBoxplotFigure(fig, state)
                 end
                 ylim(ax, [yMin, yMax]);
             end
+        end
+        
+        % Настройка диапазона X-оси
+        if strcmp(state.xAxisRange, 'manual') && ~isempty(state.xAxisMin) && ~isempty(state.xAxisMax)
+            xlim(ax, [state.xAxisMin, state.xAxisMax]);
         end
         
         % Скобки значимости (если статистика включена) - между параметрами на полотне
