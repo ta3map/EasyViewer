@@ -95,13 +95,11 @@ function metadataAnalysis(metaPaths, fileIds, fileTableData, fileTableColumns)
     
     % Offer to view results
     choice = questdlg(sprintf('Data saved to:\n%s\n\nHow would you like to view the results?', savePath), ...
-        'View Results', 'Boxplot', 'Dependencies Analysis', 'Cancel', 'Boxplot');
+        'View Results', 'Plot', 'Cancel', 'Cancel');
     
     switch choice
-        case 'Boxplot'
-            boxplotFromTableGUI(savePath);
-        case 'Dependencies Analysis'
-            msgbox('Dependencies analysis will be implemented in the future', 'Info', 'help');
+        case 'Plot'
+            plotFromTableGUI(savePath);
         case 'Cancel'
             % Do nothing
     end

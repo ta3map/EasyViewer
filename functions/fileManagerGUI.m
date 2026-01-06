@@ -226,10 +226,16 @@ function fileManagerGUI()
     analysisTable.CellSelectionCallback = @handleAnalysisSelection;
     
     metaAnalysisBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', [930, 15, 345, 38], ...
+        'Position', [930, 15, 170, 38], ...
         'String', 'Metadata Analysis', ...
         'FontSize', 11, ...
         'Callback', @metadataAnalysisCallback);
+    
+    resultsGalleryBtn = uicontrol('Style', 'pushbutton', ...
+        'Position', [1110, 15, 165, 38], ...
+        'String', 'Results Gallery', ...
+        'FontSize', 11, ...
+        'Callback', @openResultsGallery);
 
     fileTable.UserData = struct('row', [], 'col', [], 'vpos', [], 'hpos', []);
     fileTable.CellSelectionCallback = @handleCellSelection;
@@ -1150,15 +1156,8 @@ function fileManagerGUI()
             return
         end
         selected = getSelectedAnalysisRows(size(data, 1));
-        reportPath = normalizePath(data{selected(1), 2});
-        if isempty(reportPath)
-            return
-        end
-        if exist(reportPath, 'file')
-            winopen(reportPath);
-        else
-            msgbox(sprintf('File not found: %s', reportPath), 'Error', 'error');
-        end
+        reportPath = data{selected(1), 2};
+        openReportFile(reportPath);
     end
     
     function openAnalysisFolder(~, ~)
@@ -1170,20 +1169,8 @@ function fileManagerGUI()
             return
         end
         selected = getSelectedAnalysisRows(size(data, 1));
-        reportPath = normalizePath(data{selected(1), 2});
-        if isempty(reportPath)
-            return
-        end
-        if exist(reportPath, 'file')
-            folder = fileparts(reportPath);
-            if exist(folder, 'dir')
-                winopen(folder);
-            else
-                msgbox(sprintf('Folder not found: %s', folder), 'Error', 'error');
-            end
-        else
-            msgbox(sprintf('File not found: %s', reportPath), 'Error', 'error');
-        end
+        reportPath = data{selected(1), 2};
+        openReportFolder(reportPath);
     end
     
     function deleteSelectedAnalysis(~, ~)
@@ -1200,24 +1187,17 @@ function fileManagerGUI()
         end
         try
             reportPaths = cellfun(@(v) normalizePath(v), data(selectedRows, 2), 'UniformOutput', false);
-            validPaths = reportPaths(~cellfun(@isempty, reportPaths));
-            if isempty(validPaths)
-                return
-            end
-            choice = questdlg(sprintf('Delete %d selected analysis result(s)?', numel(validPaths)), ...
-                'Confirm Delete', 'Delete', 'Cancel', 'Cancel');
-            if ~strcmp(choice, 'Delete')
-                return
-            end
-            deleteFiles(validPaths);
-            deleteRecords(validPaths);
-            if isfield(state, 'selectedFileIds') && ~isempty(state.selectedFileIds)
-                updateAnalysisTable(state.selectedFileIds);
-            else
-                updateAnalysisTable([]);
-            end
+            deleteAnalysisResults(reportPaths, @() updateAnalysisTableAfterDelete());
         catch ME
             msgbox(sprintf('Failed to delete result: %s', ME.message), 'Error', 'error');
+        end
+    end
+    
+    function updateAnalysisTableAfterDelete()
+        if isfield(state, 'selectedFileIds') && ~isempty(state.selectedFileIds)
+            updateAnalysisTable(state.selectedFileIds);
+        else
+            updateAnalysisTable([]);
         end
     end
     
@@ -1270,59 +1250,10 @@ function fileManagerGUI()
         metadataAnalysis(metaPaths, fileIdArray, fileTableData, fileTableColumns);
     end
     
-    function deleteFiles(paths)
-        for i = 1:numel(paths)
-            deleteIfExists(paths{i});
-            metaPath = replaceFileExt(paths{i}, '.meta');
-            deleteIfExists(metaPath);
-        end
+    function openResultsGallery(~, ~)
+        resultsGalleryGUI();
     end
     
-    function deleteRecords(paths)
-        if isempty(paths)
-            return
-        end
-        dbPath = getDbPath();
-        if isempty(dbPath) || ~isfile(dbPath)
-            return
-        end
-        conn = openSqliteConnection(dbPath);
-        if isempty(conn)
-            return
-        end
-        try
-            escaped = cellfun(@(p) ['''' escapeSql(p) ''''], paths, 'UniformOutput', false);
-            inClause = strjoin(escaped, ',');
-            query = sprintf('DELETE FROM analysis_results WHERE report_path IN (%s)', inClause);
-            sqlExecWithConn(conn, query);
-        catch ME
-            warning('Failed to delete records: %s', ME.message);
-        end
-        closeJdbcResource(conn);
-    end
-    
-    function deleteIfExists(pathStr)
-        if exist(pathStr, 'file')
-            delete(pathStr);
-        end
-    end
-    
-    function newPath = replaceFileExt(pathStr, newExt)
-        [folder, name, ~] = fileparts(pathStr);
-        newPath = fullfile(folder, [name, newExt]);
-    end
-
-    function pathStr = normalizePath(value)
-        if isempty(value)
-            pathStr = '';
-        elseif isstring(value)
-            pathStr = char(value);
-        elseif iscell(value)
-            pathStr = normalizePath(value{1});
-        else
-            pathStr = char(value);
-        end
-    end
     
     function moduleSelectionChanged(~, ~)
         moduleIdx = get(moduleSelect, 'Value');
@@ -2712,22 +2643,6 @@ function autoBackupDatabase()
         end
     catch ME
         warning('Failed to create database backup: %s', ME.message);
-    end
-end
-
-
-function projectId = readStoredProjectId()
-    global SettingsFilepath
-    projectId = [];
-    try
-        if exist(SettingsFilepath, 'file')
-            data = load(SettingsFilepath);
-            if isfield(data, 'file_manager_project_id')
-                projectId = data.file_manager_project_id;
-            end
-        end
-    catch
-        projectId = [];
     end
 end
 

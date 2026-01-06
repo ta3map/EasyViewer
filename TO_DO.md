@@ -66,3 +66,17 @@
 - Определить источник дублирования данных
 - Реализовать устранение дубликатов или предотвращение их появления
 
+### 8. Перевести File Manager и Boxplot From Table на относительные масштабируемые координаты
+- ⏳ В ожидании реализации
+- Модифицировать `functions/fileManagerGUI.m` и `functions/boxplotFromTableGUI.m`
+- Реализовать систему относительных координат как в `signalViewerGUI.m` и `signalAnalysisGUI.m`:
+  - Загрузка координат из JSON файла
+  - Преобразование относительных координат в абсолютные на основе `base_figure_position`
+  - Переиспользовать аналогичным образом функцию `resizeComponents` для автоматического масштабирования при изменении размера окна
+  - Переиспользование аналогичным образом функции `getElementPosition` для получения координат элементов
+- Добавить разворот окна после установки координат (`f.WindowState = 'maximized'`)
+- Переместить файлы координат для всех таких автомасштабируемых окон (signalViewerGUI signalAnalysisGUI и новых) в папку `configs/window_coords`:
+  - `boxplotFromTableGUI_coords.json` → `configs/window_coords/boxplotFromTableGUI_coords.json`
+  - Создать `configs/window_coords/fileManagerGUI_coords.json` для File Manager
+- Обновить пути к файлам координат в коде
+

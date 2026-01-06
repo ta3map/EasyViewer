@@ -1030,7 +1030,7 @@ function signalViewerGUI(editMode)
             case analysis_functions{15}
                 dataComparerApp();
             case analysis_functions{17}
-                boxplotFromTableGUI();
+                plotFromTableGUI();
             case ''
                 dont_close_menu = true;
         end    

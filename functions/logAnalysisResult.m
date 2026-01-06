@@ -35,11 +35,6 @@ function logAnalysisResult(fileIdOrPath, result)
             end
         end
         
-        if isempty(fileId)
-            closeJdbcResource(conn);
-            return
-        end
-        
         paramsJson = '';
         if isfield(result, 'parameters') && ~isempty(result.parameters)
             paramsJson = jsonencode(result.parameters);
@@ -55,21 +50,36 @@ function logAnalysisResult(fileIdOrPath, result)
             return
         end
         
-        % Проверяем, есть ли уже запись для этого файла с таким module_name
-        checkQuery = sprintf('SELECT id FROM analysis_results WHERE file_id = %d AND module_name = ''%s'' LIMIT 1', ...
-            fileId, escapeSql(moduleName));
+        % Проверяем, есть ли уже запись с таким file_id, module_name и report_path
+        if ~isempty(fileId)
+            checkQuery = sprintf('SELECT id FROM analysis_results WHERE file_id = %d AND module_name = ''%s'' AND report_path = ''%s'' LIMIT 1', ...
+                fileId, escapeSql(moduleName), escapeSql(reportPath));
+        else
+            checkQuery = sprintf('SELECT id FROM analysis_results WHERE file_id IS NULL AND module_name = ''%s'' AND report_path = ''%s'' LIMIT 1', ...
+                escapeSql(moduleName), escapeSql(reportPath));
+        end
         existingRecord = sqlFetchWithConn(conn, checkQuery);
         
         if ~isempty(existingRecord)
-            debugState('logAnalysisResult', 'Analysis result already exists for file_id=%d, module_name=%s. Skipping insert.', fileId, moduleName);
+            if ~isempty(fileId)
+                debugState('logAnalysisResult', 'Analysis result already exists for file_id=%d, module_name=%s, report_path=%s. Skipping insert.', fileId, moduleName, reportPath);
+            else
+                debugState('logAnalysisResult', 'Analysis result already exists for file_id=NULL, module_name=%s, report_path=%s. Skipping insert.', moduleName, reportPath);
+            end
             closeJdbcResource(conn);
             return
         end
         
         analysisTs = round(posixtime(datetime('now'))*1000);
-        query = sprintf(['INSERT INTO analysis_results (file_id, module_name, module_display_name, module_description, ' ...
-            'analysis_timestamp, report_path, parameters_json, created_at) VALUES (%d, ''%s'', ''%s'', ''%s'', %d, ''%s'', ''%s'', CURRENT_TIMESTAMP)'], ...
-            fileId, escapeSql(moduleName), escapeSql(moduleDisplay), escapeSql(moduleDesc), analysisTs, escapeSql(reportPath), escapeSql(paramsJson));
+        if ~isempty(fileId)
+            query = sprintf(['INSERT INTO analysis_results (file_id, module_name, module_display_name, module_description, ' ...
+                'analysis_timestamp, report_path, parameters_json, created_at) VALUES (%d, ''%s'', ''%s'', ''%s'', %d, ''%s'', ''%s'', CURRENT_TIMESTAMP)'], ...
+                fileId, escapeSql(moduleName), escapeSql(moduleDisplay), escapeSql(moduleDesc), analysisTs, escapeSql(reportPath), escapeSql(paramsJson));
+        else
+            query = sprintf(['INSERT INTO analysis_results (file_id, module_name, module_display_name, module_description, ' ...
+                'analysis_timestamp, report_path, parameters_json, created_at) VALUES (NULL, ''%s'', ''%s'', ''%s'', %d, ''%s'', ''%s'', CURRENT_TIMESTAMP)'], ...
+                escapeSql(moduleName), escapeSql(moduleDisplay), escapeSql(moduleDesc), analysisTs, escapeSql(reportPath), escapeSql(paramsJson));
+        end
         sqlExecWithConn(conn, query);
     catch ME
         warning('logAnalysisResult: Failed to log analysis result: %s', ME.message);
