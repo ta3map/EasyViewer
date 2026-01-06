@@ -6,6 +6,36 @@ function autoEventDetectionGUI()
     
     settings = autodetection_settings;
     
+    % Загружаем координаты элементов из JSON файла
+    coordsFile = fullfile(fileparts(mfilename('fullpath')), '..', 'configs', 'window_coords', 'autoEventDetectionGUI_coords.json');
+    if exist(coordsFile, 'file')
+        coordsData = jsondecode(fileread(coordsFile));
+    else
+        error('Coordinates file not found: %s', coordsFile);
+    end
+    
+    % Вспомогательная функция для получения координат элемента
+    function pos = getElementPosition(tag)
+        if isfield(coordsData.elements, tag)
+            pos = coordsData.elements.(tag);
+            % Для панели (plotPanel) оставляем относительные координаты
+            if strcmp(tag, 'plotPanel')
+                % Панель уже использует относительные координаты, возвращаем как есть
+                return;
+            end
+            % Преобразуем относительные координаты в абсолютные
+            base_pos = coordsData.base_figure_position;
+            pos = [
+                pos(1) * base_pos(3),  % x
+                pos(2) * base_pos(4),  % y
+                pos(3) * base_pos(3),  % width
+                pos(4) * base_pos(4)   % height
+            ];
+        else
+            error('Coordinates for element %s not found in JSON file', tag);
+        end
+    end
+    
     global events event_comments hd events_detected matFilePath evfilename eventDeleteEdit
     global hMinPeakProminence hDetectionType hChPos hChNeg hMaxPeakWidth
     global hMinPeakDistance hPeakDetectionMode
@@ -32,81 +62,75 @@ function autoEventDetectionGUI()
     end
         
     % Окно Auto Event Detection
+    base_figure_position = coordsData.base_figure_position;
     detectionFig = figure('Name', 'Auto Event Detection', 'Tag', figTag, ...
-        'Resize', 'off', ...
-        'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', 'Position', [100, 100, 1100, 500]);
-
-    ypos = linspace(450, 120, 16);
+        'Resize', 'on', ...
+        'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', 'Position', base_figure_position);
     
     % Окно выбора источника данных LFP или CSD
-    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(1), 150, 20], 'String', 'Source:');
-    hSourceType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(1), 130, 20], 'String', {'LFP', 'CSD'}, 'Callback', @changeDetectionType);
+    uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('sourceText'), 'String', 'Source:', 'Tag', 'sourceText');
+    hSourceType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('sourceType'), 'String', {'LFP', 'CSD'}, 'Callback', @changeDetectionType, 'Tag', 'sourceType');
 
     % Окно выбора типа детекции (1 или 2 канала)
-    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(2), 150, 20], 'String', 'Detection Type:');
-    hDetectionType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(2), 130, 20], 'String', {'two channels difference', 'two channels multiplied', 'one channel positive', 'one channel negative'}, 'Callback', @changeDetectionType);
+    uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('detectionTypeText'), 'String', 'Detection Type:', 'Tag', 'detectionTypeText');
+    hDetectionType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('detectionType'), 'String', {'two channels difference', 'two channels multiplied', 'one channel positive', 'one channel negative'}, 'Callback', @changeDetectionType, 'Tag', 'detectionType');
 
     % Выбор режима детекции (Height или Prominence)
-    uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(3), 150, 20], 'String', 'Peak Detection Mode:');
-    hPeakDetectionMode = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(3), 130, 20], 'String', {'Height', 'Prominence'}, 'Callback', @changeDetectionType);
+    uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('peakDetectionModeText'), 'String', 'Peak Detection Mode:', 'Tag', 'peakDetectionModeText');
+    hPeakDetectionMode = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('peakDetectionMode'), 'String', {'Height', 'Prominence'}, 'Callback', @changeDetectionType, 'Tag', 'peakDetectionMode');
 
     % Окно выбора ChPos и ChNeg из списка каналов
-    hChPos_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(4), 150, 20], 'String', 'Positive Channel:');
-    hChPos = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(4), 130, 20], 'String', hd.recChNames, 'Callback', @changeDetectionType);
-    hChNeg_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(5), 150, 20], 'String', 'Negative Channel:');
-    hChNeg = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', [160, ypos(5), 130, 20], 'String', hd.recChNames, 'Callback', @changeDetectionType);
+    hChPos_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('chPosText'), 'String', 'Positive Channel:', 'Tag', 'chPosText');
+    hChPos = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('chPos'), 'String', hd.recChNames, 'Callback', @changeDetectionType, 'Tag', 'chPos');
+    hChNeg_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('chNegText'), 'String', 'Negative Channel:', 'Tag', 'chNegText');
+    hChNeg = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('chNeg'), 'String', hd.recChNames, 'Callback', @changeDetectionType, 'Tag', 'chNeg');
     
     % Окошко для ввода минимального значения (Height или Prominence)
-    hMinPeakProminence_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(6), 150, 20], 'String', 'Minimal Peak Height:');
-    hMinPeakProminence = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(6), 130, 20], 'String', '50');
+    hMinPeakProminence_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('minPeakProminenceText'), 'String', 'Minimal Peak Height:', 'Tag', 'minPeakProminenceText');
+    hMinPeakProminence = uicontrol(detectionFig, 'Style', 'edit', 'Position', getElementPosition('minPeakProminence'), 'String', '50', 'Tag', 'minPeakProminence');
 
     % Чекбокс для применения сглаживания
-    hApplySmoothing = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', [10, ypos(7)+10, 150, 20], 'String', 'Apply smoothing', 'Value', 0, 'Callback', @changeDetectionType);
+    hApplySmoothing = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', getElementPosition('applySmoothing'), 'String', 'Apply smoothing', 'Value', 0, 'Callback', @changeDetectionType, 'Tag', 'applySmoothing');
     
     % Поле ввода размера окна сглаживания (в миллисекундах) - рядом с чекбоксом
-    hSmoothingSpan_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [170, ypos(7), 80, 20], 'String', 'Window (ms):');
-    hSmoothingSpan = uicontrol(detectionFig, 'Style', 'edit', 'Position', [250, ypos(7), 50, 20], 'String', '10');
+    hSmoothingSpan_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('smoothingSpanText'), 'String', 'Window (ms):', 'Tag', 'smoothingSpanText');
+    hSmoothingSpan = uicontrol(detectionFig, 'Style', 'edit', 'Position', getElementPosition('smoothingSpan'), 'String', '10', 'Tag', 'smoothingSpan');
 
     % Окошко для ввода MinPeakDistance
-    hMinPeakDistance_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(8), 150, 30], 'String', ['Minimal Time Between Peaks (' selectedUnit '):']);
-    hMinPeakDistance = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(8), 130, 20], 'String', num2str(3*timeUnitFactor));
+    hMinPeakDistance_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('minPeakDistanceText'), 'String', ['Minimal Time Between Peaks (' selectedUnit '):'], 'Tag', 'minPeakDistanceText');
+    hMinPeakDistance = uicontrol(detectionFig, 'Style', 'edit', 'Position', getElementPosition('minPeakDistance'), 'String', num2str(3*timeUnitFactor), 'Tag', 'minPeakDistance');
 
-    hMaxPeakWidth_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(9), 150, 20], 'String', ['Max peak width (' selectedUnit '):']);
-    hMaxPeakWidth = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(9), 130, 20], 'String', num2str(0.05*timeUnitFactor));
+    hMaxPeakWidth_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('maxPeakWidthText'), 'String', ['Max peak width (' selectedUnit '):'], 'Tag', 'maxPeakWidthText');
+    hMaxPeakWidth = uicontrol(detectionFig, 'Style', 'edit', 'Position', getElementPosition('maxPeakWidth'), 'String', num2str(0.05*timeUnitFactor), 'Tag', 'maxPeakWidth');
 
     % Чекбокс для использования временного диапазона
-    hUseTimeRange = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', [10, ypos(10), 280, 20], 'String', 'Use time range', 'Value', 0, 'Callback', @timeRangeCallback);
+    hUseTimeRange = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', getElementPosition('useTimeRange'), 'String', 'Use time range', 'Value', 0, 'Callback', @timeRangeCallback, 'Tag', 'useTimeRange');
     
     % Поля ввода времени начала и конца
     global time
-    hStartTimeLabel = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(11), 80, 20], 'String', ['Start (' selectedUnit '):'], 'Visible', 'off');
-    hStartTime = uicontrol(detectionFig, 'Style', 'edit', 'Position', [100, ypos(11), 70, 20], 'String', num2str(time(1)*timeUnitFactor), 'Visible', 'off');
+    hStartTimeLabel = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('startTimeLabel'), 'String', ['Start (' selectedUnit '):'], 'Visible', 'off', 'Tag', 'startTimeLabel');
+    hStartTime = uicontrol(detectionFig, 'Style', 'edit', 'Position', getElementPosition('startTime'), 'String', num2str(time(1)*timeUnitFactor), 'Visible', 'off', 'Tag', 'startTime');
     
-    hEndTimeLabel = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(12), 80, 20], 'String', ['End (' selectedUnit '):'], 'Visible', 'off');
-    hEndTime = uicontrol(detectionFig, 'Style', 'edit', 'Position', [100, ypos(12), 70, 20], 'String', num2str(time(end)*timeUnitFactor), 'Visible', 'off');
+    hEndTimeLabel = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('endTimeLabel'), 'String', ['End (' selectedUnit '):'], 'Visible', 'off', 'Tag', 'endTimeLabel');
+    hEndTime = uicontrol(detectionFig, 'Style', 'edit', 'Position', getElementPosition('endTime'), 'String', num2str(time(end)*timeUnitFactor), 'Visible', 'off', 'Tag', 'endTime');
 
     % Чекбокс для поиска вокруг стимулов
-    hSearchAroundStimuli = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', [10, ypos(13), 280, 20], 'String', 'Search around stimuli', 'Value', 0, 'Callback', @changeDetectionType);
+    hSearchAroundStimuli = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', getElementPosition('searchAroundStimuli'), 'String', 'Search around stimuli', 'Value', 0, 'Callback', @changeDetectionType, 'Tag', 'searchAroundStimuli');
     
     % Поле ввода размера окна поиска
-    hSearchWindow_text = uicontrol(detectionFig, 'Style', 'text', 'Position', [10, ypos(14), 150, 20], 'String', ['Search window (' selectedUnit '):']);
-    hSearchWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', [160, ypos(14), 130, 20], 'String', num2str(0.5*timeUnitFactor));
+    hSearchWindow_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('searchWindowText'), 'String', ['Search window (' selectedUnit '):'], 'Tag', 'searchWindowText');
+    hSearchWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', getElementPosition('searchWindow'), 'String', num2str(0.5*timeUnitFactor), 'Tag', 'searchWindow');
     
     % Чекбокс для вычитания базовой линии
-    hSubtractBaseline = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', [10, ypos(15), 280, 20], 'String', 'Subtract baseline', 'Value', 0, 'Callback', @changeDetectionType);
+    hSubtractBaseline = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', getElementPosition('subtractBaseline'), 'String', 'Subtract baseline', 'Value', 0, 'Callback', @changeDetectionType, 'Tag', 'subtractBaseline');
 
     % Инициализация видимости элементов в зависимости от наличия стимулов
     changeDetectionType();
 
-    ax1 = axes('Position', [0.35    0.27    0.20    0.65]);
-    ax2 = axes('Position', [0.58    0.27    0.20    0.65]);
-    ax3 = axes('Position', [0.81    0.7    0.15    0.2]);
-    ax4 = axes('Position', [0.81    0.27    0.15    0.325]);
-    
-    set(ax1, 'visible', 'off')
-    set(ax2, 'visible', 'off')
-    set(ax3, 'visible', 'off')
-    set(ax4, 'visible', 'off')
+    % Создаем контейнер для графиков (аналогично plotFromTableGUI.m)
+    plotPanel = uipanel('Parent', detectionFig, ...
+        'Position', getElementPosition('plotPanel'), ...
+        'Tag', 'plotPanel');
     
     % Инициализация значений из настроек, если они существуют
     if ~isempty(settings)
@@ -221,12 +245,31 @@ function autoEventDetectionGUI()
     
     % Кнопка 'Check Detection'
     uicontrol(detectionFig, 'Style', 'pushbutton', 'String', 'Check Detection',...
-        'Position', [340, 10, 280, 40], 'Callback', @checkDetectionCallback);
+        'Position', getElementPosition('checkDetectionBtn'), 'Callback', @checkDetectionCallback, 'Tag', 'checkDetectionBtn');
 
     % Кнопка 'Apply'
     applybutton = uicontrol(detectionFig, 'Style', 'pushbutton', 'String', 'Apply',...
-        'Position', [650, 10, 120, 40], 'Callback', @detectButtonCallback);
+        'Position', getElementPosition('applyBtn'), 'Callback', @detectButtonCallback, 'Tag', 'applyBtn');
     set(applybutton, 'Enable', 'off')
+    
+    % Устанавливаем обработчик изменения размера окна
+    set(detectionFig, 'SizeChangedFcn', @(~,~) resizeComponentsCallback(detectionFig, coordsFile));
+    
+    % Разворачиваем окно после успешной инициализации
+    detectionFig.WindowState = 'maximized';
+    
+    % Функция обратного вызова для изменения размера
+    function resizeComponentsCallback(figHandle, coordsFile)
+        try
+            if exist(coordsFile, 'file')
+                coordsData = jsondecode(fileread(coordsFile));
+                base_figure_position = coordsData.base_figure_position;
+                ResizeElements(figHandle, coordsFile, base_figure_position);
+            end
+        catch ME
+            warning('Error scaling elements: %s', ME.message);
+        end
+    end
 
     function timeRangeCallback(~, ~)
         isChecked = get(hUseTimeRange, 'Value');
@@ -377,34 +420,31 @@ function autoEventDetectionGUI()
 
     function checkDetectionCallback(~, ~)
         
-        % Показываем "Detecting ..." на осях
-        axes(ax1);
-        set(ax1, 'visible', 'on');
-        cla;
-        text(0.5, 0.5, 'Detecting ...', 'HorizontalAlignment', 'center', ...
-             'VerticalAlignment', 'middle', 'FontSize', 14, 'Units', 'normalized');
-        axis off;
-        
-        axes(ax2);
-        set(ax2, 'visible', 'on');
-        cla;
-        text(0.5, 0.5, 'Detecting ...', 'HorizontalAlignment', 'center', ...
-             'VerticalAlignment', 'middle', 'FontSize', 14, 'Units', 'normalized');
-        axis off;
-        
-        axes(ax3);
-        set(ax3, 'visible', 'on');
-        cla;
-        text(0.5, 0.5, 'Detecting ...', 'HorizontalAlignment', 'center', ...
-             'VerticalAlignment', 'middle', 'FontSize', 14, 'Units', 'normalized');
-        axis off;
-        
-        axes(ax4);
-        set(ax4, 'visible', 'on');
-        cla;
-        text(0.5, 0.5, 'Detecting ...', 'HorizontalAlignment', 'center', ...
-             'VerticalAlignment', 'middle', 'FontSize', 14, 'Units', 'normalized');
-        axis off;
+        % Очищаем контейнер графиков
+        plotPanel = findobj(detectionFig, 'Tag', 'plotPanel');
+        if ~isempty(plotPanel)
+            delete(plotPanel.Children);
+            
+            % Проверяем, включен ли поиск вокруг стимулов
+            searchEnabled = get(hSearchAroundStimuli, 'Value') && stims_exist && ~isempty(stims);
+            
+            % Создаем tiledlayout в зависимости от необходимости дополнительных графиков
+            if searchEnabled
+                t = tiledlayout(plotPanel, 2, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+                numTiles = 4;
+            else
+                t = tiledlayout(plotPanel, 1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+                numTiles = 2;
+            end
+            
+            % Показываем "Detecting ..." только на нужных осях
+            for i = 1:numTiles
+                ax = nexttile(t);
+                text(ax, 0.5, 0.5, 'Detecting ...', 'HorizontalAlignment', 'center', ...
+                     'VerticalAlignment', 'middle', 'FontSize', 14, 'Units', 'normalized');
+                axis(ax, 'off');
+            end
+        end
         
         drawnow;
         
@@ -458,35 +498,48 @@ function autoEventDetectionGUI()
             chosen_th = outlier;
         end
         
-        axes(ax1)
-        set(ax1, 'visible', 'on')
+        % Находим контейнер графиков
+        plotPanel = findobj(detectionFig, 'Tag', 'plotPanel');
+        if isempty(plotPanel)
+            return;
+        end
         
-        cla, hold on
-%         stem(time_res*timeUnitFactor, Trace_out, 'Marker', '|')
-        stairs(time_res*timeUnitFactor, Trace_out)
+        % Очищаем контейнер
+        delete(plotPanel.Children);
         
-        xlabel(['Time, ' selectedUnit]);
-%         ylim([0, max(Trace_out)])
+        % Проверяем, нужны ли дополнительные графики для поиска вокруг стимулов
+        SearchAroundStimuli = false;
+        if isfield(params, 'SearchAroundStimuli')
+            SearchAroundStimuli = params.SearchAroundStimuli;
+        end
+        needStimuliPlots = SearchAroundStimuli && params.detect && ~isempty(events_detected) && stims_exist && ~isempty(stims);
         
-        yline(chosen_th, 'k:')
+        % Создаем tiledlayout в зависимости от необходимости дополнительных графиков
+        if needStimuliPlots
+            t = tiledlayout(plotPanel, 2, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+        else
+            t = tiledlayout(plotPanel, 1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+        end
         
-        xlim([time_res(1), time_res(end)]*timeUnitFactor)
-
+        % Tile 1 (левый верхний): временной ряд
+        ax1 = nexttile(t);
+        hold(ax1, 'on');
+        stairs(ax1, time_res*timeUnitFactor, Trace_out);
+        xlabel(ax1, ['Time, ' selectedUnit]);
+        yline(ax1, chosen_th, 'k:');
+        xlim(ax1, [time_res(1), time_res(end)]*timeUnitFactor);
         Lines(events_detected*timeUnitFactor, [], 'r',':');
-        
         numEvents = numel(events_detected);
         if params.detect
-            title([ num2str(numEvents), ' events'], 'interpreter', 'none')     
+            title(ax1, [ num2str(numEvents), ' events'], 'interpreter', 'none');
         else
-            title('')
+            title(ax1, '');
         end
-
-
-        % Визуализация гистограммы
-        axes(ax2);
-        set(ax2, 'visible', 'on')
+        hold(ax1, 'off');
         
-        cla; hold on;
+        % Tile 2 (правый верхний): гистограмма
+        ax2 = nexttile(t);
+        hold(ax2, 'on');
         
         % Выбираем данные для гистограммы в зависимости от режима
         if strcmp(PeakDetectionMode, 'Prominence') && params.detect && ~isempty(prominences_detected)
@@ -502,46 +555,30 @@ function autoEventDetectionGUI()
         end
         
         % Автоматическое определение количества бинов для улучшения визуализации
-        h = histogram(hist_data, 50,'Normalization','probability');        
+        h = histogram(ax2, hist_data, 50,'Normalization','probability');
         
-        xline(outlier, 'k:')
-        
+        xline(ax2, outlier, 'k:');
         outlier_h = max(h.Values)*0.9;
-        
-        text(outlier, outlier_h, 'outlier')
-        text(outlier, outlier_h*0.95, num2str(outlier, 3))
-        
+        text(ax2, outlier, outlier_h, 'outlier');
+        text(ax2, outlier, outlier_h*0.95, num2str(outlier, 3));
         
         std3_h = max(h.Values);
-        
-        xline(std3, 'k:')
-        text(std3, std3_h, '3*STD')
-        text(std3, std3_h*0.95, num2str(std3, 3))
-        
-        
+        xline(ax2, std3, 'k:');
+        text(ax2, std3, std3_h, '3*STD');
+        text(ax2, std3, std3_h*0.95, num2str(std3, 3));
         
         chosen_th_h = std3_h*0.5;
-        xline(chosen_th, 'r:')
-        text(chosen_th, chosen_th_h, 'now')
-        text(chosen_th, std3_h*0.45, num2str(chosen_th, 3), 'color', 'r')
+        xline(ax2, chosen_th, 'r:');
+        text(ax2, chosen_th, chosen_th_h, 'now');
+        text(ax2, chosen_th, std3_h*0.45, num2str(chosen_th, 3), 'color', 'r');
         
-        xlabel(['Peak ' hist_label]);
-        title(['Distribution of Peak ' hist_label]);
+        xlabel(ax2, ['Peak ' hist_label]);
+        title(ax2, ['Distribution of Peak ' hist_label]);
+        hold(ax2, 'off');
         
-        hold off;
-        
-        % Боксплот относительного времени (если поиск вокруг стимулов)
-        axes(ax3);
-        set(ax3, 'visible', 'on')
-        
-        cla; hold on;
-        
-        SearchAroundStimuli = false;
-        if isfield(params, 'SearchAroundStimuli')
-            SearchAroundStimuli = params.SearchAroundStimuli;
-        end
-        
-        if SearchAroundStimuli && params.detect && ~isempty(events_detected) && stims_exist && ~isempty(stims)
+        % Tile 3 и 4 (нижний ряд): боксплот и гистограмма относительного времени
+        % Создаем только если нужны графики для поиска вокруг стимулов
+        if needStimuliPlots
             % Вычисляем относительное время для каждого события
             rel_times = [];
             for i = 1:length(events_detected)
@@ -553,59 +590,30 @@ function autoEventDetectionGUI()
                 rel_times = [rel_times; rel_time];
             end
             
-            % Строим боксплот на ax3
-            boxplot(rel_times*timeUnitFactor, 'Orientation', 'horizontal');
-            hold on;
+            % Tile 3 (левый нижний): боксплот относительного времени
+            ax3 = nexttile(t);
+            hold(ax3, 'on');
+            boxplot(ax3, rel_times*timeUnitFactor, 'Orientation', 'horizontal');
             
-            % Добавляем точки данных с небольшим jitter по вертикали, смещенные ниже боксплота
-            y_jitter = 0.5 + 0.15 * (rand(size(rel_times)) - 0.5); % Смещение ниже боксплота
-            scatter(rel_times*timeUnitFactor, y_jitter, 20, 'k', '.', 'MarkerFaceAlpha', 0.6);
+            % Добавляем точки данных с небольшим jitter по вертикали
+            y_jitter = 0.5 + 0.15 * (rand(size(rel_times)) - 0.5);
+            scatter(ax3, rel_times*timeUnitFactor, y_jitter, 20, 'k', '.', 'MarkerFaceAlpha', 0.6);
             
-            xlabel(['Relative time from stimulus, ' selectedUnit]);
-            ylabel('Events');
-            title(sprintf('Event timing relative to stimuli (n=%d)', length(rel_times)));
-            grid on;
-            hold off;
+            xlabel(ax3, ['Relative time from stimulus, ' selectedUnit]);
+            ylabel(ax3, 'Events');
+            title(ax3, sprintf('Event timing relative to stimuli (n=%d)', length(rel_times)));
+            grid(ax3, 'on');
+            hold(ax3, 'off');
             
-            % Строим гистограмму на ax4
-            axes(ax4);
-            set(ax4, 'visible', 'on');
-            cla; hold on;
-            
-            histogram(rel_times*timeUnitFactor, 30, 'Normalization', 'probability', 'FaceColor', [0.3 0.6 0.9], 'EdgeColor', 'k');
-            
-            xlabel(['Relative time from stimulus, ' selectedUnit]);
-            ylabel('Probability');
-            title('Distribution of relative event times');
-            grid on;
-            hold off;
-        else
-            % Если боксплот не нужен, очищаем оси
-            axes(ax3);
-            set(ax3, 'visible', 'on');
-            cla;
-            if params.detect
-                text(0.5, 0.5, 'Detecting ...', 'HorizontalAlignment', 'center', ...
-                     'VerticalAlignment', 'middle', 'FontSize', 14, 'Units', 'normalized');
-            else
-                text(0.5, 0.5, '', ...
-                    'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', ...
-                    'Units', 'normalized', 'FontSize', 10);
-            end
-            axis off;
-            
-            axes(ax4);
-            set(ax4, 'visible', 'on');
-            cla;
-            if params.detect
-                text(0.5, 0.5, 'Detecting ...', 'HorizontalAlignment', 'center', ...
-                     'VerticalAlignment', 'middle', 'FontSize', 14, 'Units', 'normalized');
-            else
-                text(0.5, 0.5, '', ...
-                    'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', ...
-                    'Units', 'normalized', 'FontSize', 10);
-            end
-            axis off;
+            % Tile 4 (правый нижний): гистограмма относительного времени
+            ax4 = nexttile(t);
+            hold(ax4, 'on');
+            histogram(ax4, rel_times*timeUnitFactor, 30, 'Normalization', 'probability', 'FaceColor', [0.3 0.6 0.9], 'EdgeColor', 'k');
+            xlabel(ax4, ['Relative time from stimulus, ' selectedUnit]);
+            ylabel(ax4, 'Probability');
+            title(ax4, 'Distribution of relative event times');
+            grid(ax4, 'on');
+            hold(ax4, 'off');
         end
     end
 
