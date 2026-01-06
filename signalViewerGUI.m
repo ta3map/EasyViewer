@@ -76,7 +76,7 @@ function signalViewerGUI(editMode)
     loadGlobalSettings();
     
     % Загружаем координаты элементов из JSON файла
-    coordsFile = fullfile(fileparts(mfilename('fullpath')), 'signalViewerGUI_coords.json');
+    coordsFile = fullfile(fileparts(mfilename('fullpath')), 'configs', 'window_coords', 'signalViewerGUI_coords.json');
     if exist(coordsFile, 'file')
         coordsData = jsondecode(fileread(coordsFile));
     else
@@ -271,9 +271,6 @@ function signalViewerGUI(editMode)
            'ToolBar', 'none', ...
            'Tag', figTag, ...
            'KeyPressFcn', @keyPressFunction);
-    
-    % Сохраняем загруженный размер окна из настроек до перезаписи
-    saved_figure_position = figure_position;
     
     % Используем базовое положение из JSON файла для начального построения
     base_figure_position = coordsData.base_figure_position;
@@ -683,19 +680,8 @@ function signalViewerGUI(editMode)
     f.WindowButtonMotionFcn = @(src, event)ButtonMotionFcn(multiax, f);
     f.WindowButtonUpFcn = @(src, event)ButtonUpFcn(multiax, f);
     
-    % Восстанавливаем размер окна из глобальных настроек после создания всех элементов
-    % Это вызовет автоматическое масштабирование через SizeChangedFcn
-    if ~isempty(saved_figure_position) && isnumeric(saved_figure_position) && ...
-       length(saved_figure_position) == 4 && length(base_figure_position) == 4
-        if any(saved_figure_position ~= base_figure_position)
-            figure_position = saved_figure_position;
-            f.Position = figure_position;
-        else
-            figure_position = base_figure_position;
-        end
-    else
-        figure_position = base_figure_position;
-    end
+    % Используем базовое положение из JSON (как в signalAnalysisGUI.m)
+    figure_position = base_figure_position;
     
     % Разворачиваем окно после успешной инициализации
     f.WindowState = 'maximized';
@@ -1437,7 +1423,7 @@ function signalViewerGUI(editMode)
             end
             
             % Путь к файлу координат
-            coordsFile = fullfile(fileparts(mfilename('fullpath')), 'signalViewerGUI_coords.json');
+            coordsFile = fullfile(fileparts(mfilename('fullpath')), 'configs', 'window_coords', 'signalViewerGUI_coords.json');
             
             % Загружаем базовый размер из JSON для правильного вычисления коэффициентов масштабирования
             if exist(coordsFile, 'file')

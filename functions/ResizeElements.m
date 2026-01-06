@@ -71,8 +71,8 @@ function ResizeElements(figHandle, coordsFile, basePosition)
                     coords = coords';
                 end
                 
-                % Проверяем, не является ли элемент осью - для них оставляем относительные координаты
-                if ~strcmp(tag, 'main_axes') && ~strcmp(tag, 'multiax') && ~strcmp(tag, 'plot_container')
+                % Проверяем, не является ли элемент осью или панелью - для них оставляем относительные координаты
+                if ~strcmp(tag, 'main_axes') && ~strcmp(tag, 'multiax') && ~strcmp(tag, 'plot_container') && ~strcmp(tag, 'plotPanel')
                     % Преобразуем относительные координаты в абсолютные на основе basePosition
                     coords = [
                         coords(1) * basePosition(3),  % x

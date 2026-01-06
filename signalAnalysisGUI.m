@@ -10,7 +10,7 @@ function signalAnalysisGUI(editMode)
     loadGlobalSettings();
     
     % Загружаем координаты элементов из JSON файла
-    coordsFile = fullfile(fileparts(mfilename('fullpath')), 'signalAnalysisGUI_coords.json');
+    coordsFile = fullfile(fileparts(mfilename('fullpath')), 'configs', 'window_coords', 'signalAnalysisGUI_coords.json');
     if exist(coordsFile, 'file')
         coordsData = jsondecode(fileread(coordsFile));
     else
@@ -20,6 +20,7 @@ function signalAnalysisGUI(editMode)
     % Signal Analysis GUI - анализ и измерение параметров сигнала
     
     % Глобальные переменные для доступа к данным
+    global EV_path EV_version EV_date
     global lfp time chosen_time_interval time_back time_forward hd
     global newFs Fs timeUnitFactor selectedUnit
     global filterSettings filter_avaliable mean_group_ch
@@ -299,19 +300,8 @@ end
     if isempty(getappdata(signalFig, 'analysis_show_raw_signal'))
         setappdata(signalFig, 'analysis_show_raw_signal', false);
     end
-    loadSmoothingSettingsFromFile();
     
-    % Применяем начальное масштабирование элементов сразу после создания окна
-    % (аналогично signalViewerGUI.m)
-    try
-        coordsFile = fullfile(fileparts(mfilename('fullpath')), 'signalAnalysisGUI_coords.json');
-        if exist(coordsFile, 'file')
-            % Используем figure_position как базовую позицию
-            ResizeElements(signalFig, coordsFile, figure_position);
-        end
-    catch ME
-        warning('Error during initial element scaling: %s', ME.message);
-    end
+    loadSmoothingSettingsFromFile();
 
     % === Левая панель управления ===
     
@@ -717,11 +707,11 @@ end
     % Добавляем обработчик изменения размера окна для масштабирования элементов
     set(signalFig, 'SizeChangedFcn', @resizeSignalAnalysisWindow);
     
-    
     % Добавляем обработчик закрытия окна для сохранения положения
     set(signalFig, 'CloseRequestFcn', @closeSignalAnalysisWindow);
     
-    % Разворачиваем окно после успешной инициализации
+    % Разворачиваем окно после создания всех элементов и установки обработчиков
+    % SizeChangedFcn автоматически вызовет ResizeElements для правильного масштабирования
     signalFig.WindowState = 'maximized';
     
     % Загружаем позиции курсоров из настроек при первом запуске
@@ -4488,7 +4478,7 @@ updateCursorEditFields();
     function resizeSignalAnalysisWindow(~, ~)
         try
             % Путь к файлу координат
-            coordsFile = fullfile(fileparts(mfilename('fullpath')), 'signalAnalysisGUI_coords.json');
+            coordsFile = fullfile(fileparts(mfilename('fullpath')), 'configs', 'window_coords', 'signalAnalysisGUI_coords.json');
             
             % Используем figure_position для правильного вычисления коэффициентов масштабирования
             ResizeElements(signalFig, coordsFile, figure_position);
