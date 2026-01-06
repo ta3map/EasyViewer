@@ -7,7 +7,7 @@ function autoEventDetectionGUI()
     settings = autodetection_settings;
     
     % Загружаем координаты элементов из JSON файла
-    coordsFile = fullfile(fileparts(mfilename('fullpath')), '..', 'configs', 'window_coords', 'autoEventDetectionGUI_coords.json');
+    coordsFile = getGUIConfigPath('autoEventDetectionGUI_coords.json');
     if exist(coordsFile, 'file')
         coordsData = jsondecode(fileread(coordsFile));
     else

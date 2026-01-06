@@ -300,7 +300,7 @@ function eventCrossCorrelationGUI()
         % Кнопка для сохранения результата
         save_btn_coords = [10, ypos(7)-40, 280, 30];
         savebutton = uicontrol('Parent', hFig, 'Style', 'pushbutton', 'String', 'Save Result', 'Visible', 'on', 'Position', save_btn_coords, 'Callback', @SaveResultClb);
-        btnIcon(savebutton, [app_path, '\icons\data-storage.png'], false);
+        btnIcon(savebutton, fullfile(getAssetsPath(), 'data-storage.png'), false);
         
         function SaveResultClb(~,~)
             [file, path, filterindex] = uiputfile(...

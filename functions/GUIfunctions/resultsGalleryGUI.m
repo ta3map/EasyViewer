@@ -36,7 +36,7 @@ function resultsGalleryGUI()
     end
     
     % Загружаем координаты элементов из JSON файла
-    coordsFile = fullfile(fileparts(mfilename('fullpath')), '..', 'configs', 'window_coords', 'resultsGalleryGUI_coords.json');
+    coordsFile = getGUIConfigPath('resultsGalleryGUI_coords.json');
     if exist(coordsFile, 'file')
         coordsData = jsondecode(fileread(coordsFile));
     else

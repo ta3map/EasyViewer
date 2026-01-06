@@ -76,7 +76,7 @@ function signalViewerGUI(editMode)
     loadGlobalSettings();
     
     % Загружаем координаты элементов из JSON файла
-    coordsFile = fullfile(fileparts(mfilename('fullpath')), 'configs', 'window_coords', 'signalViewerGUI_coords.json');
+    coordsFile = getGUIConfigPath('signalViewerGUI_coords.json');
     if exist(coordsFile, 'file')
         coordsData = jsondecode(fileread(coordsFile));
     else
@@ -397,7 +397,7 @@ function signalViewerGUI(editMode)
     timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', {'time', 'stimulus', 'event', 'sweep'}, 'Position', getElementPosition('time_center_popup'), 'Callback', @changeTimeCenter, 'Tag', 'time_center_popup');
 
     % Путь к папке с иконками
-    assetsPath = fullfile(fileparts(mfilename('fullpath')), 'assets');
+    assetsPath = getAssetsPath();
     
     % Кнопка для загрузки .mat файла
     LoadMatFileBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Load .mat File', 'Position', getElementPosition('load_mat_file_btn'), 'Callback', @OpenZavLfpFile, 'Tag', 'load_mat_file_btn');
@@ -1012,9 +1012,9 @@ function signalViewerGUI(editMode)
             case analysis_functions{11}% PCA analysis
                 PCAazGUI();
             case analysis_functions{13}
-                performChannelOperations();
+                performChannelOperationsGUI();
             case analysis_functions{15}
-                dataComparerApp();
+                dataComparerGUI();
             case analysis_functions{17}
                 plotFromTableGUI();
             case ''
@@ -1043,7 +1043,7 @@ function signalViewerGUI(editMode)
                 case 3
                     convertOEP2zavGUI();
                 case 4
-                    importLFP();
+                    importLFPGUI();
             end
         end
     end
@@ -1151,7 +1151,7 @@ function signalViewerGUI(editMode)
                 lineStyleGUI()
             case view_functions{9}%'CSD ...'
                 % вызов функции для CSD ...
-                CSDfigSettings();
+                CSDSettingsGUI();
                 updateTable();
             case view_functions{11}%'Built-in Zoom'
                 activateBuiltInZoom();
@@ -1175,12 +1175,12 @@ function signalViewerGUI(editMode)
         dont_close_menu = false;
         switch selectedOption
             case options{1}% Add event options
-                addEventSettingsUicontrol();
+                addEventSettingsGUI();
             case options{3}
                 optionsRemovalArtifactsGUI();                       
             case options{5} %'Subtract mean ...'
                 % вызов функции для Subtract mean ...
-                SubMeanFigSettings();
+                SubMeanSettingsGUI();
                 updateTable();
             case options{7}%'Filtering ...'
                 setupSignalFilteringGUI(); 
@@ -1423,7 +1423,7 @@ function signalViewerGUI(editMode)
             end
             
             % Путь к файлу координат
-            coordsFile = fullfile(fileparts(mfilename('fullpath')), 'configs', 'window_coords', 'signalViewerGUI_coords.json');
+            coordsFile = getGUIConfigPath('signalViewerGUI_coords.json');
             
             % Загружаем базовый размер из JSON для правильного вычисления коэффициентов масштабирования
             if exist(coordsFile, 'file')
@@ -2079,17 +2079,17 @@ function signalViewerGUI(editMode)
             'eventCrossCorrelationGUI', ...
             'ICA', ...
             'PCA', ...
-            'performChannelOperations', ...
+            'performChannelOperationsGUI', ...
             'fileManagerGUI', ...
             'convertAbf2zavGUI', ...
             'convertOEP2zavGUI', ...
-            'importLFP', ...
+            'importLFPGUI', ...
             'RemovalArtifactsGUI', ...
-            'SubMeanFigSettings', ...
+            'SubMeanSettingsGUI', ...
             'SignalFiltering', ...
             'OptionsMeanEvents', ...
             'lineStyleGUI', ...
-            'CSDfigSettings', ...
+            'CSDSettingsGUI', ...
             'EventCreation', ...
             'importEventsFromSimulusGUI', ...
             'meanSignalResult'

@@ -10,7 +10,7 @@ function signalAnalysisGUI(editMode)
     loadGlobalSettings();
     
     % Загружаем координаты элементов из JSON файла
-    coordsFile = fullfile(fileparts(mfilename('fullpath')), 'configs', 'window_coords', 'signalAnalysisGUI_coords.json');
+    coordsFile = getGUIConfigPath('signalAnalysisGUI_coords.json');
     if exist(coordsFile, 'file')
         coordsData = jsondecode(fileread(coordsFile));
     else
@@ -497,7 +497,7 @@ end
         'String', 'Mode: time', 'HorizontalAlignment', 'left', 'Tag', 'navigation_status');
     
     % Путь к папке с иконками
-    assetsPath = fullfile(fileparts(mfilename('fullpath')), 'assets');
+    assetsPath = getAssetsPath();
     
     % Кнопки навигации (сдвигаем вниз)
     hPrevBtn = uicontrol(signalFig, 'Style', 'pushbutton', 'String', '◀ Previous', ...
@@ -4478,7 +4478,7 @@ updateCursorEditFields();
     function resizeSignalAnalysisWindow(~, ~)
         try
             % Путь к файлу координат
-            coordsFile = fullfile(fileparts(mfilename('fullpath')), 'configs', 'window_coords', 'signalAnalysisGUI_coords.json');
+            coordsFile = getGUIConfigPath('signalAnalysisGUI_coords.json');
             
             % Используем figure_position для правильного вычисления коэффициентов масштабирования
             ResizeElements(signalFig, coordsFile, figure_position);

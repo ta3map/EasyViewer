@@ -1,4 +1,4 @@
-function performChannelOperations()
+function performChannelOperationsGUI()
     % Global variables
     global channelTable ch_labels_l colors_in_l widths_in_l matFileName matFilePath
     global lfp ch_inxs pca_params spks filterSettings
@@ -6,7 +6,7 @@ function performChannelOperations()
     global pca_flag hd zav_saving chnlGrp lfpVar numChannels channelEnabled scalingCoefficients colorsIn lineCoefficients
 
     % Tag for GUI figure
-    figTag = 'performChannelOperations';
+    figTag = 'performChannelOperationsGUI';
 
     % Search for an open figure with the given tag
     guiFig = findobj('Type', 'figure', 'Tag', figTag);

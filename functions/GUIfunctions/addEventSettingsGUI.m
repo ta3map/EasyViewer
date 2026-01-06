@@ -1,4 +1,4 @@
-function addEventSettingsUicontrol()
+function addEventSettingsGUI()
     global add_event_settings SettingsFilepath
     global channelTable
     

@@ -1,11 +1,11 @@
-function CSDfigSettings()
+function CSDSettingsGUI()
 
     min_coef = 98;
     max_coef = 200;
     slider_max = 100;
 
     % Идентификатор (tag) для GUI фигуры
-    figTag = 'CSDfigSettings';
+    figTag = 'CSDSettingsGUI';
     
     % Поиск открытой фигуры с заданным идентификатором
     guiFig = findobj('Type', 'figure', 'Tag', figTag);
@@ -20,14 +20,14 @@ function CSDfigSettings()
     global channelNames csd_avaliable matFilePath csd_smooth_coef csd_contrast_coef
     
     label = 'CSD Displaying Settings';
-    CSDfigSettingsFig = figure('Name', label, 'Tag', figTag, 'NumberTitle', 'off', ...
+    CSDSettingsFig = figure('Name', label, 'Tag', figTag, 'NumberTitle', 'off', ...
                 'MenuBar', 'none', ... % Отключение стандартного меню
                 'ToolBar', 'none', ...
                 'Position', [300  100  350  400], ...
                 'Resize', 'off',  'WindowStyle', 'modal');
             
     if numel(channelNames) < 2
-        close(CSDfigSettingsFig);
+        close(CSDSettingsFig);
     end
     
     tableData = [channelNames; num2cell(csd_avaliable)]';
@@ -36,7 +36,7 @@ function CSDfigSettings()
             'ColumnName', {'Channel', 'Enabled'}, ...
             'ColumnFormat', {'char', 'logical'}, ...
             'ColumnEditable', [false true], ...
-            'Position', position, 'Parent', CSDfigSettingsFig);
+            'Position', position, 'Parent', CSDSettingsFig);
         
     % Кнопка для нажатия всех каналов
     uicontrol('Style', 'pushbutton', 'String', 'Select ALL', 'Position', [220, 350, 110, 25], 'Callback', @selectAll);
@@ -63,7 +63,7 @@ function CSDfigSettings()
     % Button to save settings
     uicontrol('Style', 'pushbutton', 'Position', [220, 50, 100, 25], 'String', 'Apply', 'Callback', @saveSettings);
     
-    uiwait(CSDfigSettingsFig);
+    uiwait(CSDSettingsFig);
     
     function selectAll(~, ~)
         hTable.Data(:,2) = num2cell(true(size(hTable.Data(:,2))));
@@ -104,8 +104,8 @@ end
         [path, name, ~] = fileparts(matFilePath);
         channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
         save(channelSettingsFilePath, 'csd_avaliable', 'csd_smooth_coef', 'csd_contrast_coef', '-append');
-        uiresume(CSDfigSettingsFig);
-        close(CSDfigSettingsFig);
+        uiresume(CSDSettingsFig);
+        close(CSDSettingsFig);
     end
 
 end

@@ -1,4 +1,4 @@
-function importLFP()
+function importLFPGUI()
     % Global variables
     global lastOpenedFiles lfp time N time_forward time_back chosen_time_interval
     global shiftCoeff newFs selectedCenter stim_inx show_spikes show_CSD channelNames
@@ -10,7 +10,7 @@ function importLFP()
     global new_channelNames new_spks 
     
     % Tag for GUI figure
-    figTag = 'importLFP';
+    figTag = 'importLFPGUI';
 
     % Search for an open figure with the given tag
     guiFig = findobj('Type', 'figure', 'Tag', figTag);

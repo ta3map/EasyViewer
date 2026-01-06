@@ -18,6 +18,16 @@ function app()
     app_path = fileparts(mfilename('fullpath'));
     disp('app directory:')
     fprintf('%s\n',app_path);
+    
+    % Add functions and GUI functions directories to path
+    functionsPath = fullfile(app_path, 'functions');
+    if exist(functionsPath, 'dir')
+        addpath(functionsPath);
+    end
+    guiFunctionsPath = fullfile(app_path, 'functions', 'GUIfunctions');
+    if exist(guiFunctionsPath, 'dir')
+        addpath(guiFunctionsPath);
+    end
         
     disp('please wait ...')
 

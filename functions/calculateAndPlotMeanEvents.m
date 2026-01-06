@@ -229,11 +229,11 @@ xline(0, 'r:');
 % Кнопка для сохранения файлов
 save_btn_coords = [5, 5, 40, 25];
 savebutton = uicontrol('Parent', mean_f, 'Style', 'pushbutton', 'String', 'Save Data', 'Visible', 'off', 'Position', save_btn_coords, 'Callback', @SaveBtnClb);
-btnIcon(savebutton, [app_path, '\icons\data-storage.png'], false) % ставим иконку для кнопки
+btnIcon(savebutton, fullfile(getAssetsPath(), 'data-storage.png'), false) % ставим иконку для кнопки
 
 save_btn_coords = [5, 32.5, 40, 25];
 saveImgbutton = uicontrol('Parent', mean_f, 'Style', 'pushbutton', 'String', 'Save Image', 'Visible', 'off', 'Position', save_btn_coords, 'Callback', @SaveImageClb);
-btnIcon(saveImgbutton, [app_path, '\icons\save image.png'], false) % ставим иконку для кнопки
+btnIcon(saveImgbutton, fullfile(getAssetsPath(), 'save_image.png'), false) % ставим иконку для кнопки
 btn_list = [savebutton, saveImgbutton];
 
 set(mean_f, 'WindowButtonMotionFcn', @(src, event)autoHideBtn(src, event, btn_list));

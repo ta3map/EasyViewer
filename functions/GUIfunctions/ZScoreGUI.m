@@ -40,12 +40,12 @@ function ZScoreGUI()
     % Кнопка для сохранения данных
     saveDataButton = uicontrol('Parent', fig,'Style', 'pushbutton', 'String', 'Save Data', 'Position', [150, 20, 80, 30], ...
         'Callback', @SaveDataCallback);
-    btnIcon(saveDataButton, [app_path, '\icons\data-storage.png'], false) % ставим иконку для кнопки
+    btnIcon(saveDataButton, fullfile(getAssetsPath(), 'data-storage.png'), false) % ставим иконку для кнопки
 
     % Кнопка для сохранения изображения
     saveImageButton = uicontrol('Parent', fig,'Style', 'pushbutton', 'String', 'Save Image', 'Position', [250, 20, 80, 30], ...
         'Callback', @SaveImageCallback);
-    btnIcon(saveImageButton, [app_path, '\icons\save image.png'], false) % ставим иконку для кнопки
+    btnIcon(saveImageButton, fullfile(getAssetsPath(), 'save_image.png'), false) % ставим иконку для кнопки
     
     btn_list = [saveDataButton, saveImageButton];
     set(fig, 'WindowButtonMotionFcn', @(src, event)autoHideBtn(src, event, btn_list));

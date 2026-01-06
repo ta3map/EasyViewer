@@ -1,4 +1,4 @@
-function dataComparerApp()
+function dataComparerGUI()
     % Глобальные переменные для хранения данных
     global data1 data2 mergeSettings mergedData
     global mergeFig comparerFig mergeTableData

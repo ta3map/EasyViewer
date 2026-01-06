@@ -1,7 +1,7 @@
-function SubMeanFigSettings()
+function SubMeanSettingsGUI()
 
     % Идентификатор (tag) для GUI фигуры
-    figTag = 'SubMeanFigSettings';
+    figTag = 'SubMeanSettingsGUI';
     
         % Поиск открытой фигуры с заданным идентификатором
     guiFig = findobj('Type', 'figure', 'Tag', figTag);
@@ -17,23 +17,23 @@ function SubMeanFigSettings()
     
     
     label = 'Average subtraction settings';
-    SubMeanFig = figure('Name', label, 'Tag', figTag, 'NumberTitle', 'off', ...
+    SubMeanSettingsFig = figure('Name', label, 'Tag', figTag, 'NumberTitle', 'off', ...
                 'MenuBar', 'none', ... % Отключение стандартного меню
                 'ToolBar', 'none',...
                 'Position', [300  100  350  400], ...
                 'Resize', 'off',  'WindowStyle', 'modal');
             
     if numel(channelNames)<2
-        close(SubMeanFig);
+        close(SubMeanSettingsFig);
     end
     tableData = [channelNames; num2cell(mean_group_ch)]';
     position = [10, 50, 200, 350];
-%     uicontrol('Style', 'text', 'String', label, 'Position', [position(1), position(2) + position(4) - 20, 100, 20], 'Parent', SubMeanFig);
+%     uicontrol('Style', 'text', 'String', label, 'Position', [position(1), position(2) + position(4) - 20, 100, 20], 'Parent', SubMeanSettingsFig);
     hTable = uitable('Data', tableData, ...
             'ColumnName', {'Channel', 'Enabled'}, ...
             'ColumnFormat', {'char', 'logical'}, ...
             'ColumnEditable', [false true], ...
-            'Position', position, 'Parent', SubMeanFig);
+            'Position', position, 'Parent', SubMeanSettingsFig);
     
     % Кнопка для нажатия всех каналов
     uicontrol('Style', 'pushbutton', 'String', 'Select ALL', 'Position', [220, 350, 110, 25], 'Callback', @selectAll);
@@ -43,7 +43,7 @@ function SubMeanFigSettings()
     % Button to save settings
     uicontrol('Style', 'pushbutton', 'Position', [220, 250, 100, 25], 'String', 'Apply', 'Callback', @saveSettings);
     
-    uiwait(SubMeanFig);
+    uiwait(SubMeanSettingsFig);
     
     function selectAll(~, ~)
         hTable.Data(:,2) = num2cell(true(size(hTable.Data(:,2))));
@@ -60,8 +60,8 @@ function SubMeanFigSettings()
         [path, name, ~] = fileparts(matFilePath);
         channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
         save(channelSettingsFilePath, 'mean_group_ch', '-append');
-        uiresume(SubMeanFig);
-        close(SubMeanFig);
+        uiresume(SubMeanSettingsFig);
+        close(SubMeanSettingsFig);
     end
 
 end

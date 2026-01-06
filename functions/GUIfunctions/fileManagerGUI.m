@@ -42,7 +42,7 @@ function fileManagerGUI()
     state.dbPath = initDbPath();
     
     % Загружаем координаты элементов из JSON файла
-    coordsFile = fullfile(fileparts(mfilename('fullpath')), '..', 'configs', 'window_coords', 'fileManagerGUI_coords.json');
+    coordsFile = getGUIConfigPath('fileManagerGUI_coords.json');
     if exist(coordsFile, 'file')
         coordsData = jsondecode(fileread(coordsFile));
     else
