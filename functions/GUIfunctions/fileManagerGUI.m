@@ -251,6 +251,14 @@ function fileManagerGUI()
         'Enable', 'off', ...
         'Tag', 'deleteAnalysisBtn');
 
+    rerunAnalysisBtn = uicontrol('Style', 'pushbutton', ...
+        'Position', getElementPosition('rerunAnalysisBtn'), ...
+        'String', 'Re-run Analysis', ...
+        'FontSize', 11, ...
+        'Callback', @rerunAnalysisCallback, ...
+        'Enable', 'off', ...
+        'Tag', 'rerunAnalysisBtn');
+
     fileTable = uitable('Position', getElementPosition('fileTable'), ...
         'ColumnWidth', {60, 120, 400}, ...
         'ColumnName', {'File ID', 'File Name', 'Path'}, ...
@@ -1326,6 +1334,83 @@ function fileManagerGUI()
         end
     end
     
+    function rerunAnalysisCallback(~, ~)
+        if ~isfield(state, 'selectedFileIds') || isempty(state.selectedFileIds)
+            msgbox('No files selected', 'Error', 'error');
+            return
+        end
+        
+        fileIds = state.selectedFileIds;
+        if numel(fileIds) > 1
+            idsStr = sprintf('%d,', fileIds);
+            idsStr = idsStr(1:end-1);
+            whereClause = sprintf('ar.file_id IN (%s)', idsStr);
+        else
+            whereClause = sprintf('ar.file_id = %d', fileIds);
+        end
+        
+        query = sprintf(['SELECT ar.file_id, ar.report_path, ar.module_name, ar.parameters_json, f.file_path, f.file_name ' ...
+            'FROM analysis_results ar ' ...
+            'JOIN files f ON f.id = ar.file_id ' ...
+            'WHERE %s ' ...
+            'ORDER BY ar.analysis_timestamp DESC'], whereClause);
+        
+        rows = sqlFetch(query);
+        if isempty(rows)
+            msgbox('No analysis results found for selected files', 'Info', 'help');
+            return
+        end
+        
+        successCount = 0;
+        totalCount = 0;
+        
+        for i = 1:size(rows, 1)
+            totalCount = totalCount + 1;
+            try
+                fileId = rows{i, 1};
+                reportPath = rows{i, 2};
+                moduleName = rows{i, 3};
+                parametersJson = rows{i, 4};
+                filePath = rows{i, 5};
+                fileName = rows{i, 6};
+                
+                if isempty(parametersJson)
+                    warning('Re-run analysis: skipping result %d/%d - no parameters_json for file_id=%d, module=%s', ...
+                        i, size(rows, 1), fileId, moduleName);
+                    continue
+                end
+                
+                params = jsondecode(parametersJson);
+                if isempty(params) || ~isstruct(params)
+                    warning('Re-run analysis: skipping result %d/%d - invalid parameters for file_id=%d, module=%s', ...
+                        i, size(rows, 1), fileId, moduleName);
+                    continue
+                end
+                
+                debugState('fileManagerGUI', 'Re-run analysis %d/%d: module=%s, file=%s', ...
+                    i, size(rows, 1), moduleName, filePath);
+                
+                result = callModules(moduleName, filePath, fileId, params);
+                if ~isempty(result) && isstruct(result)
+                    result.file_id = fileId;
+                    result.file_name = fileName;
+                    result.module_name = moduleName;
+                    
+                    result = saveMetaFileFromResult(result, filePath);
+                    logAnalysisResult(fileId, result);
+                    updateAnalysisTable(fileId);
+                    successCount = successCount + 1;
+                else
+                    warning('Re-run analysis: module %s returned empty result for file_id=%d', moduleName, fileId);
+                end
+            catch ME
+                warning('Re-run analysis: error processing result %d/%d: %s', i, size(rows, 1), ME.message);
+            end
+        end
+        
+        fprintf('Re-run analysis completed: %d successful out of %d total\n', successCount, totalCount);
+    end
+    
     function metadataAnalysisCallback(~, ~)
         if ~ishandle(analysisTable)
             return
@@ -1664,6 +1749,9 @@ function fileManagerGUI()
         end
         if exist('deleteBtn', 'var') && ishandle(deleteBtn)
             set(deleteBtn, 'Enable', onOff(enableState));
+        end
+        if exist('rerunAnalysisBtn', 'var') && ishandle(rerunAnalysisBtn)
+            set(rerunAnalysisBtn, 'Enable', onOff(enableState));
         end
     end
     
