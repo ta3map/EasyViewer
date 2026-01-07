@@ -1,0 +1,100 @@
+имена переменных плоской таблицы:
+FileID — ID файла/записи
+age — возраст в днях
+hold_potential — удерживающий потенциал (мВ)
+stim — сила стимула (числовое значение)
+first_onset — время начала ответа (мс)
+peak_latency — время от стимула до пика (мс)
+peak_amplitude — амплитуда пика (пА)
+rise_slope — скорость нарастания (пА/мс)
+decay_slope — скорость спада (пА/мс)
+
+1. Распределение времён (onset, пик)
+График: Grouped boxplot (4 группы: AMPA_young, GABA_young, AMPA_old, GABA_old)
+
+hold_potential < 0 & age < 10 — AMPA young
+
+hold_potential > 0 & age < 10 — GABA young
+
+hold_potential < 0 & age > 10 — AMPA old
+
+hold_potential > 0 & age > 10 — GABA old
+
+2. Зависимость амплитуды от силы стимула
+График: Scatter/line plot с faceting (2 подграфика: AMPA, GABA), цвет/маркер по возрасту.
+Фильтры для разделения данных на подграфики и группы:
+
+Для подграфика AMPA: hold_potential < 0
+
+Внутри него:
+
+age < 10 — young (например, синие маркеры)
+
+age > 10 — old (например, красные маркеры)
+
+Для подграфика GABA: hold_potential > 0
+
+Внутри него:
+
+age < 10 — young
+
+age > 10 — old
+
+3. Соотношение амплитуды и времени пика
+График: Scatter plot (амплитуда от времени пика), цвет = возраст, форма маркера = тип тока.
+Фильтры для стиля маркеров:
+
+Для маркеров AMPA: hold_potential < 0
+
+Для маркеров GABA: hold_potential > 0
+(Цвет задаётся отдельно через условие на age)
+
+4. Скорость нарастания/спада (slope) vs. амплитуда
+График: Scatter plot с faceting (2 подграфика: rise_slope, decay_slope), цвет по возрасту, форма по типу тока.
+Фильтры аналогичны п.2:
+
+Для анализа rise_slope (и отдельно decay_slope): данные не фильтруются по типу тока для разделения на подграфики, а используются для оси Y.
+
+Для задания формы маркера внутри каждого подграфика:
+
+hold_potential < 0 — AMPA
+
+hold_potential > 0 — GABA
+
+Для задания цвета:
+
+age < 10 — young
+
+age > 10 — old
+
+5. Латентность (время от стимула до пика)
+График: Grouped boxplot (4 группы).
+Фильтры идентичны п.1:
+
+hold_potential < 0 & age < 10 — AMPA young
+
+hold_potential > 0 & age < 10 — GABA young
+
+hold_potential < 0 & age > 10 — AMPA old
+
+hold_potential > 0 & age > 10 — GABA old
+
+6. Время нарастания (rise_time = peak_latency - first_onset)
+График: Grouped boxplot (4 группы).
+Фильтры идентичны п.1 и п.5.
+
+7. Интеграл ответа
+График: Grouped bar chart (4 группы).
+Фильтры идентичны п.1.
+
+8. Коэффициент усиления (gain = peak_amplitude / stim)
+График: Line plot (gain от stim) с faceting (2 подграфика: AMPA, GABA), по 2 линии (young, old) на каждом.
+Фильтры для разделения данных идентичны п.2.
+
+9. Соотношение нарастание/спад (rise_decay_ratio)
+График: Grouped boxplot (4 группы).
+Фильтры идентичны п.1.
+
+10. Вариабельность (CV)
+Расчёт: CV считается отдельно для каждой из 4 групп по выбранной метрике (амплитуда, латентность).
+Фильтры для создания 4 групп данных идентичны п.1.

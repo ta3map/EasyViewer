@@ -1,10 +1,10 @@
 function plotFromTableGUI(filePath)
     % plotFromTableGUI - GUI для построения боксплотов из плоских таблиц
-    % Поддерживает загрузку из MAT файлов (flatTable) и Excel файлов
+    % Поддерживает загрузку из MAT файлов (flatTable), Excel файлов и .meta файлов состояния
     % Фильтрация данных через MATLAB формулы
     % 
     % Optional input:
-    %   filePath - path to MAT file (with flatTable) or Excel file to load automatically
+    %   filePath - path to MAT file (with flatTable), Excel file, or .meta state file to load automatically
     
     % Загружаем глобальные настройки
     loadGlobalSettings();
@@ -48,9 +48,27 @@ function plotFromTableGUI(filePath)
     if ~isempty(guiFig)
         fig = guiFig;
         figure(fig);
-        % If filePath provided and GUI already open, load the file
+        % If filePath provided and GUI already open, load the file or state
         if ~isempty(filePath)
-            loadFileInGUI(fig, filePath);
+            [~, ~, ext] = fileparts(filePath);
+            if strcmpi(ext, '.meta')
+                % Загружаем состояние из .meta файла
+                try
+                    data = load(filePath, '-mat');
+                    if ~isfield(data, 'savedState')
+                        showError('Invalid state file format');
+                        return
+                    end
+                    savedState = data.savedState;
+                    fprintf('State loaded from: %s\n', filePath);
+                    loadStateFromSavedState(fig, savedState, filePath);
+                catch ME
+                    showError(sprintf('Ошибка при загрузке: %s', ME.message));
+                end
+            else
+                % Загружаем обычный файл данных
+                loadFileInGUI(fig, filePath);
+            end
         end
         return
     end
@@ -102,12 +120,30 @@ function plotFromTableGUI(filePath)
     % Разворачиваем окно после успешной инициализации
     fig.WindowState = 'maximized';
     
-    % Загрузка состояния из глобальных настроек
-    loadBoxplotStateFromGlobalSettings(fig);
-    
-    % Если передан путь к файлу, загружаем его автоматически (имеет приоритет)
+    % Если передан путь к файлу, загружаем его автоматически (имеет приоритет над глобальными настройками)
     if ~isempty(filePath)
-        loadFileInGUI(fig, filePath);
+        [~, ~, ext] = fileparts(filePath);
+        if strcmpi(ext, '.meta')
+            % Загружаем состояние из .meta файла
+            try
+                data = load(filePath, '-mat');
+                if ~isfield(data, 'savedState')
+                    showError('Invalid state file format');
+                    return
+                end
+                savedState = data.savedState;
+                fprintf('State loaded from: %s\n', filePath);
+                loadStateFromSavedState(fig, savedState, filePath);
+            catch ME
+                showError(sprintf('Ошибка при загрузке: %s', ME.message));
+            end
+        else
+            % Загружаем обычный файл данных
+            loadFileInGUI(fig, filePath);
+        end
+    else
+        % Если filePath не передан, загружаем состояние из глобальных настроек
+        loadBoxplotStateFromGlobalSettings(fig);
     end
 end
 
@@ -586,6 +622,102 @@ function saveStateCallback(fig)
     end
 end
 
+function loadStateFromSavedState(fig, savedState, metaFilePath)
+    % loadStateFromSavedState - Общая функция для загрузки состояния из savedState
+    % Входные параметры:
+    %   fig - handle фигуры GUI
+    %   savedState - структура сохраненного состояния
+    %   metaFilePath - путь к .meta файлу (опционально, для поиска файла данных в папке .meta файла)
+    
+    % Сохраняем параметры перед загрузкой файла (loadFileInGUI очищает их)
+    savedParameters = {};
+    savedNextGroupNumber = 1;
+    if isfield(savedState, 'parameters')
+        savedParameters = savedState.parameters;
+    end
+    if isfield(savedState, 'nextGroupNumber')
+        savedNextGroupNumber = savedState.nextGroupNumber;
+    end
+    
+    % 1. Загружаем данные
+    if isfield(savedState, 'filePath') && ~isempty(savedState.filePath)
+        dataFilePath = savedState.filePath;
+        
+        % Если файл не найден и передан metaFilePath, ищем в папке .meta файла
+        if ~exist(dataFilePath, 'file') && ~isempty(metaFilePath)
+            [statePath, ~, ~] = fileparts(metaFilePath);
+            
+            if isempty(statePath)
+                statePath = pwd;
+            end
+            
+            originalPath = savedState.filePath;
+            originalPath = strrep(originalPath, '\', '/');
+            pathParts = strsplit(originalPath, '/');
+            if isempty(pathParts{end})
+                pathParts = pathParts(1:end-1);
+            end
+            fileNameWithExt = pathParts{end};
+            
+            if ~isempty(fileNameWithExt)
+                alternativePath = fullfile(statePath, fileNameWithExt);
+                
+                if exist(alternativePath, 'file')
+                    dataFilePath = alternativePath;
+                    fprintf('Data file found in state folder: %s\n', dataFilePath);
+                else
+                    showError(sprintf('Data file not found: %s\nAlso checked: %s', savedState.filePath, alternativePath));
+                    return
+                end
+            else
+                showError(sprintf('Data file not found: %s', savedState.filePath));
+                return
+            end
+        elseif ~exist(dataFilePath, 'file')
+            % Если файл не найден и metaFilePath пустой (загрузка из глобальных настроек),
+            % просто возвращаемся без ошибки
+            if isempty(metaFilePath)
+                % Файл не найден, возвращаемся без восстановления состояния
+                return
+            else
+                showError(sprintf('Data file not found: %s', savedState.filePath));
+                return
+            end
+        end
+        
+        loadFileInGUI(fig, dataFilePath);
+    else
+        % Если filePath отсутствует в savedState, это ошибка только для .meta файлов
+        if ~isempty(metaFilePath)
+            showError('State file does not contain filePath');
+            return
+        end
+        % Для глобальных настроек это нормально - просто нет файла данных, возвращаемся
+        return
+    end
+    
+    % 2. Восстанавливаем параметры и настройки после загрузки файла
+    state = get(fig, 'UserData');
+    state.parameters = savedParameters;
+    state.nextGroupNumber = savedNextGroupNumber;
+    state = restoreStateFromSavedState(state, savedState);
+    set(fig, 'UserData', state);
+    
+    % 3. Обновляем UI
+    updateAnalysisColumnsDisplay(fig);
+    updateUIFromState(fig);
+    
+    % 4. Обновляем структуру filteredData
+    updateFilteredDataStructure(fig);
+    
+    % 5. Синхронизируем с глобальными настройками
+    saveBoxplotStateToGlobalSettings(fig);
+    
+    % 6. Автоматически строим график после успешного восстановления состояния
+    pause(0.1);
+    plotBoxplotCallback(fig);
+end
+
 function loadStateCallback(fig)
     % Загрузка состояния из .meta файла
     filePath = getFileWithInitialPath('*.meta', 'Load State');
@@ -604,67 +736,8 @@ function loadStateCallback(fig)
         
         savedState = data.savedState;
         
-        % Восстанавливаем состояние через вызовы функций
-        % 1. Загружаем данные
-        if isfield(savedState, 'filePath') && ~isempty(savedState.filePath)
-            dataFilePath = savedState.filePath;
-            
-            if ~exist(dataFilePath, 'file')
-                [statePath, ~, ~] = fileparts(filePath);
-                
-                if isempty(statePath)
-                    statePath = pwd;
-                end
-                
-                originalPath = savedState.filePath;
-                originalPath = strrep(originalPath, '\', '/');
-                pathParts = strsplit(originalPath, '/');
-                if isempty(pathParts{end})
-                    pathParts = pathParts(1:end-1);
-                end
-                fileNameWithExt = pathParts{end};
-                
-                if ~isempty(fileNameWithExt)
-                    alternativePath = fullfile(statePath, fileNameWithExt);
-                    
-                    if exist(alternativePath, 'file')
-                        dataFilePath = alternativePath;
-                        fprintf('Data file found in state folder: %s\n', dataFilePath);
-                    else
-                        showError(sprintf('Data file not found: %s\nAlso checked: %s', savedState.filePath, alternativePath));
-                        return
-                    end
-                else
-                    showError(sprintf('Data file not found: %s', savedState.filePath));
-                    return
-                end
-            end
-            
-            loadFileInGUI(fig, dataFilePath);
-        else
-            showError('State file does not contain filePath');
-            return
-        end
-        
-        % 2. Восстанавливаем параметры и настройки
-        state = get(fig, 'UserData');
-        state = restoreStateFromSavedState(state, savedState);
-        set(fig, 'UserData', state);
-        
-        % 3. Обновляем UI
-        updateUIFromState(fig);
-        
-        % 4. Обновляем структуру filteredData
-        updateFilteredDataStructure(fig);
-        
-        % 5. Синхронизируем с глобальными настройками
-        saveBoxplotStateToGlobalSettings(fig);
-        
         fprintf('State loaded from: %s\n', filePath);
-        
-        % 6. Автоматически строим график после успешного восстановления состояния
-        pause(0.1);
-        plotBoxplotCallback(fig);
+        loadStateFromSavedState(fig, savedState, filePath);
     catch ME
         showError(sprintf('Ошибка при загрузке: %s', ME.message));
     end
@@ -1624,40 +1697,9 @@ function loadBoxplotStateFromGlobalSettings(fig)
         
         savedState = data.boxplot_state;
         
-        % Сохраняем параметры перед загрузкой файла (loadFileInGUI очищает их)
-        savedParameters = {};
-        savedNextGroupNumber = 1;
-        if isfield(savedState, 'parameters')
-            savedParameters = savedState.parameters;
-        end
-        if isfield(savedState, 'nextGroupNumber')
-            savedNextGroupNumber = savedState.nextGroupNumber;
-        end
-        
-        % 1. Сначала загружаем файл если есть
-        if isfield(savedState, 'filePath') && ...
-           ~isempty(savedState.filePath) && ...
-           exist(savedState.filePath, 'file')
-            loadFileInGUI(fig, savedState.filePath);
-        end
-        
-        % 2. Восстанавливаем параметры и настройки после загрузки файла
-        state = get(fig, 'UserData');
-        state.parameters = savedParameters;
-        state.nextGroupNumber = savedNextGroupNumber;
-        state = restoreStateFromSavedState(state, savedState);
-        set(fig, 'UserData', state);
-        
-        % 3. Обновляем UI
-        updateAnalysisColumnsDisplay(fig);
-        updateUIFromState(fig);
-        
-        % 4. Обновляем структуру filteredData
-        updateFilteredDataStructure(fig);
-        
-        % 5. Автоматически строим график после успешного восстановления состояния
-        pause(0.1);
-        plotBoxplotCallback(fig);
+        % Используем общую функцию для загрузки состояния
+        % metaFilePath пустой, так как файл данных ищется по исходному пути
+        loadStateFromSavedState(fig, savedState, []);
     catch ME
         warning('Failed to load boxplot state from global settings: %s', ME.message);
     end

@@ -1101,6 +1101,14 @@ function fileManagerGUI()
                 updateAnalysisHistory(fileId, moduleAction);
                 result = callModules(moduleAction, filePath, fileId, params);
                 if ~isempty(result) && isstruct(result)
+                    % Добавляем стандартные поля
+                    result.file_id = fileId;
+                    result.file_name = state.files(rowIdx).name;
+                    result.module_name = moduleAction;
+                    
+                    % Сохраняем .meta файл
+                    result = saveMetaFileFromResult(result, filePath);
+                    
                     logAnalysisResult(fileId, result);
                     updateAnalysisTable(state.files(rowIdx).id);
                 end
@@ -1137,6 +1145,51 @@ function fileManagerGUI()
             result = macroFunc(filePath, fileId, params);
         catch ME
             debugState('fileManagerGUI', 'Module call failed: %s (%s)', action, ME.message);
+        end
+    end
+    
+    function result = saveMetaFileFromResult(result, filePath)
+        if isempty(result) || ~isstruct(result)
+            return
+        end
+        
+        % Определяем путь к .meta файлу
+        metaPath = '';
+        
+        if isfield(result, 'report_path') && ~isempty(result.report_path)
+            % Если report_path существует, заменяем расширение на .meta
+            [folder, baseName, ~] = fileparts(result.report_path);
+            metaPath = fullfile(folder, [baseName, '.meta']);
+        else
+            % Если report_path отсутствует, создаем на основе исходного filePath
+            [folder, baseName, ~] = fileparts(filePath);
+            moduleName = '';
+            if isfield(result, 'module_name') && ~isempty(result.module_name)
+                moduleName = result.module_name;
+            end
+            if ~isempty(moduleName)
+                metaPath = fullfile(folder, [baseName, '_', moduleName, '.meta']);
+            else
+                metaPath = fullfile(folder, [baseName, '.meta']);
+            end
+        end
+        
+        if isempty(metaPath)
+            debugState('fileManagerGUI', 'saveMetaFileFromResult: failed to determine meta file path');
+            return
+        end
+        
+        try
+            % Сохраняем все поля из result в .meta файл
+            save(metaPath, '-struct', 'result', '-mat');
+            
+            % Обновляем data_path в result
+            result.data_path = metaPath;
+            
+            debugState('fileManagerGUI', 'saveMetaFileFromResult: saved .meta file to %s', metaPath);
+        catch ME
+            debugState('fileManagerGUI', 'saveMetaFileFromResult: error saving .meta file: %s', ME.message);
+            warning('Failed to save .meta file: %s', ME.message);
         end
     end
     
@@ -1590,11 +1643,24 @@ function fileManagerGUI()
             set(fileTableCounter, 'String', sprintf('Files selected: %d', count));
         end
         enableState = count > 0;
+        
+        % Проверяем расширение для кнопки Open (только если выбрана одна строка)
+        openBtnEnabled = false;
+        if count == 1 && isfield(state, 'selectedRow') && ~isempty(state.selectedRow) && isfield(state, 'files') && ~isempty(state.files)
+            rowIdx = state.selectedRow;
+            if rowIdx >= 1 && rowIdx <= numel(state.files)
+                filePath = state.files(rowIdx).path;
+                [~, ~, ext] = fileparts(filePath);
+                supportedExtensions = {'.mat', '.ev'};
+                openBtnEnabled = any(strcmpi(ext, supportedExtensions));
+            end
+        end
+        
         if exist('openFileFolderBtn', 'var') && ishandle(openFileFolderBtn)
             set(openFileFolderBtn, 'Enable', onOff(enableState));
         end
         if exist('openBtn', 'var') && ishandle(openBtn)
-            set(openBtn, 'Enable', onOff(enableState));
+            set(openBtn, 'Enable', onOff(openBtnEnabled));
         end
         if exist('deleteBtn', 'var') && ishandle(deleteBtn)
             set(deleteBtn, 'Enable', onOff(enableState));

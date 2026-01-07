@@ -1,5 +1,5 @@
 function result_info = saveSlopeMeasurementResults(slope_measurement_results, excel_path, timeUnitFactor, matFilePath, matFileName, params)
-    % saveSlopeMeasurementResults - сохранение результатов в Excel и .meta файлы
+    % saveSlopeMeasurementResults - сохранение результатов в Excel файл
     % Адаптированная версия saveResults() из signalAnalysisGUI без диалога выбора файла
     %
     % Входные параметры:
@@ -8,22 +8,18 @@ function result_info = saveSlopeMeasurementResults(slope_measurement_results, ex
     %   timeUnitFactor            - множитель единиц времени
     %   matFilePath               - путь к исходному файлу (опционально)
     %   matFileName               - имя исходного файла (опционально)
+    %   params                    - параметры (опционально)
     %
     % Выходные параметры:
     %   result_info - структура с путями к сохраненным файлам:
     %     .excel_path - путь к Excel файлу
-    %     .meta_path  - путь к .meta файлу
     %     .success    - флаг успешного сохранения
     
-    result_info = struct('excel_path', '', 'meta_path', '', 'success', false);
+    result_info = struct('excel_path', '', 'success', false);
     
     if isempty(slope_measurement_results)
         return;
     end
-    
-    % Получаем базовое имя файла без расширения
-    [pathname, basename, ~] = fileparts(excel_path);
-    meta_path = fullfile(pathname, [basename, '.meta']);
     
     % Названия колонок (как в signalAnalysisGUI)
     table_column_names = {'Stimulus', 'Slope', 'Peak Time (rel)', 'Peak Time (abs)', 'Peak Amplitude', 'Peak Value (rel)', 'Onset Time (rel)', 'Onset Time (abs)', 'Peak - Onset', 'Baseline', 'Channel', 'Stim Time', 'Info'};
@@ -119,46 +115,7 @@ function result_info = saveSlopeMeasurementResults(slope_measurement_results, ex
         % Сохраняем Excel файл
         writecell(excel_data, excel_path);
         
-        % Создаем структуру с средними значениями для сохранения в .meta файл
-        average_values = struct();
-        average_values.slope = mean(slope_values, 'omitnan');
-        average_values.peak_time_rel = mean(peak_time_rel_values, 'omitnan');
-        average_values.peak_amplitude = mean(peak_amplitude_values, 'omitnan');
-        average_values.peak_value_rel = mean(peak_value_rel_values, 'omitnan');
-        average_values.onset_time_rel = mean(onset_time_rel_values, 'omitnan');
-        average_values.baseline = mean(baseline_values, 'omitnan');
-        
-        % Добавляем стандартные отклонения
-        average_values.std_slope = std(slope_values, 'omitnan');
-        average_values.std_peak_time_rel = std(peak_time_rel_values, 'omitnan');
-        average_values.std_peak_amplitude = std(peak_amplitude_values, 'omitnan');
-        average_values.std_peak_value_rel = std(peak_value_rel_values, 'omitnan');
-        average_values.std_onset_time_rel = std(onset_time_rel_values, 'omitnan');
-        average_values.std_baseline = std(baseline_values, 'omitnan');
-        
-        % Сохраняем информацию об оригинальном файле
-        original_file_info = struct();
-        if nargin >= 4 && ~isempty(matFilePath)
-            original_file_info.matFilePath = matFilePath;
-        else
-            original_file_info.matFilePath = '';
-        end
-        if nargin >= 5 && ~isempty(matFileName)
-            original_file_info.matFileName = matFileName;
-        else
-            original_file_info.matFileName = '';
-        end
-        original_file_info.timestamp = datestr(now);
-        
-        % Сохраняем метаданные в .meta файл (фактически .mat формат)
-        if nargin >= 6 && ~isempty(params)
-            save(meta_path, 'slope_measurement_results', 'average_values', 'original_file_info', 'params', '-v7.3');
-        else
-            save(meta_path, 'slope_measurement_results', 'average_values', 'original_file_info', '-v7.3');
-        end
-        
         result_info.excel_path = excel_path;
-        result_info.meta_path = meta_path;
         result_info.success = true;
         
     catch ME

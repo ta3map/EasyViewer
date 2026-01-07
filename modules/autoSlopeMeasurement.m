@@ -154,7 +154,7 @@ function result = autoSlopeMeasurement(filePath, fileId, params)
     excel_path = fullfile(folder, [baseName, '_auto_slope_measurements.xlsx']);
     
     % Инициализация result_info
-    result_info = struct('success', false, 'excel_path', excel_path, 'meta_path', '');
+    result_info = struct('success', false, 'excel_path', excel_path);
     
     try
         % Получаем timeUnitFactor если не задан
@@ -169,7 +169,6 @@ function result = autoSlopeMeasurement(filePath, fileId, params)
         if result_info.success
             debugState('autoSlopeMeasurement', '✓ Results saved:');
             debugState('autoSlopeMeasurement', '  Excel: %s', result_info.excel_path);
-            debugState('autoSlopeMeasurement', '  Metadata: %s', result_info.meta_path);
             debugState('autoSlopeMeasurement', '  Total records: %d', length(slope_measurement_results));
         else
             debugState('autoSlopeMeasurement', '❌ Error saving results');
@@ -190,15 +189,14 @@ function result = autoSlopeMeasurement(filePath, fileId, params)
         'module_display_name', 'Auto Slope Measurement', ...
         'module_description', 'Автоматическое измерение slope для всех стимулов', ...
         'parameters', params, ...
-        'num_results', length(slope_measurement_results));
+        'num_results', length(slope_measurement_results), ...
+        'slope_measurement_results', slope_measurement_results);
     
-    % Добавляем пути к файлам если сохранение прошло успешно
+    % Добавляем путь к файлу если сохранение прошло успешно
     if result_info.success
         result.report_path = result_info.excel_path;
-        result.data_path = result_info.meta_path;
     else
         result.report_path = excel_path;
-        result.data_path = '';
     end
 end
 

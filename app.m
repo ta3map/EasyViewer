@@ -2,7 +2,6 @@ function app()
 
     global EV_path EV_version EV_date EV_author EV_email EV_description
 
-    EV_path = pwd;
     EV_version = '1.14.05';
     EV_date = '26.12.2025';
     EV_author = 'Azat Gainutdinov';
@@ -13,22 +12,13 @@ function app()
     disp(['Easy Viewer version: ' EV_version])  
         
     disp('working directory:')
+    fprintf('%s\n',pwd);
+    
+    EV_path = fileparts(mfilename('fullpath'));
+    disp('app directory:')
     fprintf('%s\n',EV_path);
     
-    app_path = fileparts(mfilename('fullpath'));
-    disp('app directory:')
-    fprintf('%s\n',app_path);
-    
-    % Add functions and GUI functions directories to path
-    functionsPath = fullfile(app_path, 'functions');
-    if exist(functionsPath, 'dir')
-        addpath(functionsPath);
-    end
-    guiFunctionsPath = fullfile(app_path, 'functions', 'GUIfunctions');
-    if exist(guiFunctionsPath, 'dir')
-        addpath(guiFunctionsPath);
-    end
-        
+
     disp('please wait ...')
 
 
