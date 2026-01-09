@@ -52,6 +52,29 @@ function metadata = prepareSlopeMeasurementMetadata(measurement_metadata, params
     metadata.show_slope = true;
     metadata.show_peak = true;
     
+    % Сохраняем настройки сглаживания (с правильными названиями для совместимости с signalAnalysisGUI)
+    if isfield(params, 'SmoothingEnabled')
+        metadata.analysis_smooth_enabled = logical(params.SmoothingEnabled);
+    else
+        metadata.analysis_smooth_enabled = false;
+    end
+    if isfield(params, 'SmoothingSpan')
+        metadata.analysis_smooth_span = params.SmoothingSpan;
+    else
+        metadata.analysis_smooth_span = 5;
+    end
+    if isfield(params, 'SmoothingMethod')
+        metadata.analysis_smooth_method = params.SmoothingMethod;
+    else
+        metadata.analysis_smooth_method = 'moving';
+    end
+    % Параметр ShowRawSignal может отсутствовать в JSON, используем значение по умолчанию
+    if isfield(params, 'ShowRawSignal')
+        metadata.analysis_show_raw_signal = logical(params.ShowRawSignal);
+    else
+        metadata.analysis_show_raw_signal = true;
+    end
+    
     % Позиции курсоров (абсолютные времена)
     metadata.cursor_positions = struct();
     metadata.cursor_positions.baseline_start = metadata.baseline_start;

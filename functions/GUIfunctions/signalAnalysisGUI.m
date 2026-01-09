@@ -265,6 +265,9 @@ end
     % Инициализация флага Hot Resave
     hot_resave_enabled = false;
     
+    % Инициализация флага восстановления состояния из метаданных
+    restoring_from_metadata = false;
+    
     % Инициализация глобальной функции обновления графика
     updatePlotFunc = @updateAnalysisPlotFunc;
     
@@ -1174,20 +1177,6 @@ updateCursorEditFields();
         % Сначала вычисляем все результаты
         [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = calculateResults();
         
-        % Проверка Hot Resave - автоматическое сохранение при изменении курсоров
-        if hot_resave_enabled && ...
-           ~isempty(selected_row_slope) && ...
-           selected_row_slope <= length(slope_measurement_results) && ...
-           ~isempty(current_loaded_excel_path) && ...
-           exist(current_loaded_excel_path, 'file')
-            
-            % Автоматический Replace (без обновления UI)
-            replaceResultSilent();
-            
-            % Автоматическое сохранение поверх (без диалогов)
-            doSaveResults(current_loaded_excel_path, true);
-        end
-        
         % Затем обновляем график и визуализацию
         updatePlotVisualization();
     end
@@ -1581,6 +1570,23 @@ updateCursorEditFields();
         
         % Пересчитываем параметры только после того как пользователь отжал мышь
         updatePlotAndCalculation();
+        
+        % Hot Resave - автоматическое сохранение при завершении перетаскивания курсоров
+        if hot_resave_enabled && ...
+           ~isempty(selected_row_slope) && ...
+           selected_row_slope <= length(slope_measurement_results) && ...
+           ~isempty(current_loaded_excel_path) && ...
+           exist(current_loaded_excel_path, 'file')
+            
+            % Автоматический Replace (без обновления UI)
+            replaceResultSilent();
+            
+            % Автоматическое сохранение поверх (без диалогов)
+            doSaveResults(current_loaded_excel_path, true);
+            
+            % Обновляем таблицу чтобы пользователь видел изменения
+            updateResultsTable();
+        end
     end
     
     function saveCurrentMarkerPositions()
@@ -1991,6 +1997,12 @@ updateCursorEditFields();
         metadata.show_slope = slope_measurement_settings.show_slope;
         metadata.show_peak = slope_measurement_settings.show_peak;
         
+        % Сохраняем настройки сглаживания
+        metadata.analysis_smooth_enabled = analysis_smooth_enabled;
+        metadata.analysis_smooth_span = analysis_smooth_span;
+        metadata.analysis_smooth_method = analysis_smooth_method;
+        metadata.analysis_show_raw_signal = getShowRawFlag();
+        
         % Добавляем rel_shift только если его нет в переданных метаданных
         if ~isfield(metadata, 'rel_shift')
             if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
@@ -2060,6 +2072,12 @@ updateCursorEditFields();
         metadata.show_onset = slope_measurement_settings.show_onset;
         metadata.show_slope = slope_measurement_settings.show_slope;
         metadata.show_peak = slope_measurement_settings.show_peak;
+        
+        % Сохраняем настройки сглаживания
+        metadata.analysis_smooth_enabled = analysis_smooth_enabled;
+        metadata.analysis_smooth_span = analysis_smooth_span;
+        metadata.analysis_smooth_method = analysis_smooth_method;
+        metadata.analysis_show_raw_signal = getShowRawFlag();
         
         % Добавляем rel_shift только если его нет в переданных метаданных
         if ~isfield(metadata, 'rel_shift')
@@ -2208,6 +2226,12 @@ updateCursorEditFields();
         metadata.show_slope = slope_measurement_settings.show_slope;
         metadata.show_peak = slope_measurement_settings.show_peak;
         
+        % Сохраняем настройки сглаживания
+        metadata.analysis_smooth_enabled = analysis_smooth_enabled;
+        metadata.analysis_smooth_span = analysis_smooth_span;
+        metadata.analysis_smooth_method = analysis_smooth_method;
+        metadata.analysis_show_raw_signal = getShowRawFlag();
+        
         % Добавляем rel_shift только если его нет в переданных метаданных
         if ~isfield(metadata, 'rel_shift')
             if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
@@ -2338,7 +2362,9 @@ updateCursorEditFields();
             if result_info.success
                 debugState('doSaveResults', '✓ Results saved:');
                 debugState('doSaveResults', '  Excel: %s', result_info.excel_path);
-                debugState('doSaveResults', '  Metadata: %s', result_info.meta_path);
+                if isfield(result_info, 'meta_path')
+                    debugState('doSaveResults', '  Metadata: %s', result_info.meta_path);
+                end
                 debugState('doSaveResults', '  Total records: %d', length(slope_measurement_results));
                 
                 % Сохраняем путь к Excel файлу для возможности сохранения поверх в будущем
@@ -2351,8 +2377,10 @@ updateCursorEditFields();
                         'module_display_name', 'Signal Analysis', ...
                         'module_description', 'Анализ сигнала с измерениями slope, peak, onset', ...
                         'report_path', result_info.excel_path, ...
-                        'parameters', struct('total_records', length(slope_measurement_results), ...
-                                             'meta_path', result_info.meta_path));
+                        'parameters', struct('total_records', length(slope_measurement_results)));
+                    if isfield(result_info, 'meta_path')
+                        result.parameters.meta_path = result_info.meta_path;
+                    end
                     logAnalysisResult(matFilePath, result);
                     debugState('doSaveResults', '  Analysis result saved to database');
                 else
@@ -2727,6 +2755,23 @@ updateCursorEditFields();
         set(hOnsetCheckbox, 'Value', slope_measurement_settings.show_onset);
         set(hPeakCheckbox, 'Value', slope_measurement_settings.show_peak);
         
+        % Восстанавливаем настройки сглаживания если они есть
+        if isfield(metadata, 'analysis_smooth_enabled')
+            analysis_smooth_enabled = logical(metadata.analysis_smooth_enabled);
+        end
+        if isfield(metadata, 'analysis_smooth_span')
+            analysis_smooth_span = metadata.analysis_smooth_span;
+        end
+        if isfield(metadata, 'analysis_smooth_method')
+            analysis_smooth_method = metadata.analysis_smooth_method;
+        end
+        if isfield(metadata, 'analysis_show_raw_signal')
+            setappdata(signalFig, 'analysis_show_raw_signal', logical(metadata.analysis_show_raw_signal));
+        end
+        
+        % Обновляем UI элементы сглаживания
+        updateSmoothingControls();
+        
         % Обновляем видимость поля порога
         % updateOnsetThresholdVisibility();
         
@@ -2744,8 +2789,11 @@ updateCursorEditFields();
         
         % Сохраняем позиции курсоров в память после восстановления состояния
         saveCurrentMarkerPositions();
+        
+        % Принудительно обновляем интерфейс перед сбросом флага
+        drawnow;
                 
-        % Сбрасываем флаг восстановления
+        % Сбрасываем флаг восстановления ПОСЛЕ всех обновлений
         restoring_from_metadata = false;
         
         debugState('restoreStateFromMetadata', '✓ State restored from result #%d', row_index);

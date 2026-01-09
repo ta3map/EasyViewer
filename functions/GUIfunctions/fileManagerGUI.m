@@ -41,6 +41,9 @@ function fileManagerGUI()
     
     state.dbPath = initDbPath();
     
+    % Инициализация фильтра файлов (локальная переменная)
+    currentFilter = struct('columnName', '', 'searchText', '');
+    
     % Загружаем координаты элементов из JSON файла
     coordsFile = getGUIConfigPath('fileManagerGUI_coords.json');
     if exist(coordsFile, 'file')
@@ -66,7 +69,9 @@ function fileManagerGUI()
         end
     end
     
-    moduleDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'modules');
+    functionFolder = fileparts(mfilename('fullpath'));
+    projectRoot = fileparts(fileparts(functionFolder));
+    moduleDir = fullfile(projectRoot, 'modules');
     if exist(moduleDir, 'dir')
         currentPath = strsplit(path, pathsep); %#ok<PATHNM>
         if ~any(strcmp(currentPath, moduleDir))
@@ -136,7 +141,7 @@ function fileManagerGUI()
 
     fileActionsMenu = uicontrol('Style', 'popupmenu', ...
         'Position', getElementPosition('fileActionsMenu'), ...
-        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field'}, ...
+        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field', 'Filter Files', 'Clear Filter'}, ...
         'FontSize', 11, ...
         'Value', 1, ...
         'Callback', @handleFileAction, ...
@@ -167,9 +172,6 @@ function fileManagerGUI()
         'Tag', 'openBtn');
     
     moduleList = listModulesInDir();
-    if isempty(moduleList)
-        moduleList = {'autoMeanStimulus'};
-    end
     filterByModuleCheckbox = uicontrol('Style', 'checkbox', ...
         'Position', getElementPosition('filterByModuleCheckbox'), ...
         'String', 'Filter by module', ...
@@ -474,6 +476,10 @@ function fileManagerGUI()
                 addMetadataField();
             case 4
                 deleteMetadataField();
+            case 5
+                showFileFilterDialog();
+            case 6
+                clearFileFilter();
         end
     end
     
@@ -1076,51 +1082,108 @@ function fileManagerGUI()
             return
         end
         
-        rows = state.selectedRows(:)';
+        tableData = fileTable.Data;
+        if isempty(tableData)
+            return
+        end
         
-        % Внешний цикл: для каждого модуля в очереди
-        for moduleIdx = 1:numel(state.moduleQueue)
-            moduleAction = state.moduleQueue{moduleIdx};
-            
-            % Показываем GUI для редактирования параметров модуля один раз перед обработкой всех файлов
-            paramsApplied = false;
-            try
-                params = editModuleParamsGUI(moduleAction);
-                if ~isempty(fieldnames(params))
-                    paramsApplied = true;
+        rows = state.selectedRows(:)';
+        rows = rows(rows >= 1 & rows <= size(tableData, 1));
+        
+        if isempty(rows)
+            return
+        end
+        
+        selectedFileIds = cellfun(@(id) id, tableData(rows, 1));
+        
+        filesToProcess = [];
+        for i = 1:numel(selectedFileIds)
+            fileId = selectedFileIds(i);
+            fileIdx = find([state.files.id] == fileId, 1);
+            if ~isempty(fileIdx)
+                filesToProcess = [filesToProcess; state.files(fileIdx)];
+            end
+        end
+        
+        if isempty(filesToProcess)
+            return
+        end
+        
+        totalModules = numel(state.moduleQueue);
+        totalFiles = numel(filesToProcess);
+        totalTasks = totalModules * totalFiles;
+        
+        progressBar = waitbar(0, 'Initializing modules...', 'Name', 'Processing Modules');
+        
+        completedTasks = 0;
+        
+        try
+            % Внешний цикл: для каждого модуля в очереди
+            for moduleIdx = 1:numel(state.moduleQueue)
+                moduleAction = state.moduleQueue{moduleIdx};
+                
+                % Показываем GUI для редактирования параметров модуля один раз перед обработкой всех файлов
+                paramsApplied = false;
+                try
+                    params = editModuleParamsGUI(moduleAction);
+                    if ~isempty(fieldnames(params))
+                        paramsApplied = true;
+                    end
+                catch ME
+                    debugState('fileManagerGUI', 'Failed to open parameter editor: %s', ME.message);
                 end
-            catch ME
-                debugState('fileManagerGUI', 'Failed to open parameter editor: %s', ME.message);
-            end
-            
-            if ~paramsApplied
-                continue
-            end
-            
-            % Внутренний цикл: обработка всех выбранных файлов
-            for idx = 1:numel(rows)
-                rowIdx = rows(idx);
-                if rowIdx < 1 || rowIdx > numel(state.files)
+                
+                if ~paramsApplied
+                    completedTasks = completedTasks + totalFiles;
+                    if ishandle(progressBar)
+                        progress = completedTasks / totalTasks;
+                        waitbar(progress, progressBar, sprintf('Module %d/%d: Skipped', moduleIdx, totalModules));
+                    end
                     continue
                 end
-                filePath = state.files(rowIdx).path;
-                fileId = state.files(rowIdx).id;
-                debugState('fileManagerGUI', 'Module %s %d/%d: %s', moduleAction, idx, numel(rows), filePath);
-                updateAnalysisHistory(fileId, moduleAction);
-                result = callModules(moduleAction, filePath, fileId, params);
-                if ~isempty(result) && isstruct(result)
-                    % Добавляем стандартные поля
-                    result.file_id = fileId;
-                    result.file_name = state.files(rowIdx).name;
-                    result.module_name = moduleAction;
+                
+                % Внутренний цикл: обработка всех выбранных файлов
+                for idx = 1:numel(filesToProcess)
+                    file = filesToProcess(idx);
+                    filePath = file.path;
+                    fileId = file.id;
                     
-                    % Сохраняем .meta файл
-                    result = saveMetaFileFromResult(result, filePath);
+                    if ishandle(progressBar)
+                        progress = completedTasks / totalTasks;
+                        waitbar(progress, progressBar, sprintf('Module %d/%d: %s (%d/%d files)', ...
+                            moduleIdx, totalModules, moduleAction, idx, totalFiles));
+                    end
                     
-                    logAnalysisResult(fileId, result);
-                    updateAnalysisTable(state.files(rowIdx).id);
+                    debugState('fileManagerGUI', 'Module %s %d/%d: %s', moduleAction, idx, numel(filesToProcess), filePath);
+                    updateAnalysisHistory(fileId, moduleAction);
+                    result = callModules(moduleAction, filePath, fileId, params);
+                    if ~isempty(result) && isstruct(result)
+                        % Добавляем стандартные поля
+                        result.file_id = fileId;
+                        result.file_name = file.name;
+                        result.module_name = moduleAction;
+                        
+                        % Сохраняем .meta файл
+                        result = saveMetaFileFromResult(result, filePath);
+                        
+                        logAnalysisResult(fileId, result);
+                        updateAnalysisTable(fileId);
+                    end
+                    
+                    completedTasks = completedTasks + 1;
                 end
             end
+            
+            if ishandle(progressBar)
+                waitbar(1.0, progressBar, 'Completed!');
+                pause(0.5);
+                close(progressBar);
+            end
+        catch ME
+            if ishandle(progressBar)
+                close(progressBar);
+            end
+            rethrow(ME);
         end
         
         % Очистка очереди после выполнения
@@ -1242,22 +1305,26 @@ function fileManagerGUI()
             whereClause = sprintf('file_id = %d', fileId);
         end
         if filterByModule
-            if ~ishandle(moduleSelect)
-                moduleName = 'autoMeanStimulus';
-            else
+            moduleName = [];
+            if ishandle(moduleSelect)
                 modules = get(moduleSelect, 'String');
-                if isempty(modules)
-                    moduleName = 'autoMeanStimulus';
-                elseif iscell(modules)
-                    moduleIdx = min(get(moduleSelect, 'Value'), numel(modules));
-                    moduleName = modules{moduleIdx};
-                else
-                    moduleName = modules;
+                if ~isempty(modules)
+                    if iscell(modules)
+                        moduleIdx = min(get(moduleSelect, 'Value'), numel(modules));
+                        moduleName = modules{moduleIdx};
+                    else
+                        moduleName = modules;
+                    end
                 end
             end
-            query = sprintf(['SELECT file_id, report_path, module_name FROM analysis_results ' ...
-                'WHERE %s AND module_name = ''%s'' ORDER BY analysis_timestamp DESC'], ...
-                whereClause, escapeSql(moduleName));
+            if ~isempty(moduleName)
+                query = sprintf(['SELECT file_id, report_path, module_name FROM analysis_results ' ...
+                    'WHERE %s AND module_name = ''%s'' ORDER BY analysis_timestamp DESC'], ...
+                    whereClause, escapeSql(moduleName));
+            else
+                query = sprintf(['SELECT file_id, report_path, module_name FROM analysis_results ' ...
+                    'WHERE %s ORDER BY analysis_timestamp DESC'], whereClause);
+            end
         else
             query = sprintf(['SELECT file_id, report_path, module_name FROM analysis_results ' ...
                 'WHERE %s ORDER BY analysis_timestamp DESC'], whereClause);
@@ -1335,76 +1402,116 @@ function fileManagerGUI()
     end
     
     function rerunAnalysisCallback(~, ~)
-        if ~isfield(state, 'selectedFileIds') || isempty(state.selectedFileIds)
-            msgbox('No files selected', 'Error', 'error');
+        if ~ishandle(analysisTable)
+            msgbox('Analysis table not available', 'Error', 'error');
             return
         end
         
-        fileIds = state.selectedFileIds;
-        if numel(fileIds) > 1
-            idsStr = sprintf('%d,', fileIds);
-            idsStr = idsStr(1:end-1);
-            whereClause = sprintf('ar.file_id IN (%s)', idsStr);
-        else
-            whereClause = sprintf('ar.file_id = %d', fileIds);
-        end
-        
-        query = sprintf(['SELECT ar.file_id, ar.report_path, ar.module_name, ar.parameters_json, f.file_path, f.file_name ' ...
-            'FROM analysis_results ar ' ...
-            'JOIN files f ON f.id = ar.file_id ' ...
-            'WHERE %s ' ...
-            'ORDER BY ar.analysis_timestamp DESC'], whereClause);
-        
-        rows = sqlFetch(query);
-        if isempty(rows)
-            msgbox('No analysis results found for selected files', 'Info', 'help');
+        data = analysisTable.Data;
+        if isempty(data)
+            msgbox('No analysis results available', 'Info', 'help');
             return
         end
         
+        % Получаем выбранные строки из таблицы анализа
+        selectedRows = getSelectedAnalysisRows(size(data, 1));
+        if isempty(selectedRows)
+            msgbox('No analysis results selected', 'Info', 'help');
+            return
+        end
+        
+        % Формируем очередь задач для повторного анализа
+        rerunQueue = {};
+        for i = 1:numel(selectedRows)
+            rowIdx = selectedRows(i);
+            if rowIdx < 1 || rowIdx > size(data, 1)
+                continue
+            end
+            
+            fileId = data{rowIdx, 1};
+            reportPath = data{rowIdx, 2};
+            moduleName = data{rowIdx, 3};
+            
+            % Получаем путь к файлу из базы данных
+            fileQuery = sprintf('SELECT file_path, file_name FROM files WHERE id = %d', fileId);
+            fileRows = sqlFetch(fileQuery);
+            if isempty(fileRows)
+                warning('Re-run analysis: file not found for file_id=%d', fileId);
+                continue
+            end
+            
+            filePath = fileRows{1, 1};
+            fileName = fileRows{1, 2};
+            
+            % Определяем путь к .meta файлу
+            metaPath = replaceFileExt(reportPath, '.meta');
+            
+            if ~exist(metaPath, 'file')
+                warning('Re-run analysis: .meta file not found: %s', metaPath);
+                continue
+            end
+            
+            % Добавляем задачу в очередь
+            rerunQueue{end + 1} = struct(...
+                'fileId', fileId, ...
+                'filePath', filePath, ...
+                'fileName', fileName, ...
+                'moduleName', moduleName, ...
+                'metaPath', metaPath, ...
+                'reportPath', reportPath);
+        end
+        
+        if isempty(rerunQueue)
+            msgbox('No valid analysis results to re-run', 'Info', 'help');
+            return
+        end
+        
+        % Выполняем задачи из очереди последовательно
         successCount = 0;
-        totalCount = 0;
+        totalCount = numel(rerunQueue);
         
-        for i = 1:size(rows, 1)
-            totalCount = totalCount + 1;
+        for i = 1:totalCount
+            task = rerunQueue{i};
+            
             try
-                fileId = rows{i, 1};
-                reportPath = rows{i, 2};
-                moduleName = rows{i, 3};
-                parametersJson = rows{i, 4};
-                filePath = rows{i, 5};
-                fileName = rows{i, 6};
-                
-                if isempty(parametersJson)
-                    warning('Re-run analysis: skipping result %d/%d - no parameters_json for file_id=%d, module=%s', ...
-                        i, size(rows, 1), fileId, moduleName);
+                % Загружаем переменную params из .meta файла
+                try
+                    metaData = load(task.metaPath, '-mat');
+                catch ME
+                    warning('Re-run analysis: skipping result %d/%d - failed to load .meta file: %s', ...
+                        i, totalCount, ME.message);
                     continue
                 end
                 
-                params = jsondecode(parametersJson);
-                if isempty(params) || ~isstruct(params)
-                    warning('Re-run analysis: skipping result %d/%d - invalid parameters for file_id=%d, module=%s', ...
-                        i, size(rows, 1), fileId, moduleName);
+                % Извлекаем params (может быть сохранена как params или parameters)
+                if isfield(metaData, 'params')
+                    params = metaData.params;
+                elseif isfield(metaData, 'parameters')
+                    params = metaData.parameters;
+                else
+                    warning('Re-run analysis: skipping result %d/%d - no params or parameters in .meta file for file_id=%d, module=%s', ...
+                        i, totalCount, task.fileId, task.moduleName);
                     continue
                 end
                 
                 debugState('fileManagerGUI', 'Re-run analysis %d/%d: module=%s, file=%s', ...
-                    i, size(rows, 1), moduleName, filePath);
+                    i, totalCount, task.moduleName, task.filePath);
                 
-                result = callModules(moduleName, filePath, fileId, params);
+                result = callModules(task.moduleName, task.filePath, task.fileId, params);
                 if ~isempty(result) && isstruct(result)
-                    result.file_id = fileId;
-                    result.file_name = fileName;
-                    result.module_name = moduleName;
+                    result.file_id = task.fileId;
+                    result.file_name = task.fileName;
+                    result.module_name = task.moduleName;
                     
-                    result = saveMetaFileFromResult(result, filePath);
-                    logAnalysisResult(fileId, result);
-                    updateAnalysisTable(fileId);
+                    result = saveMetaFileFromResult(result, task.filePath);
+                    logAnalysisResult(task.fileId, result);
+                    updateAnalysisTable(task.fileId);
                     successCount = successCount + 1;
                 else
-                    warning('Re-run analysis: module %s returned empty result for file_id=%d', moduleName, fileId);
+                    warning('Re-run analysis: module %s returned empty result for file_id=%d', task.moduleName, task.fileId);
                 end
             catch ME
-                warning('Re-run analysis: error processing result %d/%d: %s', i, size(rows, 1), ME.message);
+                warning('Re-run analysis: error processing result %d/%d: %s', i, totalCount, ME.message);
             end
         end
         
@@ -1532,11 +1639,19 @@ function fileManagerGUI()
         colIdx = event.Indices(1, 2);
         state.selectedRow = rowIdx;
         state.selectedRows = rows(:)';
-        state.selectedFileIds = arrayfun(@(idx) state.files(idx).id, state.selectedRows(state.selectedRows >= 1 & state.selectedRows <= numel(state.files)));
+        
+        tableData = fileTable.Data;
+        if ~isempty(tableData) && max(rows) <= size(tableData, 1)
+            state.selectedFileIds = cellfun(@(id) id, tableData(rows, 1));
+        else
+            state.selectedFileIds = [];
+        end
+        
         state.selectedColumn = colIdx;
         updateFileTableCounter(numel(state.selectedRows));
-        if rowIdx >= 1 && rowIdx <= numel(state.files)
-            state.selectedFileId = state.files(rowIdx).id;
+        
+        if rowIdx >= 1 && rowIdx <= size(tableData, 1) && ~isempty(tableData)
+            state.selectedFileId = tableData{rowIdx, 1};
             updateAnalysisTable(state.selectedFileIds);
         else
             state.selectedFileId = [];
@@ -2604,6 +2719,173 @@ function fileManagerGUI()
             end
             msgbox(sprintf('Failed to import project: %s', ME.message), 'Error', 'error');
         end
+    end
+    
+    function showFileFilterDialog()
+        dialogWidth = 500;
+        dialogHeight = 200;
+        screenSize = get(0, 'ScreenSize');
+        dialogX = (screenSize(3) - dialogWidth) / 2;
+        dialogY = (screenSize(4) - dialogHeight) / 2;
+        
+        dialogFig = figure('Position', [dialogX, dialogY, dialogWidth, dialogHeight], ...
+            'Name', 'Filter Files', ...
+            'NumberTitle', 'off', ...
+            'MenuBar', 'none', ...
+            'Resize', 'off', ...
+            'WindowStyle', 'modal');
+        
+        margin = 15;
+        buttonHeight = 30;
+        buttonWidth = 80;
+        labelHeight = 20;
+        editHeight = 25;
+        spacing = 10;
+        
+        yPos = dialogHeight - margin - labelHeight;
+        
+        uicontrol('Parent', dialogFig, 'Style', 'text', ...
+            'Position', [margin, yPos, 100, labelHeight], ...
+            'String', 'Column:', ...
+            'HorizontalAlignment', 'left', ...
+            'FontSize', 11);
+        
+        columnList = {'File ID', 'File Name', 'Path'};
+        if ~isempty(state.metadataFields)
+            columnList = [columnList, state.metadataFields];
+        end
+        
+        currentColumnIdx = 1;
+        if ~isempty(currentFilter.columnName)
+            matchIdx = find(strcmp(columnList, currentFilter.columnName), 1);
+            if ~isempty(matchIdx)
+                currentColumnIdx = matchIdx;
+            end
+        end
+        
+        columnPopup = uicontrol('Parent', dialogFig, 'Style', 'popupmenu', ...
+            'Position', [margin + 110, yPos - 2, dialogWidth - 2*margin - 110, editHeight], ...
+            'String', columnList, ...
+            'Value', currentColumnIdx, ...
+            'FontSize', 11);
+        
+        yPos = yPos - labelHeight - spacing - editHeight;
+        
+        uicontrol('Parent', dialogFig, 'Style', 'text', ...
+            'Position', [margin, yPos, 100, labelHeight], ...
+            'String', 'Search text:', ...
+            'HorizontalAlignment', 'left', ...
+            'FontSize', 11);
+        
+        searchEdit = uicontrol('Parent', dialogFig, 'Style', 'edit', ...
+            'Position', [margin + 110, yPos - 2, dialogWidth - 2*margin - 110, editHeight], ...
+            'String', currentFilter.searchText, ...
+            'FontSize', 11, ...
+            'HorizontalAlignment', 'left');
+        
+        yPos = margin;
+        
+        applyBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+            'Position', [dialogWidth - 3*buttonWidth - 2*spacing - 2*margin, yPos, buttonWidth, buttonHeight], ...
+            'String', 'Apply', ...
+            'FontSize', 11, ...
+            'Callback', @(src,evt) applyFilterCallback());
+        
+        clearBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+            'Position', [dialogWidth - 2*buttonWidth - spacing - margin, yPos, buttonWidth, buttonHeight], ...
+            'String', 'Clear', ...
+            'FontSize', 11, ...
+            'Callback', @(src,evt) clearFilterCallback());
+        
+        cancelBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+            'Position', [dialogWidth - buttonWidth - margin, yPos, buttonWidth, buttonHeight], ...
+            'String', 'Cancel', ...
+            'FontSize', 11, ...
+            'Callback', @(src,evt) close(dialogFig));
+        
+        uicontrol(searchEdit);
+        
+        function applyFilterCallback()
+            columnIdx = get(columnPopup, 'Value');
+            columnName = columnList{columnIdx};
+            searchText = get(searchEdit, 'String');
+            applyFileFilter(columnName, searchText);
+            close(dialogFig);
+        end
+        
+        function clearFilterCallback()
+            clearFileFilter();
+            close(dialogFig);
+        end
+        
+        uiwait(dialogFig);
+    end
+    
+    function applyFileFilter(columnName, searchText)
+        if isempty(columnName) || isempty(searchText)
+            currentFilter.columnName = '';
+            currentFilter.searchText = '';
+            updateTable(state.files);
+            return
+        end
+        
+        currentFilter.columnName = columnName;
+        currentFilter.searchText = searchText;
+        
+        if isempty(state.files)
+            updateTable([]);
+            return
+        end
+        
+        filteredFiles = [];
+        
+        for i = 1:numel(state.files)
+            file = state.files(i);
+            match = false;
+            
+            if strcmp(columnName, 'File ID')
+                fileIdStr = num2str(file.id);
+                if contains(fileIdStr, searchText, 'IgnoreCase', true)
+                    match = true;
+                end
+            elseif strcmp(columnName, 'File Name')
+                if contains(file.name, searchText, 'IgnoreCase', true)
+                    match = true;
+                end
+            elseif strcmp(columnName, 'Path')
+                if contains(file.path, searchText, 'IgnoreCase', true)
+                    match = true;
+                end
+            else
+                safeFieldName = makeSafeFieldName(columnName);
+                fileIdStr = sprintf('f%d', file.id);
+                if isfield(state.metadataData, fileIdStr) && isfield(state.metadataData.(fileIdStr), safeFieldName)
+                    fieldValue = state.metadataData.(fileIdStr).(safeFieldName);
+                    if ischar(fieldValue) || isstring(fieldValue)
+                        if contains(char(fieldValue), searchText, 'IgnoreCase', true)
+                            match = true;
+                        end
+                    else
+                        fieldValueStr = num2str(fieldValue);
+                        if contains(fieldValueStr, searchText, 'IgnoreCase', true)
+                            match = true;
+                        end
+                    end
+                end
+            end
+            
+            if match
+                filteredFiles = [filteredFiles; file];
+            end
+        end
+        
+        updateTable(filteredFiles);
+    end
+    
+    function clearFileFilter()
+        currentFilter.columnName = '';
+        currentFilter.searchText = '';
+        updateTable(state.files);
     end
 end
 

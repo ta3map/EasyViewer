@@ -118,6 +118,37 @@ function result_info = saveSlopeMeasurementResults(slope_measurement_results, ex
         result_info.excel_path = excel_path;
         result_info.success = true;
         
+        % Сохраняем .meta файл (тот же путь что и Excel, но с расширением .meta)
+        meta_path = replaceFileExt(excel_path, '.meta');
+        
+        try
+            % Подготавливаем данные для .meta файла
+            meta_data = struct();
+            meta_data.slope_measurement_results = slope_measurement_results;
+            
+            % Добавляем информацию об исходном файле
+            if ~isempty(matFilePath) && ~isempty(matFileName)
+                meta_data.original_file_info = struct();
+                meta_data.original_file_info.matFilePath = matFilePath;
+                meta_data.original_file_info.matFileName = matFileName;
+            end
+            
+            % Добавляем параметры если они переданы
+            if nargin >= 6 && ~isempty(params)
+                meta_data.params = params;
+            end
+            
+            % Сохраняем .meta файл
+            save(meta_path, '-struct', 'meta_data', '-mat');
+            
+            % Добавляем путь к .meta файлу в result_info
+            result_info.meta_path = meta_path;
+            
+        catch ME_meta
+            % Ошибка сохранения .meta файла не должна прерывать сохранение Excel
+            debugState('saveSlopeMeasurementResults', '⚠️ Warning: Failed to save .meta file: %s', ME_meta.message);
+        end
+        
     catch ME
         result_info.success = false;
         result_info.error = ME.message;

@@ -13,14 +13,14 @@
     "TimeForward_s": 0.6
   },
   "processing": {
-    "SmoothingEnabled": false,
+    "SmoothingEnabled": true,
     "SmoothingSpan": 5,
     "SmoothingMethod": "moving",
     "RemoveArtifact": true,
     "ArtifactWindow_ms": 1
   },
   "output": {
-    "AddTimestamp": true,
+    "AddTimestamp": false,
     "ResultSuffix": "ch2"
   }
 }

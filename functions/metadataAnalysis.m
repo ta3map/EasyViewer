@@ -36,6 +36,9 @@ function metadataAnalysis(metaPaths, fileIds, fileTableData, fileTableColumns)
         return
     end
     
+    % Sort fields for better readability (parent fields first, then subfields)
+    allFields = sort(allFields);
+    
     % Add SQL fields if fileTableData provided
     if nargin >= 3 && ~isempty(fileTableData) && nargin >= 4 && ~isempty(fileTableColumns)
         sqlFields = {};
@@ -109,34 +112,70 @@ end
 function fields = extractAllFields(structData)
     fields = {};
     fieldNames = fieldnames(structData);
+    maxDepth = 3;
+    currentDepth = 0;
+    withParent = true;
     for i = 1:numel(fieldNames)
         fieldName = fieldNames{i};
-        fields = extractFieldsRecursive(structData.(fieldName), fieldName, fields);
+        fields = extractFieldsRecursive(structData.(fieldName), fieldName, fields, maxDepth, currentDepth, withParent);
     end
 end
 
-function fields = extractFieldsRecursive(value, prefix, fields)
+function fields = extractFieldsRecursive(value, prefix, fields, maxDepth, currentDepth, withParent)
+    if nargin < 4
+        maxDepth = 3;
+    end
+    if nargin < 5
+        currentDepth = 0;
+    end
+    if nargin < 6
+        withParent = true;
+    end
+    
+    if currentDepth >= maxDepth
+        fields{end+1} = prefix;
+        return
+    end
+    
     if isstruct(value)
+        if withParent
+            fields{end+1} = prefix;
+        end
+        
         if numel(value) == 1
             fieldNames = fieldnames(value);
             for i = 1:numel(fieldNames)
                 subFieldName = fieldNames{i};
                 newPrefix = sprintf('%s.%s', prefix, subFieldName);
-                fields = extractFieldsRecursive(value.(subFieldName), newPrefix, fields);
+                fields = extractFieldsRecursive(value.(subFieldName), newPrefix, fields, maxDepth, currentDepth + 1, withParent);
             end
         else
-            fields{end+1} = prefix;
+            fieldNames = fieldnames(value(1));
+            for i = 1:numel(fieldNames)
+                subFieldName = fieldNames{i};
+                newPrefix = sprintf('%s.%s', prefix, subFieldName);
+                fields = extractFieldsRecursive(value(1).(subFieldName), newPrefix, fields, maxDepth, currentDepth + 1, withParent);
+            end
         end
     elseif iscell(value) && numel(value) > 0 && isstruct(value{1})
+        if withParent
+            fields{end+1} = prefix;
+        end
+        
         if numel(value) == 1
             fieldNames = fieldnames(value{1});
             for i = 1:numel(fieldNames)
                 subFieldName = fieldNames{i};
                 newPrefix = sprintf('%s.%s', prefix, subFieldName);
-                fields = extractFieldsRecursive(value{1}.(subFieldName), newPrefix, fields);
+                fields = extractFieldsRecursive(value{1}.(subFieldName), newPrefix, fields, maxDepth, currentDepth + 1, withParent);
             end
         else
-            fields{end+1} = prefix;
+            fieldNames = fieldnames(value{1});
+            for i = 1:numel(fieldNames)
+                subFieldName = fieldNames{i};
+                newPrefix = sprintf('%s.%s', prefix, subFieldName);
+                fields = extractFieldsRecursive(value{1}.(subFieldName), newPrefix, fields, maxDepth, currentDepth + 1, withParent);
+            end
         end
     else
         fields{end+1} = prefix;
@@ -301,7 +340,18 @@ function value = getFieldValue(structData, fieldPath)
         if isstruct(value) && numel(value) == 1 && isfield(value, parts{i})
             value = value.(parts{i});
         elseif isstruct(value) && numel(value) > 1 && isfield(value(1), parts{i})
-            value = [value.(parts{i})];
+            % Use cellfun to avoid concatenation errors when structures have different fields
+            value = cellfun(@(x) x.(parts{i}), num2cell(value), 'UniformOutput', false);
+            % Try to convert to array if all values are the same type and size
+            try
+                if all(cellfun(@(x) isnumeric(x) && isscalar(x), value))
+                    value = cell2mat(value);
+                elseif all(cellfun(@(x) ischar(x) || isstring(x), value))
+                    value = cellstr(value);
+                end
+            catch
+                % Keep as cell array if conversion fails
+            end
         elseif iscell(value) && numel(value) > 0 && isstruct(value{1}) && isfield(value{1}, parts{i})
             value = cellfun(@(x) x.(parts{i}), value, 'UniformOutput', false);
         else
@@ -539,7 +589,6 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
         waitbar(0.01, wb, 'Analyzing field structure from all files...');
         
         fieldInfo = cell(numel(selectedFields), 1);
-        globalMaxSize = 0;
         
         for fileIdx = 1:numFiles
             progress = 0.01 + 0.29 * (fileIdx / numFiles);
@@ -569,7 +618,7 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
                                 isText = false;
                             end
                         end
-                        fieldInfo{fieldIdx} = struct('isText', isText, 'isStruct', false, 'isCellArray', false, 'maxSize', 1);
+                        fieldInfo{fieldIdx} = struct('isText', isText, 'isStruct', false, 'isCellArray', false);
                     end
                     continue
                 end
@@ -581,81 +630,40 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
                 end
                 
                 if isempty(fieldInfo{fieldIdx})
-                    fieldInfo{fieldIdx} = struct('isText', false, 'isStruct', false, 'isCellArray', false, 'maxSize', 0);
+                    fieldInfo{fieldIdx} = struct('isText', false, 'isStruct', false, 'isCellArray', false);
                 end
                 
                 debugState('metadataAnalysis', 'Analyzing field %s: isstruct=%d, iscell=%d, dims=%s', fieldPath, isstruct(value), iscell(value), mat2str(size(value)));
                 
-                isStructArray = false;
                 if isstruct(value)
-                    isStructArray = true;
-                elseif iscell(value) && numel(value) > 0
-                    firstElem = value{1};
-                    debugState('metadataAnalysis', 'Field %s: firstElem isstruct=%d, class=%s', fieldPath, isstruct(firstElem), class(firstElem));
-                    if isstruct(firstElem)
-                        isStructArray = true;
-                    end
-                end
-                
-                if isStructArray
                     fieldInfo{fieldIdx}.isStruct = true;
-                    flattenedSize = numel(value);
-                    fieldInfo{fieldIdx}.maxSize = max(fieldInfo{fieldIdx}.maxSize, flattenedSize);
-                    debugState('metadataAnalysis', 'Field %s: Set isStruct=true, maxSize=%d', fieldPath, fieldInfo{fieldIdx}.maxSize);
+                    debugState('metadataAnalysis', 'Field %s: Set isStruct=true', fieldPath);
                 elseif ischar(value) || isstring(value)
                     fieldInfo{fieldIdx}.isText = true;
-                    if isscalar(value)
-                        fieldInfo{fieldIdx}.maxSize = max(fieldInfo{fieldIdx}.maxSize, 1);
-                    else
-                        flattenedSize = numel(value);
-                        fieldInfo{fieldIdx}.maxSize = max(fieldInfo{fieldIdx}.maxSize, flattenedSize);
-                    end
+                    debugState('metadataAnalysis', 'Field %s: Set isText=true', fieldPath);
                 elseif iscell(value)
                     fieldInfo{fieldIdx}.isCellArray = true;
                     valueFlat = value(:);
                     if numel(valueFlat) > 0
                         textCheck = cellfun(@(x) ischar(x) || isstring(x), valueFlat);
                         allText = all(textCheck);
-                        debugState('metadataAnalysis', 'Field %s: cell array, allText=%d, numel=%d, textCheck sum=%d/%d', fieldPath, allText, numel(value), sum(textCheck), numel(textCheck));
+                        debugState('metadataAnalysis', 'Field %s: cell array, allText=%d', fieldPath, allText);
                         if allText
                             fieldInfo{fieldIdx}.isText = true;
-                            flattenedSize = numel(value);
-                            fieldInfo{fieldIdx}.maxSize = max(fieldInfo{fieldIdx}.maxSize, flattenedSize);
-                            debugState('metadataAnalysis', 'Field %s: Set isText=true (cell array of strings), maxSize=%d', fieldPath, fieldInfo{fieldIdx}.maxSize);
-                        else
-                            flattenedSize = numel(value);
-                            fieldInfo{fieldIdx}.maxSize = max(fieldInfo{fieldIdx}.maxSize, flattenedSize);
                         end
-                    else
-                        flattenedSize = numel(value);
-                        fieldInfo{fieldIdx}.maxSize = max(fieldInfo{fieldIdx}.maxSize, flattenedSize);
                     end
-                elseif isscalar(value)
-                    fieldInfo{fieldIdx}.maxSize = max(fieldInfo{fieldIdx}.maxSize, 1);
-                else
-                    flattenedSize = numel(value);
-                    fieldInfo{fieldIdx}.maxSize = max(fieldInfo{fieldIdx}.maxSize, flattenedSize);
                 end
-                
-                globalMaxSize = max(globalMaxSize, fieldInfo{fieldIdx}.maxSize);
             end
             clear meta;
         end
         
         for fieldIdx = 1:numel(selectedFields)
             if isempty(fieldInfo{fieldIdx})
-                fieldInfo{fieldIdx} = struct('isText', false, 'isStruct', false, 'isCellArray', false, 'maxSize', 0);
+                fieldInfo{fieldIdx} = struct('isText', false, 'isStruct', false, 'isCellArray', false);
             end
         end
         
-        if globalMaxSize == 0
-            if exist('wb', 'var') && ishandle(wb)
-                close(wb);
-            end
-            return
-        end
-        
-        debugState('metadataAnalysis', 'Creating MAT file: %s (globalMaxSize: %d)', savePath, globalMaxSize);
+        debugState('metadataAnalysis', 'Creating MAT file: %s', savePath);
         waitbar(0.30, wb, 'Processing files and creating table...');
         debugState('metadataAnalysis', 'Processing files and creating table...');
         
@@ -803,7 +811,7 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
             end
             fileData.values{1} = fileValues;
             
-            batchTable = createFlatTableWithStructure(fileData, selectedFields, fieldInfo, globalMaxSize);
+            batchTable = createFlatTableWithStructure(fileData, selectedFields, fieldInfo);
             clear meta fileData;
             
             if ~isempty(batchTable)
@@ -814,7 +822,7 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
                     debugState('metadataAnalysis', 'Combining %d tables to free memory', numel(allTables));
                     combined = allTables{1};
                     for i = 2:numel(allTables)
-                        combined = vertcat(combined, allTables{i});
+                        combined = safeVertcat(combined, allTables{i});
                     end
                     allTables = {combined};
                     clear combined;
@@ -837,7 +845,7 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
         else
             flatTable = allTables{1};
             for i = 2:numel(allTables)
-                flatTable = vertcat(flatTable, allTables{i});
+                flatTable = safeVertcat(flatTable, allTables{i});
             end
         end
         clear allTables;
@@ -886,7 +894,7 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
     end
 end
 
-function flatTable = createFlatTableWithStructure(collectedData, selectedFields, fieldInfo, globalMaxSize)
+function flatTable = createFlatTableWithStructure(collectedData, selectedFields, fieldInfo)
     if isempty(collectedData.fileIds)
         flatTable = [];
         return
@@ -895,13 +903,9 @@ function flatTable = createFlatTableWithStructure(collectedData, selectedFields,
     numFiles = numel(collectedData.fileIds);
     numFields = numel(selectedFields);
     
-    debugState('metadataAnalysis', 'createFlatTableWithStructure: numFiles=%d, numFields=%d, globalMaxSize=%d', numFiles, numFields, globalMaxSize);
+    debugState('metadataAnalysis', 'createFlatTableWithStructure: numFiles=%d, numFields=%d', numFiles, numFields);
     
-    fileIdColumn = [];
-    for fileIdx = 1:numFiles
-        fileId = collectedData.fileIds(fileIdx);
-        fileIdColumn = [fileIdColumn; repmat(fileId, globalMaxSize, 1)];
-    end
+    fileIdColumn = collectedData.fileIds(:);
     
     debugState('metadataAnalysis', 'createFlatTableWithStructure: fileIdColumn size=%d', numel(fileIdColumn));
     
@@ -912,194 +916,70 @@ function flatTable = createFlatTableWithStructure(collectedData, selectedFields,
         fieldName = selectedFields{fieldIdx};
         info = fieldInfo{fieldIdx};
         
-        debugState('metadataAnalysis', 'createFlatTableWithStructure: Processing field %d/%d: %s (isText=%d, isStruct=%d, maxSize=%d)', fieldIdx, numFields, fieldName, info.isText, info.isStruct, info.maxSize);
+        debugState('metadataAnalysis', 'createFlatTableWithStructure: Processing field %d/%d: %s (isText=%d, isStruct=%d)', fieldIdx, numFields, fieldName, info.isText, info.isStruct);
         
         columnNames{end+1} = fieldName;
         
         if info.isText || info.isStruct || info.isCellArray
-            fieldColumn = cell(numel(fileIdColumn), 1);
+            fieldColumn = cell(numFiles, 1);
         else
-            fieldColumn = nan(numel(fileIdColumn), 1);
+            fieldColumn = nan(numFiles, 1);
         end
         
         debugState('metadataAnalysis', 'createFlatTableWithStructure: Created column for field %s, size: fieldColumn=%d', fieldName, numel(fieldColumn));
         
-        rowIdx = 1;
         for fileIdx = 1:numFiles
             try
                 fileValues = collectedData.values{fileIdx};
                 value = fileValues{fieldIdx};
                 
-                debugState('metadataAnalysis', 'createFlatTableWithStructure: File %d/%d, field %s, rowIdx=%d, value empty=%d', fileIdx, numFiles, fieldName, rowIdx, isempty(value));
+                debugState('metadataAnalysis', 'createFlatTableWithStructure: File %d/%d, field %s, value empty=%d', fileIdx, numFiles, fieldName, isempty(value));
                 
                 if isempty(value)
-                    actualSize = 0;
                     debugState('metadataAnalysis', 'createFlatTableWithStructure: Value is empty');
-                elseif isstruct(value)
-                    actualSize = globalMaxSize;
-                    endIdx = min(rowIdx + actualSize - 1, numel(fieldColumn));
-                    debugState('metadataAnalysis', 'createFlatTableWithStructure: Struct value, actualSize=%d, endIdx=%d, fieldColumn size=%d', actualSize, endIdx, numel(fieldColumn));
-                    
-                    if rowIdx <= numel(fieldColumn)
-                        for vIdx = rowIdx:endIdx
-                            if vIdx <= numel(fieldColumn)
-                                fieldColumn{vIdx} = value;
-                            end
-                        end
-                    else
-                        debugState('metadataAnalysis', 'createFlatTableWithStructure: WARNING - rowIdx (%d) > fieldColumn size (%d)', rowIdx, numel(fieldColumn));
-                    end
-                elseif isscalar(value)
-                    actualSize = globalMaxSize;
-                    endIdx = min(rowIdx + actualSize - 1, numel(fieldColumn));
-                    debugState('metadataAnalysis', 'createFlatTableWithStructure: Scalar value, actualSize=%d, endIdx=%d, fieldColumn size=%d', actualSize, endIdx, numel(fieldColumn));
-                    
-                    if rowIdx <= numel(fieldColumn)
-                        if info.isText
-                            if ischar(value) || isstring(value)
-                                scalarValue = char(value);
-                            else
-                                scalarValue = num2str(value);
-                            end
-                            for vIdx = rowIdx:endIdx
-                                if vIdx <= numel(fieldColumn)
-                                    fieldColumn{vIdx} = scalarValue;
-                                end
-                            end
-                        else
-                            debugState('metadataAnalysis', 'createFlatTableWithStructure: Setting scalar numeric value, rowIdx=%d, endIdx=%d', rowIdx, endIdx);
-                            fieldColumn(rowIdx:endIdx) = value;
-                        end
-                    else
-                        debugState('metadataAnalysis', 'createFlatTableWithStructure: WARNING - rowIdx (%d) > fieldColumn size (%d)', rowIdx, numel(fieldColumn));
-                    end
+                elseif info.isText || info.isStruct || info.isCellArray
+                    fieldColumn{fileIdx} = value;
                 else
-                    dims = size(value);
-                    
-                    isStructArray = false;
-                    isCellArrayOfStrings = false;
-                    if isstruct(value)
-                        isStructArray = true;
-                        flattened = value(:);
-                    elseif iscell(value) && numel(value) > 0
-                        firstElem = value{1};
-                        debugState('metadataAnalysis', 'createFlatTableWithStructure: Field %s, firstElem isstruct=%d, class=%s', fieldName, isstruct(firstElem), class(firstElem));
-                        if isstruct(firstElem)
-                            isStructArray = true;
-                            flattened = value(:);
-                        elseif ischar(firstElem) || isstring(firstElem)
-                            valueFlat = value(:);
-                            isCellArrayOfStrings = all(cellfun(@(x) (ischar(x) || isstring(x)) && ~isempty(x), valueFlat));
-                            if isCellArrayOfStrings
-                                flattened = value(:);
-                            end
-                        end
-                    end
-                    
-                    if isStructArray
-                        actualSize = min(numel(flattened), globalMaxSize);
-                        endIdx = min(rowIdx + actualSize - 1, numel(fieldColumn));
-                        debugState('metadataAnalysis', 'createFlatTableWithStructure: Struct array value, dims=%s, flattened size=%d, actualSize=%d, endIdx=%d', mat2str(dims), numel(flattened), actualSize, endIdx);
-                        
-                        if actualSize > 0 && rowIdx <= numel(fieldColumn)
-                            for vIdx = 1:actualSize
-                                if rowIdx + vIdx - 1 <= numel(fieldColumn)
-                                    fieldColumn{rowIdx + vIdx - 1} = flattened{vIdx};
-                                end
-                            end
-                        end
-                    elseif info.isText || isCellArrayOfStrings
-                        dimsChar = size(value);
-                        if ischar(value)
-                            if dimsChar(1) == 1 && dimsChar(2) > 1
-                                flattened = {char(value)};
-                                actualSize = 1;
-                            else
-                                flattened = cellstr(value);
-                                flattened = flattened(:);
-                                actualSize = min(numel(flattened), globalMaxSize);
-                            end
-                        elseif isstring(value)
-                            flattened = cellstr(value);
-                            flattened = flattened(:);
-                            actualSize = min(numel(flattened), globalMaxSize);
-                        elseif iscell(value) && isCellArrayOfStrings
-                            flattened = value(:);
-                            actualSize = min(numel(flattened), globalMaxSize);
-                        else
-                            flattened = value(:);
-                            actualSize = min(numel(flattened), globalMaxSize);
-                        end
-                    else
-                        flattened = value(:);
-                        actualSize = min(numel(flattened), globalMaxSize);
-                    end
-                    
-                    debugState('metadataAnalysis', 'createFlatTableWithStructure: Non-scalar value, dims=%s, flattened size=%d, actualSize=%d, rowIdx=%d, fieldColumn size=%d', mat2str(dims), numel(flattened), actualSize, rowIdx, numel(fieldColumn));
-                    
-                    if actualSize > 0 && rowIdx <= numel(fieldColumn)
-                        endIdx = min(rowIdx + actualSize - 1, numel(fieldColumn));
-                        debugState('metadataAnalysis', 'createFlatTableWithStructure: endIdx=%d', endIdx);
-                        
-                        if info.isText || isCellArrayOfStrings
-                            debugState('metadataAnalysis', 'createFlatTableWithStructure: Text processing, dims=%s, flattened size=%d, actualSize=%d', mat2str(dims), numel(flattened), actualSize);
-                            numToCopy = min([actualSize, endIdx - rowIdx + 1, numel(flattened)]);
-                            debugState('metadataAnalysis', 'createFlatTableWithStructure: numToCopy=%d, rowIdx=%d, endIdx=%d, fieldColumn size=%d', numToCopy, rowIdx, endIdx, numel(fieldColumn));
-                            for vIdx = 1:numToCopy
-                                if rowIdx + vIdx - 1 <= numel(fieldColumn) && vIdx <= numel(flattened)
-                                    if iscell(flattened)
-                                        fieldColumn{rowIdx + vIdx - 1} = char(flattened{vIdx});
-                                    else
-                                        fieldColumn{rowIdx + vIdx - 1} = char(flattened(vIdx));
-                                    end
-                                end
-                            end
-                        elseif info.isCellArray
-                            debugState('metadataAnalysis', 'createFlatTableWithStructure: Cell array processing (mixed types), dims=%s, flattened size=%d, actualSize=%d', mat2str(dims), numel(flattened), actualSize);
-                            numToCopy = min([actualSize, endIdx - rowIdx + 1, numel(flattened)]);
-                            for vIdx = 1:numToCopy
-                                if rowIdx + vIdx - 1 <= numel(fieldColumn) && vIdx <= numel(flattened)
-                                    fieldColumn{rowIdx + vIdx - 1} = flattened{vIdx};
-                                end
-                            end
-                        else
-                            debugState('metadataAnalysis', 'createFlatTableWithStructure: Numeric processing, setting fieldColumn(rowIdx:endIdx), rowIdx=%d, endIdx=%d, flattened size=%d', rowIdx, endIdx, numel(flattened));
-                            fieldColumn(rowIdx:endIdx) = flattened(1:min(actualSize, endIdx - rowIdx + 1));
-                        end
-                    else
-                        debugState('metadataAnalysis', 'createFlatTableWithStructure: Skipping - actualSize=%d or rowIdx (%d) > fieldColumn size (%d)', actualSize, rowIdx, numel(fieldColumn));
-                    end
+                    fieldColumn(fileIdx) = value;
                 end
             catch ME
-                debugState('metadataAnalysis', 'createFlatTableWithStructure: ERROR at file %d/%d, field %s, rowIdx=%d: %s', fileIdx, numFiles, fieldName, rowIdx, ME.message);
+                debugState('metadataAnalysis', 'createFlatTableWithStructure: ERROR at file %d/%d, field %s: %s', fileIdx, numFiles, fieldName, ME.message);
                 debugState('metadataAnalysis', 'createFlatTableWithStructure: Stack trace: %s', getReport(ME));
                 rethrow(ME);
             end
-            
-            rowIdx = rowIdx + globalMaxSize;
         end
         
         columnData{end+1} = fieldColumn;
     end
     
-    totalRows = numel(fileIdColumn);
-    
-    for i = 1:numel(columnData)
-        if numel(columnData{i}) ~= totalRows
-            if numel(columnData{i}) < totalRows
-                if iscell(columnData{i})
-                    columnData{i} = [columnData{i}; cell(totalRows - numel(columnData{i}), 1)];
-                else
-                    columnData{i} = [columnData{i}; nan(totalRows - numel(columnData{i}), 1)];
-                end
-            else
-                columnData{i} = columnData{i}(1:totalRows);
-            end
-        end
-    end
-    
+    % Create table ensuring cell columns remain as cell arrays
+    % This prevents MATLAB from trying to concatenate structures with different fields
     tableData = [{fileIdColumn}, columnData];
     flatTable = table(tableData{:}, 'VariableNames', columnNames);
+    
+    % Force cell columns to remain as cell arrays (prevents structure concatenation errors)
+    for i = 1:numel(columnData)
+        colName = columnNames{i+1};
+        if iscell(columnData{i})
+            % Ensure the column is treated as cell array
+            flatTable.(colName) = columnData{i};
+        end
+    end
+end
+
+function result = safeVertcat(t1, t2)
+    % Safely concatenate two tables, ensuring cell columns with structures remain as cell arrays
+    % This prevents "Number of fields in structure arrays being concatenated do not match" errors
+    
+    varNames = t1.Properties.VariableNames;
+    
+    % Convert both tables to cell arrays row by row, then combine
+    t1Data = table2cell(t1);
+    t2Data = table2cell(t2);
+    combinedData = [t1Data; t2Data];
+    
+    % Recreate table from cell array, preserving variable names
+    result = cell2table(combinedData, 'VariableNames', varNames);
 end
 
 function str = struct2str(s)
@@ -1212,4 +1092,5 @@ function hashStr = createRowHash(row, numCols)
     
     hashStr = strjoin(parts, '|');
 end
+
 
