@@ -589,99 +589,32 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
         wb = waitbar(0, 'Initializing metadata analysis...', 'Name', 'Metadata Analysis');
         debugState('metadataAnalysis', 'Initializing metadata analysis...');
         
-        debugState('metadataAnalysis', 'Analyzing field structure from all files');
-        waitbar(0.01, wb, 'Analyzing field structure from all files...');
+        debugState('metadataAnalysis', 'Processing files and creating table...');
+        waitbar(0.01, wb, 'Processing files and creating table...');
         
         fieldInfo = cell(numel(selectedFields), 1);
         
-        for fileIdx = 1:numFiles
-            progress = 0.01 + 0.29 * (fileIdx / numFiles);
-            waitbar(progress, wb, sprintf('Analyzing file %d/%d...', fileIdx, numFiles));
-            debugState('metadataAnalysis', 'Analyzing file %d/%d for field structure', fileIdx, numFiles);
-            metaPath = metaPaths{fileIdx};
-            if ~exist(metaPath, 'file')
-                continue
-            end
-            try
-                meta = load(metaPath, '-mat');
-            catch
-                continue
-            end
-            
-            for fieldIdx = 1:numel(selectedFields)
-                fieldPath = selectedFields{fieldIdx};
-                
-                % Handle SQL fields during structure analysis
-                isSqlField = hasFileTableData && numel(fileTableColumns) > 3 && any(strcmp(fieldPath, fileTableColumns(4:end)));
-                if isSqlField
-                    if isempty(fieldInfo{fieldIdx})
-                        isText = true;
-                        if sqlFormats.isKey(fieldPath)
-                            formatValue = sqlFormats(fieldPath);
-                            if strcmp(formatValue, 'number') || strcmp(formatValue, 'logical') || strcmp(formatValue, 'date') || strcmp(formatValue, 'datetime')
-                                isText = false;
-                            end
-                        end
-                        fieldInfo{fieldIdx} = struct('isText', isText, 'isStruct', false, 'isCellArray', false, 'maxSize', 1);
-                    end
-                    continue
-                end
-                
-                value = getFieldValue(meta, fieldPath);
-                
-                if isempty(value)
-                    continue
-                end
-                
-                if isempty(fieldInfo{fieldIdx})
-                    fieldInfo{fieldIdx} = struct('isText', false, 'isStruct', false, 'isCellArray', false, 'maxSize', 1);
-                end
-                
-                debugState('metadataAnalysis', 'Analyzing field %s: isstruct=%d, iscell=%d, dims=%s', fieldPath, isstruct(value), iscell(value), mat2str(size(value)));
-                
-                valueSize = numel(value);
-                if valueSize > fieldInfo{fieldIdx}.maxSize
-                    fieldInfo{fieldIdx}.maxSize = valueSize;
-                end
-                
-                if isstruct(value)
-                    fieldInfo{fieldIdx}.isStruct = true;
-                    debugState('metadataAnalysis', 'Field %s: Set isStruct=true', fieldPath);
-                elseif ischar(value) || isstring(value)
-                    fieldInfo{fieldIdx}.isText = true;
-                    debugState('metadataAnalysis', 'Field %s: Set isText=true', fieldPath);
-                elseif iscell(value)
-                    fieldInfo{fieldIdx}.isCellArray = true;
-                    valueFlat = value(:);
-                    if numel(valueFlat) > 0
-                        textCheck = cellfun(@(x) ischar(x) || isstring(x), valueFlat);
-                        allText = all(textCheck);
-                        debugState('metadataAnalysis', 'Field %s: cell array, allText=%d', fieldPath, allText);
-                        if allText
-                            fieldInfo{fieldIdx}.isText = true;
-                        end
-                    end
-                end
-            end
-            clear meta;
-        end
-        
         for fieldIdx = 1:numel(selectedFields)
-            if isempty(fieldInfo{fieldIdx})
-                fieldInfo{fieldIdx} = struct('isText', false, 'isStruct', false, 'isCellArray', false, 'maxSize', 1);
-            elseif ~isfield(fieldInfo{fieldIdx}, 'maxSize')
-                fieldInfo{fieldIdx}.maxSize = 1;
+            fieldPath = selectedFields{fieldIdx};
+            isSqlField = hasFileTableData && numel(fileTableColumns) > 3 && any(strcmp(fieldPath, fileTableColumns(4:end)));
+            if isSqlField
+                isText = true;
+                if sqlFormats.isKey(fieldPath)
+                    formatValue = sqlFormats(fieldPath);
+                    if strcmp(formatValue, 'number') || strcmp(formatValue, 'logical') || strcmp(formatValue, 'date') || strcmp(formatValue, 'datetime')
+                        isText = false;
+                    end
+                end
+                fieldInfo{fieldIdx} = struct('isText', isText, 'isStruct', false, 'isCellArray', false, 'maxSize', 1, 'typeDetermined', true);
+            else
+                fieldInfo{fieldIdx} = struct('isText', false, 'isStruct', false, 'isCellArray', false, 'maxSize', 1, 'typeDetermined', false);
             end
         end
-        
-        debugState('metadataAnalysis', 'Creating MAT file: %s', savePath);
-        waitbar(0.30, wb, 'Processing files and creating table...');
-        debugState('metadataAnalysis', 'Processing files and creating table...');
         
         allTables = {};
         
         for fileIdx = 1:numFiles
-            progress = 0.30 + 0.65 * (fileIdx / numFiles);
+            progress = 0.01 + 0.94 * (fileIdx / numFiles);
             waitbar(progress, wb, sprintf('Processing file %d/%d...', fileIdx, numFiles));
             
             metaPath = metaPaths{fileIdx};
@@ -710,10 +643,8 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
             for fieldIdx = 1:numel(selectedFields)
                 fieldPath = selectedFields{fieldIdx};
                 
-                % Check if this is a SQL field
                 isSqlField = hasFileTableData && numel(fileTableColumns) > 3 && any(strcmp(fieldPath, fileTableColumns(4:end)));
                 if isSqlField
-                    % Find column index in fileTableColumns
                     colIdx = [];
                     for c = 1:numel(fileTableColumns)
                         if strcmp(fileTableColumns{c}, fieldPath)
@@ -722,7 +653,6 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
                         end
                     end
                     
-                    % Find row in fileTableData matching fileId
                     value = [];
                     if ~isempty(colIdx)
                         for r = 1:size(fileTableData, 1)
@@ -740,7 +670,6 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
                         value = '';
                     end
                     
-                    % Convert value based on selected format
                     if sqlFormats.isKey(fieldPath)
                         formatType = sqlFormats(fieldPath);
                         
@@ -814,8 +743,38 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
                         end
                     end
                 else
-                    % Regular .meta file field
                     value = getFieldValue(meta, fieldPath);
+                    
+                    if ~isempty(value)
+                        valueSize = numel(value);
+                        if valueSize > fieldInfo{fieldIdx}.maxSize
+                            fieldInfo{fieldIdx}.maxSize = valueSize;
+                        end
+                        
+                        if ~fieldInfo{fieldIdx}.typeDetermined
+                            debugState('metadataAnalysis', 'Analyzing field %s: isstruct=%d, iscell=%d, dims=%s', fieldPath, isstruct(value), iscell(value), mat2str(size(value)));
+                            
+                            if isstruct(value)
+                                fieldInfo{fieldIdx}.isStruct = true;
+                                debugState('metadataAnalysis', 'Field %s: Set isStruct=true', fieldPath);
+                            elseif ischar(value) || isstring(value)
+                                fieldInfo{fieldIdx}.isText = true;
+                                debugState('metadataAnalysis', 'Field %s: Set isText=true', fieldPath);
+                            elseif iscell(value)
+                                fieldInfo{fieldIdx}.isCellArray = true;
+                                valueFlat = value(:);
+                                if numel(valueFlat) > 0
+                                    textCheck = cellfun(@(x) ischar(x) || isstring(x), valueFlat);
+                                    allText = all(textCheck);
+                                    debugState('metadataAnalysis', 'Field %s: cell array, allText=%d', fieldPath, allText);
+                                    if allText
+                                        fieldInfo{fieldIdx}.isText = true;
+                                    end
+                                end
+                            end
+                            fieldInfo{fieldIdx}.typeDetermined = true;
+                        end
+                    end
                 end
                 
                 fileValues{fieldIdx} = value;
@@ -861,23 +820,12 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
         end
         clear allTables;
         
-        % Remove duplicate rows (handling NaN properly)
-        waitbar(0.96, wb, 'Removing duplicate rows...');
-        debugState('metadataAnalysis', 'Removing duplicate rows...');
-        originalRows = height(flatTable);
-        flatTable = removeDuplicateRows(flatTable, wb);
-        removedRows = originalRows - height(flatTable);
-        if removedRows > 0
-            debugState('metadataAnalysis', 'Removed %d duplicate row(s), %d row(s) remaining', removedRows, height(flatTable));
-        end
-        
-        waitbar(0.97, wb, 'Saving MAT file...');
+        waitbar(0.96, wb, 'Saving MAT file...');
         debugState('metadataAnalysis', 'Saving MAT file...');
         save(savePath, 'flatTable', '-v7.3');
         debugState('metadataAnalysis', 'MAT file saved successfully: %s', savePath);
         
-        % Save to Excel with same name
-        waitbar(0.98, wb, 'Saving Excel file...');
+        waitbar(0.97, wb, 'Saving Excel file...');
         debugState('metadataAnalysis', 'Saving Excel file...');
         [excelPath, excelName, ~] = fileparts(savePath);
         excelPath = fullfile(excelPath, [excelName, '.xlsx']);
@@ -1042,78 +990,6 @@ function handleMetadataError(ME, contextMessage, showMsgbox)
     if showMsgbox
         msgbox(sprintf('%s: %s', contextMessage, ME.message), 'Error', 'error');
     end
-end
-
-function uniqueTable = removeDuplicateRows(inputTable, wb)
-    if isempty(inputTable) || height(inputTable) == 0
-        uniqueTable = inputTable;
-        return
-    end
-    
-    numRows = height(inputTable);
-    numCols = width(inputTable);
-    keepRows = false(numRows, 1);
-    hashMap = containers.Map('KeyType', 'char', 'ValueType', 'logical');
-    
-    for i = 1:numRows
-        if nargin >= 2 && ishandle(wb)
-            progress = 0.96 + 0.01 * (i / numRows);
-            waitbar(progress, wb, sprintf('Removing duplicates: %d/%d rows...', i, numRows));
-        end
-        
-        hashStr = createRowHash(inputTable(i, :), numCols);
-        
-        if ~hashMap.isKey(hashStr)
-            hashMap(hashStr) = true;
-            keepRows(i) = true;
-        end
-    end
-    
-    uniqueTable = inputTable(keepRows, :);
-end
-
-function hashStr = createRowHash(row, numCols)
-    parts = cell(numCols, 1);
-    
-    for col = 1:numCols
-        val = row{1, col};
-        
-        if isnumeric(val)
-            if isnan(val)
-                parts{col} = '<NaN>';
-            else
-                parts{col} = sprintf('%.15g', val);
-            end
-        elseif islogical(val)
-            if val
-                parts{col} = '<TRUE>';
-            else
-                parts{col} = '<FALSE>';
-            end
-        elseif ischar(val) || isstring(val)
-            parts{col} = ['<STR:', char(val), '>'];
-        elseif iscell(val)
-            if isempty(val)
-                parts{col} = '<EMPTY_CELL>';
-            else
-                try
-                    parts{col} = ['<CELL:', mat2str(cell2mat(val(:)'))];
-                catch
-                    parts{col} = ['<CELL:', class(val), '>'];
-                end
-            end
-        elseif isempty(val)
-            parts{col} = '<EMPTY>';
-        else
-            try
-                parts{col} = ['<', class(val), ':', mat2str(val), '>'];
-            catch
-                parts{col} = ['<', class(val), '>'];
-            end
-        end
-    end
-    
-    hashStr = strjoin(parts, '|');
 end
 
 
