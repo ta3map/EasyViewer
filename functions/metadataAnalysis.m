@@ -820,12 +820,16 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
         end
         clear allTables;
         
-        waitbar(0.96, wb, 'Saving MAT file...');
+        waitbar(0.96, wb, 'Flattening table...');
+        debugState('metadataAnalysis', 'Flattening table...');
+        flatTable = flattenTable(flatTable, wb);
+        
+        waitbar(0.97, wb, 'Saving MAT file...');
         debugState('metadataAnalysis', 'Saving MAT file...');
         save(savePath, 'flatTable', '-v7.3');
         debugState('metadataAnalysis', 'MAT file saved successfully: %s', savePath);
         
-        waitbar(0.97, wb, 'Saving Excel file...');
+        waitbar(0.98, wb, 'Saving Excel file...');
         debugState('metadataAnalysis', 'Saving Excel file...');
         [excelPath, excelName, ~] = fileparts(savePath);
         excelPath = fullfile(excelPath, [excelName, '.xlsx']);
@@ -951,6 +955,143 @@ function result = safeVertcat(t1, t2)
     
     % Recreate table from cell array, preserving variable names
     result = cell2table(combinedData, 'VariableNames', varNames);
+end
+
+function flattenedTable = flattenTable(inputTable, wb)
+    if isempty(inputTable) || height(inputTable) == 0
+        flattenedTable = inputTable;
+        return
+    end
+    
+    numRows = height(inputTable);
+    numCols = width(inputTable);
+    varNames = inputTable.Properties.VariableNames;
+    
+    debugState('metadataAnalysis', 'Flattening table: %d rows, %d columns', numRows, numCols);
+    
+    allNewRows = {};
+    
+    for rowIdx = 1:numRows
+        if nargin >= 2 && ishandle(wb)
+            progress = 0.96 + 0.01 * (rowIdx / numRows);
+            waitbar(progress, wb, sprintf('Flattening row %d/%d...', rowIdx, numRows));
+        end
+        
+        row = inputTable(rowIdx, :);
+        rowData = table2cell(row);
+        
+        arrayColumns = [];
+        maxSize = 1;
+        
+        for colIdx = 1:numCols
+            value = rowData{colIdx};
+            
+            if iscell(value) && numel(value) == 1
+                innerValue = value{1};
+                if isnumeric(innerValue) && numel(innerValue) > 1 && (size(innerValue, 1) == 1 || size(innerValue, 2) == 1)
+                    value = innerValue;
+                elseif isstruct(innerValue) && numel(innerValue) > 1
+                    value = innerValue;
+                elseif ~iscell(innerValue)
+                    value = innerValue;
+                end
+            end
+            
+            isArray = false;
+            arraySize = 1;
+            
+            if isnumeric(value) && numel(value) > 1 && (size(value, 1) == 1 || size(value, 2) == 1)
+                isArray = true;
+                arraySize = numel(value);
+            elseif iscell(value) && numel(value) > 1
+                isArray = true;
+                arraySize = numel(value);
+            elseif isstruct(value) && numel(value) > 1
+                isArray = true;
+                arraySize = numel(value);
+            end
+            
+            if isArray
+                arrayColumns(end+1) = colIdx;
+                if arraySize > maxSize
+                    maxSize = arraySize;
+                end
+            end
+        end
+        
+        if isempty(arrayColumns)
+            allNewRows{end+1} = rowData;
+        else
+            for i = 1:maxSize
+                newRow = cell(1, numCols);
+                
+                for colIdx = 1:numCols
+                    value = rowData{colIdx};
+                    
+                    if iscell(value) && numel(value) == 1
+                        innerValue = value{1};
+                        if isnumeric(innerValue) && numel(innerValue) > 1 && (size(innerValue, 1) == 1 || size(innerValue, 2) == 1)
+                            value = innerValue;
+                        elseif isstruct(innerValue) && numel(innerValue) > 1
+                            value = innerValue;
+                        elseif ~iscell(innerValue)
+                            value = innerValue;
+                        end
+                    end
+                    
+                    if ismember(colIdx, arrayColumns)
+                        if isnumeric(value) && numel(value) > 1 && (size(value, 1) == 1 || size(value, 2) == 1)
+                            if size(value, 1) > size(value, 2)
+                                value = value(:)';
+                            end
+                            arraySize = numel(value);
+                            if i <= arraySize
+                                newRow{colIdx} = value(i);
+                            else
+                                newRow{colIdx} = NaN;
+                            end
+                        elseif iscell(value) && numel(value) > 1
+                            arraySize = numel(value);
+                            if i <= arraySize
+                                newRow{colIdx} = value{i};
+                            else
+                                newRow{colIdx} = NaN;
+                            end
+                        elseif isstruct(value) && numel(value) > 1
+                            arraySize = numel(value);
+                            if i <= arraySize
+                                newRow{colIdx} = value(i);
+                            else
+                                newRow{colIdx} = struct();
+                            end
+                        else
+                            newRow{colIdx} = value;
+                        end
+                    else
+                        newRow{colIdx} = value;
+                    end
+                end
+                
+                allNewRows{end+1} = newRow;
+            end
+        end
+    end
+    
+    if isempty(allNewRows)
+        flattenedTable = inputTable;
+        return
+    end
+    
+    numNewRows = numel(allNewRows);
+    flattenedData = cell(numNewRows, numCols);
+    
+    for i = 1:numNewRows
+        flattenedData(i, :) = allNewRows{i};
+    end
+    
+    flattenedTable = cell2table(flattenedData, 'VariableNames', varNames);
+    
+    debugState('metadataAnalysis', 'Flattened table: %d rows -> %d rows', numRows, height(flattenedTable));
 end
 
 function str = struct2str(s)
