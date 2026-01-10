@@ -340,17 +340,21 @@ function value = getFieldValue(structData, fieldPath)
         if isstruct(value) && numel(value) == 1 && isfield(value, parts{i})
             value = value.(parts{i});
         elseif isstruct(value) && numel(value) > 1 && isfield(value(1), parts{i})
-            % Use cellfun to avoid concatenation errors when structures have different fields
-            value = cellfun(@(x) x.(parts{i}), num2cell(value), 'UniformOutput', false);
-            % Try to convert to array if all values are the same type and size
+            % Extract field from each structure in array
+            extractedValues = cellfun(@(x) x.(parts{i}), num2cell(value), 'UniformOutput', false);
+            % If all values are scalars of the same type, convert to array
             try
-                if all(cellfun(@(x) isnumeric(x) && isscalar(x), value))
-                    value = cell2mat(value);
-                elseif all(cellfun(@(x) ischar(x) || isstring(x), value))
-                    value = cellstr(value);
+                if all(cellfun(@(x) isnumeric(x) && isscalar(x), extractedValues))
+                    value = cell2mat(extractedValues);
+                elseif all(cellfun(@(x) ischar(x) || isstring(x), extractedValues))
+                    value = cellstr(extractedValues);
+                else
+                    % Keep as cell array if values are not all scalars or have different types
+                    value = extractedValues;
                 end
             catch
                 % Keep as cell array if conversion fails
+                value = extractedValues;
             end
         elseif iscell(value) && numel(value) > 0 && isstruct(value{1}) && isfield(value{1}, parts{i})
             value = cellfun(@(x) x.(parts{i}), value, 'UniformOutput', false);
@@ -618,7 +622,7 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
                                 isText = false;
                             end
                         end
-                        fieldInfo{fieldIdx} = struct('isText', isText, 'isStruct', false, 'isCellArray', false);
+                        fieldInfo{fieldIdx} = struct('isText', isText, 'isStruct', false, 'isCellArray', false, 'maxSize', 1);
                     end
                     continue
                 end
@@ -630,10 +634,15 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
                 end
                 
                 if isempty(fieldInfo{fieldIdx})
-                    fieldInfo{fieldIdx} = struct('isText', false, 'isStruct', false, 'isCellArray', false);
+                    fieldInfo{fieldIdx} = struct('isText', false, 'isStruct', false, 'isCellArray', false, 'maxSize', 1);
                 end
                 
                 debugState('metadataAnalysis', 'Analyzing field %s: isstruct=%d, iscell=%d, dims=%s', fieldPath, isstruct(value), iscell(value), mat2str(size(value)));
+                
+                valueSize = numel(value);
+                if valueSize > fieldInfo{fieldIdx}.maxSize
+                    fieldInfo{fieldIdx}.maxSize = valueSize;
+                end
                 
                 if isstruct(value)
                     fieldInfo{fieldIdx}.isStruct = true;
@@ -659,7 +668,9 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
         
         for fieldIdx = 1:numel(selectedFields)
             if isempty(fieldInfo{fieldIdx})
-                fieldInfo{fieldIdx} = struct('isText', false, 'isStruct', false, 'isCellArray', false);
+                fieldInfo{fieldIdx} = struct('isText', false, 'isStruct', false, 'isCellArray', false, 'maxSize', 1);
+            elseif ~isfield(fieldInfo{fieldIdx}, 'maxSize')
+                fieldInfo{fieldIdx}.maxSize = 1;
             end
         end
         
@@ -920,13 +931,18 @@ function flatTable = createFlatTableWithStructure(collectedData, selectedFields,
         
         columnNames{end+1} = fieldName;
         
-        if info.isText || info.isStruct || info.isCellArray
+        maxSize = 1;
+        if isfield(info, 'maxSize')
+            maxSize = info.maxSize;
+        end
+        
+        if info.isText || info.isStruct || info.isCellArray || maxSize > 1
             fieldColumn = cell(numFiles, 1);
         else
             fieldColumn = nan(numFiles, 1);
         end
         
-        debugState('metadataAnalysis', 'createFlatTableWithStructure: Created column for field %s, size: fieldColumn=%d', fieldName, numel(fieldColumn));
+        debugState('metadataAnalysis', 'createFlatTableWithStructure: Created column for field %s, size: fieldColumn=%d, maxSize=%d', fieldName, numel(fieldColumn), maxSize);
         
         for fileIdx = 1:numFiles
             try
@@ -937,7 +953,9 @@ function flatTable = createFlatTableWithStructure(collectedData, selectedFields,
                 
                 if isempty(value)
                     debugState('metadataAnalysis', 'createFlatTableWithStructure: Value is empty');
-                elseif info.isText || info.isStruct || info.isCellArray
+                elseif info.isText || info.isStruct || info.isCellArray || maxSize > 1
+                    fieldColumn{fileIdx} = value;
+                elseif iscell(fieldColumn)
                     fieldColumn{fileIdx} = value;
                 else
                     fieldColumn(fileIdx) = value;
@@ -945,7 +963,12 @@ function flatTable = createFlatTableWithStructure(collectedData, selectedFields,
             catch ME
                 debugState('metadataAnalysis', 'createFlatTableWithStructure: ERROR at file %d/%d, field %s: %s', fileIdx, numFiles, fieldName, ME.message);
                 debugState('metadataAnalysis', 'createFlatTableWithStructure: Stack trace: %s', getReport(ME));
-                rethrow(ME);
+                if ~iscell(fieldColumn) && numel(value) > 1
+                    fieldColumn = num2cell(fieldColumn);
+                    fieldColumn{fileIdx} = value;
+                else
+                    rethrow(ME);
+                end
             end
         end
         
