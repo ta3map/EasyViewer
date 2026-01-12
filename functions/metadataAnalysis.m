@@ -64,6 +64,7 @@ function metadataAnalysis(metaPaths, fileIds, fileTableData, fileTableColumns)
     end
     
     selectedFields = selectionResult.fields;
+    displayNames = selectionResult.displayNames;
     sqlFormats = selectionResult.sqlFormats;
     
     debugState('metadataAnalysis', 'Selected %d field(s) for analysis', numel(selectedFields));
@@ -79,9 +80,9 @@ function metadataAnalysis(metaPaths, fileIds, fileTableData, fileTableColumns)
     
     debugState('metadataAnalysis', 'Saving directly to MAT file (streaming)');
     if nargin >= 3 && ~isempty(fileTableData) && nargin >= 4 && ~isempty(fileTableColumns)
-        [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath, fileTableData, fileTableColumns, sqlFormats);
+        [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFields, displayNames, savePath, fileTableData, fileTableColumns, sqlFormats);
     else
-        [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath, [], [], sqlFormats);
+        [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFields, displayNames, savePath, [], [], sqlFormats);
     end
     if ~success
         if ~isempty(errorInfo)
@@ -183,7 +184,7 @@ function fields = extractFieldsRecursive(value, prefix, fields, maxDepth, curren
 end
 
 function result = showFieldSelectionDialog(allFields, fileTableColumns)
-    result = struct('fields', {}, 'sqlFormats', containers.Map());
+    result = struct('fields', {}, 'displayNames', {}, 'sqlFormats', containers.Map());
     
     fig = figure('Position', [300, 300, 600, 400], ...
         'Name', 'Select Metadata Fields', ...
@@ -208,7 +209,7 @@ function result = showFieldSelectionDialog(allFields, fileTableColumns)
     
     data = [allFields', num2cell(false(numFields, 1)), formatColumn];
     
-    columnEditable = [false, true, true];
+    columnEditable = [true, true, true];
     
     columnFormat = {'char', 'logical', {'Text', 'Number', 'Logical', 'Date', 'DateTime'}};
     
@@ -251,6 +252,20 @@ function result = showFieldSelectionDialog(allFields, fileTableColumns)
         selectedIndices = cellfun(@(x) islogical(x) && x, data(:, 2));
         selectedFields = allFields(selectedIndices);
         
+        displayNames = {};
+        selectedCount = 0;
+        for i = 1:numFields
+            if selectedIndices(i)
+                selectedCount = selectedCount + 1;
+                displayName = data{i, 1};
+                if isempty(displayName) || ~ischar(displayName) || strcmp(strtrim(displayName), allFields{i})
+                    displayNames{selectedCount} = allFields{i};
+                else
+                    displayNames{selectedCount} = strtrim(displayName);
+                end
+            end
+        end
+        
         sqlFormats = containers.Map();
         for i = 1:numFields
             if selectedIndices(i) && isSqlField(i)
@@ -274,7 +289,7 @@ function result = showFieldSelectionDialog(allFields, fileTableColumns)
             end
         end
         
-        result = struct('fields', {selectedFields}, 'sqlFormats', sqlFormats);
+        result = struct('fields', {selectedFields}, 'displayNames', {displayNames}, 'sqlFormats', sqlFormats);
         close(fig);
     end
 end
@@ -570,7 +585,7 @@ function flatTable = createFlatTable(collectedData, selectedFields)
     flatTable = table(tableData{:}, 'VariableNames', columnNames);
 end
 
-function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFields, savePath, fileTableData, fileTableColumns, sqlFormats)
+function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFields, displayNames, savePath, fileTableData, fileTableColumns, sqlFormats)
     success = false;
     errorInfo = [];
     
@@ -781,7 +796,7 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
             end
             fileData.values{1} = fileValues;
             
-            batchTable = createFlatTableWithStructure(fileData, selectedFields, fieldInfo);
+            batchTable = createFlatTableWithStructure(fileData, selectedFields, displayNames, fieldInfo);
             clear meta fileData;
             
             if ~isempty(batchTable)
@@ -857,7 +872,7 @@ function [success, errorInfo] = saveToMatDirect(metaPaths, fileIds, selectedFiel
     end
 end
 
-function flatTable = createFlatTableWithStructure(collectedData, selectedFields, fieldInfo)
+function flatTable = createFlatTableWithStructure(collectedData, selectedFields, displayNames, fieldInfo)
     if isempty(collectedData.fileIds)
         flatTable = [];
         return
@@ -879,9 +894,15 @@ function flatTable = createFlatTableWithStructure(collectedData, selectedFields,
         fieldName = selectedFields{fieldIdx};
         info = fieldInfo{fieldIdx};
         
+        if nargin >= 3 && ~isempty(displayNames) && numel(displayNames) >= fieldIdx
+            displayName = displayNames{fieldIdx};
+        else
+            displayName = fieldName;
+        end
+        
         debugState('metadataAnalysis', 'createFlatTableWithStructure: Processing field %d/%d: %s (isText=%d, isStruct=%d)', fieldIdx, numFields, fieldName, info.isText, info.isStruct);
         
-        columnNames{end+1} = fieldName;
+        columnNames{end+1} = displayName;
         
         maxSize = 1;
         if isfield(info, 'maxSize')
