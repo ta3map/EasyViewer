@@ -949,8 +949,12 @@ function signalViewerGUI(editMode)
         
         % Закрытие всех фигур
         clear global
-        % closeAllButOne убрано - теперь это делает главное окно app.m
+        
+        % Удаляем окно
         delete(src);
+        
+        % Проверяем наличие других главных окон и открываем app.m при необходимости
+        manageMainWindows('SignalViewerGUI');
     end
 
     % Функция closeAllButOne убрана - теперь это делает главное окно app.m

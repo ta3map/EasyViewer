@@ -76,14 +76,21 @@ function plotFromTableGUI(filePath)
     % Используем базовое положение из JSON файла для начального построения
     base_figure_position = coordsData.base_figure_position;
     
+    % Функция обработки закрытия окна (определяем до создания окна)
+    function closePlotFromTableWindow(src, ~)
+        delete(src);
+        manageMainWindows('plotFromTableGUI');
+    end
+    
     % Создание главного окна
     fig = figure('Position', base_figure_position, ...
-        'Name', 'Boxplot from Table', ...
+        'Name', 'Plot from Table', ...
         'NumberTitle', 'off', ...
         'MenuBar', 'none', ...
         'ToolBar', 'figure', ...
         'Resize', 'on', ...
-        'Tag', figTag);
+        'Tag', figTag, ...
+        'CloseRequestFcn', @closePlotFromTableWindow);
     
     % Состояние приложения
     state = struct();
@@ -223,22 +230,16 @@ function createUI(fig, coordsData)
     paramsTable = uitable('Parent', fig, ...
         'Position', paramsTablePos, ...
         'ColumnName', {'Group', 'Column', 'Filter', 'Label', 'Color', 'LineWidth'}, ...
-        'ColumnEditable', [true, false, true, true, true, true], ...
+        'ColumnEditable', [true, true, true, true, true, true], ...
         'ColumnWidth', {50, 100, 80, 80, 70, 70}, ...
         'Data', cell(0, 6), ...
         'Tag', 'paramsTable', ...
-        'CellEditCallback', @(~,~) paramsTableEditCallback(fig), ...
+        'CellEditCallback', @(src, event) paramsTableEditCallback(fig, src, event), ...
         'CellSelectionCallback', @paramsTableSelectionCallback);
-    
-    editFilterBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', ...
-        'Position', getElementPosition('editFilterBtn'), ...
-        'String', 'Edit Filter', ...
-        'Tag', 'editFilterBtn', ...
-        'Callback', @(~,~) editFilterCallback(fig));
     
     analysisActionsPopup = uicontrol('Parent', fig, 'Style', 'popupmenu', ...
         'Position', getElementPosition('analysisActionsPopup'), ...
-        'String', {'Actions...', 'Clear All', 'Delete Selected', 'Move Up', 'Move Down'}, ...
+        'String', {'Actions...', 'Edit Filter', 'Edit Color', 'Clear All', 'Delete Selected', 'Move Up', 'Move Down', 'Clone Selected'}, ...
         'Tag', 'analysisActionsPopup', ...
         'Value', 1, ...
         'Callback', @(~,~) analysisActionsCallback(fig));
@@ -1075,14 +1076,20 @@ function analysisActionsCallback(fig)
     set(analysisActionsPopup, 'Value', 1);
     
     switch selectedValue
-        case 2  % Clear All
+        case 2  % Edit Filter
+            editFilterCallback(fig);
+        case 3  % Edit Color
+            editColorCallback(fig);
+        case 4  % Clear All
             clearAnalysisColumns(fig);
-        case 3  % Delete Selected
+        case 5  % Delete Selected
             deleteSelectedRow(fig);
-        case 4  % Move Up
+        case 6  % Move Up
             moveRowUp(fig);
-        case 5  % Move Down
+        case 7  % Move Down
             moveRowDown(fig);
+        case 8  % Clone Selected
+            cloneSelectedRows(fig);
     end
 end
 
@@ -1227,6 +1234,55 @@ function moveRowDown(fig)
     end
 end
 
+function cloneSelectedRows(fig)
+    % Клонирование выделенных строк и добавление их вниз таблицы
+    state = get(fig, 'UserData');
+    paramsTable = findobj(fig, 'Tag', 'paramsTable');
+    
+    if isempty(paramsTable) || isempty(state.parameters)
+        return
+    end
+    
+    % Получаем выделенные строки
+    selectedIndices = get(paramsTable, 'UserData');
+    if isempty(selectedIndices)
+        return
+    end
+    
+    selectedRows = unique(selectedIndices(:, 1));
+    if isempty(selectedRows)
+        return
+    end
+    
+    % Проверяем валидность индексов
+    validRows = selectedRows(selectedRows >= 1 & selectedRows <= length(state.parameters));
+    if isempty(validRows)
+        return
+    end
+    
+    % Клонируем выделенные строки
+    clonedParams = cell(1, length(validRows));
+    for i = 1:length(validRows)
+        rowIdx = validRows(i);
+        clonedParams{i} = state.parameters{rowIdx};
+    end
+    
+    % Добавляем клонированные строки в конец
+    state.parameters = [state.parameters, clonedParams];
+    
+    set(fig, 'UserData', state);
+    updateAnalysisColumnsDisplay(fig);
+    updateFilteredDataStructure(fig);
+    
+    % Выделяем новые строки (клонированные)
+    numRows = length(state.parameters);
+    newSelectedRows = (numRows - length(validRows) + 1):numRows;
+    if ~isempty(newSelectedRows)
+        newIndices = [newSelectedRows(:), ones(length(newSelectedRows), 1)];
+        set(paramsTable, 'UserData', newIndices);
+    end
+end
+
 function updateAnalysisColumnsDisplay(fig)
     % Обновление отображения списка колонок для анализа
     state = get(fig, 'UserData');
@@ -1256,7 +1312,7 @@ function updateAnalysisColumnsDisplay(fig)
     set(fig, 'UserData', state);
 end
 
-function paramsTableEditCallback(fig)
+function paramsTableEditCallback(fig, src, event)
     % Callback при редактировании таблицы параметров
     state = get(fig, 'UserData');
     paramsTable = findobj(fig, 'Tag', 'paramsTable');
@@ -1266,6 +1322,22 @@ function paramsTableEditCallback(fig)
     end
     
     tableData = get(paramsTable, 'Data');
+    editedRow = event.Indices(1);
+    editedCol = event.Indices(2);
+    
+    % Если редактировалась колонка Column (индекс 2), проверяем существование колонки
+    if editedCol == 2 && editedRow <= length(state.parameters)
+        newColumnName = tableData{editedRow, 2};
+        if ischar(newColumnName) || isstring(newColumnName)
+            newColumnName = char(newColumnName);
+            if ~ismember(newColumnName, state.table.Properties.VariableNames)
+                msgbox(sprintf('Column "%s" does not exist in the table', newColumnName), 'Warning', 'warn');
+                tableData{editedRow, 2} = state.parameters{editedRow}.column;
+                set(paramsTable, 'Data', tableData);
+                return
+            end
+        end
+    end
     
     % Обновляем state.parameters из таблицы
     for i = 1:min(length(state.parameters), size(tableData, 1))
@@ -1273,6 +1345,13 @@ function paramsTableEditCallback(fig)
         newGroupNumber = tableData{i, 1};
         if isnumeric(newGroupNumber) && newGroupNumber > 0
             state.parameters{i}.groupNumber = newGroupNumber;
+        end
+        % Column
+        if ischar(tableData{i, 2}) || isstring(tableData{i, 2})
+            newColumnName = char(tableData{i, 2});
+            if ismember(newColumnName, state.table.Properties.VariableNames)
+                state.parameters{i}.column = newColumnName;
+            end
         end
         % Filter
         if ischar(tableData{i, 3}) || isstring(tableData{i, 3})
@@ -1331,6 +1410,43 @@ function editFilterCallback(fig)
     end
     
     createFilterEditDialog(fig, selectedRow, currentFilter);
+end
+
+function editColorCallback(fig)
+    paramsTable = findobj(fig, 'Tag', 'paramsTable');
+    if isempty(paramsTable)
+        return
+    end
+    
+    state = get(fig, 'UserData');
+    if isempty(state.parameters)
+        msgbox('No parameters to edit', 'Warning', 'warn');
+        return
+    end
+    
+    selectedIndices = get(paramsTable, 'UserData');
+    if isempty(selectedIndices)
+        msgbox('Please select a row to edit color', 'Warning', 'warn');
+        return
+    end
+    
+    selectedRows = unique(selectedIndices(:, 1));
+    if isempty(selectedRows) || selectedRows(1) < 1 || selectedRows(1) > length(state.parameters)
+        msgbox('Please select a valid row to edit color', 'Warning', 'warn');
+        return
+    end
+    
+    selectedRow = selectedRows(1);
+    
+    currentColor = '';
+    if selectedRow <= length(state.parameters) && isfield(state.parameters{selectedRow}, 'color')
+        currentColor = state.parameters{selectedRow}.color;
+        if isempty(currentColor)
+            currentColor = '';
+        end
+    end
+    
+    createColorEditDialog(fig, selectedRow, currentColor);
 end
 
 function createFilterEditDialog(fig, rowIndex, currentFilter)
@@ -1393,6 +1509,120 @@ end
 function cancelFilterEdit(src)
     dialogFig = ancestor(src, 'figure');
     close(dialogFig);
+end
+
+function createColorEditDialog(fig, rowIndex, currentColor)
+    colors = getColors(30);
+    
+    dialogWidth = 400;
+    buttonHeight = 30;
+    margin = 10;
+    buttonWidth = 80;
+    colorButtonSize = 35;
+    gridCols = 6;
+    gridRows = 5;
+    gridSpacing = 5;
+    gridWidth = gridCols * colorButtonSize + (gridCols - 1) * gridSpacing;
+    gridHeight = gridRows * colorButtonSize + (gridRows - 1) * gridSpacing;
+    dialogHeight = gridHeight + buttonHeight + 3 * margin + 20;
+    
+    dialogFig = figure('Position', [100, 100, dialogWidth, dialogHeight], ...
+        'Name', 'Edit Color', ...
+        'NumberTitle', 'off', ...
+        'MenuBar', 'none', ...
+        'Resize', 'off', ...
+        'WindowStyle', 'modal');
+    
+    gridStartX = (dialogWidth - gridWidth) / 2;
+    gridStartY = dialogHeight - gridHeight - margin - 20;
+    
+    selectedColorHex = '';
+    if ~isempty(currentColor)
+        selectedColorHex = currentColor;
+    end
+    
+    for row = 1:gridRows
+        for col = 1:gridCols
+            colorIdx = (row - 1) * gridCols + col;
+            if colorIdx > 30
+                break
+            end
+            
+            colorHex = colors{colorIdx};
+            colorRGB = hex2rgb(colorHex);
+            
+            xPos = gridStartX + (col - 1) * (colorButtonSize + gridSpacing);
+            yPos = gridStartY + (gridRows - row) * (colorButtonSize + gridSpacing);
+            
+            isSelected = strcmp(colorHex, selectedColorHex);
+            
+            colorBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+                'Position', [xPos, yPos, colorButtonSize, colorButtonSize], ...
+                'BackgroundColor', colorRGB, ...
+                'Tag', 'colorButton', ...
+                'UserData', colorHex, ...
+                'String', '', ...
+                'Callback', @(src,~) selectColorButton(src, dialogFig, colorHex));
+            
+            if isSelected
+                set(colorBtn, 'String', '✓', 'ForegroundColor', [1 1 1], 'FontSize', 16, 'FontWeight', 'bold');
+            end
+        end
+    end
+    
+    applyBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+        'Position', [dialogWidth - 2*margin - 2*buttonWidth - 10, margin, buttonWidth, buttonHeight], ...
+        'String', 'Apply', ...
+        'Callback', @(src,~) applyColorEdit(src, fig, rowIndex));
+    
+    cancelBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+        'Position', [dialogWidth - margin - buttonWidth, margin, buttonWidth, buttonHeight], ...
+        'String', 'Cancel', ...
+        'Callback', @(src,~) cancelColorEdit(src));
+    
+    set(dialogFig, 'UserData', selectedColorHex);
+end
+
+function selectColorButton(src, dialogFig, colorHex)
+    colorButtons = findobj(dialogFig, 'Tag', 'colorButton');
+    for i = 1:length(colorButtons)
+        set(colorButtons(i), 'String', '', 'ForegroundColor', [0 0 0]);
+    end
+    set(src, 'String', '✓', 'ForegroundColor', [1 1 1], 'FontSize', 16, 'FontWeight', 'bold');
+    set(dialogFig, 'UserData', colorHex);
+end
+
+function applyColorEdit(src, fig, rowIndex)
+    dialogFig = ancestor(src, 'figure');
+    selectedColorHex = get(dialogFig, 'UserData');
+    
+    if isempty(selectedColorHex)
+        close(dialogFig);
+        return
+    end
+    
+    state = get(fig, 'UserData');
+    if rowIndex >= 1 && rowIndex <= length(state.parameters)
+        state.parameters{rowIndex}.color = selectedColorHex;
+        set(fig, 'UserData', state);
+        updateAnalysisColumnsDisplay(fig);
+        updateFilteredDataStructure(fig);
+    end
+    
+    close(dialogFig);
+end
+
+function cancelColorEdit(src)
+    dialogFig = ancestor(src, 'figure');
+    close(dialogFig);
+end
+
+function rgb = hex2rgb(hexColor)
+    hexColor = strrep(hexColor, '#', '');
+    r = hex2dec(hexColor(1:2)) / 255;
+    g = hex2dec(hexColor(3:4)) / 255;
+    b = hex2dec(hexColor(5:6)) / 255;
+    rgb = [r, g, b];
 end
 
 

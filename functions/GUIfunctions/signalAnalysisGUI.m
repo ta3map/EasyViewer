@@ -4551,6 +4551,9 @@ updateCursorEditFields();
         
         % Не сохраняем положение окна - всегда используем базовое из JSON
         delete(src);
+        
+        % Проверяем наличие других главных окон и открываем app.m при необходимости
+        manageMainWindows('SignalAnalysisGUI');
     end
 
     % Режим редактирования координат
