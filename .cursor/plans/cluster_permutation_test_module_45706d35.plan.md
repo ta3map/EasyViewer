@@ -130,8 +130,6 @@ plotClusterPermutationResults() → figure
 Сохранение результатов (figure + .meta файл)
 ```
 
-
-
 ## Детали реализации
 
 ### Извлечение данных

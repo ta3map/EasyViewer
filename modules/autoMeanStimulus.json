@@ -2,8 +2,8 @@
   "visualization": {
     "autoScale": true,
     "xLimits": [
-      -500,
-      500
+      -200,
+      200
     ],
     "showOriginalTraces": true,
     "removeBaseline": true,
@@ -12,13 +12,15 @@
   },
   "detection": {
     "Polarity": "positive",
-    "MinPeakProminence": 1,
+    "MinPeakProminence": 10,
     "UseOriginalData": true,
     "MinPeakDistance_s": 0.05,
     "MaxPeakWidth_s": 0.5,
     "SmoothingKernel_s": 0.01
   },
   "output": {
-    "figureFormat": "png"
+    "figureFormat": "png",
+    "AddTimestamp": false,
+    "ResultSuffix": ""
   }
 }

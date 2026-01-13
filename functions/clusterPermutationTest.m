@@ -1,9 +1,7 @@
-function testResult = clusterPermutationTest(baselineData, postStimData, fullTrialData, timeAxis, params)
+function testResult = clusterPermutationTest(fullTrialData, timeAxis, params)
     % Выполняет кластерный пермутационный тест для сравнения baseline и post-stimulus периодов
     %
     % Входные параметры:
-    %   baselineData - массив триалов baseline (trials × timepoints × channels) - для обратной совместимости
-    %   postStimData - массив триалов post-stimulus (trials × timepoints × channels) - для обратной совместимости
     %   fullTrialData - массив полных триалов для всего окна (trials × timepoints × channels)
     %   timeAxis - временная ось для всего окна (относительно стимула, в секундах)
     %   params - структура с параметрами:

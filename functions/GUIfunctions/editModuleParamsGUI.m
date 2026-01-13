@@ -279,13 +279,13 @@ function params = editModuleParamsGUI(moduleName)
             return;
         end
         
-        % Проверяем наличие переменной params
-        if ~isfield(metaData, 'params')
-            msgbox('No params variable found in .meta file', 'Error', 'error');
+        % Проверяем наличие переменной parameters
+        if ~isfield(metaData, 'parameters')
+            msgbox('No parameters variable found in .meta file', 'Error', 'error');
             return;
         end
         
-        paramsFromMeta = metaData.params;
+        paramsFromMeta = metaData.parameters;
         
         % Получаем список параметров модуля из таблицы
         tableData = get(table, 'Data');

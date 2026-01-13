@@ -32,7 +32,7 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
         removeEdgeTrials = getBoolParam(testParamsSource, 'removeEdgeTrials', false);
     end
     
-    [baselineData, postStimData, fullTrialData, timeAxis] = extractTrialData(...
+    [~, ~, fullTrialData, timeAxis] = extractTrialData(...
         lfp, time, Fs, N, stims, xLimits, timeUnitFactor, ...
         removeBaseline, removeArtifact, artifactWindow_ms, startTrial, endTrial, removeEdgeTrials);
     
@@ -52,7 +52,7 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
         testParams.minClusterSize_ms = testParamsSource.minClusterSize_ms;
     end
     
-    testResult = clusterPermutationTest(baselineData, postStimData, fullTrialData, timeAxis, testParams);
+    testResult = clusterPermutationTest(fullTrialData, timeAxis, testParams);
     
     global hd channelTable
     channelSettings = get(channelTable, 'Data');

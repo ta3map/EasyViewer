@@ -1490,16 +1490,14 @@ function fileManagerGUI()
                     continue
                 end
                 
-                % Извлекаем params (может быть сохранена как params или parameters)
-                if isfield(metaData, 'params')
-                    params = metaData.params;
-                elseif isfield(metaData, 'parameters')
-                    params = metaData.parameters;
-                else
-                    warning('Re-run analysis: skipping result %d/%d - no params or parameters in .meta file for file_id=%d, module=%s', ...
+                % Извлекаем parameters
+                if ~isfield(metaData, 'parameters')
+                    warning('Re-run analysis: skipping result %d/%d - no parameters in .meta file for file_id=%d, module=%s', ...
                         i, totalCount, task.fileId, task.moduleName);
                     continue
                 end
+                
+                params = metaData.parameters;
                 
                 debugState('fileManagerGUI', 'Re-run analysis %d/%d: module=%s, file=%s', ...
                     i, totalCount, task.moduleName, task.filePath);

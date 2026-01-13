@@ -3391,7 +3391,7 @@ updateCursorEditFields();
             matFilePath = filepath;
             [~, matFileName, ~] = fileparts(matFilePath);
             
-            % Загружаем настройки каналов (индивидуальные или групповые)
+            % Загружаем настройки каналов 
             loadChannelSettings();
             
             % Загружаем сохраненный канал из глобальных настроек
