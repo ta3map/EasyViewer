@@ -114,6 +114,10 @@ function resultsGalleryGUI()
     resultsTable.UserData = struct('row', 1, 'multi', 1);
     resultsTable.CellSelectionCallback = @handleTableSelection;
     
+    previewPanel = uipanel('Parent', fig, ...
+        'Position', getElementPosition('previewPanel'), ...
+        'Tag', 'previewPanel');
+    
     openBtn = uicontrol('Style', 'pushbutton', ...
         'Position', getElementPosition('openBtn'), ...
         'String', 'Open', ...
@@ -320,6 +324,10 @@ function resultsGalleryGUI()
             set(openBtn, 'Enable', 'off');
             set(openFolderBtn, 'Enable', 'off');
             set(deleteBtn, 'Enable', 'off');
+            previewPanel = findobj(fig, 'Tag', 'previewPanel');
+            if ~isempty(previewPanel)
+                delete(previewPanel.Children);
+            end
             return
         end
         rows = unique(event.Indices(:, 1));
@@ -329,6 +337,15 @@ function resultsGalleryGUI()
         set(openBtn, 'Enable', 'on');
         set(openFolderBtn, 'Enable', 'on');
         set(deleteBtn, 'Enable', 'on');
+        
+        previewPanel = findobj(fig, 'Tag', 'previewPanel');
+        if ~isempty(previewPanel) && ~isempty(src.Data)
+            delete(previewPanel.Children);
+            reportPath = src.Data{rows(1), 4};
+            if ~isempty(reportPath)
+                openResultPreview(reportPath, previewPanel);
+            end
+        end
     end
     
     function updateCounter(selected, total)

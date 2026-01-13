@@ -768,6 +768,9 @@ function loadFileInGUI(fig, filePath)
         % Форматируем названия колонок
         state.table = boxplotFormatTableColumnNames(state.table);
         
+        % Заменяем пустые ячейки на NaN
+        state.table = replaceEmptyCellsWithNaN(state.table);
+        
         state.filePath = filePath;
         state.parameters = {};
         state.nextGroupNumber = 1;
@@ -863,6 +866,7 @@ function columnSelectedCallback(fig)
     if ~isempty(dataTable)
         set(dataTable, 'Data', displayData);
         set(dataTable, 'ColumnName', {selectedColumn});
+        set(dataTable, 'RowName', {});
     end
 end
 
@@ -962,8 +966,8 @@ function paramsTableSelectionCallback(src, event)
     end
     
     % Количество строк статистики
-    numStatsRows = 8; % n, mean, median, std, Q25, Q75, min, max
-    statsLabels = {'n', 'mean', 'median', 'std', 'Q25', 'Q75', 'min', 'max'};
+    numStatsRows = 9; % n, mean, median, std, Q25, Q75, min, max, NaN count
+    statsLabels = {'n', 'mean', 'median', 'std', 'Q25', 'Q75', 'min', 'max', 'NaN count'};
     
     % Создаем таблицу с данными и статистикой (статистика вверху)
     tableData = cell(numStatsRows + maxDataLength, length(allColumnData));
@@ -984,6 +988,7 @@ function paramsTableSelectionCallback(src, event)
             tableData{6, col} = sprintf('%.4f', stats.q75);
             tableData{7, col} = sprintf('%.4f', stats.min);
             tableData{8, col} = sprintf('%.4f', stats.max);
+            tableData{9, col} = stats.nanCount;
         else
             % Если статистики нет или данные не числовые, заполняем пустыми строками
             for row = 1:numStatsRows
@@ -2030,6 +2035,54 @@ end
 % Вспомогательные функции парсинга и обработки данных
 % ============================================================================
 
+function tableOut = replaceEmptyCellsWithNaN(tableIn)
+    % replaceEmptyCellsWithNaN - Заменяет все пустые ячейки в таблице на NaN
+    tableOut = tableIn;
+    varNames = tableOut.Properties.VariableNames;
+    
+    for i = 1:length(varNames)
+        colName = varNames{i};
+        columnData = tableOut{:, colName};
+        
+        if iscell(columnData)
+            for j = 1:length(columnData)
+                if isempty(columnData{j})
+                    columnData{j} = NaN;
+                end
+            end
+            tableOut{:, colName} = columnData;
+        end
+    end
+end
+
+function numericData = convertTableColumnToNumeric(columnData)
+    % convertTableColumnToNumeric - Конвертация данных колонки таблицы в числовой формат
+    % Принимает данные любого типа и возвращает числовой массив (double)
+    % Строковые значения конвертируются через str2double (неконвертируемые → NaN)
+    % Cell arrays обрабатываются: если внутри числа - извлекаются, если строки - конвертируются
+    
+    if isnumeric(columnData)
+        numericData = double(columnData);
+    elseif islogical(columnData)
+        numericData = double(columnData);
+    elseif iscell(columnData)
+        numericData = nan(length(columnData), 1);
+        for i = 1:length(columnData)
+            value = columnData{i};
+            if isnumeric(value) && isscalar(value)
+                numericData(i) = double(value);
+            elseif islogical(value) && isscalar(value)
+                numericData(i) = double(value);
+            elseif ischar(value) || isstring(value)
+                numericData(i) = str2double(value);
+            elseif isempty(value)
+                numericData(i) = NaN;
+            end
+        end
+    else
+        numericData = str2double(columnData);
+    end
+end
 
 function updateFilteredDataStructure(fig)
     % updateFilteredDataStructure - Обновление структуры с отфильтрованными данными
@@ -2081,30 +2134,27 @@ function updateFilteredDataStructure(fig)
             if ~isempty(parsedFilters)
                 filteredTable = boxplotApplyGroupFilters(state.table, parsedFilters);
                 if ~isempty(filteredTable) && ismember(columnName, filteredTable.Properties.VariableNames)
-                    filteredData = filteredTable{:, columnName};
-                    validIndices = ~isnan(filteredData) & ~isinf(filteredData);
-                    filteredData = filteredData(validIndices);
-                    % Извлекаем File ID для валидных строк
+                    filteredData = convertTableColumnToNumeric(filteredTable{:, columnName});
+                    % Извлекаем File ID
                     if ismember('FileID', filteredTable.Properties.VariableNames)
-                        fileIds = filteredTable{validIndices, 'FileID'};
+                        fileIds = filteredTable{:, 'FileID'};
                     end
                 end
             end
         else
             % Нет фильтра - используем все данные
-            filteredData = state.table{:, columnName};
-            validIndices = ~isnan(filteredData) & ~isinf(filteredData);
-            filteredData = filteredData(validIndices);
-            % Извлекаем File ID для валидных строк
+            filteredData = convertTableColumnToNumeric(state.table{:, columnName});
+            % Извлекаем File ID
             if ismember('FileID', state.table.Properties.VariableNames)
-                fileIds = state.table{validIndices, 'FileID'};
+                fileIds = state.table{:, 'FileID'};
             end
         end
         
         % Рассчитываем статистику для отфильтрованных данных
-        % Дополнительно фильтруем NaN и Inf перед расчетом статистики
         stats = struct();
         if ~isempty(filteredData)
+            stats.count = length(filteredData);
+            stats.nanCount = sum(isnan(filteredData) | isinf(filteredData));
             validData = filteredData(~isnan(filteredData) & ~isinf(filteredData));
             if ~isempty(validData)
                 stats.mean = mean(validData);
@@ -2114,7 +2164,6 @@ function updateFilteredDataStructure(fig)
                 stats.q75 = prctile(validData, 75);
                 stats.min = min(validData);
                 stats.max = max(validData);
-                stats.count = length(validData);
             else
                 stats.mean = NaN;
                 stats.std = NaN;
@@ -2123,7 +2172,6 @@ function updateFilteredDataStructure(fig)
                 stats.q75 = NaN;
                 stats.min = NaN;
                 stats.max = NaN;
-                stats.count = 0;
             end
         else
             stats.mean = NaN;
@@ -2134,6 +2182,7 @@ function updateFilteredDataStructure(fig)
             stats.min = NaN;
             stats.max = NaN;
             stats.count = 0;
+            stats.nanCount = 0;
         end
         
         % Парсим цвет один раз и сохраняем RGB
@@ -2342,8 +2391,8 @@ function createCorrelationFigure(fig, state)
             end
             
             % Получаем данные из отфильтрованной таблицы
-            xData = filteredTable{:, param1.column};
-            yData = filteredTable{:, param2.column};
+            xData = convertTableColumnToNumeric(filteredTable{:, param1.column});
+            yData = convertTableColumnToNumeric(filteredTable{:, param2.column});
             
             % Получаем FileID если доступен
             fileIds = [];
@@ -2351,13 +2400,6 @@ function createCorrelationFigure(fig, state)
                 fileIds = filteredTable{:, 'FileID'};
             end
             
-            % Удаляем только строки, где хотя бы одно значение NaN или Inf
-            validIndices = ~isnan(xData) & ~isnan(yData) & ~isinf(xData) & ~isinf(yData);
-            xData = xData(validIndices);
-            yData = yData(validIndices);
-            if ~isempty(fileIds)
-                fileIds = fileIds(validIndices);
-            end
             
             if length(xData) < 2
                 continue
@@ -2513,8 +2555,6 @@ function createCorrelationFigure(fig, state)
             
             if ~isempty(param.data)
                 data = param.data;
-                validIndices = ~isnan(data) & ~isinf(data);
-                data = data(validIndices);
                 
                 if length(data) > 0
                     % Простой scatter plot по индексам на том же axes
@@ -2689,13 +2729,8 @@ function createHistogramFigure(fig, state)
             
             if useGroupColumn && ismember('Group', filteredTable.Properties.VariableNames)
                 % Группируем данные по колонке Group из таблицы
-                columnData = filteredTable{:, paramData.column};
+                columnData = convertTableColumnToNumeric(filteredTable{:, paramData.column});
                 groupData = filteredTable{:, 'Group'};
-                
-                % Удаляем NaN и Inf
-                validIndices = ~isnan(columnData) & ~isinf(columnData);
-                columnData = columnData(validIndices);
-                groupData = groupData(validIndices);
                 
                 if isempty(columnData)
                     continue
