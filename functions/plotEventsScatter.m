@@ -68,11 +68,11 @@ function plotEventsScatter(fig, events, calcResult)
         end
     end
     
-    % Построение scatter-plot с цветами каналов и прозрачностью
+    % Построение scatter-plot пиков с цветами каналов и прозрачностью (треугольник вверх)
     if length(channelColors) == length(eventTimes)
         for i = 1:length(eventTimes)
-            scatter(scatterAx, eventTimes(i), eventIndices(i), 45, 'filled', ...
-                'MarkerFaceColor', channelColors{i}, 'MarkerFaceAlpha', 0.6);
+            scatter(scatterAx, eventTimes(i), eventIndices(i), 20, '^', ...
+                'MarkerFaceColor', channelColors{i}, 'MarkerEdgeColor', channelColors{i}, 'MarkerFaceAlpha', 0.6);
         end
     end
     debugState('plotEventsScatter', 'Scatter plot created');
@@ -102,8 +102,27 @@ function plotEventsScatter(fig, events, calcResult)
                     if length(channelColors) == length(events.times) && i <= length(channelColors)
                         onset_color = channelColors{i};
                     end
-                    scatter(scatterAx, onset_time, eventIndices(i), 45, '*', ...
+                    scatter(scatterAx, onset_time, eventIndices(i), 45, '.', ...
                         'MarkerFaceColor', onset_color, 'MarkerEdgeColor', onset_color);
+                end
+            end
+        end
+    end
+    
+    % Отображаем точки спада в виде незаполненных кругов
+    if isfield(events, 'decay_times') && isfield(events, 'decay_values') && ...
+       ~isempty(events.decay_times) && ~isempty(events.decay_values) && ...
+       length(events.decay_times) == length(events.times)
+        for i = 1:length(events.times)
+            if i <= length(events.decay_times) && ~isnan(events.decay_times(i))
+                decay_time = events.decay_times(i);
+                if decay_time >= xLimits(1) && decay_time <= xLimits(2)
+                    decay_color = 'g';
+                    if length(channelColors) == length(events.times) && i <= length(channelColors)
+                        decay_color = channelColors{i};
+                    end
+                    scatter(scatterAx, decay_time, eventIndices(i), 10, 'o', ...
+                        'MarkerEdgeColor', decay_color, 'LineWidth', 1.5);
                 end
             end
         end

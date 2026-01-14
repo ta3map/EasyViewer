@@ -30,6 +30,18 @@ function events = detectPeaksInOriginalData(calcResult, params)
     all_event_indices = [];
     all_onset_times = [];
     all_onset_values = [];
+    all_slopes = [];
+    all_tangent_x1 = [];
+    all_tangent_y1 = [];
+    all_tangent_x2 = [];
+    all_tangent_y2 = [];
+    all_decay_times = [];
+    all_decay_values = [];
+    all_decay_slopes = [];
+    all_decay_tangent_x1 = [];
+    all_decay_tangent_y1 = [];
+    all_decay_tangent_x2 = [];
+    all_decay_tangent_y2 = [];
     
     % Detection for each event
     for eventIdx = 1:numEvents
@@ -68,7 +80,7 @@ function events = detectPeaksInOriginalData(calcResult, params)
             findpeaks1_params.MinPeakHeight = MinPeakProminence;
             findpeaks1_params.MinPeakDistance = MinPeakDistance;
             findpeaks1_params.WidthReference = 'halfheight';
-            
+
             % Детекция пиков с обязательной детекцией онсетов
             findpeaks1_result = findpeaks1(findpeaks1_params);
             
@@ -78,6 +90,18 @@ function events = detectPeaksInOriginalData(calcResult, params)
             prominences = findpeaks1_result.prominences;
             peak_onset_times = findpeaks1_result.onset_times;
             peak_onset_indices = findpeaks1_result.onset_indices;
+            slopes = findpeaks1_result.slopes;
+            tangent_x1 = findpeaks1_result.tangent_x1;
+            tangent_y1 = findpeaks1_result.tangent_y1;
+            tangent_x2 = findpeaks1_result.tangent_x2;
+            tangent_y2 = findpeaks1_result.tangent_y2;
+            decay_times = findpeaks1_result.decay_times;
+            decay_indices = findpeaks1_result.decay_indices;
+            decay_slopes = findpeaks1_result.decay_slopes;
+            decay_tangent_x1 = findpeaks1_result.decay_tangent_x1;
+            decay_tangent_y1 = findpeaks1_result.decay_tangent_y1;
+            decay_tangent_x2 = findpeaks1_result.decay_tangent_x2;
+            decay_tangent_y2 = findpeaks1_result.decay_tangent_y2;
             
             if isempty(peaks)
                 continue;
@@ -91,6 +115,18 @@ function events = detectPeaksInOriginalData(calcResult, params)
             prominences(wide_peaks_mask) = [];
             peak_onset_times(wide_peaks_mask) = [];
             peak_onset_indices(wide_peaks_mask) = [];
+            slopes(wide_peaks_mask) = [];
+            tangent_x1(wide_peaks_mask) = [];
+            tangent_y1(wide_peaks_mask) = [];
+            tangent_x2(wide_peaks_mask) = [];
+            tangent_y2(wide_peaks_mask) = [];
+            decay_times(wide_peaks_mask) = [];
+            decay_indices(wide_peaks_mask) = [];
+            decay_slopes(wide_peaks_mask) = [];
+            decay_tangent_x1(wide_peaks_mask) = [];
+            decay_tangent_y1(wide_peaks_mask) = [];
+            decay_tangent_x2(wide_peaks_mask) = [];
+            decay_tangent_y2(wide_peaks_mask) = [];
             
             if isempty(peaks)
                 continue;
@@ -113,10 +149,22 @@ function events = detectPeaksInOriginalData(calcResult, params)
                 peak_onset_values(valid_onsets) = channelData(onset_signal_idx);
             end
             
+            % Значения спада берем строго из исходных данных канала (в тех же координатах, что и трейсы)
+            decay_values = NaN(size(decay_times));
+            valid_decays = ~isnan(decay_times) & ~isnan(decay_indices);
+            if any(valid_decays)
+                decay_signal_idx = decay_indices(valid_decays);
+                decay_signal_idx = min(length(channelData), max(1, decay_signal_idx));
+                decay_values(valid_decays) = channelData(decay_signal_idx);
+            end
             
             % Инвертируем значения обратно для negative полярности (для правильной визуализации)
             if strcmp(Polarity, 'negative')
                 peaks = -peaks;
+                tangent_y1 = -tangent_y1;
+                tangent_y2 = -tangent_y2;
+                decay_tangent_y1 = -decay_tangent_y1;
+                decay_tangent_y2 = -decay_tangent_y2;
             end
             
             all_times = [all_times; peak_times];
@@ -127,6 +175,18 @@ function events = detectPeaksInOriginalData(calcResult, params)
             all_event_indices = [all_event_indices; repmat(eventIdx, length(peaks), 1)];
             all_onset_times = [all_onset_times; peak_onset_times];
             all_onset_values = [all_onset_values; peak_onset_values];
+            all_slopes = [all_slopes; slopes];
+            all_tangent_x1 = [all_tangent_x1; tangent_x1];
+            all_tangent_y1 = [all_tangent_y1; tangent_y1];
+            all_tangent_x2 = [all_tangent_x2; tangent_x2];
+            all_tangent_y2 = [all_tangent_y2; tangent_y2];
+            all_decay_times = [all_decay_times; decay_times];
+            all_decay_values = [all_decay_values; decay_values];
+            all_decay_slopes = [all_decay_slopes; decay_slopes];
+            all_decay_tangent_x1 = [all_decay_tangent_x1; decay_tangent_x1];
+            all_decay_tangent_y1 = [all_decay_tangent_y1; decay_tangent_y1];
+            all_decay_tangent_x2 = [all_decay_tangent_x2; decay_tangent_x2];
+            all_decay_tangent_y2 = [all_decay_tangent_y2; decay_tangent_y2];
         end
     end
     
@@ -141,6 +201,18 @@ function events = detectPeaksInOriginalData(calcResult, params)
         events.eventIndices = all_event_indices(sort_idx);
         events.onset_times = all_onset_times(sort_idx);
         events.onset_values = all_onset_values(sort_idx);
+        events.slopes = all_slopes(sort_idx);
+        events.tangent_x1 = all_tangent_x1(sort_idx);
+        events.tangent_y1 = all_tangent_y1(sort_idx);
+        events.tangent_x2 = all_tangent_x2(sort_idx);
+        events.tangent_y2 = all_tangent_y2(sort_idx);
+        events.decay_times = all_decay_times(sort_idx);
+        events.decay_values = all_decay_values(sort_idx);
+        events.decay_slopes = all_decay_slopes(sort_idx);
+        events.decay_tangent_x1 = all_decay_tangent_x1(sort_idx);
+        events.decay_tangent_y1 = all_decay_tangent_y1(sort_idx);
+        events.decay_tangent_x2 = all_decay_tangent_x2(sort_idx);
+        events.decay_tangent_y2 = all_decay_tangent_y2(sort_idx);
     else
         events.times = [];
         events.amplitudes = [];
@@ -150,6 +222,18 @@ function events = detectPeaksInOriginalData(calcResult, params)
         events.eventIndices = [];
         events.onset_times = [];
         events.onset_values = [];
+        events.slopes = [];
+        events.tangent_x1 = [];
+        events.tangent_y1 = [];
+        events.tangent_x2 = [];
+        events.tangent_y2 = [];
+        events.decay_times = [];
+        events.decay_values = [];
+        events.decay_slopes = [];
+        events.decay_tangent_x1 = [];
+        events.decay_tangent_y1 = [];
+        events.decay_tangent_x2 = [];
+        events.decay_tangent_y2 = [];
     end
     
     events.polarity = Polarity;

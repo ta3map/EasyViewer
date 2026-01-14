@@ -23,6 +23,15 @@ function result = findpeaks1(params)
     %   result.onset_times - времена онсетов (NaN если онсет не найден)
     %   result.onset_values - значения сигнала в точках онсетов (NaN если онсет не найден)
     %   result.onset_indices - индексы онсетов
+    %   result.slopes - наклоны касательных линий для участков от онсета до пика
+    %   result.tangent_x1, result.tangent_y1 - координаты первой точки касательной
+    %   result.tangent_x2, result.tangent_y2 - координаты второй точки касательной
+    %   result.decay_times - времена точек спада (NaN если точка спада не найдена)
+    %   result.decay_values - значения сигнала в точках спада (NaN если точка спада не найдена)
+    %   result.decay_indices - индексы точек спада
+    %   result.decay_slopes - наклоны касательных линий для участков от пика до точки спада
+    %   result.decay_tangent_x1, result.decay_tangent_y1 - координаты первой точки касательной спада (пик)
+    %   result.decay_tangent_x2, result.decay_tangent_y2 - координаты второй точки касательной спада (точка спада)
     %
     % Алгоритм детекции онсетов:
     %   - Сначала находятся точки изменения во всем сигнале
@@ -70,6 +79,19 @@ function result = findpeaks1(params)
     onset_times = [];
     onset_values = [];
     onset_indices = [];
+    slopes = [];
+    tangent_x1 = [];
+    tangent_y1 = [];
+    tangent_x2 = [];
+    tangent_y2 = [];
+    decay_times = [];
+    decay_values = [];
+    decay_indices = [];
+    decay_slopes = [];
+    decay_tangent_x1 = [];
+    decay_tangent_y1 = [];
+    decay_tangent_x2 = [];
+    decay_tangent_y2 = [];
     
     % Для каждой точки изменения ищем пик в окне после нее
     for cpIdx = 1:length(change_points)
@@ -170,6 +192,74 @@ function result = findpeaks1(params)
                 continue;
             end
             
+            % Расчет slope и координат касательной для участка от онсета до пика
+            segment_indices = onset_idx:peak_idx;
+            if length(segment_indices) >= 2
+                segment_time = time(segment_indices);
+                segment_signal = signal(segment_indices);
+                coeffs = polyfit(segment_time, segment_signal, 1);
+                slope = coeffs(1);
+                b = coeffs(2);
+                tangent_y1_val = slope * onset_time + b;
+                tangent_y2_val = slope * peak_time + b;
+            else
+                slope = NaN;
+                tangent_y1_val = NaN;
+                tangent_y2_val = NaN;
+            end
+            
+            % Поиск точки спада после пика
+            % Определяем окно поиска: от пика до конца окна или до следующей точки изменения
+            decay_search_end_idx = window_end_idx;
+            
+            % Ищем точку спада: от пика вперед, где значение <= порога (10% от амплитуды пика)
+            decay_search_indices = (peak_idx+1):decay_search_end_idx;
+            if length(decay_search_indices) >= 2
+                decay_search_data = signal(decay_search_indices);
+                decay_search_time_vec = time(decay_search_indices);
+                
+                % Порог для поиска точки спада: 80% от амплитуды пика
+                decay_threshold_value = baseline_value + (peak_value - baseline_value) * 0.5;
+                
+                % Находим первую точку (от пика вперед) где значение <= порога
+                decay_candidates = find(decay_search_data <= decay_threshold_value);
+                if ~isempty(decay_candidates)
+                    decay_idx = decay_search_indices(decay_candidates(1));
+                    decay_time = decay_search_time_vec(decay_candidates(1));
+                    decay_value = signal(decay_idx);
+                    
+                    % Расчет slope и координат касательной для участка от пика до точки спада
+                    decay_segment_indices = peak_idx:decay_idx;
+                    if length(decay_segment_indices) >= 2
+                        decay_segment_time = time(decay_segment_indices);
+                        decay_segment_signal = signal(decay_segment_indices);
+                        decay_coeffs = polyfit(decay_segment_time, decay_segment_signal, 1);
+                        decay_slope = decay_coeffs(1);
+                        decay_b = decay_coeffs(2);
+                        decay_tangent_y1_val = decay_slope * peak_time + decay_b;
+                        decay_tangent_y2_val = decay_slope * decay_time + decay_b;
+                    else
+                        decay_slope = NaN;
+                        decay_tangent_y1_val = NaN;
+                        decay_tangent_y2_val = NaN;
+                    end
+                else
+                    decay_idx = NaN;
+                    decay_time = NaN;
+                    decay_value = NaN;
+                    decay_slope = NaN;
+                    decay_tangent_y1_val = NaN;
+                    decay_tangent_y2_val = NaN;
+                end
+            else
+                decay_idx = NaN;
+                decay_time = NaN;
+                decay_value = NaN;
+                decay_slope = NaN;
+                decay_tangent_y1_val = NaN;
+                decay_tangent_y2_val = NaN;
+            end
+            
             peaks = [peaks; peak_value];
             peak_times = [peak_times; peak_time];
             widths = [widths; window_widths(1)];
@@ -177,6 +267,19 @@ function result = findpeaks1(params)
             onset_times = [onset_times; onset_time];
             onset_values = [onset_values; onset_value];
             onset_indices = [onset_indices; onset_idx];
+            slopes = [slopes; slope];
+            tangent_x1 = [tangent_x1; onset_time];
+            tangent_y1 = [tangent_y1; tangent_y1_val];
+            tangent_x2 = [tangent_x2; peak_time];
+            tangent_y2 = [tangent_y2; tangent_y2_val];
+            decay_times = [decay_times; decay_time];
+            decay_values = [decay_values; decay_value];
+            decay_indices = [decay_indices; decay_idx];
+            decay_slopes = [decay_slopes; decay_slope];
+            decay_tangent_x1 = [decay_tangent_x1; peak_time];
+            decay_tangent_y1 = [decay_tangent_y1; decay_tangent_y1_val];
+            decay_tangent_x2 = [decay_tangent_x2; decay_time];
+            decay_tangent_y2 = [decay_tangent_y2; decay_tangent_y2_val];
         end
     end
     
@@ -190,6 +293,19 @@ function result = findpeaks1(params)
         onset_times = onset_times(sort_idx);
         onset_values = onset_values(sort_idx);
         onset_indices = onset_indices(sort_idx);
+        slopes = slopes(sort_idx);
+        tangent_x1 = tangent_x1(sort_idx);
+        tangent_y1 = tangent_y1(sort_idx);
+        tangent_x2 = tangent_x2(sort_idx);
+        tangent_y2 = tangent_y2(sort_idx);
+        decay_times = decay_times(sort_idx);
+        decay_values = decay_values(sort_idx);
+        decay_indices = decay_indices(sort_idx);
+        decay_slopes = decay_slopes(sort_idx);
+        decay_tangent_x1 = decay_tangent_x1(sort_idx);
+        decay_tangent_y1 = decay_tangent_y1(sort_idx);
+        decay_tangent_x2 = decay_tangent_x2(sort_idx);
+        decay_tangent_y2 = decay_tangent_y2(sort_idx);
         
         % Удаляем перекрывающиеся пики
         keep_mask = true(size(peak_times));
@@ -228,6 +344,19 @@ function result = findpeaks1(params)
         onset_times = onset_times(keep_mask);
         onset_values = onset_values(keep_mask);
         onset_indices = onset_indices(keep_mask);
+        slopes = slopes(keep_mask);
+        tangent_x1 = tangent_x1(keep_mask);
+        tangent_y1 = tangent_y1(keep_mask);
+        tangent_x2 = tangent_x2(keep_mask);
+        tangent_y2 = tangent_y2(keep_mask);
+        decay_times = decay_times(keep_mask);
+        decay_values = decay_values(keep_mask);
+        decay_indices = decay_indices(keep_mask);
+        decay_slopes = decay_slopes(keep_mask);
+        decay_tangent_x1 = decay_tangent_x1(keep_mask);
+        decay_tangent_y1 = decay_tangent_y1(keep_mask);
+        decay_tangent_x2 = decay_tangent_x2(keep_mask);
+        decay_tangent_y2 = decay_tangent_y2(keep_mask);
     end
     
     result.peaks = peaks;
@@ -237,4 +366,17 @@ function result = findpeaks1(params)
     result.onset_times = onset_times;
     result.onset_values = onset_values;
     result.onset_indices = onset_indices;
+    result.slopes = slopes;
+    result.tangent_x1 = tangent_x1;
+    result.tangent_y1 = tangent_y1;
+    result.tangent_x2 = tangent_x2;
+    result.tangent_y2 = tangent_y2;
+    result.decay_times = decay_times;
+    result.decay_values = decay_values;
+    result.decay_indices = decay_indices;
+    result.decay_slopes = decay_slopes;
+    result.decay_tangent_x1 = decay_tangent_x1;
+    result.decay_tangent_y1 = decay_tangent_y1;
+    result.decay_tangent_x2 = decay_tangent_x2;
+    result.decay_tangent_y2 = decay_tangent_y2;
 end
