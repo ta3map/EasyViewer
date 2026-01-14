@@ -27,12 +27,6 @@ function fig = plotEvents(fig, events, calcResult)
         arrowChar = char(8595); % ↓ стрелка вниз
     end
     
-    % Получаем базовые линии для каждого канала
-    baseline_medians = [];
-    if isfield(calcResult, 'baseline_medians')
-        baseline_medians = calcResult.baseline_medians;
-    end
-    
     % Отображаем события стрелками
     for i = 1:length(events.times)
         event_time = events.times(i);
@@ -44,10 +38,6 @@ function fig = plotEvents(fig, events, calcResult)
                 activeChIdx = find(calcResult.activeChannels == channelIdx, 1);
                 if ~isempty(activeChIdx) && activeChIdx <= length(offsets)
                     yPos = offsets(activeChIdx);
-                    % Добавляем базовую линию если доступна
-                    if ~isempty(baseline_medians) && activeChIdx <= length(baseline_medians)
-                        yPos = yPos + baseline_medians(activeChIdx);
-                    end
                 else
                     yPos = 0;
                 end
@@ -61,6 +51,47 @@ function fig = plotEvents(fig, events, calcResult)
                 'FontSize', 12, ...
                 'Color', 'r', ...
                 'FontWeight', 'bold');
+        end
+    end
+    
+    % Отображаем точки онсетов
+    if isfield(events, 'onset_times') && isfield(events, 'onset_values') && ...
+       ~isempty(events.onset_times) && ~isempty(events.onset_values)
+        num_onsets = 0;
+        for i = 1:length(events.times)
+            if i <= length(events.onset_times) && ~isnan(events.onset_times(i)) && ~isnan(events.onset_values(i))
+                onset_time = events.onset_times(i);
+                onset_value = events.onset_values(i);
+                
+                if onset_time >= timeAxis(1) && onset_time <= timeAxis(end)
+                    % Определяем Y позицию на основе канала и значения онсета
+                    if isfield(events, 'channels') && ~isempty(events.channels) && i <= length(events.channels)
+                        channelIdx = events.channels(i);
+                        activeChIdx = find(calcResult.activeChannels == channelIdx, 1);
+                        if ~isempty(activeChIdx) && activeChIdx <= length(offsets)
+                            % onset_value должен быть в той же системе координат, что и отрисованные трейсы
+                            yPos = offsets(activeChIdx);
+                            yPos = yPos + onset_value;
+                        else
+                            yPos = onset_value;
+                        end
+                    else
+                        yPos = onset_value;
+                    end
+                    
+                    % Отображаем точку онсета текстом
+                    text(onset_time, yPos, '•', ...
+                        'HorizontalAlignment', 'center', ...
+                        'VerticalAlignment', 'middle', ...
+                        'FontSize', 12, ...
+                        'Color', 'r', ...
+                        'FontWeight', 'bold');
+                    num_onsets = num_onsets + 1;
+                end
+            end
+        end
+        if num_onsets > 0
+            debugState('plotEvents', 'Displayed %d onset markers', num_onsets);
         end
     end
     

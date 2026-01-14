@@ -129,6 +129,14 @@ if isfield(opts, 'removeBaseline')
 else
     params.removeBaseline = false;
 end
+if isfield(opts, 'SmoothingKernel_s')
+    params.SmoothingKernel_s = opts.SmoothingKernel_s;
+end
+if isfield(opts, 'SubtractMean')
+    params.SubtractMean = logical(opts.SubtractMean);
+else
+    params.SubtractMean = false;
+end
 
 % Убираем артефакт стимуляции в окне усреднения
 if params.remove_artifact

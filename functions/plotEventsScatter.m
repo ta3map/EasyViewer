@@ -53,41 +53,27 @@ function plotEventsScatter(fig, events, calcResult)
     % Получаем цвета каналов из calcResult
     channelColors = {};
     if isfield(calcResult, 'colors_in') && isfield(calcResult, 'activeChannels') && isfield(events, 'channels') && ~isempty(events.channels)
-        % colors_in содержит цвета для активных каналов в том же порядке, что и activeChannels
         channelColorsList = calcResult.colors_in;
         activeChannels = calcResult.activeChannels;
         
-        % Создаем маппинг глобальный индекс канала -> цвет
         for i = 1:length(events.times)
             if i <= length(events.channels)
                 channelIdx = events.channels(i);
-                % Находим позицию канала в activeChannels
                 activeChIdx = find(activeChannels == channelIdx, 1);
                 if ~isempty(activeChIdx) && activeChIdx <= length(channelColorsList)
-                    channelColors{i} = channelColorsList{activeChIdx};
-                else
-                    channelColors{i} = 'r'; % по умолчанию красный
+                    colorCell = channelColorsList(activeChIdx);
+                    channelColors{i} = colorCell{:};
                 end
-            else
-                channelColors{i} = 'r';
             end
         end
-    else
-        % Если нет информации о каналах, используем красный цвет
-        channelColors = repmat({'r'}, 1, length(events.times));
     end
     
     % Построение scatter-plot с цветами каналов и прозрачностью
     if length(channelColors) == length(eventTimes)
-        % Используем разные цвета для каждого события с прозрачностью
         for i = 1:length(eventTimes)
             scatter(scatterAx, eventTimes(i), eventIndices(i), 45, 'filled', ...
                 'MarkerFaceColor', channelColors{i}, 'MarkerFaceAlpha', 0.6);
         end
-    else
-        % Fallback: один цвет для всех
-        scatter(scatterAx, eventTimes, eventIndices, 45, 'filled', ...
-            'MarkerFaceColor', 'r', 'MarkerFaceAlpha', 0.6);
     end
     debugState('plotEventsScatter', 'Scatter plot created');
     
@@ -103,6 +89,25 @@ function plotEventsScatter(fig, events, calcResult)
     
     % Вертикальная линия на нуле
     xline(scatterAx, 0, 'r:', 'LineWidth', 1);
+    
+    % Отображаем точки онсетов
+    if isfield(events, 'onset_times') && isfield(events, 'onset_values') && ...
+       ~isempty(events.onset_times) && ~isempty(events.onset_values) && ...
+       length(events.onset_times) == length(events.times)
+        for i = 1:length(events.times)
+            if i <= length(events.onset_times) && ~isnan(events.onset_times(i))
+                onset_time = events.onset_times(i);
+                if onset_time >= xLimits(1) && onset_time <= xLimits(2)
+                    onset_color = 'g';
+                    if length(channelColors) == length(events.times) && i <= length(channelColors)
+                        onset_color = channelColors{i};
+                    end
+                    scatter(scatterAx, onset_time, eventIndices(i), 45, '*', ...
+                        'MarkerFaceColor', onset_color, 'MarkerEdgeColor', onset_color);
+                end
+            end
+        end
+    end
     
     debugState('plotEventsScatter', 'Scatter plot completed');
 end

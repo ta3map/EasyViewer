@@ -101,6 +101,49 @@ function [f, calculation_result] = plotMeanEvents(params)
     % Нормализация среднего
     meanData = meanData / numEvents;
 
+    % Применение сглаживания к meanData и originalEventsData, если задано
+    if isfield(params, 'SmoothingKernel_s') && params.SmoothingKernel_s > 0
+        kernel_time_scaled = params.SmoothingKernel_s;
+        kernel_samples = round((kernel_time_scaled / timeUnitFactor) * Fs);
+        kernel_samples = max(5, kernel_samples); % smooth1 требует минимум 5 точек
+        
+        % Сглаживание meanData
+        for chIdx = 1:size(meanData, 2)
+            meanData(:, chIdx) = smooth1(meanData(:, chIdx), kernel_samples, 'moving');
+        end
+        
+        % Сглаживание originalEventsData
+        for eventIdx = 1:length(originalEventsData)
+            eventData = originalEventsData{eventIdx};
+            for chIdx = 1:size(eventData, 2)
+                eventData(:, chIdx) = smooth1(eventData(:, chIdx), kernel_samples, 'moving');
+            end
+            originalEventsData{eventIdx} = eventData;
+        end
+        
+        kernel_time_s = kernel_time_scaled / timeUnitFactor;
+        debugState('plotMeanEvents', 'Smoothing applied: kernel=%.3f s (%.1f ms, %d samples)', kernel_time_s, kernel_time_s*1000, kernel_samples);
+    end
+
+    % Применение вычитания среднего к meanData и originalEventsData, если задано
+    if isfield(params, 'SubtractMean') && params.SubtractMean
+        % Вычитание среднего из meanData
+        for chIdx = 1:size(meanData, 2)
+            meanData(:, chIdx) = meanData(:, chIdx) - mean(meanData(:, chIdx));
+        end
+        
+        % Вычитание среднего из originalEventsData
+        for eventIdx = 1:length(originalEventsData)
+            eventData = originalEventsData{eventIdx};
+            for chIdx = 1:size(eventData, 2)
+                eventData(:, chIdx) = eventData(:, chIdx) - mean(eventData(:, chIdx));
+            end
+            originalEventsData{eventIdx} = eventData;
+        end
+        
+        debugState('plotMeanEvents', 'Mean subtraction applied to meanData and originalEventsData');
+    end
+
     % Считаем средние спайки
 
     % show spikes

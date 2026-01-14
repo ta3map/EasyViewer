@@ -12,19 +12,29 @@ function result = autoMeanStimulus(filePath, fileId, params)
             opts.artifactWindow_ms = params.artifactWindow_ms;
         end
     end
+    if isfield(params, 'SmoothingKernel_s')
+        opts.SmoothingKernel_s = params.SmoothingKernel_s;
+    end
+    if isfield(params, 'SubtractMean')
+        opts.SubtractMean = params.SubtractMean;
+    end
     [meanFig, calcResult] = calculateAndPlotMeanEvents('stimuli', opts);
 
-    % Подготовка detParams для detectPeaksInMeanData
+    % Подготовка detParams для детекции пиков
     % Масштабируем параметры времени для findpeaks (params в секундах, нужно умножить на timeUnitFactor)
     detParams = struct('Polarity', params.Polarity, ...
         'MinPeakProminence', params.MinPeakProminence, ...
         'MinPeakDistance', params.MinPeakDistance_s * timeUnitFactor, ...
         'MaxPeakWidth', params.MaxPeakWidth_s * timeUnitFactor, ...
-        'SmoothingKernel_s', params.SmoothingKernel_s * timeUnitFactor, ...
-        'UseOriginalData', params.UseOriginalData); 
+        'SmoothingKernel_s', params.SmoothingKernel_s * timeUnitFactor); 
 
-    % Детекция пиков
-    events = detectPeaksInMeanData(calcResult, detParams);
+    % Детекция пиков: выбираем функцию в зависимости от параметров
+    useOriginalData = isfield(params, 'UseOriginalData') && logical(params.UseOriginalData);
+    if useOriginalData && isfield(calcResult, 'originalEventsData') && ~isempty(calcResult.originalEventsData)
+        events = detectPeaksInOriginalData(calcResult, detParams);
+    else
+        events = detectPeaksInMeanData(calcResult, detParams);
+    end
         
     % Добавляем графики и таблицы
     figure(meanFig);

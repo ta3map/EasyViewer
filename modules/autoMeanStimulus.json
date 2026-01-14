@@ -11,12 +11,12 @@
     "artifactWindow_ms": 1
   },
   "detection": {
-    "Polarity": "positive",
-    "MinPeakProminence": 10,
+    "Polarity": "negative",
+    "MinPeakProminence": 20,
     "UseOriginalData": true,
     "MinPeakDistance_s": 0.05,
-    "MaxPeakWidth_s": 0.5,
-    "SmoothingKernel_s": 0.01
+    "MaxPeakWidth_s": 0.1,
+    "SmoothingKernel_s": 0.001
   },
   "output": {
     "figureFormat": "png",

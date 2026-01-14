@@ -5,10 +5,7 @@ function events = detectPeaksInMeanData(calcResult, params)
     %   MinPeakProminence: минимальная амплитуда пика
     %   MinPeakDistance: минимальное расстояние между пиками (в единицах timeAxis)
     %   MaxPeakWidth: максимальная ширина пика (в единицах timeAxis)
-    %   UseOriginalData: true/false - использовать оригинальные данные вместо средних (по умолчанию false)
     %   ShowRecommendations: true/false - показывать рекомендации по параметрам на основе предварительного анализа (по умолчанию false)
-    
-    useOriginalData = isfield(params, 'UseOriginalData') && logical(params.UseOriginalData);
     
     timeAxis = calcResult.timeAxisScaled;
     Fs = calcResult.Fs;
@@ -19,19 +16,6 @@ function events = detectPeaksInMeanData(calcResult, params)
     MinPeakProminence = params.MinPeakProminence;
     MinPeakDistance = params.MinPeakDistance;
     max_peak_width = params.MaxPeakWidth;
-    
-    % Размер ядра сглаживания (в секундах, масштабированных единицах), по умолчанию 0.01 сек = 10 мс
-    if isfield(params, 'SmoothingKernel_s')
-        kernel_time_scaled = params.SmoothingKernel_s;
-    else
-        kernel_time_scaled = 0.01 * timeUnitFactor; % значение по умолчанию: 0.01 сек = 10 мс
-    end
-    
-    if useOriginalData && isfield(calcResult, 'originalEventsData') && ~isempty(calcResult.originalEventsData)
-        debugState('detectPeaksInMeanData', 'Using original events data');
-        events = detectPeaksInOriginalData(calcResult, params);
-        return;
-    end
     
     meanData = calcResult.meanData;
     % meanData содержит все каналы, нужно выбрать только активные
@@ -67,16 +51,10 @@ function events = detectPeaksInMeanData(calcResult, params)
         end
         
         Trace_out(isnan(Trace_out)) = nanmean(Trace_out);
-        Trace_out = Trace_out - mean(Trace_out);
         Trace_out = np_flatten(Trace_out);
         
-        kernel_samples = round((kernel_time_scaled / timeUnitFactor) * Fs);
-        kernel_samples = max(5, kernel_samples); % smooth1 требует минимум 5 точек
-        Trace_out = smooth1(Trace_out, kernel_samples, 'moving');
-        
-        kernel_time_s = kernel_time_scaled / timeUnitFactor;
         debugState('detectPeaksInMeanData', '--- Channel %d ---', channelIdx);
-        debugState('detectPeaksInMeanData', 'Smoothing applied: kernel=%.3f s (%.1f ms, %d samples)', kernel_time_s, kernel_time_s*1000, kernel_samples);
+        debugState('detectPeaksInMeanData', 'Using pre-smoothed data from calcResult');
         debugState('detectPeaksInMeanData', 'Trace_out length: %d samples', numel(Trace_out));
         debugState('detectPeaksInMeanData', 'Trace_out min: %.3f, max: %.3f, mean: %.3f, std: %.3f', ...
             min(Trace_out), max(Trace_out), mean(Trace_out), std(Trace_out));
@@ -114,7 +92,6 @@ function events = detectPeaksInMeanData(calcResult, params)
         % timeAxisScaled уже масштабирован на timeUnitFactor, поэтому MinPeakDistance должен быть
         % в тех же масштабированных единицах (например, если timeUnitFactor=1000, то 50 мс = 50 единиц)
         debugState('detectPeaksInMeanData', 'MinPeakDistance: %.6f (scaled time units, timeUnitFactor=%.1f)', MinPeakDistance, timeUnitFactor);
-        
         % Детекция пиков
         [peaks, peak_times, widths, prominences] = findpeaks(Trace_out, timeAxis, ...
             'MinPeakHeight', MinPeakProminence, ...
@@ -204,136 +181,4 @@ function events = detectPeaksInMeanData(calcResult, params)
         debugState('detectPeaksInMeanData', 'Event amplitudes range: [%.3f, %.3f]', min(events.amplitudes), max(events.amplitudes));
         debugState('detectPeaksInMeanData', 'Channels with events: %s', mat2str(unique(events.channels)'));
     end
-end
-
-function events = detectPeaksInOriginalData(calcResult, params)
-    % Детекция пиков в оригинальных данных каждого события
-    
-    timeAxis = calcResult.timeAxisScaled;
-    Fs = calcResult.Fs;
-    activeChannels = calcResult.activeChannels;
-    originalEventsData = calcResult.originalEventsData;
-    timeUnitFactor = calcResult.timeUnitFactor;
-    
-    Polarity = params.Polarity;
-    MinPeakProminence = params.MinPeakProminence;
-    MinPeakDistance = params.MinPeakDistance;
-    max_peak_width = params.MaxPeakWidth;
-    
-    % Размер ядра сглаживания (в секундах, масштабированных единицах), по умолчанию 0.01 сек = 10 мс
-    if isfield(params, 'SmoothingKernel_s')
-        kernel_time_scaled = params.SmoothingKernel_s;
-    else
-        kernel_time_scaled = 0.01 * timeUnitFactor; % значение по умолчанию: 0.01 сек = 10 мс
-    end
-    
-    numChannels = length(activeChannels);
-    numEvents = length(originalEventsData);
-    
-    debugState('detectPeaksInOriginalData', 'Detecting peaks in %d original events', numEvents);
-    
-    all_times = [];
-    all_amplitudes = [];
-    all_widths = [];
-    all_prominences = [];
-    all_channels = [];
-    all_event_indices = [];
-    
-    % Detection for each event
-    for eventIdx = 1:numEvents
-        eventData = originalEventsData{eventIdx};
-        
-        % Детекция по каждому каналу в этом событии
-        for chIdx = 1:numChannels
-            channelIdx = activeChannels(chIdx);
-            channelData = eventData(:, chIdx);
-            
-            % Применяем полярность
-            if strcmp(Polarity, 'negative')
-                Trace_out = -channelData;
-            else
-                Trace_out = channelData;
-            end
-            
-            Trace_out(isnan(Trace_out)) = nanmean(Trace_out);
-            Trace_out = Trace_out - mean(Trace_out);
-            Trace_out = np_flatten(Trace_out);
-            
-            kernel_samples = round((kernel_time_scaled / timeUnitFactor) * Fs);
-            kernel_samples = max(5, kernel_samples); % smooth1 требует минимум 5 точек
-            Trace_out = smooth1(Trace_out, kernel_samples, 'moving');
-            
-            % MinPeakDistance передается напрямую в findpeaks (как в autoEventDetection)
-            % timeAxis уже масштабирован с учетом timeUnitFactor, поэтому findpeaks сам пересчитает
-            
-            % Детекция пиков
-            [peaks, peak_times, widths, prominences] = findpeaks(Trace_out, timeAxis, ...
-                'MinPeakHeight', MinPeakProminence, ...
-                'MinPeakDistance', MinPeakDistance, ...
-                'WidthReference', 'halfheight');
-            
-            if isempty(peaks)
-                continue;
-            end
-            
-            % Убираем слишком широкие пики
-            wide_peaks_mask = widths > max_peak_width;
-            peak_times(wide_peaks_mask) = [];
-            peaks(wide_peaks_mask) = [];
-            widths(wide_peaks_mask) = [];
-            prominences(wide_peaks_mask) = [];
-            
-            if isempty(peaks)
-                continue;
-            end
-            
-            % Сохраняем найденные пики
-            % Убеждаемся, что все векторы являются столбцами
-            peak_times = peak_times(:);
-            peaks = peaks(:);
-            widths = widths(:);
-            prominences = prominences(:);
-            
-            all_times = [all_times; peak_times];
-            all_amplitudes = [all_amplitudes; peaks];
-            all_widths = [all_widths; widths];
-            all_prominences = [all_prominences; prominences];
-            all_channels = [all_channels; repmat(channelIdx, length(peaks), 1)];
-            all_event_indices = [all_event_indices; repmat(eventIdx, length(peaks), 1)];
-        end
-    end
-    
-    % Сортировка по времени
-    if ~isempty(all_times)
-        [sorted_times, sort_idx] = sort(all_times);
-        events.times = sorted_times;
-        events.amplitudes = all_amplitudes(sort_idx);
-        events.widths = all_widths(sort_idx);
-        events.prominences = all_prominences(sort_idx);
-        events.channels = all_channels(sort_idx);
-        events.eventIndices = all_event_indices(sort_idx);
-    else
-        events.times = [];
-        events.amplitudes = [];
-        events.widths = [];
-        events.prominences = [];
-        events.channels = [];
-        events.eventIndices = [];
-    end
-    
-    events.polarity = Polarity;
-    events.numEvents = length(events.times);
-    
-    % Подсчет событий до и после нуля
-    if ~isempty(events.times)
-        events.numEventsBeforeZero = sum(events.times < 0);
-        events.numEventsAfterZero = sum(events.times > 0);
-    else
-        events.numEventsBeforeZero = 0;
-        events.numEventsAfterZero = 0;
-    end
-    
-    debugState('detectPeaksInOriginalData', 'Total events found: %d', events.numEvents);
-    debugState('detectPeaksInOriginalData', 'Events before zero: %d', events.numEventsBeforeZero);
-    debugState('detectPeaksInOriginalData', 'Events after zero: %d', events.numEventsAfterZero);
 end
