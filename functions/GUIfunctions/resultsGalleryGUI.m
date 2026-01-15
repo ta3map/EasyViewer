@@ -47,14 +47,17 @@ function resultsGalleryGUI()
     function pos = getElementPosition(tag)
         if isfield(coordsData.elements, tag)
             pos = coordsData.elements.(tag);
-            % Преобразуем относительные координаты в абсолютные
-            base_pos = coordsData.base_figure_position;
-            pos = [
-                pos(1) * base_pos(3),  % x
-                pos(2) * base_pos(4),  % y
-                pos(3) * base_pos(3),  % width
-                pos(4) * base_pos(4)   % height
-            ];
+            % Проверяем, не является ли элемент панелью - для них оставляем относительные координаты
+            if ~strcmp(tag, 'previewPanel')
+                % Преобразуем относительные координаты в абсолютные на основе base_figure_position
+                base_pos = coordsData.base_figure_position;
+                pos = [
+                    pos(1) * base_pos(3),  % x
+                    pos(2) * base_pos(4),  % y
+                    pos(3) * base_pos(3),  % width
+                    pos(4) * base_pos(4)   % height
+                ];
+            end
         else
             error('Coordinates for element %s not found in JSON file', tag);
         end
@@ -175,6 +178,24 @@ function resultsGalleryGUI()
         'FontSize', 10, ...
         'Callback', @refreshTable, ...
         'Tag', 'refreshBtn');
+    
+    assetsPath = getAssetsPath();
+    
+    panButton = uicontrol('Style', 'pushbutton', ...
+        'Position', getElementPosition('pan_btn'), ...
+        'String', 'Pan', ...
+        'FontSize', 10, ...
+        'Callback', @panButtonCallback, ...
+        'Tag', 'pan_btn');
+    btnIcon(panButton, fullfile(assetsPath, 'pan_btn.png'), false);
+    
+    zoomButton = uicontrol('Style', 'pushbutton', ...
+        'Position', getElementPosition('zoom_btn'), ...
+        'String', 'Zoom', ...
+        'FontSize', 10, ...
+        'Callback', @zoomButtonCallback, ...
+        'Tag', 'zoom_btn');
+    btnIcon(zoomButton, fullfile(assetsPath, 'zoom_btn.png'), false);
     
     % Устанавливаем обработчик изменения размера окна
     set(fig, 'SizeChangedFcn', @(~,~) resizeComponentsCallback(fig, coordsFile));
@@ -334,6 +355,8 @@ function resultsGalleryGUI()
             if ~isempty(previewPanel)
                 delete(previewPanel.Children);
             end
+            zoom(fig, 'off');
+            pan(fig, 'off');
             return
         end
         rows = unique(event.Indices(:, 1));
@@ -349,9 +372,52 @@ function resultsGalleryGUI()
             delete(previewPanel.Children);
             reportPath = src.Data{rows(1), 4};
             if ~isempty(reportPath)
-                openResultPreview(reportPath, previewPanel);
+                ax = openResultPreview(reportPath, previewPanel);
+                if ~isempty(ax) && isvalid(ax)
+                    activatePreviewTools(ax);
+                end
             end
         end
+    end
+    
+    function zoomButtonCallback(src, ~)
+        previewPanel = findobj(fig, 'Tag', 'previewPanel');
+        if isempty(previewPanel)
+            return
+        end
+        axesList = findobj(previewPanel, 'Type', 'axes');
+        if isempty(axesList)
+            return
+        end
+        pan(fig, 'off');
+        zoom(fig, 'on');
+        for i = 1:length(axesList)
+            zoom(axesList(i), 'on');
+        end
+    end
+    
+    function panButtonCallback(src, ~)
+        previewPanel = findobj(fig, 'Tag', 'previewPanel');
+        if isempty(previewPanel)
+            return
+        end
+        axesList = findobj(previewPanel, 'Type', 'axes');
+        if isempty(axesList)
+            return
+        end
+        zoom(fig, 'off');
+        pan(fig, 'on');
+        for i = 1:length(axesList)
+            pan(axesList(i), 'on');
+        end
+    end
+    
+    function activatePreviewTools(ax)
+        if isempty(ax) || ~isvalid(ax)
+            return
+        end
+        zoom(fig, 'off');
+        pan(fig, 'off');
     end
     
     function updateCounter(selected, total)
