@@ -6,12 +6,12 @@ function plotEventsScatter(fig, events, calcResult)
     
     figure(fig);
     
-    if isempty(events.times)
-        debugState('plotEventsScatter', 'events.times is empty, returning');
+    if isempty(events.peak_times)
+        debugState('plotEventsScatter', 'events.peak_times is empty, returning');
         return;
     end
     
-    debugState('plotEventsScatter', 'Number of events: %d', length(events.times));
+    debugState('plotEventsScatter', 'Number of events: %d', length(events.peak_times));
     
     % Находим tiledlayout в фигуре
     t = findobj(fig, 'Type', 'tiledlayout');
@@ -41,12 +41,12 @@ function plotEventsScatter(fig, events, calcResult)
         debugState('plotEventsScatter', 'Using eventIndices from events structure, count: %d', length(eventIndices));
     else
         % Если нет информации о событии, используем порядковый номер
-        eventIndices = 1:length(events.times);
+        eventIndices = 1:length(events.peak_times);
         debugState('plotEventsScatter', 'Using sequential indices, count: %d', length(eventIndices));
     end
     
     % Время событий
-    eventTimes = events.times;
+    eventTimes = events.peak_times;
     debugState('plotEventsScatter', 'Event times range: [%.3f, %.3f]', min(eventTimes), max(eventTimes));
     debugState('plotEventsScatter', 'Event indices range: [%d, %d]', min(eventIndices), max(eventIndices));
     
@@ -56,7 +56,7 @@ function plotEventsScatter(fig, events, calcResult)
         channelColorsList = calcResult.colors_in;
         activeChannels = calcResult.activeChannels;
         
-        for i = 1:length(events.times)
+        for i = 1:length(events.peak_times)
             if i <= length(events.channels)
                 channelIdx = events.channels(i);
                 activeChIdx = find(activeChannels == channelIdx, 1);
@@ -93,13 +93,13 @@ function plotEventsScatter(fig, events, calcResult)
     % Отображаем точки онсетов
     if isfield(events, 'onset_times') && isfield(events, 'onset_values') && ...
        ~isempty(events.onset_times) && ~isempty(events.onset_values) && ...
-       length(events.onset_times) == length(events.times)
-        for i = 1:length(events.times)
+       length(events.onset_times) == length(events.peak_times)
+        for i = 1:length(events.peak_times)
             if i <= length(events.onset_times) && ~isnan(events.onset_times(i))
                 onset_time = events.onset_times(i);
                 if onset_time >= xLimits(1) && onset_time <= xLimits(2)
                     onset_color = 'g';
-                    if length(channelColors) == length(events.times) && i <= length(channelColors)
+                    if length(channelColors) == length(events.peak_times) && i <= length(channelColors)
                         onset_color = channelColors{i};
                     end
                     scatter(scatterAx, onset_time, eventIndices(i), 45, '.', ...
@@ -112,13 +112,13 @@ function plotEventsScatter(fig, events, calcResult)
     % Отображаем точки спада в виде незаполненных кругов
     if isfield(events, 'decay_times') && isfield(events, 'decay_values') && ...
        ~isempty(events.decay_times) && ~isempty(events.decay_values) && ...
-       length(events.decay_times) == length(events.times)
-        for i = 1:length(events.times)
+       length(events.decay_times) == length(events.peak_times)
+        for i = 1:length(events.peak_times)
             if i <= length(events.decay_times) && ~isnan(events.decay_times(i))
                 decay_time = events.decay_times(i);
                 if decay_time >= xLimits(1) && decay_time <= xLimits(2)
                     decay_color = 'g';
-                    if length(channelColors) == length(events.times) && i <= length(channelColors)
+                    if length(channelColors) == length(events.peak_times) && i <= length(channelColors)
                         decay_color = channelColors{i};
                     end
                     scatter(scatterAx, decay_time, eventIndices(i), 10, 'o', ...

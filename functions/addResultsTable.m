@@ -51,8 +51,8 @@ function addResultsTable(fig, events, calcResult)
             chIdx = uniqueChannels(i);
             chMask = events.channels == chIdx;
             chTotal = sum(chMask);
-            chBeforeZero = sum(chMask & events.times < 0);
-            chAfterZero = sum(chMask & events.times > 0);
+            chBeforeZero = sum(chMask & events.peak_times < 0);
+            chAfterZero = sum(chMask & events.peak_times > 0);
             totalRow{end+1} = sprintf('%d / %d / %d', chTotal, chBeforeZero, chAfterZero);
         end
     else
@@ -64,9 +64,9 @@ function addResultsTable(fig, events, calcResult)
     
     if events.numEvents > 0 && numChannels > 0
         % Статистика по каналам для событий до нуля
-        beforeZeroMask = events.times < 0;
+        beforeZeroMask = events.peak_times < 0;
         if sum(beforeZeroMask) > 0
-            beforeZeroTimes = events.times(beforeZeroMask);
+            beforeZeroTimes = events.peak_times(beforeZeroMask);
             beforeZeroProminences = events.prominences(beforeZeroMask);
             beforeZeroChannels = events.channels(beforeZeroMask);
             
@@ -115,9 +115,9 @@ function addResultsTable(fig, events, calcResult)
         end
         
         % Статистика по каналам для событий после нуля
-        afterZeroMask = events.times > 0;
+        afterZeroMask = events.peak_times > 0;
         if sum(afterZeroMask) > 0
-            afterZeroTimes = events.times(afterZeroMask);
+            afterZeroTimes = events.peak_times(afterZeroMask);
             afterZeroProminences = events.prominences(afterZeroMask);
             afterZeroChannels = events.channels(afterZeroMask);
             

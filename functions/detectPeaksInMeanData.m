@@ -145,15 +145,15 @@ function events = detectPeaksInMeanData(calcResult, params)
     % Сортировка по времени
     if ~isempty(all_times)
         [sorted_times, sort_idx] = sort(all_times);
-        events.times = sorted_times;
-        events.amplitudes = all_amplitudes(sort_idx);
+        events.peak_times = sorted_times;
+        events.peaks = all_amplitudes(sort_idx);
         events.widths = all_widths(sort_idx);
         events.prominences = all_prominences(sort_idx);
         events.channels = all_channels(sort_idx);
         events.eventIndices = all_event_indices(sort_idx);
     else
-        events.times = [];
-        events.amplitudes = [];
+        events.peak_times = [];
+        events.peaks = [];
         events.widths = [];
         events.prominences = [];
         events.channels = [];
@@ -161,12 +161,12 @@ function events = detectPeaksInMeanData(calcResult, params)
     end
     
     events.polarity = Polarity;
-    events.numEvents = length(events.times);
+    events.numEvents = length(events.peak_times);
     
     % Подсчет событий до и после нуля
-    if ~isempty(events.times)
-        events.numEventsBeforeZero = sum(events.times < 0);
-        events.numEventsAfterZero = sum(events.times > 0);
+    if ~isempty(events.peak_times)
+        events.numEventsBeforeZero = sum(events.peak_times < 0);
+        events.numEventsAfterZero = sum(events.peak_times > 0);
     else
         events.numEventsBeforeZero = 0;
         events.numEventsAfterZero = 0;
@@ -177,8 +177,8 @@ function events = detectPeaksInMeanData(calcResult, params)
     debugState('detectPeaksInMeanData', 'Events before zero: %d', events.numEventsBeforeZero);
     debugState('detectPeaksInMeanData', 'Events after zero: %d', events.numEventsAfterZero);
     if events.numEvents > 0
-        debugState('detectPeaksInMeanData', 'Event times range: [%.6f, %.6f]', min(events.times), max(events.times));
-        debugState('detectPeaksInMeanData', 'Event amplitudes range: [%.3f, %.3f]', min(events.amplitudes), max(events.amplitudes));
+        debugState('detectPeaksInMeanData', 'Event times range: [%.6f, %.6f]', min(events.peak_times), max(events.peak_times));
+        debugState('detectPeaksInMeanData', 'Event amplitudes range: [%.3f, %.3f]', min(events.peaks), max(events.peaks));
         debugState('detectPeaksInMeanData', 'Channels with events: %s', mat2str(unique(events.channels)'));
     end
 end

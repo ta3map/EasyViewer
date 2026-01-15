@@ -22,26 +22,23 @@ function events = detectPeaksInOriginalData(calcResult, params)
     
     debugState('detectPeaksInOriginalData', 'Detecting peaks in %d original events', numEvents);
     
-    all_times = [];
-    all_amplitudes = [];
-    all_widths = [];
-    all_prominences = [];
-    all_channels = [];
-    all_event_indices = [];
-    all_onset_times = [];
-    all_onset_values = [];
-    all_slopes = [];
-    all_tangent_x1 = [];
-    all_tangent_y1 = [];
-    all_tangent_x2 = [];
-    all_tangent_y2 = [];
-    all_decay_times = [];
-    all_decay_values = [];
-    all_decay_slopes = [];
-    all_decay_tangent_x1 = [];
-    all_decay_tangent_y1 = [];
-    all_decay_tangent_x2 = [];
-    all_decay_tangent_y2 = [];
+    % Список полей из findpeaks1_result (без маппинга)
+    findpeaksFields = {'peak_times', 'peaks', 'widths', 'prominences', ...
+                       'onset_times', 'slopes', ...
+                       'tangent_x1', 'tangent_y1', 'tangent_x2', 'tangent_y2', ...
+                       'decay_times', 'decay_slopes', ...
+                       'decay_tangent_x1', 'decay_tangent_y1', 'decay_tangent_x2', 'decay_tangent_y2'};
+    
+    % Дополнительные поля для events
+    extraFields = {'channels', 'eventIndices', 'onset_values', 'decay_values'};
+    
+    % Инициализация cell arrays для всех полей
+    for i = 1:length(findpeaksFields)
+        events.(findpeaksFields{i}) = {};
+    end
+    for i = 1:length(extraFields)
+        events.(extraFields{i}) = {};
+    end
     
     % Detection for each event
     for eventIdx = 1:numEvents
@@ -84,187 +81,165 @@ function events = detectPeaksInOriginalData(calcResult, params)
             % Детекция пиков с обязательной детекцией онсетов
             findpeaks1_result = findpeaks1(findpeaks1_params);
             
-            peaks = findpeaks1_result.peaks;
-            peak_times = findpeaks1_result.peak_times;
-            widths = findpeaks1_result.widths;
-            prominences = findpeaks1_result.prominences;
-            peak_onset_times = findpeaks1_result.onset_times;
-            peak_onset_indices = findpeaks1_result.onset_indices;
-            slopes = findpeaks1_result.slopes;
-            tangent_x1 = findpeaks1_result.tangent_x1;
-            tangent_y1 = findpeaks1_result.tangent_y1;
-            tangent_x2 = findpeaks1_result.tangent_x2;
-            tangent_y2 = findpeaks1_result.tangent_y2;
-            decay_times = findpeaks1_result.decay_times;
-            decay_indices = findpeaks1_result.decay_indices;
-            decay_slopes = findpeaks1_result.decay_slopes;
-            decay_tangent_x1 = findpeaks1_result.decay_tangent_x1;
-            decay_tangent_y1 = findpeaks1_result.decay_tangent_y1;
-            decay_tangent_x2 = findpeaks1_result.decay_tangent_x2;
-            decay_tangent_y2 = findpeaks1_result.decay_tangent_y2;
-            
-            if isempty(peaks)
+            if isempty(findpeaks1_result.peaks)
                 continue;
             end
             
             % Убираем слишком широкие пики
-            wide_peaks_mask = widths > max_peak_width;
-            peak_times(wide_peaks_mask) = [];
-            peaks(wide_peaks_mask) = [];
-            widths(wide_peaks_mask) = [];
-            prominences(wide_peaks_mask) = [];
-            peak_onset_times(wide_peaks_mask) = [];
-            peak_onset_indices(wide_peaks_mask) = [];
-            slopes(wide_peaks_mask) = [];
-            tangent_x1(wide_peaks_mask) = [];
-            tangent_y1(wide_peaks_mask) = [];
-            tangent_x2(wide_peaks_mask) = [];
-            tangent_y2(wide_peaks_mask) = [];
-            decay_times(wide_peaks_mask) = [];
-            decay_indices(wide_peaks_mask) = [];
-            decay_slopes(wide_peaks_mask) = [];
-            decay_tangent_x1(wide_peaks_mask) = [];
-            decay_tangent_y1(wide_peaks_mask) = [];
-            decay_tangent_x2(wide_peaks_mask) = [];
-            decay_tangent_y2(wide_peaks_mask) = [];
+            wide_peaks_mask = findpeaks1_result.widths > max_peak_width;
+            findpeaks1_fields = fieldnames(findpeaks1_result);
+            for i = 1:length(findpeaks1_fields)
+                field = findpeaks1_fields{i};
+                if isnumeric(findpeaks1_result.(field)) && length(findpeaks1_result.(field)) == length(findpeaks1_result.peaks)
+                    findpeaks1_result.(field)(wide_peaks_mask) = [];
+                end
+            end
             
-            if isempty(peaks)
+            if isempty(findpeaks1_result.peaks)
                 continue;
             end
             
-            % Сохраняем найденные пики
-            % Убеждаемся, что все векторы являются столбцами
-            peak_times = peak_times(:);
-            peaks = peaks(:);
-            widths = widths(:);
-            prominences = prominences(:);
-            peak_onset_times = peak_onset_times(:);
+            % Преобразуем в столбцы и копируем напрямую из findpeaks1_result
+            numPeaks = length(findpeaks1_result.peaks);
+            for i = 1:length(findpeaksFields)
+                field = findpeaksFields{i};
+                events.(field){end+1} = findpeaks1_result.(field)(:);
+            end
             
-            % Значения онсетов берем строго из исходных данных канала (в тех же координатах, что и трейсы)
-            peak_onset_values = NaN(size(peak_onset_times));
-            valid_onsets = ~isnan(peak_onset_times) & ~isnan(peak_onset_indices);
+            % Значения онсетов берем строго из исходных данных канала
+            peak_onset_indices = findpeaks1_result.onset_indices(:);
+            peak_onset_values = NaN(size(findpeaks1_result.onset_times));
+            valid_onsets = ~isnan(findpeaks1_result.onset_times) & ~isnan(peak_onset_indices);
             if any(valid_onsets)
                 onset_signal_idx = peak_onset_indices(valid_onsets);
                 onset_signal_idx = min(length(channelData), max(1, onset_signal_idx));
                 peak_onset_values(valid_onsets) = channelData(onset_signal_idx);
             end
+            events.onset_values{end+1} = peak_onset_values(:);
             
-            % Значения спада берем строго из исходных данных канала (в тех же координатах, что и трейсы)
-            decay_values = NaN(size(decay_times));
-            valid_decays = ~isnan(decay_times) & ~isnan(decay_indices);
+            % Значения спада берем строго из исходных данных канала
+            decay_indices = findpeaks1_result.decay_indices(:);
+            decay_values = NaN(size(findpeaks1_result.decay_times));
+            valid_decays = ~isnan(findpeaks1_result.decay_times) & ~isnan(decay_indices);
             if any(valid_decays)
                 decay_signal_idx = decay_indices(valid_decays);
                 decay_signal_idx = min(length(channelData), max(1, decay_signal_idx));
                 decay_values(valid_decays) = channelData(decay_signal_idx);
             end
+            events.decay_values{end+1} = decay_values(:);
             
-            % Инвертируем значения обратно для negative полярности (для правильной визуализации)
+            % Инвертируем значения обратно для negative полярности
             if strcmp(Polarity, 'negative')
-                peaks = -peaks;
-                tangent_y1 = -tangent_y1;
-                tangent_y2 = -tangent_y2;
-                decay_tangent_y1 = -decay_tangent_y1;
-                decay_tangent_y2 = -decay_tangent_y2;
+                events.peaks{end} = -events.peaks{end};
+                events.tangent_y1{end} = -events.tangent_y1{end};
+                events.tangent_y2{end} = -events.tangent_y2{end};
+                events.decay_tangent_y1{end} = -events.decay_tangent_y1{end};
+                events.decay_tangent_y2{end} = -events.decay_tangent_y2{end};
             end
             
-            all_times = [all_times; peak_times];
-            all_amplitudes = [all_amplitudes; peaks];
-            all_widths = [all_widths; widths];
-            all_prominences = [all_prominences; prominences];
-            all_channels = [all_channels; repmat(channelIdx, length(peaks), 1)];
-            all_event_indices = [all_event_indices; repmat(eventIdx, length(peaks), 1)];
-            all_onset_times = [all_onset_times; peak_onset_times];
-            all_onset_values = [all_onset_values; peak_onset_values];
-            all_slopes = [all_slopes; slopes];
-            all_tangent_x1 = [all_tangent_x1; tangent_x1];
-            all_tangent_y1 = [all_tangent_y1; tangent_y1];
-            all_tangent_x2 = [all_tangent_x2; tangent_x2];
-            all_tangent_y2 = [all_tangent_y2; tangent_y2];
-            all_decay_times = [all_decay_times; decay_times];
-            all_decay_values = [all_decay_values; decay_values];
-            all_decay_slopes = [all_decay_slopes; decay_slopes];
-            all_decay_tangent_x1 = [all_decay_tangent_x1; decay_tangent_x1];
-            all_decay_tangent_y1 = [all_decay_tangent_y1; decay_tangent_y1];
-            all_decay_tangent_x2 = [all_decay_tangent_x2; decay_tangent_x2];
-            all_decay_tangent_y2 = [all_decay_tangent_y2; decay_tangent_y2];
+            % Добавляем дополнительные поля
+            events.channels{end+1} = repmat(channelIdx, numPeaks, 1);
+            events.eventIndices{end+1} = repmat(eventIdx, numPeaks, 1);
         end
     end
     
-    % Сортировка по времени
-    if ~isempty(all_times)
-        [sorted_times, sort_idx] = sort(all_times);
-        events.times = sorted_times;
-        events.amplitudes = all_amplitudes(sort_idx);
-        events.widths = all_widths(sort_idx);
-        events.prominences = all_prominences(sort_idx);
-        events.channels = all_channels(sort_idx);
-        events.eventIndices = all_event_indices(sort_idx);
-        events.onset_times = all_onset_times(sort_idx);
-        events.onset_values = all_onset_values(sort_idx);
-        events.onset_slope = all_slopes(sort_idx);
-        events.tangent_x1 = all_tangent_x1(sort_idx);
-        events.tangent_y1 = all_tangent_y1(sort_idx);
-        events.tangent_x2 = all_tangent_x2(sort_idx);
-        events.tangent_y2 = all_tangent_y2(sort_idx);
-        events.decay_times = all_decay_times(sort_idx);
-        events.decay_values = all_decay_values(sort_idx);
-        events.decay_slope = all_decay_slopes(sort_idx);
-        events.decay_tangent_x1 = all_decay_tangent_x1(sort_idx);
-        events.decay_tangent_y1 = all_decay_tangent_y1(sort_idx);
-        events.decay_tangent_x2 = all_decay_tangent_x2(sort_idx);
-        events.decay_tangent_y2 = all_decay_tangent_y2(sort_idx);
+    % Объединение cell arrays в векторы
+    allFields = [findpeaksFields, extraFields];
+    if ~isempty(events.peak_times)
+        for i = 1:length(allFields)
+            events.(allFields{i}) = vertcat(events.(allFields{i}){:});
+        end
         
-        % Расчет first_onset для каждого канала
-        first_onset_by_channel = NaN(size(activeChannels));
-        first_onset_slope_by_channel = NaN(size(activeChannels));
-        first_decay_slope_by_channel = NaN(size(activeChannels));
+        % Сортировка по времени
+        [sorted_times, sort_idx] = sort(events.peak_times);
+        events.peak_times = sorted_times;
+        for i = 2:length(allFields)
+            events.(allFields{i}) = events.(allFields{i})(sort_idx);
+        end
+    else
+        for i = 1:length(allFields)
+            events.(allFields{i}) = [];
+        end
+    end
+    
+    % Расчет first_onset для каждого канала
+    first_onset_by_channel = NaN(size(activeChannels));
+    first_onset_slope_by_channel = NaN(size(activeChannels));
+    first_decay_slope_by_channel = NaN(size(activeChannels));
+    if ~isempty(events.peak_times)
         for chIdx = 1:length(activeChannels)
             channelIdx = activeChannels(chIdx);
             idx = find(events.channels == channelIdx & events.onset_times > 0 & ~isnan(events.onset_times), 1, 'first');
             if ~isempty(idx)
                 first_onset_by_channel(chIdx) = events.onset_times(idx);
-                first_onset_slope_by_channel(chIdx) = events.onset_slope(idx);
-                first_decay_slope_by_channel(chIdx) = events.decay_slope(idx);
+                first_onset_slope_by_channel(chIdx) = events.slopes(idx);
+                first_decay_slope_by_channel(chIdx) = events.decay_slopes(idx);
             end
         end
-        events.first_onset_by_channel = first_onset_by_channel;
-        events.first_onset_slope_by_channel = first_onset_slope_by_channel;
-        events.first_decay_slope_by_channel = first_decay_slope_by_channel;
-        events.median_first_onset = median(first_onset_by_channel(~isnan(first_onset_by_channel)));
-    else
-        events.times = [];
-        events.amplitudes = [];
-        events.widths = [];
-        events.prominences = [];
-        events.channels = [];
-        events.eventIndices = [];
-        events.onset_times = [];
-        events.onset_values = [];
-        events.onset_slope = [];
-        events.tangent_x1 = [];
-        events.tangent_y1 = [];
-        events.tangent_x2 = [];
-        events.tangent_y2 = [];
-        events.decay_times = [];
-        events.decay_values = [];
-        events.decay_slope = [];
-        events.decay_tangent_x1 = [];
-        events.decay_tangent_y1 = [];
-        events.decay_tangent_x2 = [];
-        events.decay_tangent_y2 = [];
-        events.first_onset_by_channel = NaN(size(activeChannels));
-        events.first_onset_slope_by_channel = NaN(size(activeChannels));
-        events.first_decay_slope_by_channel = NaN(size(activeChannels));
-        events.median_first_onset = NaN;
+    end
+    events.first_onset_by_channel = first_onset_by_channel;
+    events.first_onset_slope_by_channel = first_onset_slope_by_channel;
+    events.first_decay_slope_by_channel = first_decay_slope_by_channel;
+    events.median_first_onset = median(first_onset_by_channel(~isnan(first_onset_by_channel)));
+    
+    % Расчет медианных slope и decay_slope по каналам (control и response)
+    onset_slopes_control = NaN(size(activeChannels));
+    onset_slopes_response = NaN(size(activeChannels));
+    decay_slopes_control = NaN(size(activeChannels));
+    decay_slopes_response = NaN(size(activeChannels));
+    
+    if ~isempty(events.peak_times)
+        for chIdx = 1:length(activeChannels)
+            channelIdx = activeChannels(chIdx);
+            
+            % Контрольные события (onset_times <= 0)
+            control_mask = events.channels == channelIdx & ...
+                           events.onset_times <= 0 & ...
+                           ~isnan(events.onset_times) & ...
+                           ~isnan(events.slopes);
+            if any(control_mask)
+                onset_slopes_control(chIdx) = median(events.slopes(control_mask));
+            end
+            
+            control_decay_mask = events.channels == channelIdx & ...
+                                 events.onset_times <= 0 & ...
+                                 ~isnan(events.onset_times) & ...
+                                 ~isnan(events.decay_slopes);
+            if any(control_decay_mask)
+                decay_slopes_control(chIdx) = median(events.decay_slopes(control_decay_mask));
+            end
+            
+            % Ответные события (onset_times > 0)
+            response_mask = events.channels == channelIdx & ...
+                            events.onset_times > 0 & ...
+                            ~isnan(events.onset_times) & ...
+                            ~isnan(events.slopes);
+            if any(response_mask)
+                onset_slopes_response(chIdx) = median(events.slopes(response_mask));
+            end
+            
+            response_decay_mask = events.channels == channelIdx & ...
+                                  events.onset_times > 0 & ...
+                                  ~isnan(events.onset_times) & ...
+                                  ~isnan(events.decay_slopes);
+            if any(response_decay_mask)
+                decay_slopes_response(chIdx) = median(events.decay_slopes(response_decay_mask));
+            end
+        end
     end
     
+    events.onset_slopes_control = onset_slopes_control;
+    events.onset_slopes_response = onset_slopes_response;
+    events.decay_slopes_control = decay_slopes_control;
+    events.decay_slopes_response = decay_slopes_response;
+    
     events.polarity = Polarity;
-    events.numEvents = length(events.times);
+    events.numEvents = length(events.peak_times);
     
     % Подсчет событий до и после нуля
-    if ~isempty(events.times)
-        events.numEventsBeforeZero = sum(events.times < 0);
-        events.numEventsAfterZero = sum(events.times > 0);
+    if ~isempty(events.peak_times)
+        events.numEventsBeforeZero = sum(events.peak_times < 0);
+        events.numEventsAfterZero = sum(events.peak_times > 0);
     else
         events.numEventsBeforeZero = 0;
         events.numEventsAfterZero = 0;

@@ -4,7 +4,7 @@ function fig = plotEvents(fig, events, calcResult)
     % events - структура с событиями (times, amplitudes, channels)
     % calcResult - результат расчета средних данных
     
-    if isempty(events.times) || events.numEvents == 0
+    if isempty(events.peak_times) || events.numEvents == 0
         return;
     end
     
@@ -36,7 +36,7 @@ function fig = plotEvents(fig, events, calcResult)
     line_x = [];
     line_y = [];
     
-    numEvents = length(events.times);
+    numEvents = length(events.peak_times);
     hasChannels = isfield(events, 'channels') && ~isempty(events.channels);
     
     for i = 1:numEvents
@@ -53,11 +53,11 @@ function fig = plotEvents(fig, events, calcResult)
         end
         
         % Точки пиков
-        if isfield(events, 'amplitudes') && i <= length(events.amplitudes) && ~isnan(events.amplitudes(i))
-            event_time = events.times(i);
+        if isfield(events, 'peaks') && i <= length(events.peaks) && ~isnan(events.peaks(i))
+            event_time = events.peak_times(i);
             if event_time >= timeAxis(1) && event_time <= timeAxis(end)
                 peak_x(end+1) = event_time;
-                peak_y(end+1) = y_offset + events.amplitudes(i);
+                peak_y(end+1) = y_offset + events.peaks(i);
             end
         end
         
