@@ -768,8 +768,47 @@ function loadFileInGUI(fig, filePath)
         % Форматируем названия колонок
         state.table = boxplotFormatTableColumnNames(state.table);
         
-        % Заменяем пустые ячейки на NaN
-        state.table = replaceEmptyCellsWithNaN(state.table);
+        % Сначала определяем типы колонок и конвертируем числовые cell-массивы
+        varNames = state.table.Properties.VariableNames;
+        newTableData = cell(1, length(varNames));
+        numericColumns = false(1, length(varNames));
+        
+        for i = 1:length(varNames)
+            colName = varNames{i};
+            columnData = state.table{:, colName};
+            if iscell(columnData) && ~isempty(columnData)
+                if isNumericCellArray(columnData)
+                    numericColumns(i) = true;
+                    try
+                        numericData = convertTableColumnToNumeric(columnData);
+                        newTableData{i} = numericData;
+                    catch
+                        % Если конвертация не удалась, оставляем как есть
+                        newTableData{i} = columnData;
+                    end
+                else
+                    % Текстовые cell-массивы оставляем как есть
+                    newTableData{i} = columnData;
+                end
+            else
+                newTableData{i} = columnData;
+            end
+        end
+        
+        % Создаем новую таблицу с правильными типами колонок, сохраняя порядок
+        state.table = table(newTableData{:}, 'VariableNames', varNames);
+        
+        % Заменяем пустые ячейки на NaN только в числовых колонках
+        for i = 1:length(varNames)
+            if numericColumns(i)
+                colName = varNames{i};
+                columnData = state.table{:, colName};
+                if isnumeric(columnData)
+                    columnData(isnan(columnData) | isinf(columnData)) = NaN;
+                    state.table{:, colName} = columnData;
+                end
+            end
+        end
         
         state.filePath = filePath;
         state.parameters = {};

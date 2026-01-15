@@ -27,8 +27,12 @@ function fig = plotEvents(fig, events, calcResult)
     end
     
     % Собираем все данные за один проход
-    point_x = [];
-    point_y = [];
+    peak_x = [];
+    peak_y = [];
+    onset_x = [];
+    onset_y = [];
+    decay_x = [];
+    decay_y = [];
     line_x = [];
     line_y = [];
     
@@ -52,8 +56,8 @@ function fig = plotEvents(fig, events, calcResult)
         if isfield(events, 'amplitudes') && i <= length(events.amplitudes) && ~isnan(events.amplitudes(i))
             event_time = events.times(i);
             if event_time >= timeAxis(1) && event_time <= timeAxis(end)
-                point_x(end+1) = event_time;
-                point_y(end+1) = y_offset + events.amplitudes(i);
+                peak_x(end+1) = event_time;
+                peak_y(end+1) = y_offset + events.amplitudes(i);
             end
         end
         
@@ -62,8 +66,8 @@ function fig = plotEvents(fig, events, calcResult)
            i <= length(events.onset_times) && ~isnan(events.onset_times(i)) && ~isnan(events.onset_values(i))
             onset_time = events.onset_times(i);
             if onset_time >= timeAxis(1) && onset_time <= timeAxis(end)
-                point_x(end+1) = onset_time;
-                point_y(end+1) = y_offset + events.onset_values(i);
+                onset_x(end+1) = onset_time;
+                onset_y(end+1) = y_offset + events.onset_values(i);
             end
         end
         
@@ -72,8 +76,8 @@ function fig = plotEvents(fig, events, calcResult)
            i <= length(events.decay_times) && ~isnan(events.decay_times(i)) && ~isnan(events.decay_values(i))
             decay_time = events.decay_times(i);
             if decay_time >= timeAxis(1) && decay_time <= timeAxis(end)
-                point_x(end+1) = decay_time;
-                point_y(end+1) = y_offset + events.decay_values(i);
+                decay_x(end+1) = decay_time;
+                decay_y(end+1) = y_offset + events.decay_values(i);
             end
         end
         
@@ -106,12 +110,25 @@ function fig = plotEvents(fig, events, calcResult)
         end
     end
     
-    % Отображаем все точки одной командой
-    if ~isempty(point_x)
-        scatter(point_x, point_y, ...
+    % Отображаем точки пиков (серо-красные)
+    if ~isempty(peak_x)
+        scatter(peak_x, peak_y, 20, ...
+            'MarkerFaceColor', [0.7 0.4 0.4], ...
+            'MarkerEdgeColor', [0.7 0.4 0.4]);
+    end
+    
+    % Отображаем точки онсетов (серо-желтые)
+    if ~isempty(onset_x)
+        scatter(onset_x, onset_y, 20, ...
+            'MarkerFaceColor', [0.7 0.65 0.5], ...
+            'MarkerEdgeColor', [0.7 0.65 0.5]);
+    end
+    
+    % Отображаем точки спада (лазурно-серые)
+    if ~isempty(decay_x)
+        scatter(decay_x, decay_y, 20, ...
             'MarkerFaceColor', [0.5 0.7 0.8], ...
-            'MarkerEdgeColor', [0.5 0.7 0.8], ...
-            'SizeData', 20);
+            'MarkerEdgeColor', [0.5 0.7 0.8]);
     end
     
     % Отображаем все линии одной командой
