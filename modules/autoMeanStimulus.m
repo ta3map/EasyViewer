@@ -35,6 +35,10 @@ function result = autoMeanStimulus(filePath, fileId, params)
     else
         events = detectPeaksInMeanData(calcResult, detParams);
     end
+    
+    % Добавляем first_onset_by_channel и median_first_onset в результат
+    first_onset_by_channel = events.first_onset_by_channel;
+    median_first_onset = events.median_first_onset;
         
     % Добавляем графики и таблицы
     figure(meanFig);
@@ -60,6 +64,8 @@ function result = autoMeanStimulus(filePath, fileId, params)
         'report_path', figPath, ...
         'parameters', params, ...
         'calcResult', calcResult, ...
-        'events', events);
+        'events', events, ...
+        'first_onset_by_channel', first_onset_by_channel, ...
+        'median_first_onset', median_first_onset);
 end
 

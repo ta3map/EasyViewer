@@ -201,18 +201,36 @@ function events = detectPeaksInOriginalData(calcResult, params)
         events.eventIndices = all_event_indices(sort_idx);
         events.onset_times = all_onset_times(sort_idx);
         events.onset_values = all_onset_values(sort_idx);
-        events.slopes = all_slopes(sort_idx);
+        events.onset_slope = all_slopes(sort_idx);
         events.tangent_x1 = all_tangent_x1(sort_idx);
         events.tangent_y1 = all_tangent_y1(sort_idx);
         events.tangent_x2 = all_tangent_x2(sort_idx);
         events.tangent_y2 = all_tangent_y2(sort_idx);
         events.decay_times = all_decay_times(sort_idx);
         events.decay_values = all_decay_values(sort_idx);
-        events.decay_slopes = all_decay_slopes(sort_idx);
+        events.decay_slope = all_decay_slopes(sort_idx);
         events.decay_tangent_x1 = all_decay_tangent_x1(sort_idx);
         events.decay_tangent_y1 = all_decay_tangent_y1(sort_idx);
         events.decay_tangent_x2 = all_decay_tangent_x2(sort_idx);
         events.decay_tangent_y2 = all_decay_tangent_y2(sort_idx);
+        
+        % Расчет first_onset для каждого канала
+        first_onset_by_channel = NaN(size(activeChannels));
+        first_onset_slope_by_channel = NaN(size(activeChannels));
+        first_decay_slope_by_channel = NaN(size(activeChannels));
+        for chIdx = 1:length(activeChannels)
+            channelIdx = activeChannels(chIdx);
+            idx = find(events.channels == channelIdx & events.onset_times > 0 & ~isnan(events.onset_times), 1, 'first');
+            if ~isempty(idx)
+                first_onset_by_channel(chIdx) = events.onset_times(idx);
+                first_onset_slope_by_channel(chIdx) = events.onset_slope(idx);
+                first_decay_slope_by_channel(chIdx) = events.decay_slope(idx);
+            end
+        end
+        events.first_onset_by_channel = first_onset_by_channel;
+        events.first_onset_slope_by_channel = first_onset_slope_by_channel;
+        events.first_decay_slope_by_channel = first_decay_slope_by_channel;
+        events.median_first_onset = median(first_onset_by_channel(~isnan(first_onset_by_channel)));
     else
         events.times = [];
         events.amplitudes = [];
@@ -222,18 +240,22 @@ function events = detectPeaksInOriginalData(calcResult, params)
         events.eventIndices = [];
         events.onset_times = [];
         events.onset_values = [];
-        events.slopes = [];
+        events.onset_slope = [];
         events.tangent_x1 = [];
         events.tangent_y1 = [];
         events.tangent_x2 = [];
         events.tangent_y2 = [];
         events.decay_times = [];
         events.decay_values = [];
-        events.decay_slopes = [];
+        events.decay_slope = [];
         events.decay_tangent_x1 = [];
         events.decay_tangent_y1 = [];
         events.decay_tangent_x2 = [];
         events.decay_tangent_y2 = [];
+        events.first_onset_by_channel = NaN(size(activeChannels));
+        events.first_onset_slope_by_channel = NaN(size(activeChannels));
+        events.first_decay_slope_by_channel = NaN(size(activeChannels));
+        events.median_first_onset = NaN;
     end
     
     events.polarity = Polarity;
