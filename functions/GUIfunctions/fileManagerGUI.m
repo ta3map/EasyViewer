@@ -298,6 +298,13 @@ function fileManagerGUI()
         'Callback', @metadataAnalysisCallback, ...
         'Tag', 'metaAnalysisBtn');
     
+    assignFolderIdsBtn = uicontrol('Style', 'pushbutton', ...
+        'Position', getElementPosition('assignFolderIdsBtn'), ...
+        'String', 'Folder IDs', ...
+        'FontSize', 11, ...
+        'Callback', @assignFolderIdsCallback, ...
+        'Tag', 'assignFolderIdsBtn');
+    
     resultsGalleryBtn = uicontrol('Style', 'pushbutton', ...
         'Position', getElementPosition('resultsGalleryBtn'), ...
         'String', 'Results Gallery', ...
@@ -651,6 +658,18 @@ function fileManagerGUI()
                 'report_path TEXT NOT NULL, ' ...
                 'parameters_json TEXT, ' ...
                 'created_at DATETIME DEFAULT CURRENT_TIMESTAMP)']);
+            
+            stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS analysis_scripts (' ...
+                'id INTEGER PRIMARY KEY, ' ...
+                'name TEXT NOT NULL, ' ...
+                'script_path TEXT NOT NULL, ' ...
+                'description TEXT, ' ...
+                'UNIQUE(script_path))']);
+            
+            stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS result_scripts (' ...
+                'result_id INTEGER NOT NULL REFERENCES analysis_results(id) ON DELETE CASCADE, ' ...
+                'script_id INTEGER NOT NULL REFERENCES analysis_scripts(id) ON DELETE CASCADE, ' ...
+                'PRIMARY KEY (result_id, script_id))']);
             
             closeJdbcResource(stmt);
             closeJdbcResource(conn);
@@ -1572,6 +1591,73 @@ function fileManagerGUI()
         metadataAnalysis(metaPaths, fileIdArray, fileTableData, fileTableColumns);
     end
     
+    function assignFolderIdsCallback(~, ~)
+        if isempty(state.files)
+            return
+        end
+        
+        selectedRows = state.selectedRows;
+        if isempty(selectedRows)
+            selectedRows = 1:numel(state.files);
+        end
+        
+        if isempty(selectedRows)
+            return
+        end
+        
+        wb = waitbar(0, 'Preparing files...', 'Name', 'Assign Folder IDs');
+        
+        selectedFiles = state.files(selectedRows);
+        fileTableData = cell(numel(selectedFiles), 3);
+        for i = 1:numel(selectedFiles)
+            fileTableData{i, 1} = selectedFiles(i).id;
+            fileTableData{i, 2} = selectedFiles(i).name;
+            fileTableData{i, 3} = selectedFiles(i).path;
+        end
+        fileTableColumns = {'File ID', 'File Name', 'Path'};
+        
+        waitbar(0.1, wb, 'Grouping files by folder...');
+        [fileTableData, fileTableColumns] = assignFolderIds(fileTableData, fileTableColumns);
+        
+        folderIdColIdx = find(strcmp(fileTableColumns, 'folder_id'), 1);
+        if isempty(folderIdColIdx)
+            close(wb);
+            return
+        end
+        
+        if ~any(strcmp(state.metadataFields, 'folder_id'))
+            state.metadataFields{end+1} = 'folder_id';
+            safeFieldName = makeSafeFieldName('folder_id');
+            if ~isfield(state.fieldNameMap, safeFieldName)
+                state.fieldNameMap.(safeFieldName) = 'folder_id';
+            end
+        end
+        
+        safeFieldName = makeSafeFieldName('folder_id');
+        totalFiles = numel(selectedRows);
+        for i = 1:totalFiles
+            progress = 0.2 + 0.7 * (i / totalFiles);
+            waitbar(progress, wb, sprintf('Saving folder IDs (%d/%d)...', i, totalFiles));
+            
+            fileId = selectedFiles(i).id;
+            folderId = fileTableData{i, folderIdColIdx};
+            
+            saveFileMetadata(fileId, 'folder_id', num2str(folderId));
+            
+            fileIdStr = sprintf('f%d', fileId);
+            if ~isfield(state.metadataData, fileIdStr)
+                state.metadataData.(fileIdStr) = struct();
+            end
+            state.metadataData.(fileIdStr).(safeFieldName) = num2str(folderId);
+        end
+        
+        waitbar(0.95, wb, 'Updating table...');
+        updateTable(state.files);
+        
+        waitbar(1.0, wb, 'Completed!');
+        close(wb);
+    end
+    
     function openResultsGallery(~, ~)
         resultsGalleryGUI();
     end
@@ -2046,6 +2132,18 @@ function fileManagerGUI()
                 'report_path TEXT NOT NULL, ' ...
                 'parameters_json TEXT, ' ...
                 'created_at DATETIME DEFAULT CURRENT_TIMESTAMP)']);
+            
+            stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS analysis_scripts (' ...
+                'id INTEGER PRIMARY KEY, ' ...
+                'name TEXT NOT NULL, ' ...
+                'script_path TEXT NOT NULL, ' ...
+                'description TEXT, ' ...
+                'UNIQUE(script_path))']);
+            
+            stmt.executeUpdate(['CREATE TABLE IF NOT EXISTS result_scripts (' ...
+                'result_id INTEGER NOT NULL REFERENCES analysis_results(id) ON DELETE CASCADE, ' ...
+                'script_id INTEGER NOT NULL REFERENCES analysis_scripts(id) ON DELETE CASCADE, ' ...
+                'PRIMARY KEY (result_id, script_id))']);
             
             closeJdbcResource(stmt);
             
@@ -3188,5 +3286,21 @@ function exists = isAnalysisResultExistsByPath(conn, reportPath)
         rows = sqlFetchWithConn(conn, query);
     end
     exists = ~isempty(rows);
+end
+
+function [fileTableData, fileTableColumns] = assignFolderIds(fileTableData, fileTableColumns)
+    if isempty(fileTableData) || size(fileTableData, 2) < 3
+        return
+    end
+    
+    pathColumn = 3;
+    paths = fileTableData(:, pathColumn);
+    folders = cellfun(@(p) fileparts(p), paths, 'UniformOutput', false);
+    
+    [~, ~, folderIdx] = unique(folders);
+    folderIds = num2cell(folderIdx);
+    
+    fileTableData = [fileTableData, folderIds];
+    fileTableColumns{end+1} = 'folder_id';
 end
 

@@ -1115,30 +1115,6 @@ function flattenedTable = flattenTable(inputTable, wb)
     debugState('metadataAnalysis', 'Flattened table: %d rows -> %d rows', numRows, height(flattenedTable));
 end
 
-function str = struct2str(s)
-    if numel(s) == 1
-        fieldNames = fieldnames(s);
-        parts = cell(numel(fieldNames), 1);
-        for i = 1:numel(fieldNames)
-            fieldName = fieldNames{i};
-            fieldValue = s.(fieldName);
-            if ischar(fieldValue) || isstring(fieldValue)
-                parts{i} = sprintf('%s: "%s"', fieldName, char(fieldValue));
-            elseif isnumeric(fieldValue) && isscalar(fieldValue)
-                parts{i} = sprintf('%s: %g', fieldName, fieldValue);
-            elseif isnumeric(fieldValue)
-                parts{i} = sprintf('%s: [%s]', fieldName, mat2str(size(fieldValue)));
-            elseif isstruct(fieldValue)
-                parts{i} = sprintf('%s: {struct}', fieldName);
-            else
-                parts{i} = sprintf('%s: {%s}', fieldName, class(fieldValue));
-            end
-        end
-        str = sprintf('{%s}', strjoin(parts, ', '));
-    else
-        str = sprintf('{struct array [%s]}', mat2str(size(s)));
-    end
-end
 
 function handleMetadataError(ME, contextMessage, showMsgbox)
     if nargin < 3
