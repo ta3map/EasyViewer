@@ -1,4 +1,6 @@
 function resultsGalleryGUI()
+    global table_minimized
+    
     figTag = 'resultsGalleryGUI';
     guiFig = findobj('Type', 'figure', 'Tag', figTag);
     if ~isempty(guiFig)
@@ -12,8 +14,13 @@ function resultsGalleryGUI()
         state.currentProjectId = [];
         state.dbPath = '';
         state.searchText = '';
-        state.sortBy = 'date';
-        state.sortOrder = 'desc';
+        state.sortBy = 'path';
+        state.sortOrder = 'asc';
+        state.filterModule = '';
+    end
+    
+    if isempty(table_minimized)
+        table_minimized = false;
     end
     
     state.dbPath = getDbPath();
@@ -48,7 +55,7 @@ function resultsGalleryGUI()
         if isfield(coordsData.elements, tag)
             pos = coordsData.elements.(tag);
             % Проверяем, не является ли элемент панелью - для них оставляем относительные координаты
-            if ~strcmp(tag, 'previewPanel')
+            if ~strcmp(tag, 'previewPanel') && ~strcmp(tag, 'previewPanel_position_a') && ~strcmp(tag, 'previewPanel_position_b')
                 % Преобразуем относительные координаты в абсолютные на основе base_figure_position
                 base_pos = coordsData.base_figure_position;
                 pos = [
@@ -62,6 +69,12 @@ function resultsGalleryGUI()
             error('Coordinates for element %s not found in JSON file', tag);
         end
     end
+    
+    % Загружаем относительные позиции для таблицы и панели в двух состояниях
+    resultsTable_position_a_rel = coordsData.elements.resultsTable_position_a;
+    resultsTable_position_b_rel = coordsData.elements.resultsTable_position_b;
+    previewPanel_position_a = coordsData.elements.previewPanel_position_a;
+    previewPanel_position_b = coordsData.elements.previewPanel_position_b;
     
     function closeResultsGalleryWindow(src, ~)
         delete(src);
@@ -109,12 +122,61 @@ function resultsGalleryGUI()
     
     sortSelect = uicontrol('Style', 'popupmenu', ...
         'Position', getElementPosition('sortSelect'), ...
-        'String', {'Date Created (Newest)', 'Date Created (Oldest)', 'Module Name (A-Z)', 'Module Name (Z-A)'}, ...
+        'String', {'Report Path (A-Z)', 'Report Path (Z-A)', 'Date Created (Newest)', 'Date Created (Oldest)', 'Module Name (A-Z)', 'Module Name (Z-A)'}, ...
         'FontSize', 10, ...
         'Callback', @sortChanged, ...
         'Tag', 'sortSelect');
     
-    resultsTable = uitable('Position', getElementPosition('resultsTable'), ...
+    if strcmp(state.sortBy, 'path') && strcmp(state.sortOrder, 'asc')
+        set(sortSelect, 'Value', 1);
+    elseif strcmp(state.sortBy, 'path') && strcmp(state.sortOrder, 'desc')
+        set(sortSelect, 'Value', 2);
+    elseif strcmp(state.sortBy, 'date') && strcmp(state.sortOrder, 'desc')
+        set(sortSelect, 'Value', 3);
+    elseif strcmp(state.sortBy, 'date') && strcmp(state.sortOrder, 'asc')
+        set(sortSelect, 'Value', 4);
+    elseif strcmp(state.sortBy, 'module') && strcmp(state.sortOrder, 'asc')
+        set(sortSelect, 'Value', 5);
+    elseif strcmp(state.sortBy, 'module') && strcmp(state.sortOrder, 'desc')
+        set(sortSelect, 'Value', 6);
+    else
+        set(sortSelect, 'Value', 1);
+    end
+    
+    uicontrol('Style', 'text', ...
+        'Position', getElementPosition('moduleFilterText'), ...
+        'String', 'Module:', ...
+        'HorizontalAlignment', 'left', ...
+        'FontSize', 10, ...
+        'Tag', 'moduleFilterText');
+    
+    moduleFilterSelect = uicontrol('Style', 'popupmenu', ...
+        'Position', getElementPosition('moduleFilterSelect'), ...
+        'String', {'All Modules'}, ...
+        'FontSize', 10, ...
+        'Callback', @moduleFilterChanged, ...
+        'Tag', 'moduleFilterSelect');
+    
+    base_figure_position = coordsData.base_figure_position;
+    if table_minimized
+        initialTablePos = [
+            resultsTable_position_b_rel(1) * base_figure_position(3),
+            resultsTable_position_b_rel(2) * base_figure_position(4),
+            resultsTable_position_b_rel(3) * base_figure_position(3),
+            resultsTable_position_b_rel(4) * base_figure_position(4)
+        ];
+        initialPanelPos = previewPanel_position_b;
+    else
+        initialTablePos = [
+            resultsTable_position_a_rel(1) * base_figure_position(3),
+            resultsTable_position_a_rel(2) * base_figure_position(4),
+            resultsTable_position_a_rel(3) * base_figure_position(3),
+            resultsTable_position_a_rel(4) * base_figure_position(4)
+        ];
+        initialPanelPos = previewPanel_position_a;
+    end
+    
+    resultsTable = uitable('Position', initialTablePos, ...
         'ColumnWidth', {60, 200, 150, 450, 100}, ...
         'ColumnName', {'File ID', 'File Name', 'Module Name', 'Report Path', 'Created Date'}, ...
         'ColumnEditable', [false, false, false, false, false], ...
@@ -124,7 +186,7 @@ function resultsGalleryGUI()
     resultsTable.CellSelectionCallback = @handleTableSelection;
     
     previewPanel = uipanel('Parent', fig, ...
-        'Position', getElementPosition('previewPanel'), ...
+        'Position', initialPanelPos, ...
         'Tag', 'previewPanel');
     
     openBtn = uicontrol('Style', 'pushbutton', ...
@@ -158,16 +220,9 @@ function resultsGalleryGUI()
         'Callback', @addResultManually, ...
         'Tag', 'addResultBtn');
     
-    counterText = uicontrol('Style', 'text', ...
-        'Position', getElementPosition('counterText'), ...
-        'String', 'Selected: 0', ...
-        'HorizontalAlignment', 'left', ...
-        'FontSize', 10, ...
-        'Tag', 'counterText');
-    
     totalText = uicontrol('Style', 'text', ...
         'Position', getElementPosition('totalText'), ...
-        'String', 'Total: 0', ...
+        'String', 'Selected: 0 / Total: 0', ...
         'HorizontalAlignment', 'left', ...
         'FontSize', 10, ...
         'Tag', 'totalText');
@@ -197,12 +252,26 @@ function resultsGalleryGUI()
         'Tag', 'zoom_btn');
     btnIcon(zoomButton, fullfile(assetsPath, 'zoom_btn.png'), false);
     
+    if table_minimized
+        toggleBtnString = '>';
+    else
+        toggleBtnString = '<';
+    end
+    
+    tableToggleBtn = uicontrol('Style', 'pushbutton', ...
+        'Position', getElementPosition('table_toggle_btn'), ...
+        'String', toggleBtnString, ...
+        'FontSize', 12, ...
+        'Callback', @toggleTableCallback, ...
+        'Tag', 'table_toggle_btn');
+    
     % Устанавливаем обработчик изменения размера окна
     set(fig, 'SizeChangedFcn', @(~,~) resizeComponentsCallback(fig, coordsFile));
     
     % Разворачиваем окно после успешной инициализации
     fig.WindowState = 'maximized';
     
+    updateModuleFilterList();
     loadResults();
     
     % Функция обратного вызова для изменения размера
@@ -212,10 +281,69 @@ function resultsGalleryGUI()
                 coordsData = jsondecode(fileread(coordsFile));
                 base_figure_position = coordsData.base_figure_position;
                 ResizeElements(figHandle, coordsFile, base_figure_position);
+                
+                % Применяем текущее состояние таблицы после изменения размера
+                currentFigPos = get(figHandle, 'Position');
+                if table_minimized
+                    tablePos = [
+                        resultsTable_position_b_rel(1) * currentFigPos(3),
+                        resultsTable_position_b_rel(2) * currentFigPos(4),
+                        resultsTable_position_b_rel(3) * currentFigPos(3),
+                        resultsTable_position_b_rel(4) * currentFigPos(4)
+                    ];
+                    panelPos = previewPanel_position_b;
+                    set(resultsTable, 'Position', tablePos);
+                    set(previewPanel, 'Position', panelPos);
+                else
+                    tablePos = [
+                        resultsTable_position_a_rel(1) * currentFigPos(3),
+                        resultsTable_position_a_rel(2) * currentFigPos(4),
+                        resultsTable_position_a_rel(3) * currentFigPos(3),
+                        resultsTable_position_a_rel(4) * currentFigPos(4)
+                    ];
+                    panelPos = previewPanel_position_a;
+                    set(resultsTable, 'Position', tablePos);
+                    set(previewPanel, 'Position', panelPos);
+                end
             end
         catch ME
             warning('Error scaling elements: %s', ME.message);
         end
+    end
+    
+    function toggleTableSize()
+        currentFigPos = get(fig, 'Position');
+        
+        if table_minimized
+            relTablePos = resultsTable_position_a_rel;
+            tablePos = [
+                relTablePos(1) * currentFigPos(3),
+                relTablePos(2) * currentFigPos(4),
+                relTablePos(3) * currentFigPos(3),
+                relTablePos(4) * currentFigPos(4)
+            ];
+            panelPos = previewPanel_position_a;
+            set(tableToggleBtn, 'String', '<');
+        else
+            relTablePos = resultsTable_position_b_rel;
+            tablePos = [
+                relTablePos(1) * currentFigPos(3),
+                relTablePos(2) * currentFigPos(4),
+                relTablePos(3) * currentFigPos(3),
+                relTablePos(4) * currentFigPos(4)
+            ];
+            panelPos = previewPanel_position_b;
+            set(tableToggleBtn, 'String', '>');
+        end
+        
+        set(resultsTable, 'Position', tablePos);
+        set(previewPanel, 'Position', panelPos);
+        
+        table_minimized = ~table_minimized;
+    end
+    
+    function toggleTableCallback(~, ~)
+        toggleTableSize();
     end
     
     function loadResults()
@@ -276,6 +404,11 @@ function resultsGalleryGUI()
             whereClause = [whereClause searchCondition];
         end
         
+        if ~isempty(state.filterModule)
+            moduleCondition = sprintf(' AND ar.module_name = ''%s''', escapeSql(state.filterModule));
+            whereClause = [whereClause moduleCondition];
+        end
+        
         orderClause = buildOrderClause();
         query = [whereClause ' ' orderClause];
     end
@@ -294,8 +427,14 @@ function resultsGalleryGUI()
                 else
                     orderClause = 'ORDER BY ar.module_name DESC';
                 end
+            case 'path'
+                if strcmp(state.sortOrder, 'asc')
+                    orderClause = 'ORDER BY ar.report_path ASC';
+                else
+                    orderClause = 'ORDER BY ar.report_path DESC';
+                end
             otherwise
-                orderClause = 'ORDER BY ar.created_at DESC';
+                orderClause = 'ORDER BY ar.report_path ASC';
         end
     end
     
@@ -328,18 +467,108 @@ function resultsGalleryGUI()
         idx = get(src, 'Value');
         switch idx
             case 1
+                state.sortBy = 'path';
+                state.sortOrder = 'asc';
+            case 2
+                state.sortBy = 'path';
+                state.sortOrder = 'desc';
+            case 3
                 state.sortBy = 'date';
                 state.sortOrder = 'desc';
-            case 2
+            case 4
                 state.sortBy = 'date';
                 state.sortOrder = 'asc';
-            case 3
+            case 5
                 state.sortBy = 'module';
                 state.sortOrder = 'asc';
-            case 4
+            case 6
                 state.sortBy = 'module';
                 state.sortOrder = 'desc';
         end
+        loadResults();
+    end
+    
+    function updateModuleFilterList()
+        if isempty(state.currentProjectId)
+            set(moduleFilterSelect, 'String', {'All Modules'});
+            set(moduleFilterSelect, 'Value', 1);
+            return
+        end
+        
+        dbPath = getDbPath();
+        if isempty(dbPath) || ~isfile(dbPath)
+            set(moduleFilterSelect, 'String', {'All Modules'});
+            set(moduleFilterSelect, 'Value', 1);
+            return
+        end
+        
+        conn = openSqliteConnection(dbPath);
+        if isempty(conn)
+            set(moduleFilterSelect, 'String', {'All Modules'});
+            set(moduleFilterSelect, 'Value', 1);
+            return
+        end
+        
+        try
+            query = sprintf(['SELECT DISTINCT ar.module_name ' ...
+                'FROM analysis_results ar ' ...
+                'LEFT JOIN files f ON f.id = ar.file_id ' ...
+                'LEFT JOIN project_files pf ON pf.file_id = f.id AND pf.project_id = %d ' ...
+                'WHERE (pf.project_id = %d OR ar.file_id IS NULL) ' ...
+                'AND ar.module_name IS NOT NULL ' ...
+                'ORDER BY ar.module_name ASC'], ...
+                state.currentProjectId, state.currentProjectId);
+            
+            rows = sqlFetchWithConn(conn, query);
+            
+            if isempty(rows)
+                moduleList = {'All Modules'};
+            else
+                moduleList = cell(1, size(rows, 1) + 1);
+                moduleList{1} = 'All Modules';
+                for i = 1:size(rows, 1)
+                    moduleList{i + 1} = rows{i, 1};
+                end
+            end
+            
+            set(moduleFilterSelect, 'String', moduleList);
+            
+            currentModule = state.filterModule;
+            if isempty(currentModule)
+                set(moduleFilterSelect, 'Value', 1);
+            else
+                moduleIdx = find(strcmp(moduleList, currentModule), 1);
+                if isempty(moduleIdx)
+                    set(moduleFilterSelect, 'Value', 1);
+                    state.filterModule = '';
+                else
+                    set(moduleFilterSelect, 'Value', moduleIdx);
+                end
+            end
+        catch ME
+            warning('Failed to load modules: %s', ME.message);
+            set(moduleFilterSelect, 'String', {'All Modules'});
+            set(moduleFilterSelect, 'Value', 1);
+        end
+        
+        closeJdbcResource(conn);
+    end
+    
+    function moduleFilterChanged(src, ~)
+        modules = get(src, 'String');
+        idx = get(src, 'Value');
+        
+        if iscell(modules) && idx <= numel(modules)
+            selectedModule = modules{idx};
+            if strcmp(selectedModule, 'All Modules')
+                state.filterModule = '';
+            else
+                state.filterModule = selectedModule;
+            end
+        else
+            state.filterModule = '';
+        end
+        
         loadResults();
     end
     
@@ -421,8 +650,7 @@ function resultsGalleryGUI()
     end
     
     function updateCounter(selected, total)
-        set(counterText, 'String', sprintf('Selected: %d', selected));
-        set(totalText, 'String', sprintf('Total: %d', total));
+        set(totalText, 'String', sprintf('Selected: %d / Total: %d', selected, total));
     end
     
     function openSelectedResult(~, ~)
@@ -485,6 +713,7 @@ function resultsGalleryGUI()
                 set(fig, 'Name', sprintf('Results Gallery: %s', projectName));
             end
         end
+        updateModuleFilterList();
         loadResults();
     end
     
