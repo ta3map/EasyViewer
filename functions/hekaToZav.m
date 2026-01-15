@@ -1,34 +1,68 @@
 function [lfp, spks, hd, zavp, lfpVar, chnlGrp] = hekaToZav(filepath)
-    % Конвертирует Heka .mat файл в формат ZAV
+    % Converts Heka .mat file to ZAV format
     %
-    % Параметры:
-    %   filepath - путь к Heka .mat файлу
+    % Parameters:
+    %   filepath - path to Heka .mat file
     %
-    % Возвращает:
-    %   lfp, spks, hd, zavp, lfpVar, chnlGrp - переменные в формате ZAV
+    % Returns:
+    %   lfp, spks, hd, zavp, lfpVar, chnlGrp - variables in ZAV format
     
     disp('Converting Heka file to ZAV format...');
     
     try
-        % Загружаем данные через HekaMat
-        [data, Freq] = HekaMat(filepath);
+        % Load Heka .mat file
+        load(filepath);
         
-        % Получаем размеры данных
+        % Get list of variables
+        aa = who;
+        
+        % Find Trace variables
+        ThirdValue = [];
+        FourthValue = [];
+        cn = 0;
+        FilesOfInterest = [];
+        for m = 1:size(aa, 1)
+            bz = aa{m};
+            if numel(bz) >= 5 && isequal(bz(1:5), 'Trace')
+                cn = cn + 1;
+                h1 = strfind(bz, '_');
+                ValueT = str2num(bz(h1(3)+1:h1(4)-1));
+                ThirdValue(cn) = ValueT;
+                ValueY = str2num(bz(h1(4)+1:end));
+                FourthValue(cn) = ValueY;
+                FilesOfInterest(cn) = m;
+            end
+        end
+        
+        % Load data from Trace variables
+        data = [];
+        for listOfTraces = 1:numel(FilesOfInterest)
+            bz = aa{FilesOfInterest(listOfTraces)};
+            h1 = strfind(bz, '_');
+            SweepNumber = str2num(bz(h1(3)+1:h1(4)-1));
+            ChannelNumber = str2num(bz(h1(4)+1:end));
+            data(:, ChannelNumber, SweepNumber) = eval([bz, '(:,2)']);
+        end
+        
+        % Calculate sampling frequency
+        Freq = round(1/median(diff(eval([bz, '(:,1)']))));
+        
+        % Get data dimensions
         n_channels = size(data, 2);
         n_sweeps = size(data, 3);
         n_points = size(data, 1);
         
         disp(['Found ' num2str(n_channels) ' channels, ' num2str(n_sweeps) ' sweeps, ' num2str(n_points) ' points per sweep']);
         
-        % Сохраняем свипы раздельно в формате [точки_времени, каналы, свипы]
+        % Store sweeps separately in format [time_points, channels, sweeps]
         lfp = zeros(n_points, n_channels, n_sweeps);
         
-        % Обработка данных с масштабированием
+        % Data processing with scaling
         for CH = 1:n_channels
             for sweep = 1:n_sweeps
                 d = data(:, CH, sweep);
                 
-                % Масштабирование данных (как в PreprocessingEC)
+                % Data scaling (as in PreprocessingEC)
                 if abs(median(d)) > 1e-3 && abs(median(d)) < 1e-1
                     lfp(:, CH, sweep) = 1e3 * d;
                 elseif abs(median(d)) < 1e-7
@@ -39,16 +73,16 @@ function [lfp, spks, hd, zavp, lfpVar, chnlGrp] = hekaToZav(filepath)
             end
         end
         
-        % Создаем события для каждого свипа в формате, совместимом с sweepProcessData
+        % Create events for each sweep in format compatible with sweepProcessData
         zavp.realStim = struct('r', cell(1, n_sweeps));
         for sweep = 1:n_sweeps
-            zavp.realStim(sweep).r = 1; % Начало каждого свипа
+            zavp.realStim(sweep).r = 1; % Start of each sweep
         end
         
-        % Создаем структуру спайков для каждого канала и свипа
+        % Create spike structure for each channel and sweep
         spks = repmat(struct('tStamp', [], 'ampl', Inf, 'shape', []), n_channels, n_sweeps);
         
-        % Рассчитываем вариацию для каждого канала по свипам
+        % Calculate variation for each channel across sweeps
         lfpVar = zeros(n_channels, n_sweeps);
         for ch = 1:n_channels
             for sweep = 1:n_sweeps
@@ -56,7 +90,7 @@ function [lfp, spks, hd, zavp, lfpVar, chnlGrp] = hekaToZav(filepath)
             end
         end
         
-        % Создаем заголовок
+        % Create header
         [~, filename, ~] = fileparts(filepath);
         zavp.file = filename;
         zavp.rarStep = Freq/Freq;
@@ -73,14 +107,14 @@ function [lfp, spks, hd, zavp, lfpVar, chnlGrp] = hekaToZav(filepath)
         hd.recTime = [1 n_points];
         hd.sweepLengthInPts = n_points;
         
-        % Создаем имена каналов
+        % Create channel names
         recChNames = cell(1, n_channels);
         for i = 1:n_channels
             recChNames{i} = ['Ch', num2str(i)];
         end
         hd.recChNames = recChNames;
         
-        % Группы каналов
+        % Channel groups
         chnlGrp = 1:n_channels;
         
         disp(['Successfully converted Heka file: ' filename]);

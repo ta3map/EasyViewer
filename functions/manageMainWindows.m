@@ -5,10 +5,10 @@ function manageMainWindows(closingWindowTag)
 %
 %   Входные параметры:
 %   closingWindowTag - тег закрывающегося окна ('EasyViewerApp', 
-%                      'SignalViewerGUI', 'SignalAnalysisGUI', 'plotFromTableGUI', 'fileManagerGUI')
+%                      'SignalViewerGUI', 'SignalAnalysisGUI', 'plotFromTableGUI', 'fileManagerGUI', 'resultsGalleryGUI')
 
     % Определяем теги главных окон
-    mainWindowTags = {'EasyViewerApp', 'SignalViewerGUI', 'SignalAnalysisGUI', 'plotFromTableGUI', 'fileManagerGUI'};
+    mainWindowTags = {'EasyViewerApp', 'SignalViewerGUI', 'SignalAnalysisGUI', 'plotFromTableGUI', 'fileManagerGUI', 'resultsGalleryGUI'};
     
     % Проверяем наличие других главных окон
     otherMainWindowsExist = false;
