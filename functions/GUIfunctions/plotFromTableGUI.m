@@ -768,47 +768,8 @@ function loadFileInGUI(fig, filePath)
         % Форматируем названия колонок
         state.table = boxplotFormatTableColumnNames(state.table);
         
-        % Сначала определяем типы колонок и конвертируем числовые cell-массивы
-        varNames = state.table.Properties.VariableNames;
-        newTableData = cell(1, length(varNames));
-        numericColumns = false(1, length(varNames));
-        
-        for i = 1:length(varNames)
-            colName = varNames{i};
-            columnData = state.table{:, colName};
-            if iscell(columnData) && ~isempty(columnData)
-                if isNumericCellArray(columnData)
-                    numericColumns(i) = true;
-                    try
-                        numericData = convertTableColumnToNumeric(columnData);
-                        newTableData{i} = numericData;
-                    catch
-                        % Если конвертация не удалась, оставляем как есть
-                        newTableData{i} = columnData;
-                    end
-                else
-                    % Текстовые cell-массивы оставляем как есть
-                    newTableData{i} = columnData;
-                end
-            else
-                newTableData{i} = columnData;
-            end
-        end
-        
-        % Создаем новую таблицу с правильными типами колонок, сохраняя порядок
-        state.table = table(newTableData{:}, 'VariableNames', varNames);
-        
-        % Заменяем пустые ячейки на NaN только в числовых колонках
-        for i = 1:length(varNames)
-            if numericColumns(i)
-                colName = varNames{i};
-                columnData = state.table{:, colName};
-                if isnumeric(columnData)
-                    columnData(isnan(columnData) | isinf(columnData)) = NaN;
-                    state.table{:, colName} = columnData;
-                end
-            end
-        end
+        % Конвертируем колонки таблицы (определение типов, конвертация числовых cell-массивов, замена пустых ячеек)
+        state.table = convertTableColumns(state.table);
         
         state.filePath = filePath;
         state.parameters = {};
@@ -2074,53 +2035,63 @@ end
 % Вспомогательные функции парсинга и обработки данных
 % ============================================================================
 
-function tableOut = replaceEmptyCellsWithNaN(tableIn)
-    % replaceEmptyCellsWithNaN - Заменяет все пустые ячейки в таблице на NaN
-    tableOut = tableIn;
-    varNames = tableOut.Properties.VariableNames;
+function tableOut = convertTableColumns(tableIn)
+    % convertTableColumns - Конвертация таблицы: определение типов колонок,
+    % конвертация числовых cell-массивов в числовой формат и замена пустых ячеек на NaN
+    % 
+    % Входные параметры:
+    %   tableIn - исходная таблица
+    %
+    % Выходные параметры:
+    %   tableOut - таблица с конвертированными колонками
+    
+    varNames = tableIn.Properties.VariableNames;
+    newTableData = cell(1, length(varNames));
     
     for i = 1:length(varNames)
         colName = varNames{i};
-        columnData = tableOut{:, colName};
+        columnData = tableIn{:, colName};
         
-        if iscell(columnData)
-            for j = 1:length(columnData)
-                if isempty(columnData{j})
-                    columnData{j} = NaN;
+        if iscell(columnData) && ~isempty(columnData)
+            if isNumericCellArray(columnData)
+                % Числовой cell-массив: заменяем пустые ячейки на NaN и конвертируем
+                for j = 1:length(columnData)
+                    if isempty(columnData{j})
+                        columnData{j} = NaN;
+                    end
                 end
+                try
+                    % Конвертируем cell-массив в числовой формат
+                    numericData = nan(length(columnData), 1);
+                    for j = 1:length(columnData)
+                        value = columnData{j};
+                        if isnumeric(value) && isscalar(value)
+                            numericData(j) = double(value);
+                        elseif islogical(value) && isscalar(value)
+                            numericData(j) = double(value);
+                        elseif ischar(value) || isstring(value)
+                            numericData(j) = str2double(value);
+                        elseif isempty(value)
+                            numericData(j) = NaN;
+                        end
+                    end
+                    newTableData{i} = numericData;
+                catch
+                    % Если конвертация не удалась, оставляем как есть
+                    newTableData{i} = columnData;
+                end
+            else
+                % Текстовой cell-массив: оставляем как есть
+                newTableData{i} = columnData;
             end
-            tableOut{:, colName} = columnData;
+        else
+            % Уже не cell-массив: оставляем как есть
+            newTableData{i} = columnData;
         end
     end
-end
-
-function numericData = convertTableColumnToNumeric(columnData)
-    % convertTableColumnToNumeric - Конвертация данных колонки таблицы в числовой формат
-    % Принимает данные любого типа и возвращает числовой массив (double)
-    % Строковые значения конвертируются через str2double (неконвертируемые → NaN)
-    % Cell arrays обрабатываются: если внутри числа - извлекаются, если строки - конвертируются
     
-    if isnumeric(columnData)
-        numericData = double(columnData);
-    elseif islogical(columnData)
-        numericData = double(columnData);
-    elseif iscell(columnData)
-        numericData = nan(length(columnData), 1);
-        for i = 1:length(columnData)
-            value = columnData{i};
-            if isnumeric(value) && isscalar(value)
-                numericData(i) = double(value);
-            elseif islogical(value) && isscalar(value)
-                numericData(i) = double(value);
-            elseif ischar(value) || isstring(value)
-                numericData(i) = str2double(value);
-            elseif isempty(value)
-                numericData(i) = NaN;
-            end
-        end
-    else
-        numericData = str2double(columnData);
-    end
+    % Создаем новую таблицу с правильными типами колонок, сохраняя порядок
+    tableOut = table(newTableData{:}, 'VariableNames', varNames);
 end
 
 function updateFilteredDataStructure(fig)
@@ -2173,7 +2144,12 @@ function updateFilteredDataStructure(fig)
             if ~isempty(parsedFilters)
                 filteredTable = boxplotApplyGroupFilters(state.table, parsedFilters);
                 if ~isempty(filteredTable) && ismember(columnName, filteredTable.Properties.VariableNames)
-                    filteredData = convertTableColumnToNumeric(filteredTable{:, columnName});
+                    columnData = filteredTable{:, columnName};
+                    if isnumeric(columnData)
+                        filteredData = double(columnData);
+                    else
+                        filteredData = [];
+                    end
                     % Извлекаем File ID
                     if ismember('FileID', filteredTable.Properties.VariableNames)
                         fileIds = filteredTable{:, 'FileID'};
@@ -2182,7 +2158,12 @@ function updateFilteredDataStructure(fig)
             end
         else
             % Нет фильтра - используем все данные
-            filteredData = convertTableColumnToNumeric(state.table{:, columnName});
+            columnData = state.table{:, columnName};
+            if isnumeric(columnData)
+                filteredData = double(columnData);
+            else
+                filteredData = [];
+            end
             % Извлекаем File ID
             if ismember('FileID', state.table.Properties.VariableNames)
                 fileIds = state.table{:, 'FileID'};
@@ -2430,8 +2411,18 @@ function createCorrelationFigure(fig, state)
             end
             
             % Получаем данные из отфильтрованной таблицы
-            xData = convertTableColumnToNumeric(filteredTable{:, param1.column});
-            yData = convertTableColumnToNumeric(filteredTable{:, param2.column});
+            xColumnData = filteredTable{:, param1.column};
+            yColumnData = filteredTable{:, param2.column};
+            if isnumeric(xColumnData)
+                xData = double(xColumnData);
+            else
+                xData = [];
+            end
+            if isnumeric(yColumnData)
+                yData = double(yColumnData);
+            else
+                yData = [];
+            end
             
             % Получаем FileID если доступен
             fileIds = [];
@@ -2768,7 +2759,12 @@ function createHistogramFigure(fig, state)
             
             if useGroupColumn && ismember('Group', filteredTable.Properties.VariableNames)
                 % Группируем данные по колонке Group из таблицы
-                columnData = convertTableColumnToNumeric(filteredTable{:, paramData.column});
+                rawColumnData = filteredTable{:, paramData.column};
+                if isnumeric(rawColumnData)
+                    columnData = double(rawColumnData);
+                else
+                    columnData = [];
+                end
                 groupData = filteredTable{:, 'Group'};
                 
                 if isempty(columnData)
