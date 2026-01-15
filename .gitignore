@@ -32,3 +32,6 @@ data_examples/
 
 # VS Code settings
 .vscode/
+
+# Script source files
+modules/script_source/
