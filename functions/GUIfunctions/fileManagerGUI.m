@@ -1610,44 +1610,48 @@ function fileManagerGUI()
             src.Value = 1;
             return
         end
-        
         src.Value = 1;
         
         userData = get(src, 'UserData');
-        moduleIdx = selectionIdx - 1;
-        if moduleIdx < 1 || moduleIdx > numel(userData)
-            return
-        end
-        
-        moduleConfig = userData{moduleIdx};
-        
-        if isempty(state.files)
-            return
-        end
+        moduleConfig = userData{selectionIdx - 1};
         
         selectedRows = state.selectedRows;
         if isempty(selectedRows)
             selectedRows = 1:numel(state.files);
         end
         
-        if isempty(selectedRows)
-            return
-        end
-        
-        moduleName = moduleConfig.moduleName;
-        fieldName = moduleConfig.fieldName;
-        displayName = moduleConfig.displayName;
-        
-        if ~exist(moduleName, 'file')
-            msgbox(sprintf('Module "%s" not found', moduleName), 'Error', 'error');
-            return
-        end
-        
-        wb = waitbar(0, 'Preparing files...', 'Name', displayName);
-        
         selectedFiles = state.files(selectedRows);
-        fileTableData = cell(numel(selectedFiles), 3);
-        for i = 1:numel(selectedFiles)
+        wb = waitbar(0, 'Preparing files...', 'Name', moduleConfig.displayName);
+        
+        waitbar(0.05, wb, 'Building table...');
+        dataTable = buildFileTableForModule(selectedFiles);
+        
+        waitbar(0.1, wb, 'Running module...');
+        moduleFunc = str2func(moduleConfig.moduleName);
+        dataTable = moduleFunc(dataTable);
+        
+        waitbar(0.2, wb, 'Processing results...');
+        metadataColumns = extractMetadataColumns(dataTable);
+        
+        fileIds = [selectedFiles.id]';
+        
+        waitbar(0.3, wb, sprintf('Saving %d field(s)...', numel(metadataColumns)));
+        saveModuleResults(dataTable, metadataColumns, fileIds, wb);
+        
+        waitbar(0.9, wb, 'Updating state...');
+        updateStateFromModuleResults(dataTable, metadataColumns, fileIds);
+        
+        waitbar(0.95, wb, 'Updating table...');
+        updateTable(state.files);
+        
+        waitbar(1.0, wb, 'Completed!');
+        close(wb);
+    end
+    
+    function dataTable = buildFileTableForModule(selectedFiles)
+        numFiles = numel(selectedFiles);
+        fileTableData = cell(numFiles, 3);
+        for i = 1:numFiles
             fileTableData{i, 1} = selectedFiles(i).id;
             fileTableData{i, 2} = selectedFiles(i).name;
             fileTableData{i, 3} = selectedFiles(i).path;
@@ -1659,8 +1663,8 @@ function fileManagerGUI()
             safeFieldName = makeSafeFieldName(originalFieldName);
             fileTableColumns{end+1} = originalFieldName;
             
-            values = cell(numel(selectedFiles), 1);
-            for j = 1:numel(selectedFiles)
+            values = cell(numFiles, 1);
+            for j = 1:numFiles
                 fileId = selectedFiles(j).id;
                 fileIdStr = sprintf('f%d', fileId);
                 if isfield(state.metadataData, fileIdStr) && isfield(state.metadataData.(fileIdStr), safeFieldName)
@@ -1672,56 +1676,25 @@ function fileManagerGUI()
             fileTableData = [fileTableData, values];
         end
         
-        waitbar(0.1, wb, 'Running module...');
         dataTable = cell2table(fileTableData, 'VariableNames', fileTableColumns);
-        moduleFunc = str2func(moduleName);
-        dataTable = moduleFunc(dataTable);
-        
+    end
+    
+    function metadataColumns = extractMetadataColumns(dataTable)
         systemColumns = {'File ID', 'File Name', 'Path', 'Analysis History'};
         allColumns = dataTable.Properties.VariableNames;
         metadataColumns = setdiff(allColumns, systemColumns);
+    end
+    
+    function saveModuleResults(dataTable, metadataColumns, fileIds, wb)
+        totalFiles = numel(fileIds);
+        numFields = numel(metadataColumns);
         
-        if isempty(metadataColumns)
-            close(wb);
-            msgbox('Module did not return any metadata columns', 'Warning', 'warn');
-            return
-        end
-        
-        totalFiles = numel(selectedFiles);
-        fileIds = zeros(totalFiles, 1);
-        for i = 1:totalFiles
-            fileIds(i) = selectedFiles(i).id;
-        end
-        
-        resultFileIds = dataTable.('File ID');
-        if numel(resultFileIds) ~= totalFiles
-            close(wb);
-            msgbox(sprintf('Module returned %d rows, expected %d', numel(resultFileIds), totalFiles), 'Error', 'error');
-            return
-        end
-        
-        for i = 1:totalFiles
-            if resultFileIds(i) ~= fileIds(i)
-                close(wb);
-                msgbox(sprintf('Row order mismatch at row %d: expected file_id=%d, got %d', i, fileIds(i), resultFileIds(i)), 'Error', 'error');
-                return
-            end
-        end
-        
-        waitbar(0.2, wb, sprintf('Saving %d field(s)...', numel(metadataColumns)));
-        
-        for colIdx = 1:numel(metadataColumns)
+        for colIdx = 1:numFields
             fieldName = metadataColumns{colIdx};
-            progress = 0.2 + 0.6 * (colIdx / numel(metadataColumns));
-            waitbar(progress, wb, sprintf('Saving %s (%d/%d)...', fieldName, colIdx, numel(metadataColumns)));
+            progress = 0.3 + 0.5 * (colIdx / numFields);
+            waitbar(progress, wb, sprintf('Saving %s (%d/%d)...', fieldName, colIdx, numFields));
             
-            if ~any(strcmp(state.metadataFields, fieldName))
-                state.metadataFields{end+1} = fieldName;
-                safeFieldName = makeSafeFieldName(fieldName);
-                if ~isfield(state.fieldNameMap, safeFieldName)
-                    state.fieldNameMap.(safeFieldName) = fieldName;
-                end
-            end
+            registerMetadataField(fieldName);
             
             columnData = dataTable.(fieldName);
             fieldValues = cell(totalFiles, 1);
@@ -1731,38 +1704,28 @@ function fileManagerGUI()
             
             saveFileMetadataBatch(fileIds, fieldName, fieldValues);
         end
-        
-        waitbar(0.9, wb, 'Updating state...');
+    end
+    
+    function registerMetadataField(fieldName)
+        if ~any(strcmp(state.metadataFields, fieldName))
+            state.metadataFields{end+1} = fieldName;
+            safeFieldName = makeSafeFieldName(fieldName);
+            if ~isfield(state.fieldNameMap, safeFieldName)
+                state.fieldNameMap.(safeFieldName) = fieldName;
+            end
+        end
+    end
+    
+    function updateStateFromModuleResults(dataTable, metadataColumns, fileIds)
         for colIdx = 1:numel(metadataColumns)
             fieldName = metadataColumns{colIdx};
             safeFieldName = makeSafeFieldName(fieldName);
             columnData = dataTable.(fieldName);
             
-            for i = 1:totalFiles
+            for i = 1:numel(fileIds)
                 fileId = fileIds(i);
                 fieldValue = columnData(i);
-                
-                if isempty(fieldValue)
-                    fieldValueStr = '';
-                elseif iscell(fieldValue)
-                    if isempty(fieldValue{1})
-                        fieldValueStr = '';
-                    elseif isnumeric(fieldValue{1})
-                        fieldValueStr = num2str(fieldValue{1});
-                    else
-                        fieldValueStr = char(fieldValue{1});
-                    end
-                elseif isnumeric(fieldValue)
-                    fieldValueStr = num2str(fieldValue);
-                elseif islogical(fieldValue)
-                    if fieldValue
-                        fieldValueStr = 'true';
-                    else
-                        fieldValueStr = 'false';
-                    end
-                else
-                    fieldValueStr = char(fieldValue);
-                end
+                fieldValueStr = convertFieldValueToString(fieldValue);
                 
                 fileIdStr = sprintf('f%d', fileId);
                 if ~isfield(state.metadataData, fileIdStr)
@@ -1771,12 +1734,30 @@ function fileManagerGUI()
                 state.metadataData.(fileIdStr).(safeFieldName) = fieldValueStr;
             end
         end
-        
-        waitbar(0.95, wb, 'Updating table...');
-        updateTable(state.files);
-        
-        waitbar(1.0, wb, 'Completed!');
-        close(wb);
+    end
+    
+    function fieldValueStr = convertFieldValueToString(fieldValue)
+        if isempty(fieldValue)
+            fieldValueStr = '';
+        elseif iscell(fieldValue)
+            if isempty(fieldValue{1})
+                fieldValueStr = '';
+            elseif isnumeric(fieldValue{1})
+                fieldValueStr = num2str(fieldValue{1});
+            else
+                fieldValueStr = char(fieldValue{1});
+            end
+        elseif isnumeric(fieldValue)
+            fieldValueStr = num2str(fieldValue);
+        elseif islogical(fieldValue)
+            if fieldValue
+                fieldValueStr = 'true';
+            else
+                fieldValueStr = 'false';
+            end
+        else
+            fieldValueStr = char(fieldValue);
+        end
     end
     
     function openResultsGallery(~, ~)
