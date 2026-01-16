@@ -9,20 +9,25 @@ function fileTable = assignStimulusPairId(fileTable)
     
     debugState('assignStimulusPairId', 'Table size: %d rows, %d columns', height(fileTable), width(fileTable));
     
-    % Автоматическое создание folder_id, если его нет
     varNames = fileTable.Properties.VariableNames;
     debugState('assignStimulusPairId', 'Available columns: %s', strjoin(varNames, ', '));
     
-    if ~any(strcmp(varNames, 'folder_id'))
-        debugState('assignStimulusPairId', 'folder_id not found, creating from Path');
-        paths = fileTable.Path;
-        folders = cellfun(@(p) fileparts(p), paths, 'UniformOutput', false);
-        [~, ~, folderIdx] = unique(folders);
-        fileTable.folder_id = folderIdx;
-        debugState('assignStimulusPairId', 'Created folder_id: %d unique folders', numel(unique(folderIdx)));
-    else
-        debugState('assignStimulusPairId', 'folder_id already exists');
+    outputFields = {'folder_id', 'current_type', 'pair_id'};
+    for i = 1:numel(outputFields)
+        if any(strcmp(varNames, outputFields{i}))
+            fileTable = removevars(fileTable, outputFields{i});
+            debugState('assignStimulusPairId', 'Removed existing output field: %s', outputFields{i});
+        end
     end
+    
+    varNames = fileTable.Properties.VariableNames;
+    debugState('assignStimulusPairId', 'Updated columns: %s', strjoin(varNames, ', '));
+    
+    paths = fileTable.Path;
+    folders = cellfun(@(p) fileparts(p), paths, 'UniformOutput', false);
+    [~, ~, folderIdx] = unique(folders);
+    fileTable.folder_id = folderIdx;
+    debugState('assignStimulusPairId', 'Created folder_id: %d unique folders', numel(unique(folderIdx)));
     
     % Обновляем список колонок после возможного добавления folder_id
     varNames = fileTable.Properties.VariableNames;

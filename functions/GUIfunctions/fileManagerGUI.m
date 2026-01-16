@@ -1654,7 +1654,6 @@ function fileManagerGUI()
         end
         fileTableColumns = {'File ID', 'File Name', 'Path'};
         
-        % Добавляем метаданные колонки
         for i = 1:numel(state.metadataFields)
             originalFieldName = state.metadataFields{i};
             safeFieldName = makeSafeFieldName(originalFieldName);
@@ -1688,10 +1687,25 @@ function fileManagerGUI()
             return
         end
         
-        totalFiles = numel(selectedRows);
+        totalFiles = numel(selectedFiles);
         fileIds = zeros(totalFiles, 1);
         for i = 1:totalFiles
             fileIds(i) = selectedFiles(i).id;
+        end
+        
+        resultFileIds = dataTable.('File ID');
+        if numel(resultFileIds) ~= totalFiles
+            close(wb);
+            msgbox(sprintf('Module returned %d rows, expected %d', numel(resultFileIds), totalFiles), 'Error', 'error');
+            return
+        end
+        
+        for i = 1:totalFiles
+            if resultFileIds(i) ~= fileIds(i)
+                close(wb);
+                msgbox(sprintf('Row order mismatch at row %d: expected file_id=%d, got %d', i, fileIds(i), resultFileIds(i)), 'Error', 'error');
+                return
+            end
         end
         
         waitbar(0.2, wb, sprintf('Saving %d field(s)...', numel(metadataColumns)));
@@ -1709,9 +1723,10 @@ function fileManagerGUI()
                 end
             end
             
+            columnData = dataTable.(fieldName);
             fieldValues = cell(totalFiles, 1);
             for i = 1:totalFiles
-                fieldValues{i} = dataTable{i, fieldName};
+                fieldValues{i} = columnData(i);
             end
             
             saveFileMetadataBatch(fileIds, fieldName, fieldValues);
@@ -1721,10 +1736,11 @@ function fileManagerGUI()
         for colIdx = 1:numel(metadataColumns)
             fieldName = metadataColumns{colIdx};
             safeFieldName = makeSafeFieldName(fieldName);
+            columnData = dataTable.(fieldName);
             
             for i = 1:totalFiles
                 fileId = fileIds(i);
-                fieldValue = dataTable{i, fieldName};
+                fieldValue = columnData(i);
                 
                 if isempty(fieldValue)
                     fieldValueStr = '';
