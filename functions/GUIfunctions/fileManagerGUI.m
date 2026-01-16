@@ -298,12 +298,25 @@ function fileManagerGUI()
         'Callback', @metadataAnalysisCallback, ...
         'Tag', 'metaAnalysisBtn');
     
-    assignFolderIdsBtn = uicontrol('Style', 'pushbutton', ...
-        'Position', getElementPosition('assignFolderIdsBtn'), ...
-        'String', 'Folder IDs', ...
+    tableModificationModules = {
+        struct('moduleName', 'assignFolderIds', 'fieldName', 'folder_id', 'displayName', 'Assign Folder IDs'),
+        struct('moduleName', 'assignFileTypeId', 'fieldName', 'file_extension', 'displayName', 'Assign File Extension'),
+        struct('moduleName', 'assignStimulusPairId', 'fieldName', 'pair_id', 'displayName', 'Assign Stimulus Pair IDs')
+    };
+    
+    tableModificationMenuStrings = {'Table Modifications'};
+    for i = 1:numel(tableModificationModules)
+        tableModificationMenuStrings{end+1} = tableModificationModules{i}.displayName;
+    end
+    
+    tableModificationMenu = uicontrol('Style', 'popupmenu', ...
+        'Position', getElementPosition('tableModificationMenu'), ...
+        'String', tableModificationMenuStrings, ...
         'FontSize', 11, ...
-        'Callback', @assignFolderIdsCallback, ...
-        'Tag', 'assignFolderIdsBtn');
+        'Value', 1, ...
+        'Callback', @handleTableModificationSelection, ...
+        'Tag', 'tableModificationMenu', ...
+        'UserData', tableModificationModules);
     
     resultsGalleryBtn = uicontrol('Style', 'pushbutton', ...
         'Position', getElementPosition('resultsGalleryBtn'), ...
@@ -1591,7 +1604,23 @@ function fileManagerGUI()
         metadataAnalysis(metaPaths, fileIdArray, fileTableData, fileTableColumns);
     end
     
-    function assignFolderIdsCallback(~, ~)
+    function handleTableModificationSelection(src, ~)
+        selectionIdx = src.Value;
+        if selectionIdx == 1
+            src.Value = 1;
+            return
+        end
+        
+        src.Value = 1;
+        
+        userData = get(src, 'UserData');
+        moduleIdx = selectionIdx - 1;
+        if moduleIdx < 1 || moduleIdx > numel(userData)
+            return
+        end
+        
+        moduleConfig = userData{moduleIdx};
+        
         if isempty(state.files)
             return
         end
@@ -1605,7 +1634,16 @@ function fileManagerGUI()
             return
         end
         
-        wb = waitbar(0, 'Preparing files...', 'Name', 'Assign Folder IDs');
+        moduleName = moduleConfig.moduleName;
+        fieldName = moduleConfig.fieldName;
+        displayName = moduleConfig.displayName;
+        
+        if ~exist(moduleName, 'file')
+            msgbox(sprintf('Module "%s" not found', moduleName), 'Error', 'error');
+            return
+        end
+        
+        wb = waitbar(0, 'Preparing files...', 'Name', displayName);
         
         selectedFiles = state.files(selectedRows);
         fileTableData = cell(numel(selectedFiles), 3);
@@ -1616,39 +1654,89 @@ function fileManagerGUI()
         end
         fileTableColumns = {'File ID', 'File Name', 'Path'};
         
-        waitbar(0.1, wb, 'Grouping files by folder...');
-        [fileTableData, fileTableColumns] = assignFolderIds(fileTableData, fileTableColumns);
+        % Добавляем метаданные колонки
+        for i = 1:numel(state.metadataFields)
+            originalFieldName = state.metadataFields{i};
+            safeFieldName = makeSafeFieldName(originalFieldName);
+            fileTableColumns{end+1} = originalFieldName;
+            
+            values = cell(numel(selectedFiles), 1);
+            for j = 1:numel(selectedFiles)
+                fileId = selectedFiles(j).id;
+                fileIdStr = sprintf('f%d', fileId);
+                if isfield(state.metadataData, fileIdStr) && isfield(state.metadataData.(fileIdStr), safeFieldName)
+                    values{j} = state.metadataData.(fileIdStr).(safeFieldName);
+                else
+                    values{j} = '';
+                end
+            end
+            fileTableData = [fileTableData, values];
+        end
         
-        folderIdColIdx = find(strcmp(fileTableColumns, 'folder_id'), 1);
-        if isempty(folderIdColIdx)
+        waitbar(0.1, wb, 'Running module...');
+        dataTable = cell2table(fileTableData, 'VariableNames', fileTableColumns);
+        moduleFunc = str2func(moduleName);
+        dataTable = moduleFunc(dataTable);
+        
+        if ~any(strcmp(dataTable.Properties.VariableNames, fieldName))
             close(wb);
             return
         end
         
-        if ~any(strcmp(state.metadataFields, 'folder_id'))
-            state.metadataFields{end+1} = 'folder_id';
-            safeFieldName = makeSafeFieldName('folder_id');
+        if ~any(strcmp(state.metadataFields, fieldName))
+            state.metadataFields{end+1} = fieldName;
+            safeFieldName = makeSafeFieldName(fieldName);
             if ~isfield(state.fieldNameMap, safeFieldName)
-                state.fieldNameMap.(safeFieldName) = 'folder_id';
+                state.fieldNameMap.(safeFieldName) = fieldName;
             end
         end
         
-        safeFieldName = makeSafeFieldName('folder_id');
+        safeFieldName = makeSafeFieldName(fieldName);
         totalFiles = numel(selectedRows);
+        
+        fileIds = zeros(totalFiles, 1);
+        fieldValues = cell(totalFiles, 1);
+        
         for i = 1:totalFiles
-            progress = 0.2 + 0.7 * (i / totalFiles);
-            waitbar(progress, wb, sprintf('Saving folder IDs (%d/%d)...', i, totalFiles));
+            fileIds(i) = selectedFiles(i).id;
+            fieldValues{i} = dataTable{i, fieldName};
+        end
+        
+        waitbar(0.2, wb, sprintf('Saving %s...', fieldName));
+        saveFileMetadataBatch(fileIds, fieldName, fieldValues);
+        
+        waitbar(0.9, wb, 'Updating state...');
+        for i = 1:totalFiles
+            fileId = fileIds(i);
+            fieldValue = fieldValues{i};
             
-            fileId = selectedFiles(i).id;
-            folderId = fileTableData{i, folderIdColIdx};
-            
-            saveFileMetadata(fileId, 'folder_id', num2str(folderId));
+            if isempty(fieldValue)
+                fieldValueStr = '';
+            elseif iscell(fieldValue)
+                if isempty(fieldValue{1})
+                    fieldValueStr = '';
+                elseif isnumeric(fieldValue{1})
+                    fieldValueStr = num2str(fieldValue{1});
+                else
+                    fieldValueStr = char(fieldValue{1});
+                end
+            elseif isnumeric(fieldValue)
+                fieldValueStr = num2str(fieldValue);
+            elseif islogical(fieldValue)
+                if fieldValue
+                    fieldValueStr = 'true';
+                else
+                    fieldValueStr = 'false';
+                end
+            else
+                fieldValueStr = char(fieldValue);
+            end
             
             fileIdStr = sprintf('f%d', fileId);
             if ~isfield(state.metadataData, fileIdStr)
                 state.metadataData.(fileIdStr) = struct();
             end
-            state.metadataData.(fileIdStr).(safeFieldName) = num2str(folderId);
+            state.metadataData.(fileIdStr).(safeFieldName) = fieldValueStr;
         end
         
         waitbar(0.95, wb, 'Updating table...');
@@ -3287,20 +3375,3 @@ function exists = isAnalysisResultExistsByPath(conn, reportPath)
     end
     exists = ~isempty(rows);
 end
-
-function [fileTableData, fileTableColumns] = assignFolderIds(fileTableData, fileTableColumns)
-    if isempty(fileTableData) || size(fileTableData, 2) < 3
-        return
-    end
-    
-    pathColumn = 3;
-    paths = fileTableData(:, pathColumn);
-    folders = cellfun(@(p) fileparts(p), paths, 'UniformOutput', false);
-    
-    [~, ~, folderIdx] = unique(folders);
-    folderIds = num2cell(folderIdx);
-    
-    fileTableData = [fileTableData, folderIds];
-    fileTableColumns{end+1} = 'folder_id';
-end
-
