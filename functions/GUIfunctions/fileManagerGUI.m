@@ -1678,65 +1678,82 @@ function fileManagerGUI()
         moduleFunc = str2func(moduleName);
         dataTable = moduleFunc(dataTable);
         
-        if ~any(strcmp(dataTable.Properties.VariableNames, fieldName))
+        systemColumns = {'File ID', 'File Name', 'Path', 'Analysis History'};
+        allColumns = dataTable.Properties.VariableNames;
+        metadataColumns = setdiff(allColumns, systemColumns);
+        
+        if isempty(metadataColumns)
             close(wb);
+            msgbox('Module did not return any metadata columns', 'Warning', 'warn');
             return
         end
         
-        if ~any(strcmp(state.metadataFields, fieldName))
-            state.metadataFields{end+1} = fieldName;
-            safeFieldName = makeSafeFieldName(fieldName);
-            if ~isfield(state.fieldNameMap, safeFieldName)
-                state.fieldNameMap.(safeFieldName) = fieldName;
-            end
-        end
-        
-        safeFieldName = makeSafeFieldName(fieldName);
         totalFiles = numel(selectedRows);
-        
         fileIds = zeros(totalFiles, 1);
-        fieldValues = cell(totalFiles, 1);
-        
         for i = 1:totalFiles
             fileIds(i) = selectedFiles(i).id;
-            fieldValues{i} = dataTable{i, fieldName};
         end
         
-        waitbar(0.2, wb, sprintf('Saving %s...', fieldName));
-        saveFileMetadataBatch(fileIds, fieldName, fieldValues);
+        waitbar(0.2, wb, sprintf('Saving %d field(s)...', numel(metadataColumns)));
+        
+        for colIdx = 1:numel(metadataColumns)
+            fieldName = metadataColumns{colIdx};
+            progress = 0.2 + 0.6 * (colIdx / numel(metadataColumns));
+            waitbar(progress, wb, sprintf('Saving %s (%d/%d)...', fieldName, colIdx, numel(metadataColumns)));
+            
+            if ~any(strcmp(state.metadataFields, fieldName))
+                state.metadataFields{end+1} = fieldName;
+                safeFieldName = makeSafeFieldName(fieldName);
+                if ~isfield(state.fieldNameMap, safeFieldName)
+                    state.fieldNameMap.(safeFieldName) = fieldName;
+                end
+            end
+            
+            fieldValues = cell(totalFiles, 1);
+            for i = 1:totalFiles
+                fieldValues{i} = dataTable{i, fieldName};
+            end
+            
+            saveFileMetadataBatch(fileIds, fieldName, fieldValues);
+        end
         
         waitbar(0.9, wb, 'Updating state...');
-        for i = 1:totalFiles
-            fileId = fileIds(i);
-            fieldValue = fieldValues{i};
+        for colIdx = 1:numel(metadataColumns)
+            fieldName = metadataColumns{colIdx};
+            safeFieldName = makeSafeFieldName(fieldName);
             
-            if isempty(fieldValue)
-                fieldValueStr = '';
-            elseif iscell(fieldValue)
-                if isempty(fieldValue{1})
+            for i = 1:totalFiles
+                fileId = fileIds(i);
+                fieldValue = dataTable{i, fieldName};
+                
+                if isempty(fieldValue)
                     fieldValueStr = '';
-                elseif isnumeric(fieldValue{1})
-                    fieldValueStr = num2str(fieldValue{1});
+                elseif iscell(fieldValue)
+                    if isempty(fieldValue{1})
+                        fieldValueStr = '';
+                    elseif isnumeric(fieldValue{1})
+                        fieldValueStr = num2str(fieldValue{1});
+                    else
+                        fieldValueStr = char(fieldValue{1});
+                    end
+                elseif isnumeric(fieldValue)
+                    fieldValueStr = num2str(fieldValue);
+                elseif islogical(fieldValue)
+                    if fieldValue
+                        fieldValueStr = 'true';
+                    else
+                        fieldValueStr = 'false';
+                    end
                 else
-                    fieldValueStr = char(fieldValue{1});
+                    fieldValueStr = char(fieldValue);
                 end
-            elseif isnumeric(fieldValue)
-                fieldValueStr = num2str(fieldValue);
-            elseif islogical(fieldValue)
-                if fieldValue
-                    fieldValueStr = 'true';
-                else
-                    fieldValueStr = 'false';
+                
+                fileIdStr = sprintf('f%d', fileId);
+                if ~isfield(state.metadataData, fileIdStr)
+                    state.metadataData.(fileIdStr) = struct();
                 end
-            else
-                fieldValueStr = char(fieldValue);
+                state.metadataData.(fileIdStr).(safeFieldName) = fieldValueStr;
             end
-            
-            fileIdStr = sprintf('f%d', fileId);
-            if ~isfield(state.metadataData, fileIdStr)
-                state.metadataData.(fileIdStr) = struct();
-            end
-            state.metadataData.(fileIdStr).(safeFieldName) = fieldValueStr;
         end
         
         waitbar(0.95, wb, 'Updating table...');
