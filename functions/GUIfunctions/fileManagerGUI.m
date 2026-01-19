@@ -1196,11 +1196,14 @@ function fileManagerGUI()
                     debugState('fileManagerGUI', 'Module %s %d/%d: %s', moduleAction, idx, numel(filesToProcess), filePath);
                     updateAnalysisHistory(fileId, moduleAction);
                     result = callModules(moduleAction, filePath, fileId, params);
-                    if ~isempty(result) && isstruct(result)
+                    if ~isempty(result) && isstruct(result) && numel(result) == 1
                         % Добавляем стандартные поля
                         result.file_id = fileId;
                         result.file_name = file.name;
                         result.module_name = moduleAction;
+                        
+                        % Извлечение и сохранение метаданных из результата
+                        result = extractAndSaveMetadata(result, fileId);
                         
                         % Сохраняем .meta файл
                         result = saveMetaFileFromResult(result, filePath);
@@ -1535,10 +1538,13 @@ function fileManagerGUI()
                     i, totalCount, task.moduleName, task.filePath);
                 
                 result = callModules(task.moduleName, task.filePath, task.fileId, params);
-                if ~isempty(result) && isstruct(result)
+                if ~isempty(result) && isstruct(result) && numel(result) == 1
                     result.file_id = task.fileId;
                     result.file_name = task.fileName;
                     result.module_name = task.moduleName;
+                    
+                    % Извлечение и сохранение метаданных из результата
+                    result = extractAndSaveMetadata(result, task.fileId);
                     
                     result = saveMetaFileFromResult(result, task.filePath);
                     logAnalysisResult(task.fileId, result);
@@ -1757,6 +1763,121 @@ function fileManagerGUI()
             end
         else
             fieldValueStr = char(fieldValue);
+        end
+    end
+    
+    function value = getNestedField(struct, path)
+        if isempty(path) || ~ischar(path) && ~isstring(path)
+            value = '';
+            return
+        end
+        
+        path = char(path);
+        parts = strsplit(path, '.');
+        
+        current = struct;
+        for i = 1:numel(parts)
+            part = parts{i};
+            if isstruct(current) && isfield(current, part)
+                current = current.(part);
+            else
+                value = '';
+                return
+            end
+        end
+        
+        value = current;
+    end
+    
+    function metadata = extractFieldsFromResult(result, fieldPaths)
+        metadata = struct();
+        
+        if isempty(fieldPaths)
+            return
+        end
+        
+        if ischar(fieldPaths) || isstring(fieldPaths)
+            fieldPaths = {char(fieldPaths)};
+        elseif ~iscell(fieldPaths)
+            return
+        end
+        
+        for i = 1:numel(fieldPaths)
+            fieldPath = fieldPaths{i};
+            if isempty(fieldPath) || (~ischar(fieldPath) && ~isstring(fieldPath))
+                continue
+            end
+            
+            fieldPath = char(fieldPath);
+            value = getNestedField(result, fieldPath);
+            
+            if isempty(value) && ~isnumeric(value) && ~islogical(value)
+                continue
+            end
+            
+            parts = strsplit(fieldPath, '.');
+            metadataFieldName = parts{end};
+            
+            if isnumeric(value)
+                for j = 1:numel(value)
+                    fieldName = sprintf('%s_%d', metadataFieldName, j);
+                    metadata.(fieldName) = value(j);
+                end
+            elseif iscell(value)
+                for j = 1:numel(value)
+                    fieldName = sprintf('%s_%d', metadataFieldName, j);
+                    metadata.(fieldName) = value{j};
+                end
+            else
+                fieldName = sprintf('%s_1', metadataFieldName);
+                metadata.(fieldName) = value;
+            end
+        end
+    end
+    
+    function result = extractAndSaveMetadata(result, fileId)
+        if isempty(result) || ~isstruct(result) || numel(result) ~= 1
+            return
+        end
+        
+        if ~isfield(result, 'tableResultInsert') || isempty(result.tableResultInsert)
+            return
+        end
+        
+        extractedMetadata = extractFieldsFromResult(result, result.tableResultInsert);
+        if ~isempty(fieldnames(extractedMetadata))
+            saveExtractedMetadata(fileId, extractedMetadata);
+            updateTable(state.files);
+        end
+        
+        result = rmfield(result, 'tableResultInsert');
+    end
+    
+    function saveExtractedMetadata(fileId, metadata)
+        if isempty(metadata) || isempty(fieldnames(metadata))
+            return
+        end
+        
+        fieldNames = fieldnames(metadata);
+        numFields = numel(fieldNames);
+        
+        for i = 1:numFields
+            fieldName = fieldNames{i};
+            fieldValue = metadata.(fieldName);
+            
+            registerMetadataField(fieldName);
+            
+            fieldValueStr = convertFieldValueToString(fieldValue);
+            fieldValues = {fieldValueStr};
+            
+            saveFileMetadataBatch(fileId, fieldName, fieldValues);
+            
+            safeFieldName = makeSafeFieldName(fieldName);
+            fileIdStr = sprintf('f%d', fileId);
+            if ~isfield(state.metadataData, fileIdStr)
+                state.metadataData.(fileIdStr) = struct();
+            end
+            state.metadataData.(fileIdStr).(safeFieldName) = fieldValueStr;
         end
     end
     

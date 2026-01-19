@@ -180,7 +180,12 @@ function events = detectPeaksInOriginalData(calcResult, params)
     events.first_onset_by_channel = first_onset_by_channel;
     events.first_onset_slope_by_channel = first_onset_slope_by_channel;
     events.first_decay_slope_by_channel = first_decay_slope_by_channel;
-    events.median_first_onset = median(first_onset_by_channel(~isnan(first_onset_by_channel)));
+    response_onsets = events.onset_times(events.onset_times > 0 & ~isnan(events.onset_times));
+    if ~isempty(response_onsets)
+        events.median_first_onset = median(response_onsets);
+    else
+        events.median_first_onset = NaN;
+    end
     
     % Расчет медианных slope и decay_slope по каналам (control и response)
     onset_slopes_control = NaN(size(activeChannels));
