@@ -73,6 +73,7 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
     fprintf('\n');
     
     totalSignificantClusters = 0;
+    significantChannels = {};
     for ch = 1:numChannels
         clusters = testResult.clusters{ch};
         if isempty(clusters)
@@ -88,6 +89,10 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
         end
         significantClusters = sum(significantMask);
         totalSignificantClusters = totalSignificantClusters + significantClusters;
+        
+        if significantClusters > 0
+            significantChannels{end+1} = channelLabels{ch};
+        end
         
         fprintf('Channel %s: %d cluster(s) found', channelLabels{ch}, length(clusters));
         if significantClusters > 0
@@ -110,6 +115,13 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
     
     fprintf('\nTotal significant clusters: %d\n', totalSignificantClusters);
     fprintf('==========================================\n\n');
+    
+    % Определение значимости ответа для tableResultInsert
+    if ~isempty(significantChannels)
+        response = strjoin(significantChannels, ', ');
+    else
+        response = '';
+    end
     
     % Собираем онсеты значимых кластеров всех каналов в одномерный массив (в миллисекундах)
     cluster_onsets_ms = [];
@@ -168,7 +180,9 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
         'test_result', testResult, ...
         'timeAxis', timeAxis, ...
         'cluster_onsets_ms', cluster_onsets_ms, ...
-        'first_onset_ms', first_onset_ms);
+        'first_onset_ms', first_onset_ms, ...
+        'response', response, ...
+        'tableResultInsert', {{'response'}});
 end
 
 % Вспомогательная функция для извлечения boolean параметров

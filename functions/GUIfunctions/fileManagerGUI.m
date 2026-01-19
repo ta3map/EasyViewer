@@ -301,7 +301,8 @@ function fileManagerGUI()
     tableModificationModules = {
         struct('moduleName', 'assignFolderIds', 'fieldName', 'folder_id', 'displayName', 'Assign Folder IDs'),
         struct('moduleName', 'assignFileTypeId', 'fieldName', 'file_extension', 'displayName', 'Assign File Extension'),
-        struct('moduleName', 'assignStimulusPairId', 'fieldName', 'pair_id', 'displayName', 'Assign Stimulus Pair IDs')
+        struct('moduleName', 'assignStimulusPairId', 'fieldName', 'pair_id', 'displayName', 'Assign Stimulus Pair IDs'),
+        struct('moduleName', 'calculateGabaAmpaOnsetDiff', 'fieldName', 'GABA-AMPA', 'displayName', 'Calculate GABA-AMPA Onset Difference')
     };
     
     tableModificationMenuStrings = {'Table Modifications'};
@@ -1818,19 +1819,18 @@ function fileManagerGUI()
             parts = strsplit(fieldPath, '.');
             metadataFieldName = parts{end};
             
-            if isnumeric(value)
+            if isnumeric(value) && numel(value) > 1
                 for j = 1:numel(value)
                     fieldName = sprintf('%s_%d', metadataFieldName, j);
                     metadata.(fieldName) = value(j);
                 end
-            elseif iscell(value)
+            elseif iscell(value) && numel(value) > 1
                 for j = 1:numel(value)
                     fieldName = sprintf('%s_%d', metadataFieldName, j);
                     metadata.(fieldName) = value{j};
                 end
             else
-                fieldName = sprintf('%s_1', metadataFieldName);
-                metadata.(fieldName) = value;
+                metadata.(metadataFieldName) = value;
             end
         end
     end
@@ -2237,7 +2237,7 @@ function fileManagerGUI()
         projectName = state.projects(projectIdx).name;
         safeProjectName = regexprep(projectName, '[<>:"/\\|?*]', '_');
         
-        formatChoice = questdlg('Select export format:', 'Export Project', 'Database (.db)', 'Excel (.xlsx)', 'Cancel', 'Database (.db)');
+        formatChoice = questdlg('Select export format:', 'Export Project', 'Database (.db)', 'Excel (.xlsx)', 'Flat Table (.mat)', 'Database (.db)');
         if isempty(formatChoice) || strcmp(formatChoice, 'Cancel')
             return
         end
@@ -2256,7 +2256,7 @@ function fileManagerGUI()
             end
             targetPath = fullfile(path, file);
             exportProjectToDatabase(state.currentProjectId, targetPath);
-        else
+        elseif strcmp(formatChoice, 'Excel (.xlsx)')
             defaultFileName = [safeProjectName, '.xlsx'];
             defaultPath = fullfile(startDir, defaultFileName);
             [file, path] = uiputfile('*.xlsx', 'Export Project to Excel', defaultPath);
@@ -2265,6 +2265,15 @@ function fileManagerGUI()
             end
             excelPath = fullfile(path, file);
             exportProjectToExcel(state.currentProjectId, excelPath);
+        else
+            defaultFileName = [safeProjectName, '.mat'];
+            defaultPath = fullfile(startDir, defaultFileName);
+            [file, path] = uiputfile('*.mat', 'Export Project to Flat Table', defaultPath);
+            if isequal(file, 0)
+                return
+            end
+            matPath = fullfile(path, file);
+            exportProjectToFlatTable(matPath);
         end
     end
     
@@ -2580,6 +2589,286 @@ function fileManagerGUI()
             if exist('wb', 'var') && ishandle(wb)
                 close(wb);
             end
+            msgbox(sprintf('Failed to export project: %s', ME.message), 'Error', 'error');
+        end
+    end
+    
+    function result = showFieldSelectionDialogForExport(allFields)
+        result = struct('fields', {}, 'displayNames', {}, 'formats', containers.Map());
+        
+        fig = figure('Position', [300, 300, 600, 400], ...
+            'Name', 'Select Fields for Export', ...
+            'NumberTitle', 'off', ...
+            'MenuBar', 'none', ...
+            'Resize', 'on');
+        
+        numFields = numel(allFields);
+        formatColumn = cell(numFields, 1);
+        for i = 1:numFields
+            formatColumn{i} = 'Text';
+        end
+        
+        data = [allFields', num2cell(true(numFields, 1)), formatColumn];
+        
+        columnEditable = [true, true, true];
+        columnFormat = {'char', 'logical', {'Text', 'Number', 'Logical', 'Date', 'DateTime'}};
+        
+        fieldTable = uitable('Parent', fig, ...
+            'Position', [10, 50, 580, 310], ...
+            'Data', data, ...
+            'ColumnName', {'Field Name', 'Select', 'Format'}, ...
+            'ColumnEditable', columnEditable, ...
+            'ColumnWidth', {300, 80, 150}, ...
+            'ColumnFormat', columnFormat);
+        
+        selectAllBtn = uicontrol('Parent', fig, ...
+            'Style', 'pushbutton', ...
+            'Position', [10, 10, 120, 30], ...
+            'String', 'Select All', ...
+            'Callback', @(src,evt) selectAllFieldsCallback(fieldTable, allFields, true));
+        
+        deselectAllBtn = uicontrol('Parent', fig, ...
+            'Style', 'pushbutton', ...
+            'Position', [140, 10, 120, 30], ...
+            'String', 'Deselect All', ...
+            'Callback', @(src,evt) selectAllFieldsCallback(fieldTable, allFields, false));
+        
+        okBtn = uicontrol('Parent', fig, ...
+            'Style', 'pushbutton', ...
+            'Position', [450, 10, 70, 30], ...
+            'String', 'OK', ...
+            'Callback', @(src,evt) uiresume(fig));
+        
+        cancelBtn = uicontrol('Parent', fig, ...
+            'Style', 'pushbutton', ...
+            'Position', [530, 10, 60, 30], ...
+            'String', 'Cancel', ...
+            'Callback', @(src,evt) close(fig));
+        
+        uiwait(fig);
+        
+        if ishandle(fig)
+            data = fieldTable.Data;
+            selectedIndices = cellfun(@(x) islogical(x) && x, data(:, 2));
+            selectedFields = allFields(selectedIndices);
+            
+            displayNames = {};
+            selectedCount = 0;
+            for i = 1:numFields
+                if selectedIndices(i)
+                    selectedCount = selectedCount + 1;
+                    displayName = data{i, 1};
+                    if isempty(displayName) || ~ischar(displayName) || strcmp(strtrim(displayName), allFields{i})
+                        displayNames{selectedCount} = allFields{i};
+                    else
+                        displayNames{selectedCount} = strtrim(displayName);
+                    end
+                end
+            end
+            
+            formats = containers.Map();
+            for i = 1:numFields
+                if selectedIndices(i)
+                    formatValue = data{i, 3};
+                    if ischar(formatValue)
+                        formatLower = lower(formatValue);
+                        if strcmp(formatLower, 'number')
+                            formats(allFields{i}) = 'number';
+                        elseif strcmp(formatLower, 'logical')
+                            formats(allFields{i}) = 'logical';
+                        elseif strcmp(formatLower, 'date')
+                            formats(allFields{i}) = 'date';
+                        elseif strcmp(formatLower, 'datetime')
+                            formats(allFields{i}) = 'datetime';
+                        else
+                            formats(allFields{i}) = 'text';
+                        end
+                    else
+                        formats(allFields{i}) = 'text';
+                    end
+                end
+            end
+            
+            result = struct('fields', {selectedFields}, 'displayNames', {displayNames}, 'formats', formats);
+            close(fig);
+        end
+    end
+    
+    function selectAllFieldsCallback(table, allFields, select)
+        data = table.Data;
+        for i = 1:numel(allFields)
+            data{i, 2} = select;
+        end
+        table.Data = data;
+    end
+    
+    function convertedValue = convertFieldValueByFormat(value, formatType)
+        if isempty(formatType) || strcmp(formatType, 'text')
+            convertedValue = value;
+            return
+        end
+        
+        if strcmp(formatType, 'number')
+            if ischar(value) || isstring(value)
+                if isempty(value)
+                    convertedValue = NaN;
+                else
+                    numValue = str2double(value);
+                    if ~isnan(numValue)
+                        convertedValue = numValue;
+                    else
+                        convertedValue = value;
+                    end
+                end
+            elseif isnumeric(value)
+                convertedValue = value;
+            else
+                convertedValue = value;
+            end
+        elseif strcmp(formatType, 'logical')
+            if ischar(value) || isstring(value)
+                if isempty(value)
+                    convertedValue = false;
+                else
+                    valueLower = lower(strtrim(char(value)));
+                    if strcmp(valueLower, 'true') || strcmp(valueLower, '1') || strcmp(valueLower, 'yes') || strcmp(valueLower, 'on')
+                        convertedValue = true;
+                    elseif strcmp(valueLower, 'false') || strcmp(valueLower, '0') || strcmp(valueLower, 'no') || strcmp(valueLower, 'off')
+                        convertedValue = false;
+                    else
+                        numValue = str2double(value);
+                        if ~isnan(numValue)
+                            convertedValue = logical(numValue ~= 0);
+                        else
+                            convertedValue = false;
+                        end
+                    end
+                end
+            elseif isnumeric(value)
+                convertedValue = logical(value ~= 0);
+            elseif islogical(value)
+                convertedValue = value;
+            else
+                convertedValue = value;
+            end
+        elseif strcmp(formatType, 'date') || strcmp(formatType, 'datetime')
+            if ischar(value) || isstring(value)
+                if isempty(value)
+                    convertedValue = NaN;
+                else
+                    try
+                        dateValue = datenum(value);
+                        if ~isnan(dateValue)
+                            convertedValue = dateValue;
+                        else
+                            convertedValue = value;
+                        end
+                    catch
+                        convertedValue = value;
+                    end
+                end
+            elseif isnumeric(value)
+                convertedValue = value;
+            else
+                convertedValue = value;
+            end
+        else
+            convertedValue = value;
+        end
+    end
+    
+    function exportProjectToFlatTable(matPath)
+        wb = waitbar(0, 'Initializing export...', 'Name', 'Export Project to Flat Table');
+        
+        if isempty(state.files)
+            close(wb);
+            msgbox('No files to export', 'Error', 'error');
+            return
+        end
+        
+        try
+            waitbar(0.1, wb, 'Building table...');
+            fullTable = buildFileTableForModule(state.files);
+            
+            if isempty(fullTable)
+                close(wb);
+                msgbox('Failed to create table', 'Error', 'error');
+                return
+            end
+            
+            close(wb);
+            
+            allFields = fullTable.Properties.VariableNames;
+            selectionResult = showFieldSelectionDialogForExport(allFields);
+            
+            if isempty(selectionResult) || isempty(selectionResult.fields)
+                return
+            end
+            
+            wb = waitbar(0, 'Processing export...', 'Name', 'Export Project to Flat Table');
+            
+            selectedFields = selectionResult.fields;
+            displayNames = selectionResult.displayNames;
+            formats = selectionResult.formats;
+            
+            waitbar(0.2, wb, 'Converting field formats...');
+            
+            numRows = height(fullTable);
+            numSelectedFields = numel(selectedFields);
+            columnData = cell(1, numSelectedFields);
+            
+            for fieldIdx = 1:numSelectedFields
+                fieldName = selectedFields{fieldIdx};
+                formatType = 'text';
+                if formats.isKey(fieldName)
+                    formatType = formats(fieldName);
+                end
+                
+                originalColumn = fullTable.(fieldName);
+                convertedColumn = cell(numRows, 1);
+                
+                for rowIdx = 1:numRows
+                    if iscell(originalColumn)
+                        value = originalColumn{rowIdx};
+                    else
+                        value = originalColumn(rowIdx);
+                    end
+                    convertedColumn{rowIdx} = convertFieldValueByFormat(value, formatType);
+                end
+                
+                columnData{fieldIdx} = convertedColumn;
+            end
+            
+            waitbar(0.6, wb, 'Creating final table...');
+            
+            if numel(displayNames) == numSelectedFields
+                columnNames = displayNames;
+            else
+                columnNames = selectedFields;
+            end
+            
+            flatTable = table(columnData{:}, 'VariableNames', columnNames);
+            
+            waitbar(0.8, wb, 'Saving MAT file...');
+            save(matPath, 'flatTable', '-v7.3');
+            
+            waitbar(0.9, wb, 'Saving Excel file...');
+            [excelPath, excelName, ~] = fileparts(matPath);
+            excelPath = fullfile(excelPath, [excelName, '.xlsx']);
+            try
+                writetable(flatTable, excelPath);
+            catch ME
+                debugState('fileManagerGUI', 'exportProjectToFlatTable: Failed to save Excel file: %s', ME.message);
+            end
+            
+            waitbar(1.0, wb, 'Export completed!');
+            close(wb);
+            msgbox('Project exported successfully', 'Success', 'help');
+        catch ME
+            if exist('wb', 'var') && ishandle(wb)
+                close(wb);
+            end
+            debugState('fileManagerGUI', 'exportProjectToFlatTable: error - %s', ME.message);
             msgbox(sprintf('Failed to export project: %s', ME.message), 'Error', 'error');
         end
     end
