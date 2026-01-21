@@ -3,25 +3,36 @@ function params = loadModuleParams(moduleName, timeUnitFactor)
     % moduleName - имя модуля (без расширения)
     % timeUnitFactor - не используется, оставлен для совместимости
     % Все параметры возвращаются в секундах (как в JSON)
+    % Если JSON файл не найден, возвращает пустую структуру
+    
+    params = struct();
     
     [functionFolder, ~, ~] = fileparts(mfilename('fullpath'));
     projectRoot = fileparts(functionFolder);
     moduleFolder = fullfile(projectRoot, 'modules');
     jsonPath = fullfile(moduleFolder, [moduleName, '.json']);
-    jsonText = fileread(jsonPath);
-    jsonParams = jsondecode(jsonText);
     
-    % Автоматическое присваивание параметров из JSON (всегда в секундах)
-    params = struct();
-    jsonSections = fieldnames(jsonParams);
-    for i = 1:length(jsonSections)
-        sectionName = jsonSections{i};
-        sectionFields = fieldnames(jsonParams.(sectionName));
-        for j = 1:length(sectionFields)
-            fieldName = sectionFields{j};
-            value = jsonParams.(sectionName).(fieldName);
-            params.(fieldName) = value;
+    if ~exist(jsonPath, 'file')
+        return
+    end
+    
+    try
+        jsonText = fileread(jsonPath);
+        jsonParams = jsondecode(jsonText);
+        
+        % Автоматическое присваивание параметров из JSON (всегда в секундах)
+        jsonSections = fieldnames(jsonParams);
+        for i = 1:length(jsonSections)
+            sectionName = jsonSections{i};
+            sectionFields = fieldnames(jsonParams.(sectionName));
+            for j = 1:length(sectionFields)
+                fieldName = sectionFields{j};
+                value = jsonParams.(sectionName).(fieldName);
+                params.(fieldName) = value;
+            end
         end
+    catch ME
+        warning('Failed to load module parameters from %s: %s', jsonPath, ME.message);
     end
 end
 

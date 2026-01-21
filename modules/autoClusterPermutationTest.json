@@ -16,6 +16,7 @@
     "numPermutations": 1000,
     "clusterThreshold": 0.05,
     "minClusterSize_ms": 20,
+    "polarity": "positive",
     "startTrial": "[]",
     "endTrial": "[]",
     "removeEdgeTrials": false

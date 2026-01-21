@@ -163,24 +163,57 @@ function events = detectPeaksInOriginalData(calcResult, params)
     end
     
     % Расчет first_onset для каждого канала
+    % Для каждого триала находим первый онсет, затем медиана этих значений по триалам
     first_onset_by_channel = NaN(size(activeChannels));
     first_onset_slope_by_channel = NaN(size(activeChannels));
     first_decay_slope_by_channel = NaN(size(activeChannels));
     if ~isempty(events.peak_times)
         for chIdx = 1:length(activeChannels)
             channelIdx = activeChannels(chIdx);
-            idx = find(events.channels == channelIdx & events.onset_times > 0 & ~isnan(events.onset_times), 1, 'first');
-            if ~isempty(idx)
-                first_onset_by_channel(chIdx) = events.onset_times(idx);
-                first_onset_slope_by_channel(chIdx) = events.slopes(idx);
-                first_decay_slope_by_channel(chIdx) = events.decay_slopes(idx);
+            channel_mask = events.channels == channelIdx & events.onset_times > 0 & ~isnan(events.onset_times);
+            if any(channel_mask)
+                % Получаем уникальные триалы для этого канала
+                unique_trials = unique(events.eventIndices(channel_mask));
+                first_onsets_per_trial = [];
+                first_slopes_per_trial = [];
+                first_decay_slopes_per_trial = [];
+                
+                % Для каждого триала находим первый онсет (минимальный)
+                for trialIdx = unique_trials(:)'
+                    trial_channel_mask = channel_mask & events.eventIndices == trialIdx;
+                    if any(trial_channel_mask)
+                        trial_onset_times = events.onset_times(trial_channel_mask);
+                        [min_onset, min_idx] = min(trial_onset_times);
+                        first_onsets_per_trial(end+1) = min_onset;
+                        
+                        trial_indices = find(trial_channel_mask);
+                        idx_in_events = trial_indices(min_idx);
+                        first_slopes_per_trial(end+1) = events.slopes(idx_in_events);
+                        first_decay_slopes_per_trial(end+1) = events.decay_slopes(idx_in_events);
+                    end
+                end
+                
+                % Медиана первых онсетов по всем триалам
+                if ~isempty(first_onsets_per_trial)
+                    first_onset_by_channel(chIdx) = median(first_onsets_per_trial);
+                    
+                    first_slopes_valid = first_slopes_per_trial(~isnan(first_slopes_per_trial));
+                    if ~isempty(first_slopes_valid)
+                        first_onset_slope_by_channel(chIdx) = median(first_slopes_valid);
+                    end
+                    
+                    first_decay_slopes_valid = first_decay_slopes_per_trial(~isnan(first_decay_slopes_per_trial));
+                    if ~isempty(first_decay_slopes_valid)
+                        first_decay_slope_by_channel(chIdx) = median(first_decay_slopes_valid);
+                    end
+                end
             end
         end
     end
     events.first_onset_by_channel = first_onset_by_channel;
     events.first_onset_slope_by_channel = first_onset_slope_by_channel;
     events.first_decay_slope_by_channel = first_decay_slope_by_channel;
-    response_onsets = events.onset_times(events.onset_times > 0 & ~isnan(events.onset_times));
+    response_onsets = first_onset_by_channel(~isnan(first_onset_by_channel));
     if ~isempty(response_onsets)
         events.median_first_onset = median(response_onsets);
     else

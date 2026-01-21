@@ -139,6 +139,27 @@ function fig = plotEvents(fig, events, calcResult)
             'LineStyle', '--');
     end
     
+    % Отображаем вертикальные линии для первого онсета каждого канала
+    % Стиль как у линии в нуле времени, цвет как у точек онсета
+    if isfield(events, 'first_onset_by_channel') && ~isempty(events.first_onset_by_channel)
+        ylims = ylim(ax);
+        y_text = ylims(1);
+        for chIdx = 1:length(calcResult.activeChannels)
+            if chIdx <= length(events.first_onset_by_channel)
+                onset_time = events.first_onset_by_channel(chIdx);
+                if ~isnan(onset_time) && onset_time >= timeAxis(1) && onset_time <= timeAxis(end)
+                    xline(ax, onset_time, ':', 'Color', [0.7 0.65 0.5], 'LineWidth', 1);
+                    text(ax, onset_time, y_text, sprintf('%.3f', onset_time), ...
+                        'HorizontalAlignment', 'center', ...
+                        'VerticalAlignment', 'bottom', ...
+                        'BackgroundColor', 'white', ...
+                        'EdgeColor', 'none', ...
+                        'Color', [0.7 0.65 0.5]);
+                end
+            end
+        end
+    end
+    
     hold off;
 end
 

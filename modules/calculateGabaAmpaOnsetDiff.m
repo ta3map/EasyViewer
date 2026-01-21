@@ -4,7 +4,7 @@ function fileTable = calculateGabaAmpaOnsetDiff(fileTable)
     end
     
     varNames = fileTable.Properties.VariableNames;
-    outputFields = {'GABA-AMPA'};
+    outputFields = {'onsets_GABA_AMPA_medians', 'onsets_GABA_AMPA_clusters'};
     for i = 1:numel(outputFields)
         if any(strcmp(varNames, outputFields{i}))
             fileTable = removevars(fileTable, outputFields{i});
@@ -12,36 +12,80 @@ function fileTable = calculateGabaAmpaOnsetDiff(fileTable)
     end
     
     varNames = fileTable.Properties.VariableNames;
-    requiredCols = {'pair_id', 'current_type', 'first_onset_by_channel_1'};
+    requiredCols = {'pair_id', 'current_type', 'median_first_onset', 'cluster_first_onset_ms'};
     if ~all(ismember(requiredCols, varNames))
         return
     end
     
+    if ~ismember('has_response', varNames)
+        numRows = height(fileTable);
+        gabaAmpaDiffMedian = cell(numRows, 1);
+        gabaAmpaDiffCluster = cell(numRows, 1);
+        fileTable.('onsets_GABA_AMPA_medians') = gabaAmpaDiffMedian;
+        fileTable.('onsets_GABA_AMPA_clusters') = gabaAmpaDiffCluster;
+        return
+    end
+    
     numRows = height(fileTable);
-    gabaAmpaDiff = cell(numRows, 1);
+    gabaAmpaDiffMedian = cell(numRows, 1);
+    gabaAmpaDiffCluster = cell(numRows, 1);
     
     pairIdRaw = fileTable.('pair_id');
     currentTypeRaw = fileTable.('current_type');
-    firstOnsetRaw = fileTable.('first_onset_by_channel_1');
+    medianOnsetRaw = fileTable.('median_first_onset');
+    clusterOnsetRaw = fileTable.('cluster_first_onset_ms');
+    hasResponseRaw = fileTable.('has_response');
     
-    firstOnset = nan(numRows, 1);
-    
-    if iscell(firstOnsetRaw)
+    hasResponse = false(numRows, 1);
+    if iscell(hasResponseRaw)
         for i = 1:numRows
-            val = firstOnsetRaw{i};
+            val = hasResponseRaw{i};
+            if ischar(val) || isstring(val)
+                hasResponse(i) = strcmpi(strtrim(string(val)), 'true');
+            elseif islogical(val)
+                hasResponse(i) = val;
+            end
+        end
+    elseif islogical(hasResponseRaw)
+        hasResponse = hasResponseRaw;
+    end
+    
+    medianOnset = nan(numRows, 1);
+    if iscell(medianOnsetRaw)
+        for i = 1:numRows
+            val = medianOnsetRaw{i};
             if isempty(val)
-                firstOnset(i) = NaN;
+                medianOnset(i) = NaN;
             elseif ischar(val) || isstring(val)
                 numVal = str2double(val);
                 if ~isnan(numVal)
-                    firstOnset(i) = numVal;
+                    medianOnset(i) = numVal;
                 end
             elseif isnumeric(val)
-                firstOnset(i) = val;
+                medianOnset(i) = val;
             end
         end
-    elseif isnumeric(firstOnsetRaw)
-        firstOnset = firstOnsetRaw;
+    elseif isnumeric(medianOnsetRaw)
+        medianOnset = medianOnsetRaw;
+    end
+    
+    clusterOnset = nan(numRows, 1);
+    if iscell(clusterOnsetRaw)
+        for i = 1:numRows
+            val = clusterOnsetRaw{i};
+            if isempty(val)
+                clusterOnset(i) = NaN;
+            elseif ischar(val) || isstring(val)
+                numVal = str2double(val);
+                if ~isnan(numVal)
+                    clusterOnset(i) = numVal;
+                end
+            elseif isnumeric(val)
+                clusterOnset(i) = val;
+            end
+        end
+    elseif isnumeric(clusterOnsetRaw)
+        clusterOnset = clusterOnsetRaw;
     end
     
     if iscell(pairIdRaw)
@@ -85,18 +129,30 @@ function fileTable = calculateGabaAmpaOnsetDiff(fileTable)
             ampaMask = pairMask & strcmp(currentTypeRaw, 'AMPA');
         end
         
-        gabaOnsets = firstOnset(gabaMask & ~isnan(firstOnset));
-        ampaOnsets = firstOnset(ampaMask & ~isnan(firstOnset));
+        gabaIndices = find(gabaMask);
+        ampaIndices = find(ampaMask);
         
-        if ~isempty(gabaOnsets) && ~isempty(ampaOnsets)
-            gabaMedian = median(gabaOnsets);
-            ampaMedian = median(ampaOnsets);
-            diff = gabaMedian - ampaMedian;
-            for idx = find(gabaMask)'
-                gabaAmpaDiff{idx} = diff;
-            end
+        gabaWithResponse = gabaIndices(hasResponse(gabaIndices) & ~isnan(medianOnset(gabaIndices)));
+        ampaWithResponse = ampaIndices(hasResponse(ampaIndices) & ~isnan(medianOnset(ampaIndices)));
+        
+        if numel(gabaWithResponse) == 1 && numel(ampaWithResponse) == 1
+            gabaOnsetMedian = medianOnset(gabaWithResponse);
+            ampaOnsetMedian = medianOnset(ampaWithResponse);
+            diff = gabaOnsetMedian - ampaOnsetMedian;
+            gabaAmpaDiffMedian{gabaWithResponse} = diff;
+        end
+        
+        gabaWithResponseCluster = gabaIndices(hasResponse(gabaIndices) & ~isnan(clusterOnset(gabaIndices)));
+        ampaWithResponseCluster = ampaIndices(hasResponse(ampaIndices) & ~isnan(clusterOnset(ampaIndices)));
+        
+        if numel(gabaWithResponseCluster) == 1 && numel(ampaWithResponseCluster) == 1
+            gabaOnsetCluster = clusterOnset(gabaWithResponseCluster);
+            ampaOnsetCluster = clusterOnset(ampaWithResponseCluster);
+            diff = gabaOnsetCluster - ampaOnsetCluster;
+            gabaAmpaDiffCluster{gabaWithResponseCluster} = diff;
         end
     end
     
-    fileTable.('GABA-AMPA') = gabaAmpaDiff;
+    fileTable.('onsets_GABA_AMPA_medians') = gabaAmpaDiffMedian;
+    fileTable.('onsets_GABA_AMPA_clusters') = gabaAmpaDiffCluster;
 end

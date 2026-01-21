@@ -90,6 +90,19 @@ function plotEventsScatter(fig, events, calcResult)
     % Вертикальная линия на нуле
     xline(scatterAx, 0, 'r:', 'LineWidth', 1);
     
+    % Отображаем вертикальные линии для первого онсета каждого канала
+    % Стиль как у линии в нуле времени, цвет как у точек онсета
+    if isfield(events, 'first_onset_by_channel') && ~isempty(events.first_onset_by_channel) && isfield(calcResult, 'activeChannels')
+        for chIdx = 1:length(calcResult.activeChannels)
+            if chIdx <= length(events.first_onset_by_channel)
+                onset_time = events.first_onset_by_channel(chIdx);
+                if ~isnan(onset_time) && onset_time >= xLimits(1) && onset_time <= xLimits(2)
+                    xline(scatterAx, onset_time, ':', 'Color', [0.7 0.65 0.5], 'LineWidth', 1);
+                end
+            end
+        end
+    end
+    
     % Отображаем точки онсетов
     if isfield(events, 'onset_times') && isfield(events, 'onset_values') && ...
        ~isempty(events.onset_times) && ~isempty(events.onset_values) && ...

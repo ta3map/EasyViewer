@@ -38,8 +38,19 @@ function fileManagerGUI()
     if ~isfield(state, 'moduleQueue')
         state.moduleQueue = {};
     end
+    if ~isfield(state, 'filteredFileIndices')
+        state.filteredFileIndices = [];
+    end
+    if ~isfield(state, 'sortColumn')
+        state.sortColumn = '';
+    end
+    if ~isfield(state, 'sortDirection')
+        state.sortDirection = 'ASC';
+    end
     
     state.dbPath = initDbPath();
+    
+    loadSortSettings();
     
     % Инициализация фильтра файлов (локальная переменная)
     currentFilter = struct('columnName', '', 'searchText', '');
@@ -148,7 +159,7 @@ function fileManagerGUI()
 
     fileActionsMenu = uicontrol('Style', 'popupmenu', ...
         'Position', getElementPosition('fileActionsMenu'), ...
-        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field', 'Filter Files', 'Clear Filter'}, ...
+        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field', 'Filter Files', 'Sort Files', 'Clear Filter'}, ...
         'FontSize', 11, ...
         'Value', 1, ...
         'Callback', @handleFileAction, ...
@@ -302,7 +313,10 @@ function fileManagerGUI()
         struct('moduleName', 'assignFolderIds', 'fieldName', 'folder_id', 'displayName', 'Assign Folder IDs'),
         struct('moduleName', 'assignFileTypeId', 'fieldName', 'file_extension', 'displayName', 'Assign File Extension'),
         struct('moduleName', 'assignStimulusPairId', 'fieldName', 'pair_id', 'displayName', 'Assign Stimulus Pair IDs'),
-        struct('moduleName', 'calculateGabaAmpaOnsetDiff', 'fieldName', 'GABA-AMPA', 'displayName', 'Calculate GABA-AMPA Onset Difference')
+        struct('moduleName', 'assignHasResponse', 'fieldName', 'has_response', 'displayName', 'Assign Has Response'),
+        struct('moduleName', 'calculateGabaAmpaOnsetDiff', 'fieldName', 'GABA-AMPA', 'displayName', 'Calculate GABA-AMPA Onset Difference'),
+        struct('moduleName', 'assignHoldPotentialStimChannel', 'fieldName', 'hold_potential', 'displayName', 'Assign Hold Potential, Stim, Channel'),
+        struct('moduleName', 'assignAge', 'fieldName', 'age', 'displayName', 'Assign Age')
     };
     
     tableModificationMenuStrings = {'Table Modifications'};
@@ -507,6 +521,8 @@ function fileManagerGUI()
             case 5
                 showFileFilterDialog();
             case 6
+                showSortDialog();
+            case 7
                 clearFileFilter();
         end
     end
@@ -962,7 +978,8 @@ function fileManagerGUI()
         rowIdx = event.Indices(1);
         colIdx = event.Indices(2);
         
-        if rowIdx < 1 || rowIdx > numel(state.files)
+        tableData = src.Data;
+        if isempty(tableData) || rowIdx < 1 || rowIdx > size(tableData, 1)
             return
         end
         
@@ -980,7 +997,7 @@ function fileManagerGUI()
             return
         end
         
-        fileId = state.files(rowIdx).id;
+        fileId = tableData{rowIdx, 1};
         safeFieldName = makeSafeFieldName(originalFieldName);
         newValue = event.NewData;
         if isempty(newValue)
@@ -1007,37 +1024,49 @@ function fileManagerGUI()
             disp('No project selected');
             return
         end
-        [fileNames, basePath] = uigetfile({'*.*', 'All files'}, 'Select files', 'MultiSelect', 'on');
-        if isequal(fileNames, 0)
+        filePaths = addFilesDialogGUI();
+        if isempty(filePaths)
             return
         end
-        if ischar(fileNames)
-            fileNames = {fileNames};
-        end
         autoBackupDatabase();
-        for k = 1:numel(fileNames)
-            fullPath = fullfile(basePath, fileNames{k});
-            ensureFileInProject(fullPath, state.currentProjectId);
+        for k = 1:numel(filePaths)
+            ensureFileInProject(filePaths{k}, state.currentProjectId);
         end
         loadFilesForProject(state.currentProjectId);
     end
     
     function removeSelectedFile(~, ~)
-        if isempty(state.selectedRow)
+        if ~isfield(state, 'selectedFileIds') || isempty(state.selectedFileIds)
             return
         end
-        rowIdx = state.selectedRow;
-        if rowIdx < 1 || rowIdx > numel(state.files)
+        
+        selectedFileIds = state.selectedFileIds;
+        if isempty(selectedFileIds)
             return
         end
-        fileInfo = state.files(rowIdx);
-        choice = questdlg(sprintf('Remove file "%s" from project?', fileInfo.name), ...
-            'Remove File', 'Remove', 'Cancel', 'Cancel');
+        
+        numFiles = numel(selectedFileIds);
+        if numFiles == 1
+            fileIdx = find([state.files.id] == selectedFileIds(1), 1);
+            if ~isempty(fileIdx)
+                fileName = state.files(fileIdx).name;
+                choice = questdlg(sprintf('Remove file "%s" from project?', fileName), ...
+                    'Remove File', 'Remove', 'Cancel', 'Cancel');
+            else
+                choice = questdlg(sprintf('Remove %d selected file(s) from project?', numFiles), ...
+                    'Remove Files', 'Remove', 'Cancel', 'Cancel');
+            end
+        else
+            choice = questdlg(sprintf('Remove %d selected file(s) from project?', numFiles), ...
+                'Remove Files', 'Remove', 'Cancel', 'Cancel');
+        end
+        
         if ~strcmp(choice, 'Remove')
             return
         end
+        
         autoBackupDatabase();
-        unlinkFileFromProject(fileInfo.id, state.currentProjectId);
+        unlinkFilesFromProject(selectedFileIds, state.currentProjectId);
         loadFilesForProject(state.currentProjectId);
     end
     
@@ -1163,23 +1192,24 @@ function fileManagerGUI()
                 moduleAction = state.moduleQueue{moduleIdx};
                 
                 % Показываем GUI для редактирования параметров модуля один раз перед обработкой всех файлов
-                paramsApplied = false;
+                params = struct();
                 try
-                    params = editModuleParamsGUI(moduleAction);
-                    if ~isempty(fieldnames(params))
-                        paramsApplied = true;
+                    functionFolder = fileparts(mfilename('fullpath'));
+                    projectRoot = fileparts(fileparts(functionFolder));
+                    moduleFolder = fullfile(projectRoot, 'modules');
+                    jsonPath = fullfile(moduleFolder, [moduleAction, '.json']);
+                    
+                    if exist(jsonPath, 'file')
+                        params = editModuleParamsGUI(moduleAction);
+                        if isempty(fieldnames(params))
+                            params = struct();
+                        end
+                    else
+                        params = struct();
                     end
                 catch ME
                     debugState('fileManagerGUI', 'Failed to open parameter editor: %s', ME.message);
-                end
-                
-                if ~paramsApplied
-                    completedTasks = completedTasks + totalFiles;
-                    if ishandle(progressBar)
-                        progress = completedTasks / totalTasks;
-                        waitbar(progress, progressBar, sprintf('Module %d/%d: Skipped', moduleIdx, totalModules));
-                    end
-                    continue
+                    params = struct();
                 end
                 
                 % Внутренний цикл: обработка всех выбранных файлов
@@ -1197,7 +1227,7 @@ function fileManagerGUI()
                     debugState('fileManagerGUI', 'Module %s %d/%d: %s', moduleAction, idx, numel(filesToProcess), filePath);
                     updateAnalysisHistory(fileId, moduleAction);
                     result = callModules(moduleAction, filePath, fileId, params);
-                    if ~isempty(result) && isstruct(result) && numel(result) == 1
+                    if ~isempty(result) && isstruct(result) && numel(result) == 1 && ~isempty(fieldnames(result))
                         % Добавляем стандартные поля
                         result.file_id = fileId;
                         result.file_name = file.name;
@@ -1539,7 +1569,7 @@ function fileManagerGUI()
                     i, totalCount, task.moduleName, task.filePath);
                 
                 result = callModules(task.moduleName, task.filePath, task.fileId, params);
-                if ~isempty(result) && isstruct(result) && numel(result) == 1
+                if ~isempty(result) && isstruct(result) && numel(result) == 1 && ~isempty(fieldnames(result))
                     result.file_id = task.fileId;
                     result.file_name = task.fileName;
                     result.module_name = task.moduleName;
@@ -2038,9 +2068,32 @@ function fileManagerGUI()
             debugState('fileManagerGUI', 'restoreTableState: no rows');
             return
         end
+        tableData = fileTable.Data;
         if isempty(userData) || ~isfield(userData, 'row') || isempty(userData.row)
-            clearSelection();
-            debugState('fileManagerGUI', 'restoreTableState: no stored row, rows=%d', rowCount);
+            if isfield(state, 'selectedFileId') && ~isempty(state.selectedFileId) && ~isempty(tableData)
+                targetRow = [];
+                for i = 1:size(tableData, 1)
+                    if tableData{i, 1} == state.selectedFileId
+                        targetRow = i;
+                        break
+                    end
+                end
+                if ~isempty(targetRow)
+                    state.selectedRow = targetRow;
+                    targetCol = [];
+                    if isfield(userData, 'col') && ~isempty(userData.col)
+                        targetCol = min(max(1, userData.col), max(1, colCount));
+                    end
+                    state.selectedColumn = targetCol;
+                    debugState('fileManagerGUI', 'restoreTableState: restored by fileId, row=%d', targetRow);
+                else
+                    clearSelection();
+                    debugState('fileManagerGUI', 'restoreTableState: fileId not found in table, rows=%d', rowCount);
+                end
+            else
+                clearSelection();
+                debugState('fileManagerGUI', 'restoreTableState: no stored row, rows=%d', rowCount);
+            end
         else
             state.selectedRow = min(max(1, userData.row), rowCount);
             targetCol = [];
@@ -2048,8 +2101,8 @@ function fileManagerGUI()
                 targetCol = min(max(1, userData.col), max(1, colCount));
             end
             state.selectedColumn = targetCol;
-            if ~isempty(state.files) && state.selectedRow >= 1 && state.selectedRow <= numel(state.files)
-                state.selectedFileId = state.files(state.selectedRow).id;
+            if ~isempty(tableData) && state.selectedRow >= 1 && state.selectedRow <= size(tableData, 1)
+                state.selectedFileId = tableData{state.selectedRow, 1};
             else
                 state.selectedFileId = [];
             end
@@ -2088,6 +2141,7 @@ function fileManagerGUI()
     function updateTable(files)
         storeTableState();
         if isempty(files)
+            state.filteredFileIndices = [];
             fileTable.Data = {};
             fileTable.ColumnName = {'File ID', 'File Name', 'Path'};
             fileTable.ColumnEditable = [false, false, false];
@@ -2098,6 +2152,19 @@ function fileManagerGUI()
             fileTable.UserData.vpos = [];
             fileTable.UserData.hpos = [];
             return
+        end
+        
+        if isequal(files, state.files) || numel(files) == numel(state.files) && all([files.id] == [state.files.id])
+            state.filteredFileIndices = 1:numel(state.files);
+        else
+            state.filteredFileIndices = [];
+            for i = 1:numel(files)
+                fileId = files(i).id;
+                idx = find([state.files.id] == fileId, 1);
+                if ~isempty(idx)
+                    state.filteredFileIndices(end+1) = idx;
+                end
+            end
         end
         
         ids = num2cell([files.id]');
@@ -2130,6 +2197,8 @@ function fileManagerGUI()
             data = [data, values];
         end
         
+        data = applySortToData(data, columnNames, state.sortColumn, state.sortDirection);
+        
         fileTable.ColumnName = columnNames;
         fileTable.ColumnEditable = columnEditable;
         fileTable.ColumnWidth = columnWidths;
@@ -2149,6 +2218,53 @@ function fileManagerGUI()
         updateFileTableCounter(0);
         if exist('analysisTable', 'var')
             updateAnalysisTable([]);
+        end
+    end
+    
+    function restoreSelectionByFileIds(fileIds)
+        if isempty(fileIds)
+            return
+        end
+        
+        tableData = fileTable.Data;
+        if isempty(tableData)
+            return
+        end
+        
+        selectedRows = [];
+        for i = 1:size(tableData, 1)
+            fileId = tableData{i, 1};
+            if any(fileIds == fileId)
+                selectedRows(end+1) = i;
+            end
+        end
+        
+        if ~isempty(selectedRows)
+            state.selectedRows = selectedRows;
+            state.selectedFileIds = fileIds;
+            if numel(selectedRows) > 0
+                state.selectedRow = selectedRows(1);
+                state.selectedFileId = tableData{selectedRows(1), 1};
+            end
+            updateFileTableCounter(numel(selectedRows));
+            updateAnalysisTable(fileIds);
+            
+            try
+                jScroll = findjobj(fileTable);
+                if ~isempty(jScroll)
+                    jTable = jScroll.getViewport.getView();
+                    for i = 1:numel(selectedRows)
+                        rowIdx = selectedRows(i) - 1;
+                        colIdx = 0;
+                        if i == 1
+                            jTable.changeSelection(rowIdx, colIdx, false, false);
+                        else
+                            jTable.changeSelection(rowIdx, colIdx, true, false);
+                        end
+                    end
+                end
+            catch
+            end
         end
     end
     
@@ -3437,10 +3553,18 @@ function fileManagerGUI()
     end
     
     function applyFileFilter(columnName, searchText)
+        savedFileIds = [];
+        if isfield(state, 'selectedFileIds') && ~isempty(state.selectedFileIds)
+            savedFileIds = state.selectedFileIds;
+        end
+        
         if isempty(columnName) || isempty(searchText)
             currentFilter.columnName = '';
             currentFilter.searchText = '';
             updateTable(state.files);
+            if ~isempty(savedFileIds)
+                restoreSelectionByFileIds(savedFileIds);
+            end
             return
         end
         
@@ -3495,12 +3619,178 @@ function fileManagerGUI()
         end
         
         updateTable(filteredFiles);
+        
+        if ~isempty(savedFileIds)
+            restoreSelectionByFileIds(savedFileIds);
+        end
     end
     
     function clearFileFilter()
+        savedFileIds = [];
+        if isfield(state, 'selectedFileIds') && ~isempty(state.selectedFileIds)
+            savedFileIds = state.selectedFileIds;
+        end
+        
         currentFilter.columnName = '';
         currentFilter.searchText = '';
         updateTable(state.files);
+        
+        if ~isempty(savedFileIds)
+            restoreSelectionByFileIds(savedFileIds);
+        end
+    end
+    
+    function showSortDialog()
+        dialogWidth = 500;
+        dialogHeight = 200;
+        screenSize = get(0, 'ScreenSize');
+        dialogX = (screenSize(3) - dialogWidth) / 2;
+        dialogY = (screenSize(4) - dialogHeight) / 2;
+        
+        dialogFig = figure('Position', [dialogX, dialogY, dialogWidth, dialogHeight], ...
+            'Name', 'Sort Files', ...
+            'NumberTitle', 'off', ...
+            'MenuBar', 'none', ...
+            'Resize', 'off', ...
+            'WindowStyle', 'modal');
+        
+        margin = 15;
+        buttonHeight = 30;
+        buttonWidth = 80;
+        labelHeight = 20;
+        editHeight = 25;
+        spacing = 10;
+        
+        yPos = dialogHeight - margin - labelHeight;
+        
+        uicontrol('Parent', dialogFig, 'Style', 'text', ...
+            'Position', [margin, yPos, 100, labelHeight], ...
+            'String', 'Column:', ...
+            'HorizontalAlignment', 'left', ...
+            'FontSize', 11);
+        
+        columnList = {'File ID', 'File Name', 'Path'};
+        if ~isempty(state.metadataFields)
+            columnList = [columnList, state.metadataFields];
+        end
+        
+        currentColumnIdx = 1;
+        if ~isempty(state.sortColumn)
+            matchIdx = find(strcmp(columnList, state.sortColumn), 1);
+            if ~isempty(matchIdx)
+                currentColumnIdx = matchIdx;
+            end
+        end
+        
+        columnPopup = uicontrol('Parent', dialogFig, 'Style', 'popupmenu', ...
+            'Position', [margin + 110, yPos - 2, dialogWidth - 2*margin - 110, editHeight], ...
+            'String', columnList, ...
+            'Value', currentColumnIdx, ...
+            'FontSize', 11);
+        
+        yPos = yPos - labelHeight - spacing - editHeight;
+        
+        uicontrol('Parent', dialogFig, 'Style', 'text', ...
+            'Position', [margin, yPos, 100, labelHeight], ...
+            'String', 'Direction:', ...
+            'HorizontalAlignment', 'left', ...
+            'FontSize', 11);
+        
+        directionList = {'Ascending', 'Descending'};
+        currentDirectionIdx = 1;
+        if strcmp(state.sortDirection, 'DESC')
+            currentDirectionIdx = 2;
+        end
+        
+        directionPopup = uicontrol('Parent', dialogFig, 'Style', 'popupmenu', ...
+            'Position', [margin + 110, yPos - 2, dialogWidth - 2*margin - 110, editHeight], ...
+            'String', directionList, ...
+            'Value', currentDirectionIdx, ...
+            'FontSize', 11);
+        
+        yPos = margin;
+        
+        applyBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+            'Position', [dialogWidth - 2*buttonWidth - spacing - margin, yPos, buttonWidth, buttonHeight], ...
+            'String', 'Apply', ...
+            'FontSize', 11, ...
+            'Callback', @(src,evt) applySortCallback());
+        
+        cancelBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+            'Position', [dialogWidth - buttonWidth - margin, yPos, buttonWidth, buttonHeight], ...
+            'String', 'Cancel', ...
+            'FontSize', 11, ...
+            'Callback', @(src,evt) close(dialogFig));
+        
+        uicontrol(columnPopup);
+        
+        function applySortCallback()
+            columnIdx = get(columnPopup, 'Value');
+            columnName = columnList{columnIdx};
+            directionIdx = get(directionPopup, 'Value');
+            if directionIdx == 1
+                direction = 'ASC';
+            else
+                direction = 'DESC';
+            end
+            
+            state.sortColumn = columnName;
+            state.sortDirection = direction;
+            saveSortSettings();
+            updateTable(state.files);
+            close(dialogFig);
+        end
+        
+        uiwait(dialogFig);
+    end
+    
+    function loadSortSettings()
+        try
+            if exist(SettingsFilepath, 'file')
+                data = load(SettingsFilepath);
+                if isfield(data, 'file_manager_sort_column')
+                    state.sortColumn = data.file_manager_sort_column;
+                end
+                if isfield(data, 'file_manager_sort_direction')
+                    state.sortDirection = data.file_manager_sort_direction;
+                end
+            end
+        catch ME
+            warning('Failed to load sort settings: %s', ME.message);
+        end
+    end
+    
+    function saveSortSettings()
+        try
+            if exist(SettingsFilepath, 'file')
+                data = load(SettingsFilepath);
+            else
+                data = struct();
+            end
+            data.file_manager_sort_column = state.sortColumn;
+            data.file_manager_sort_direction = state.sortDirection;
+            save(SettingsFilepath, '-struct', 'data');
+        catch ME
+            warning('Failed to save sort settings: %s', ME.message);
+        end
+    end
+    
+    function sortedData = applySortToData(data, columnNames, sortColumn, sortDirection)
+        sortedData = data;
+        if isempty(sortColumn) || isempty(data)
+            return
+        end
+        
+        colIdx = find(strcmp(columnNames, sortColumn), 1);
+        if isempty(colIdx)
+            return
+        end
+        
+        if strcmp(sortDirection, 'DESC')
+            sortedData = sortrows(data, colIdx, 'descend');
+        else
+            sortedData = sortrows(data, colIdx, 'ascend');
+        end
     end
 end
 
@@ -3783,6 +4073,7 @@ function storeCurrentProjectId(projectId)
         warning('Failed to save selected project: %s', ME.message);
     end
 end
+
 
 function exists = isAnalysisResultExistsByPath(conn, reportPath)
     exists = false;

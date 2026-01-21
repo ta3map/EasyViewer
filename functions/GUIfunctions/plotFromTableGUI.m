@@ -2430,6 +2430,15 @@ function createCorrelationFigure(fig, state)
                 fileIds = filteredTable{:, 'FileID'};
             end
             
+            % Фильтруем NaN значения для синхронизации данных
+            if ~isempty(xData) && ~isempty(yData)
+                validMask = ~isnan(xData) & ~isnan(yData) & ~isinf(xData) & ~isinf(yData);
+                xData = xData(validMask);
+                yData = yData(validMask);
+                if ~isempty(fileIds) && length(fileIds) == length(validMask)
+                    fileIds = fileIds(validMask);
+                end
+            end
             
             if length(xData) < 2
                 continue
@@ -2448,58 +2457,12 @@ function createCorrelationFigure(fig, state)
             
             % Отображение File ID рядом с точками (если включено)
             if state.showFileIds && ~isempty(fileIds)
-                xRange = max(xData) - min(xData);
-                yRange = max(yData) - min(yData);
-                if xRange == 0
-                    xRange = abs(max(xData)) * 0.01;
-                    if xRange == 0
-                        xRange = 1;
-                    end
-                end
-                if yRange == 0
-                    yRange = abs(max(yData)) * 0.01;
-                    if yRange == 0
-                        yRange = 1;
-                    end
-                end
-                for i = 1:length(xData)
-                    if ~isnan(fileIds(i))
-                        text(ax, xData(i) - 0.01 * xRange, yData(i) + 0.01 * yRange, num2str(fileIds(i)), ...
-                            'HorizontalAlignment', 'right', ...
-                            'VerticalAlignment', 'bottom', ...
-                            'FontSize', 7, ...
-                            'Color', [1 1 1], ...
-                            'BackgroundColor', [0 0 0], ...
-                            'Interpreter', 'none');
-                    end
-                end
+                plotFileIdsOnAxes(ax, xData, yData, fileIds, -0.01, 0.01);
             end
             
             % Отображение значений Y рядом с точками (если включено)
             if state.showYValues
-                xRange = max(xData) - min(xData);
-                yRange = max(yData) - min(yData);
-                if xRange == 0
-                    xRange = abs(max(xData)) * 0.01;
-                    if xRange == 0
-                        xRange = 1;
-                    end
-                end
-                if yRange == 0
-                    yRange = abs(max(yData)) * 0.01;
-                    if yRange == 0
-                        yRange = 1;
-                    end
-                end
-                for i = 1:length(xData)
-                    text(ax, xData(i) + 0.01 * xRange, yData(i) + 0.01 * yRange, sprintf('(%.3f,%.3f)', xData(i), yData(i)), ...
-                        'HorizontalAlignment', 'left', ...
-                        'VerticalAlignment', 'bottom', ...
-                        'FontSize', 7, ...
-                        'Color', [0 0 0], ...
-                        'BackgroundColor', [1 1 1], ...
-                        'Interpreter', 'none');
-                end
+                plotYValuesOnAxes(ax, xData, yData, yData, 0.01, 0.01, '(%.3f,%.3f)');
             end
             
             % Добавляем в легенду (только точки, цвет определяется по X параметру)
@@ -2587,12 +2550,56 @@ function createCorrelationFigure(fig, state)
                 data = param.data;
                 
                 if length(data) > 0
+                    % Получаем fileIds из структуры paramData или из filteredTable
+                    fileIds = [];
+                    if isfield(param, 'fileIds') && ~isempty(param.fileIds) && length(param.fileIds) == length(data)
+                        fileIds = param.fileIds;
+                    else
+                        % Если fileIds нет в структуре, получаем из filteredTable
+                        filterStr = param.filter;
+                        if isempty(filterStr)
+                            filterStr = '';
+                        end
+                        
+                        if ~isempty(filterStr)
+                            parsedFilters = boxplotParseGroupFilters(filterStr);
+                            if ~isempty(parsedFilters)
+                                filteredTable = boxplotApplyGroupFilters(state.table, parsedFilters);
+                            else
+                                filteredTable = state.table;
+                            end
+                        else
+                            filteredTable = state.table;
+                        end
+                        
+                        if ~isempty(filteredTable) && ismember('FileID', filteredTable.Properties.VariableNames) && ismember(param.column, filteredTable.Properties.VariableNames)
+                            columnData = filteredTable{:, param.column};
+                            if isnumeric(columnData)
+                                columnData = double(columnData);
+                                validMask = ~isnan(columnData) & ~isinf(columnData);
+                                fileIds = filteredTable{:, 'FileID'};
+                                fileIds = fileIds(validMask);
+                            end
+                        end
+                    end
+                    
                     % Простой scatter plot по индексам на том же axes
-                    hScatterSingle = scatter(ax, 1:length(data), data, 50, param.parsedColor, 'o', ...
+                    xData = 1:length(data);
+                    hScatterSingle = scatter(ax, xData, data, 50, param.parsedColor, 'o', ...
                         'MarkerFaceColor', param.parsedColor, ...
                         'MarkerEdgeColor', 'white', ...
                         'LineWidth', 1, ...
                         'MarkerFaceAlpha', 0.7);
+                    
+                    % Отображение File ID рядом с точками (если включено)
+                    if state.showFileIds && ~isempty(fileIds) && length(fileIds) == length(data)
+                        plotFileIdsOnAxes(ax, xData, data, fileIds, -0.01, 0.01);
+                    end
+                    
+                    % Отображение значений Y рядом с точками (если включено)
+                    if state.showYValues
+                        plotYValuesOnAxes(ax, xData, data, data, 0.01, 0.01, '%.3f');
+                    end
                     
                     % Добавляем в легенду
                     legendHandles{end+1} = hScatterSingle;
@@ -3184,46 +3191,23 @@ function createBoxplotFigure(fig, state)
                         'LineWidth', paramLineWidth, ...
                         'MarkerFaceAlpha', 1);
                     
+                    % Вычисляем dataRange один раз для обоих случаев
+                    dataRange = max(data) - min(data);
+                    if dataRange == 0
+                        dataRange = abs(max(data)) * 0.01;
+                        if dataRange == 0
+                            dataRange = 1;
+                        end
+                    end
+                    
                     % Отображение File ID рядом с точками (если включено)
                     if state.showFileIds && ~isempty(fileIdsForLabel)
-                        dataRange = max(data) - min(data);
-                        if dataRange == 0
-                            dataRange = abs(max(data)) * 0.01;
-                            if dataRange == 0
-                                dataRange = 1;
-                            end
-                        end
-                        for i = 1:length(data)
-                            if ~isnan(fileIdsForLabel(i))
-                                text(ax, x_jitter(i) - 0.05, data(i) + 0.01 * dataRange, num2str(fileIdsForLabel(i)), ...
-                                    'HorizontalAlignment', 'right', ...
-                                    'VerticalAlignment', 'bottom', ...
-                                    'FontSize', 7, ...
-                                    'Color', [1 1 1], ...
-                                    'BackgroundColor', [0 0 0], ...
-                                    'Interpreter', 'none');
-                            end
-                        end
+                        plotFileIdsOnAxes(ax, x_jitter, data, fileIdsForLabel, -0.05, 0.01 * dataRange, true);
                     end
                     
                     % Отображение значений Y рядом с точками (если включено)
                     if state.showYValues
-                        dataRange = max(data) - min(data);
-                        if dataRange == 0
-                            dataRange = abs(max(data)) * 0.01;
-                            if dataRange == 0
-                                dataRange = 1;
-                            end
-                        end
-                        for i = 1:length(data)
-                            text(ax, x_jitter(i) + 0.05, data(i) + 0.01 * dataRange, sprintf('%.3f', data(i)), ...
-                                'HorizontalAlignment', 'left', ...
-                                'VerticalAlignment', 'bottom', ...
-                                'FontSize', 7, ...
-                                'Color', [0 0 0], ...
-                                'BackgroundColor', [1 1 1], ...
-                                'Interpreter', 'none');
-                        end
+                        plotYValuesOnAxes(ax, x_jitter, data, data, 0.05, 0.01 * dataRange, '%.3f', true);
                     end
                     
                     % Аннотация n=X (используем медиану из stats)
@@ -3373,6 +3357,134 @@ function createBoxplotFigure(fig, state)
         title(t, state.title, 'FontSize', 14, 'FontWeight', 'bold', 'Interpreter', 'none');
         zoom(fig, 'on');
         pan(fig, 'on');
+    end
+end
+
+function plotFileIdsOnAxes(ax, xPositions, yPositions, fileIds, xOffset, yOffset, useAbsoluteOffset)
+    % plotFileIdsOnAxes - Отображение File IDs рядом с точками на графике
+    % Входные параметры:
+    %   ax - handle оси
+    %   xPositions - массив X координат точек
+    %   yPositions - массив Y координат точек
+    %   fileIds - массив File IDs (может быть пустым)
+    %   xOffset - смещение по X (относительно диапазона или абсолютное)
+    %   yOffset - смещение по Y (относительно диапазона или абсолютное)
+    %   useAbsoluteOffset - если true, смещения абсолютные; если false или не указано - относительные
+    
+    if nargin < 7
+        useAbsoluteOffset = false;
+    end
+    
+    if isempty(fileIds) || length(fileIds) ~= length(xPositions)
+        return
+    end
+    
+    if useAbsoluteOffset
+        xOffsetFinal = xOffset;
+        yOffsetFinal = yOffset;
+    else
+        xRange = max(xPositions) - min(xPositions);
+        yRange = max(yPositions) - min(yPositions);
+        
+        if xRange == 0
+            if length(xPositions) == 1
+                xRange = abs(xPositions(1)) * 0.01;
+            else
+                xRange = 1;
+            end
+            if xRange == 0
+                xRange = 1;
+            end
+        end
+        
+        if yRange == 0
+            yRange = abs(max(yPositions)) * 0.01;
+            if yRange == 0
+                yRange = 1;
+            end
+        end
+        
+        xOffsetFinal = xOffset * xRange;
+        yOffsetFinal = yOffset * yRange;
+    end
+    
+    for i = 1:length(xPositions)
+        if ~isnan(fileIds(i))
+            text(ax, xPositions(i) + xOffsetFinal, yPositions(i) + yOffsetFinal, num2str(fileIds(i)), ...
+                'HorizontalAlignment', 'right', ...
+                'VerticalAlignment', 'bottom', ...
+                'FontSize', 7, ...
+                'Color', [1 1 1], ...
+                'BackgroundColor', [0 0 0], ...
+                'Interpreter', 'none');
+        end
+    end
+end
+
+function plotYValuesOnAxes(ax, xPositions, yPositions, yValues, xOffset, yOffset, formatStr, useAbsoluteOffset)
+    % plotYValuesOnAxes - Отображение Y значений рядом с точками на графике
+    % Входные параметры:
+    %   ax - handle оси
+    %   xPositions - массив X координат точек
+    %   yPositions - массив Y координат точек
+    %   yValues - массив Y значений для отображения (может быть равен yPositions)
+    %   xOffset - смещение по X (относительно диапазона или абсолютное)
+    %   yOffset - смещение по Y (относительно диапазона или абсолютное)
+    %   formatStr - формат строки (например, '%.3f' или '(%.3f,%.3f)')
+    %   useAbsoluteOffset - если true, смещения абсолютные; если false или не указано - относительные
+    
+    if nargin < 8
+        useAbsoluteOffset = false;
+    end
+    
+    if isempty(yValues) || length(yValues) ~= length(xPositions)
+        return
+    end
+    
+    if useAbsoluteOffset
+        xOffsetFinal = xOffset;
+        yOffsetFinal = yOffset;
+    else
+        xRange = max(xPositions) - min(xPositions);
+        yRange = max(yPositions) - min(yPositions);
+        
+        if xRange == 0
+            if length(xPositions) == 1
+                xRange = abs(xPositions(1)) * 0.01;
+            else
+                xRange = 1;
+            end
+            if xRange == 0
+                xRange = 1;
+            end
+        end
+        
+        if yRange == 0
+            yRange = abs(max(yPositions)) * 0.01;
+            if yRange == 0
+                yRange = 1;
+            end
+        end
+        
+        xOffsetFinal = xOffset * xRange;
+        yOffsetFinal = yOffset * yRange;
+    end
+    
+    for i = 1:length(xPositions)
+        if contains(formatStr, ',')
+            % Формат для пар значений (x, y)
+            textStr = sprintf(formatStr, xPositions(i), yPositions(i));
+        else
+            % Формат для одного значения
+            textStr = sprintf(formatStr, yValues(i));
+        end
+        text(ax, xPositions(i) + xOffsetFinal, yPositions(i) + yOffsetFinal, textStr, ...
+            'HorizontalAlignment', 'left', ...
+            'VerticalAlignment', 'bottom', ...
+            'FontSize', 7, ...
+            'Color', [0 0 0], ...
+            'BackgroundColor', [1 1 1], ...
+            'Interpreter', 'none');
     end
 end
 

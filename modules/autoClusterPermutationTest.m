@@ -141,10 +141,13 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
     
     % Первый онсет ответа (первый онсет больше нуля)
     positive_onsets = cluster_onsets_ms(cluster_onsets_ms > 0);
-    first_onset_ms = [];
+    cluster_first_onset_ms = [];
     if ~isempty(positive_onsets)
-        first_onset_ms = min(positive_onsets);
+        cluster_first_onset_ms = min(positive_onsets);
     end
+    
+    % Определение has_response на основе cluster_first_onset_ms
+    has_response = ~isempty(cluster_first_onset_ms);
     
     % Параметры визуализации
     showBaseline = getBoolParam(params, 'showBaselinePeriod', true, 'visualization');
@@ -180,9 +183,10 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
         'test_result', testResult, ...
         'timeAxis', timeAxis, ...
         'cluster_onsets_ms', cluster_onsets_ms, ...
-        'first_onset_ms', first_onset_ms, ...
+        'cluster_first_onset_ms', cluster_first_onset_ms, ...
+        'has_response', has_response, ...
         'response', response, ...
-        'tableResultInsert', {{'response'}});
+        'tableResultInsert', {{'cluster_first_onset_ms', 'has_response'}});
 end
 
 % Вспомогательная функция для извлечения boolean параметров
