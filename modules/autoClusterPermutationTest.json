@@ -8,7 +8,7 @@
     "showOriginalTraces": false,
     "removeBaseline": true,
     "removeArtifact": true,
-    "artifactWindow_ms": 1,
+    "artifactWindow_ms": 2.5,
     "showBaselinePeriod": true,
     "showMeanSignal": true
   },

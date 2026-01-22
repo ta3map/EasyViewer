@@ -1178,88 +1178,51 @@ function fileManagerGUI()
             return
         end
         
-        totalModules = numel(state.moduleQueue);
-        totalFiles = numel(filesToProcess);
-        totalTasks = totalModules * totalFiles;
+        tasks = [];
+        functionFolder = fileparts(mfilename('fullpath'));
+        projectRoot = fileparts(fileparts(functionFolder));
+        moduleFolder = fullfile(projectRoot, 'modules');
         
-        progressBar = waitbar(0, 'Initializing modules...', 'Name', 'Processing Modules');
-        
-        completedTasks = 0;
-        
-        try
-            % Внешний цикл: для каждого модуля в очереди
-            for moduleIdx = 1:numel(state.moduleQueue)
-                moduleAction = state.moduleQueue{moduleIdx};
-                
-                % Показываем GUI для редактирования параметров модуля один раз перед обработкой всех файлов
-                params = struct();
-                try
-                    functionFolder = fileparts(mfilename('fullpath'));
-                    projectRoot = fileparts(fileparts(functionFolder));
-                    moduleFolder = fullfile(projectRoot, 'modules');
-                    jsonPath = fullfile(moduleFolder, [moduleAction, '.json']);
-                    
-                    if exist(jsonPath, 'file')
-                        params = editModuleParamsGUI(moduleAction);
-                        if isempty(fieldnames(params))
-                            params = struct();
-                        end
-                    else
+        for moduleIdx = 1:numel(state.moduleQueue)
+            moduleAction = state.moduleQueue{moduleIdx};
+            
+            params = struct();
+            try
+                jsonPath = fullfile(moduleFolder, [moduleAction, '.json']);
+                if exist(jsonPath, 'file')
+                    params = editModuleParamsGUI(moduleAction);
+                    if isempty(fieldnames(params))
                         params = struct();
                     end
-                catch ME
-                    debugState('fileManagerGUI', 'Failed to open parameter editor: %s', ME.message);
-                    params = struct();
                 end
-                
-                % Внутренний цикл: обработка всех выбранных файлов
-                for idx = 1:numel(filesToProcess)
-                    file = filesToProcess(idx);
-                    filePath = file.path;
-                    fileId = file.id;
-                    
-                    if ishandle(progressBar)
-                        progress = completedTasks / totalTasks;
-                        waitbar(progress, progressBar, sprintf('Module %d/%d: %s (%d/%d files)', ...
-                            moduleIdx, totalModules, moduleAction, idx, totalFiles));
-                    end
-                    
-                    debugState('fileManagerGUI', 'Module %s %d/%d: %s', moduleAction, idx, numel(filesToProcess), filePath);
-                    updateAnalysisHistory(fileId, moduleAction);
-                    result = callModules(moduleAction, filePath, fileId, params);
-                    if ~isempty(result) && isstruct(result) && numel(result) == 1 && ~isempty(fieldnames(result))
-                        % Добавляем стандартные поля
-                        result.file_id = fileId;
-                        result.file_name = file.name;
-                        result.module_name = moduleAction;
-                        
-                        % Извлечение и сохранение метаданных из результата
-                        result = extractAndSaveMetadata(result, fileId);
-                        
-                        % Сохраняем .meta файл
-                        result = saveMetaFileFromResult(result, filePath);
-                        
-                        logAnalysisResult(fileId, result);
-                        updateAnalysisTable(fileId);
-                    end
-                    
-                    completedTasks = completedTasks + 1;
-                end
+            catch ME
+                debugState('fileManagerGUI', 'Failed to open parameter editor: %s', ME.message);
+                params = struct();
             end
             
-            if ishandle(progressBar)
-                waitbar(1.0, progressBar, 'Completed!');
-                pause(0.5);
-                close(progressBar);
+            for idx = 1:numel(filesToProcess)
+                file = filesToProcess(idx);
+                task = struct(...
+                    'fileId', file.id, ...
+                    'filePath', file.path, ...
+                    'fileName', file.name, ...
+                    'moduleName', moduleAction, ...
+                    'params', params, ...
+                    'updateHistory', true);
+                tasks = [tasks; task];
             end
-        catch ME
-            if ishandle(progressBar)
-                close(progressBar);
-            end
-            rethrow(ME);
         end
         
-        % Очистка очереди после выполнения
+        if isempty(tasks)
+            return
+        end
+        
+        stats = executeModuleTasks(tasks, ...
+            'ProgressBarTitle', 'Processing Modules', ...
+            'ExtractMetadataCallback', @(result, fileId) extractAndSaveMetadata(result, fileId), ...
+            'SaveMetaFileCallback', @(result, filePath) saveMetaFileFromResult(result, filePath), ...
+            'UpdateTableCallback', @(fileId) updateAnalysisTable(fileId));
+        
         state.moduleQueue = {};
         updateQueueTable();
     end
@@ -1486,15 +1449,13 @@ function fileManagerGUI()
             return
         end
         
-        % Получаем выбранные строки из таблицы анализа
         selectedRows = getSelectedAnalysisRows(size(data, 1));
         if isempty(selectedRows)
             msgbox('No analysis results selected', 'Info', 'help');
             return
         end
         
-        % Формируем очередь задач для повторного анализа
-        rerunQueue = {};
+        tasks = [];
         for i = 1:numel(selectedRows)
             rowIdx = selectedRows(i);
             if rowIdx < 1 || rowIdx > size(data, 1)
@@ -1505,7 +1466,6 @@ function fileManagerGUI()
             reportPath = data{rowIdx, 2};
             moduleName = data{rowIdx, 3};
             
-            % Получаем путь к файлу из базы данных
             fileQuery = sprintf('SELECT file_path, file_name FROM files WHERE id = %d', fileId);
             fileRows = sqlFetch(fileQuery);
             if isempty(fileRows)
@@ -1516,80 +1476,49 @@ function fileManagerGUI()
             filePath = fileRows{1, 1};
             fileName = fileRows{1, 2};
             
-            % Определяем путь к .meta файлу
             metaPath = replaceFileExt(reportPath, '.meta');
-            
             if ~exist(metaPath, 'file')
                 warning('Re-run analysis: .meta file not found: %s', metaPath);
                 continue
             end
             
-            % Добавляем задачу в очередь
-            rerunQueue{end + 1} = struct(...
+            try
+                metaData = load(metaPath, '-mat');
+            catch ME
+                warning('Re-run analysis: skipping result - failed to load .meta file: %s', ME.message);
+                continue
+            end
+            
+            if ~isfield(metaData, 'parameters')
+                warning('Re-run analysis: skipping result - no parameters in .meta file for file_id=%d, module=%s', ...
+                    fileId, moduleName);
+                continue
+            end
+            
+            params = metaData.parameters;
+            
+            task = struct(...
                 'fileId', fileId, ...
                 'filePath', filePath, ...
                 'fileName', fileName, ...
                 'moduleName', moduleName, ...
-                'metaPath', metaPath, ...
-                'reportPath', reportPath);
+                'params', params, ...
+                'updateHistory', false);
+            tasks = [tasks; task];
         end
         
-        if isempty(rerunQueue)
+        if isempty(tasks)
             msgbox('No valid analysis results to re-run', 'Info', 'help');
             return
         end
         
-        % Выполняем задачи из очереди последовательно
-        successCount = 0;
-        totalCount = numel(rerunQueue);
+        stats = executeModuleTasks(tasks, ...
+            'ProgressBarTitle', 'Re-running Analysis', ...
+            'ExtractMetadataCallback', @(result, fileId) extractAndSaveMetadata(result, fileId), ...
+            'SaveMetaFileCallback', @(result, filePath) saveMetaFileFromResult(result, filePath), ...
+            'UpdateTableCallback', @(fileId) updateAnalysisTable(fileId));
         
-        for i = 1:totalCount
-            task = rerunQueue{i};
-            
-            try
-                % Загружаем переменную params из .meta файла
-                try
-                    metaData = load(task.metaPath, '-mat');
-                catch ME
-                    warning('Re-run analysis: skipping result %d/%d - failed to load .meta file: %s', ...
-                        i, totalCount, ME.message);
-                    continue
-                end
-                
-                % Извлекаем parameters
-                if ~isfield(metaData, 'parameters')
-                    warning('Re-run analysis: skipping result %d/%d - no parameters in .meta file for file_id=%d, module=%s', ...
-                        i, totalCount, task.fileId, task.moduleName);
-                    continue
-                end
-                
-                params = metaData.parameters;
-                
-                debugState('fileManagerGUI', 'Re-run analysis %d/%d: module=%s, file=%s', ...
-                    i, totalCount, task.moduleName, task.filePath);
-                
-                result = callModules(task.moduleName, task.filePath, task.fileId, params);
-                if ~isempty(result) && isstruct(result) && numel(result) == 1 && ~isempty(fieldnames(result))
-                    result.file_id = task.fileId;
-                    result.file_name = task.fileName;
-                    result.module_name = task.moduleName;
-                    
-                    % Извлечение и сохранение метаданных из результата
-                    result = extractAndSaveMetadata(result, task.fileId);
-                    
-                    result = saveMetaFileFromResult(result, task.filePath);
-                    logAnalysisResult(task.fileId, result);
-                    updateAnalysisTable(task.fileId);
-                    successCount = successCount + 1;
-                else
-                    warning('Re-run analysis: module %s returned empty result for file_id=%d', task.moduleName, task.fileId);
-                end
-            catch ME
-                warning('Re-run analysis: error processing result %d/%d: %s', i, totalCount, ME.message);
-            end
-        end
-        
-        fprintf('Re-run analysis completed: %d successful out of %d total\n', successCount, totalCount);
+        fprintf('Re-run analysis completed: %d successful out of %d total\n', stats.success, stats.total);
     end
     
     function metadataAnalysisCallback(~, ~)

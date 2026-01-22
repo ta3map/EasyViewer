@@ -797,8 +797,8 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     switch DetectionType
         case 'two channels difference'
 
-            NegTrace = resample(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
-            PosTrace = resample(double(data_in(:, ChPos)), lfp_frq , raw_frq)';           
+            NegTrace = resample1(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
+            PosTrace = resample1(double(data_in(:, ChPos)), lfp_frq , raw_frq)';           
             Reversion = PosTrace - NegTrace;
 %             Reversion = medfilt1(Reversion, smooth_coef);
 %             baseline = medfilt1(Reversion, 1000);
@@ -807,15 +807,15 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
             Filtered_Reversion(Filtered_Reversion<baseline) = baseline(Filtered_Reversion<baseline);
             Trace_out = Filtered_Reversion - baseline;
         case 'two channels multiplied'
-            NegTrace = resample(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
-            PosTrace = resample(double(data_in(:, ChPos)), lfp_frq , raw_frq)';              
+            NegTrace = resample1(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
+            PosTrace = resample1(double(data_in(:, ChPos)), lfp_frq , raw_frq)';              
             Trace_out = -(NegTrace.*PosTrace);        
         case 'one channel negative'
-            NegTrace = resample(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
+            NegTrace = resample1(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
 %             Trace_out = -medfilt1(NegTrace, smooth_coef);
             Trace_out = -NegTrace;
         case 'one channel positive'
-            PosTrace = resample(double(data_in(:, ChPos)), lfp_frq , raw_frq)'; 
+            PosTrace = resample1(double(data_in(:, ChPos)), lfp_frq , raw_frq)'; 
 %             Trace_out = medfilt1(PosTrace, smooth_coef);
             Trace_out = PosTrace;
     end

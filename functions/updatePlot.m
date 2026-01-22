@@ -88,21 +88,17 @@ function updatePlot()
         % Иначе, проводим ресемплинг (только даунсемплинг)
         raw_Fs = Fs;
         lfp_Fs = round(newFs);
-        numRawPoints = size(data, 1); % количество точек в исходных данных
 
-        % Используем interp1 для ресемплинга (быстрее и без краевых эффектов от фильтра)
-        t_original = time_in;
-        totalDuration = t_original(end) - t_original(1);
-        numPoints = round(totalDuration * lfp_Fs) + 1;
-        t_resampled = linspace(time_in(1), time_in(end), numPoints);
-
-        data_res = zeros(numPoints, size(data, 2)); % предварительное выделение памяти
+        % Используем resample1 для ресемплинга (без краевых эффектов)
+        data_res = zeros(round((time_in(end) - time_in(1)) * lfp_Fs) + 1, size(data, 2));
 
         for ch = 1:size(data, 2)
-            data_res(:, ch) = interp1(t_original, double(data(:, ch)), t_resampled, 'linear', 'extrap');
+            data_res(:, ch) = resample1(data(:, ch), lfp_Fs, raw_Fs);
         end
 
-        time_res = t_resampled;
+        % Создаем временной вектор для ресемплированных данных
+        numPoints = size(data_res, 1);
+        time_res = linspace(time_in(1), time_in(end), numPoints);
     end
 
     numChannels = size(data_res, 2);

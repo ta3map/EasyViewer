@@ -63,12 +63,9 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
             sweepData = reshape(sweepData, [], 1); % Преобразуем в вектор.
 
             if doResample
-                % Используем interp1 для обеспечения одинаковой длины данных.
-                t_original = (0:length(sweepData)-1) / orig_Fs;
-                totalDuration = t_original(end);
-                lfp_length = round(totalDuration * actual_lfp_Fs) + 1;
-                t_resampled = (0:lfp_length-1) / actual_lfp_Fs;
-                data_resampled = interp1(t_original, double(sweepData), t_resampled, 'linear', 'extrap')';
+                % Используем resample1 для ресемплинга (без краевых эффектов)
+                data_resampled = resample1(sweepData, actual_lfp_Fs, orig_Fs);
+                lfp_length = length(data_resampled);
             else
                 data_resampled = sweepData;
                 lfp_length = length(data_resampled);

@@ -43,7 +43,9 @@ function oep_to_zav(recordedData, zavFilePath, Fs, newFs, detectMua, mua_std_coe
 
     % Выполнение ресемплинга, если требуется
     if doResample
-        lfp = resample(double(lfp), newFs, Fs);
+        for chIdx = 1:numChannels
+            lfp(:, chIdx) = resample1(lfp(:, chIdx), newFs, Fs);
+        end
     end
 
     % Расчет вариации LFP
