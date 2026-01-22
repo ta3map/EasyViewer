@@ -148,10 +148,10 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
     
     % Calculate final length after resampling
     if doResample
-        % Estimate from first chunk
+        % Estimate from first chunk (используем resample1 для избежания краевых эффектов)
         testChunk = min(CHUNK_SIZE, 10000);
         testData = zeros(testChunk, 1);
-        resampledTest = resample(testData, newFs, Fs);
+        resampledTest = resample1(testData, newFs, Fs);
         resampleRatio = length(resampledTest) / testChunk;
         final_lfp_length = round(totalSamples * resampleRatio);
     else
@@ -287,9 +287,9 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
                     lfp_channel_data_for_mua = [lfp_channel_data_for_mua; channelChunk];
                 end
                 
-                % 3. Если нужен resample - делаем ресемплинг для LFP
+                % 3. Если нужен resample - делаем ресемплинг для LFP (используем resample1 для избежания краевых эффектов)
                 if doResample
-                    channelChunkForLFP = resample(channelChunk, newFs, Fs);
+                    channelChunkForLFP = resample1(channelChunk, newFs, Fs);
                 else
                     channelChunkForLFP = channelChunk;
                 end

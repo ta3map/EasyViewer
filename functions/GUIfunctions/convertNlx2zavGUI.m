@@ -371,7 +371,15 @@ function convertNlx2zavGUI
             [data, ~, hd] = ZavNrlynx2(recordPath, [], channels_list(1), [], []);
             fprintf('DEBUG: First channel data size: %s, hd.nADCNumChannels: %d\n', mat2str(size(data)), hd.nADCNumChannels);
             orig_Fs = 1e6/hd.si; % оригинальная частота дискретизации
-            lfp_length = floor(length(data) * lfp_Fs / orig_Fs); % новая длина сигнала после ресемплинга
+            
+            % Вычисляем размер lfp в зависимости от того, будет ли ресемплинг
+            if doResample
+                lfp_length = floor(length(data) * lfp_Fs / orig_Fs); % новая длина сигнала после ресемплинга
+                fprintf('DEBUG: RESAMPLING will be applied: lfp_length = floor(%d * %f / %f) = %d\n', length(data), lfp_Fs, orig_Fs, lfp_length);
+            else
+                lfp_length = length(data); % без ресемплинга используем оригинальную длину
+                fprintf('DEBUG: NO RESAMPLING: lfp_length = length(data) = %d\n', lfp_length);
+            end
             fprintf('DEBUG: lfp_length: %d, channels_n: %d\n', lfp_length, channels_n);
             
             % Создаем MAT-файл v7.3 и инициализируем переменные для прямого доступа
@@ -412,20 +420,34 @@ function convertNlx2zavGUI
                     spks(ch_inx).shape = [];
                 end
 
-                % Ресамплинг данных канала
+                % Обработка данных канала (ресамплинг или без)
                 if doResample
-                    data_resampled = resample(data, lfp_Fs, orig_Fs);
+                    fprintf('DEBUG: RESAMPLING: YES - from %f Hz to %f Hz\n', orig_Fs, lfp_Fs);
+                    data_processed = resample1(data, lfp_Fs, orig_Fs);
                 else
-                    data_resampled = data;
+                    fprintf('DEBUG: RESAMPLING: NO - keeping original %f Hz\n', orig_Fs);
+                    data_processed = data;
                 end
                 
-                % Убеждаемся, что data_resampled - вектор-столбец
-                data_resampled = data_resampled(:);
+                % Убеждаемся, что data_processed - вектор-столбец
+                data_processed = data_processed(:);
                 
-                fprintf('DEBUG: data_resampled size: %s\n', mat2str(size(data_resampled)));
+                fprintf('DEBUG: data_processed size: %s, expected lfp_length: %d\n', mat2str(size(data_processed)), lfp_length);
+                
+                % Проверяем размер перед записью
+                if length(data_processed) ~= lfp_length
+                    fprintf('DEBUG: WARNING - size mismatch! data_processed length: %d, lfp_length: %d\n', length(data_processed), lfp_length);
+                    if length(data_processed) > lfp_length
+                        fprintf('DEBUG: Truncating data_processed to lfp_length\n');
+                        data_processed = data_processed(1:lfp_length);
+                    elseif length(data_processed) < lfp_length
+                        fprintf('DEBUG: Padding data_processed with zeros to lfp_length\n');
+                        data_processed = [data_processed; zeros(lfp_length - length(data_processed), 1)];
+                    end
+                end
                 
                 % Записываем данные канала напрямую в файл (не держим в памяти)
-                m.lfp(:, ch_inx) = single(data_resampled);
+                m.lfp(:, ch_inx) = single(data_processed);
 
                 % Обновление индикатора прогресса
                 waitbar(ch_inx / numel(channels_list), hWaitBar, sprintf('Channel %d from %d...', ch, numel(channels_list)));
@@ -453,16 +475,36 @@ function convertNlx2zavGUI
             lfpVar = np_flatten(lfpVar)';
             
             % Сохранение остальных данных
-            skip_points = orig_Fs/lfp_Fs;
+            % Определяем фактическую частоту дискретизации сохраненных данных
+            if doResample
+                actual_Fs = lfp_Fs; % если ресемплинг применен, используем lfp_Fs
+                skip_points = orig_Fs/lfp_Fs;
+            else
+                actual_Fs = orig_Fs; % если ресемплинг НЕ применен, используем оригинальную частоту
+                skip_points = 1; % без ресемплинга нет пропуска точек
+            end
+            fprintf('DEBUG: actual_Fs (saved data frequency): %f Hz, skip_points: %f\n', actual_Fs, skip_points);
+            
             chnlGrp = {};
             zavp.file = recordPath;
-            zavp.siS = (hd.si/1000)/lfp_Fs;
-            zavp.dwnSmplFrq = lfp_Fs;
+            zavp.siS = 1 / actual_Fs;
+            zavp.dwnSmplFrq = actual_Fs;
             zavp.stimCh = nan;
 
             if size(hd.inTTL_timestamps, 2)>0 % если были ttl стимуляции
-                r_i = (hd.inTTL_timestamps.t(:,1)*skip_points)/zavp.dwnSmplFrq;
-                f_i = (hd.inTTL_timestamps.t(:,2)*skip_points)/zavp.dwnSmplFrq;
+                % hd.inTTL_timestamps.t в микросекундах (из ZavNrlynx2.m строка 107)
+                % Конвертируем в сэмплы сохраненных данных
+                % Сначала в сэмплы оригинальных данных: микросекунды / hd.si
+                % Затем пересчитываем в сэмплы сохраненных данных
+                if doResample
+                    % Для ресемплинга: сэмплы_ориг -> сэмплы_ресампл
+                    r_i = (hd.inTTL_timestamps.t(:,1) / hd.si) * (lfp_Fs / orig_Fs);
+                    f_i = (hd.inTTL_timestamps.t(:,2) / hd.si) * (lfp_Fs / orig_Fs);
+                else
+                    % Без ресемплинга: просто сэмплы оригинальных данных
+                    r_i = hd.inTTL_timestamps.t(:,1) / hd.si;
+                    f_i = hd.inTTL_timestamps.t(:,2) / hd.si;
+                end
             else
                 r_i = [];
                 f_i = [];

@@ -39,8 +39,8 @@ for ch = channels_list
         spks(ch).shape = [];
     end
     
-    % Ресамплинг данных канала
-    data_resampled = resample(data, lfp_Fs, orig_Fs);
+    % Ресамплинг данных канала (используем resample1 для избежания краевых эффектов)
+    data_resampled = resample1(data, lfp_Fs, orig_Fs);
     lfp(:, ch) = data_resampled; % добавляем ресемплированные данные в матрицу lfp
     
     % Обновление индикатора прогресса

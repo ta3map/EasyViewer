@@ -28,12 +28,11 @@ function oep_to_zav(recordedData, zavFilePath, Fs, newFs, detectMua, mua_std_coe
         % Если записи могут иметь разную длину, нужно будет просуммировать длины всех.
         % Для точности лучше просуммировать длины *всех* записей после ресемплинга.
         for recinx = 1:recsNumber
-            % Преобразуем в double перед resample для расчета длины
+            % Преобразуем в double перед ресемплингом для расчета длины
             temp_data = double(recordedData.Continuous_Samples{recinx}(1, :)');
-             % Используем resample на небольшом фрагменте или первом канале, чтобы оценить длину
-             % Важно: resample может немного изменять длину из-за краевых эффектов.
+             % Используем resample1 для оценки длины (без краевых эффектов)
              % Безопаснее всего будет обработать *каждый* сегмент.
-            resampled_segment = resample(temp_data, newFs, Fs);
+            resampled_segment = resample1(temp_data, newFs, Fs);
             final_lfp_length = final_lfp_length + length(resampled_segment);
             clear temp_data resampled_segment; % Освобождаем память
         end
@@ -152,7 +151,7 @@ function oep_to_zav(recordedData, zavFilePath, Fs, newFs, detectMua, mua_std_coe
             channel_data_segment = double(recordedData.Continuous_Samples{recinx}(current_channel_global_index, :)');
 
             if doResample
-                resampled_segment = resample(channel_data_segment, newFs, Fs);
+                resampled_segment = resample1(channel_data_segment, newFs, Fs);
                 lfp_channel_processed = [lfp_channel_processed; resampled_segment];
                 clear resampled_segment;
             else
