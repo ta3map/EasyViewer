@@ -226,7 +226,12 @@ function fig = plotClusterPermutationResults(testResult, timeAxis, channelLabels
             plot(ax, timeAxis_vis, t_obs_vis, 'b-', 'LineWidth', 2);
         end
         
-        % Пороги значимости убраны по запросу пользователя
+        % Горизонтальная серая линия порога t-статистики
+        threshold = testResult.threshold_t;
+        if ~isempty(timeAxis_vis) && length(timeAxis_vis) > 0
+            xlim_threshold = [min(timeAxis_vis), max(timeAxis_vis)];
+            plot(ax, xlim_threshold, [threshold, threshold], '--', 'Color', [0.5, 0.5, 0.5], 'LineWidth', 1.5);
+        end
         
         % Выделение значимых кластеров (используем полные данные для точности)
         clusters = testResult.clusters{ch};

@@ -52,6 +52,7 @@ if (isequal(rCh, []) || isequal(rCh, 'a'))%all channels requested
     rCh = 1:rChNum;%read all channels
 end
 rChNum = length(rCh);%number of wanted channels
+fprintf('DEBUG ZavNrlynx2: rCh = %s, rChNum = %d, hd empty: %d\n', mat2str(rCh), rChNum, isempty(hd));
 
 %%% stimulus moments (if exist) %%%
 fileToRead = [pf, 'Events.nev'];%pathname of file to be read
@@ -125,25 +126,29 @@ if (nargout > 4)
 end
 
 n = 1;%number of channel in list channels to be read
+fprintf('DEBUG ZavNrlynx2: Starting loop, rCh = %s\n', mat2str(rCh));
 for ch = rCh %run over all channels
+    fprintf('DEBUG ZavNrlynx2: Processing channel %d (n=%d)\n', ch, n);
     %%% lfp %%%
     fileToRead = ncsFiles(ch).f;%[pf, 'CSC', num2str(ch), '.ncs'];%pathname of file to be read
     if exist(fileToRead, 'file')%requested file with lfp exist
         if isempty(hd)%we have a header
             cscHd = Nlx2MatCSC(fileToRead, [0 0 0 0 0], 1, 1, []);%header (lfp)
             adBitVolts = NlxParametr(cscHd, 'ADBitVolts');%multiplier to convert from samples to volts (lfp)
-            dspDelay_mks = NlxParametr(cscHd, 'DspFilterDelay_µs');%DspFilterDelay_µs (lfp)
+            dspDelay_mks = NlxParametr(cscHd, 'DspFilterDelay_Âµs');%DspFilterDelay_Âµs (lfp)
             if ~isempty(dspDelay_mks)
                 dspDelay_mks = dspDelay_mks * double(isequal(NlxParametr(cscHd, 'DspDelayCompensation'), 'Disabled'));%DspDelayCompensation (lfp)
             end
             z = double(strcmp(NlxParametr(cscHd, 'InputInverted'), 'True'));%input inverted
         else%no header
             adBitVolts = hd.adBitVolts(ch);%multiplier to convert from samples to volts (lfp)
-            dspDelay_mks = hd.dspDelay_mks(ch);%DspFilterDelay_µs (lfp)
+            dspDelay_mks = hd.dspDelay_mks(ch);%DspFilterDelay_Âµs (lfp)
             z = hd.inverted(ch);%input inverted
         end
         smpl = Nlx2MatCSC(fileToRead, [0 0 0 0 1], 0, 4, rStmps);%
+        fprintf('DEBUG ZavNrlynx2: Channel %d, smpl size: %s, data size before: %s\n', ch, mat2str(size(smpl)), mat2str(size(data)));
         data(1:numel(smpl), n) = smpl(:) * adBitVolts * 1e6;%lfp
+        fprintf('DEBUG ZavNrlynx2: Channel %d, data size after: %s\n', ch, mat2str(size(data)));
         if (z >= 1)%inverted signal
             data(:, n) = -1 * data(:, n);%back inverse
         end
@@ -156,11 +161,11 @@ for ch = rCh %run over all channels
             if isempty(hd)%we have a header
                 spkHd = Nlx2MatSpike(fileToRead, [0 0 0 0 0], 1, 1, []);%header (spikes)
                 adBitVoltsSpk = NlxParametr(spkHd, 'ADBitVolts');%multiplier to convert from samples to volts (spikes)
-                dspDelay_mksSpk = NlxParametr(spkHd, 'DspFilterDelay_µs');%DspFilterDelay_µs (spikes)
+                dspDelay_mksSpk = NlxParametr(spkHd, 'DspFilterDelay_Âµs');%DspFilterDelay_Âµs (spikes)
                 dspDelay_mksSpk = dspDelay_mksSpk * double(isequal(NlxParametr(spkHd, 'DspDelayCompensation'), 'Disabled'));%DspDelayCompensation (spikes)
             else%no header
                 adBitVoltsSpk = hd.adBitVoltsSpk(ch);%multiplier to convert from samples to volts (spikes)
-                dspDelay_mksSpk = hd.dspDelay_mksSpk(ch);%DspFilterDelay_µs (spikes)
+                dspDelay_mksSpk = hd.dspDelay_mksSpk(ch);%DspFilterDelay_Âµs (spikes)
                 dspDelay_mks = hd.dspDelay_mks(ch);%DspDelayCompensation (scs)
             end
             spkTmStmp = Nlx2MatSpike(fileToRead, [1 0 0 0 0], 0, 1, []);%timestamps of spikes
@@ -182,6 +187,7 @@ for ch = rCh %run over all channels
     end
     n = n + 1;%number of channel in list channels to be read
 end
+fprintf('DEBUG ZavNrlynx2: Loop finished, final data size: %s\n', mat2str(size(data)));
     
 %%% header compile (abf compatible)%%%
 if (nargout > 2)%header requested
@@ -200,9 +206,9 @@ if (nargout > 2)%header requested
     end
     
     hd.adBitVolts = zeros(hd.nADCNumChannels, 1);%multiplier to convert from samples to volts (lfp)
-    hd.dspDelay_mks = zeros(hd.nADCNumChannels, 1);%DspFilterDelay_µs (lfp)
+    hd.dspDelay_mks = zeros(hd.nADCNumChannels, 1);%DspFilterDelay_Âµs (lfp)
     hd.adBitVoltsSpk = zeros(hd.nADCNumChannels, 1);%multiplier to convert from samples to volts (spikes)
-    hd.dspDelay_mksSpk = zeros(hd.nADCNumChannels, 1);%DspFilterDelay_µs (spikes)
+    hd.dspDelay_mksSpk = zeros(hd.nADCNumChannels, 1);%DspFilterDelay_Âµs (spikes)
     hd.alignmentPt = zeros(hd.nADCNumChannels, 1);%spike samples back (from peak, including peak point)
     hd.inverted = zeros(hd.nADCNumChannels, 1);%input inverted
     hd.recChUnits = cell(hd.nADCNumChannels, 1);%mesurement units
@@ -217,13 +223,13 @@ if (nargout > 2)%header requested
             cscHd = Nlx2MatCSC(fileToRead, [0 0 0 0 0], 1, 1, []);%header (lfp)
             hd.ch_si(ch) = (1e6 / NlxParametr(cscHd, 'SamplingFrequency'));%sample interval (mks)
             hd.adBitVolts(ch) = NlxParametr(cscHd, 'ADBitVolts');%multiplier to convert from samples to volts (lfp)
-            dspDelay_mks = NlxParametr(cscHd, 'DspFilterDelay_µs');%DspFilterDelay_µs (lfp)
+            dspDelay_mks = NlxParametr(cscHd, 'DspFilterDelay_Âµs');%DspFilterDelay_Âµs (lfp)
             if isempty(dspDelay_mks)
                 dspDelay_mks = Inf;
             end
-            hd.dspDelay_mks(ch) = dspDelay_mks;%DspFilterDelay_µs (lfp)
+            hd.dspDelay_mks(ch) = dspDelay_mks;%DspFilterDelay_Âµs (lfp)
             hd.dspDelay_mks(ch) = hd.dspDelay_mks(ch) * double(isequal(NlxParametr(cscHd, 'DspDelayCompensation'), 'Disabled'));%DspDelayCompensation (lfp)
-            hd.recChUnits{ch} = 'µV';%mesurement units
+            hd.recChUnits{ch} = 'ÂµV';%mesurement units
             z = find(fileToRead == '\', 1, 'last');%last slash
             hd.recChNames{ch} = fileToRead((z + 1):(end - 4));%cscHd{20}(2:end);%name of channels
             hd.inverted(ch) = double(strcmp(NlxParametr(cscHd, 'InputInverted'), 'True'));%input inverted
@@ -234,7 +240,7 @@ if (nargout > 2)%header requested
         if exist(fileToRead, 'file')%requested file with spikes exist
             spkHd = Nlx2MatSpike(fileToRead, [0 0 0 0 0], 1, 1, []);%header (spikes)
             hd.adBitVoltsSpk(ch) = NlxParametr(spkHd, 'ADBitVolts');%multiplier to convert from samples to volts (spikes)
-            hd.dspDelay_mksSpk(ch) = NlxParametr(spkHd, 'DspFilterDelay_µs');%DspFilterDelay_µs (spikes)
+            hd.dspDelay_mksSpk(ch) = NlxParametr(spkHd, 'DspFilterDelay_Âµs');%DspFilterDelay_Âµs (spikes)
             hd.dspDelay_mksSpk(ch) = hd.dspDelay_mksSpk(ch) * double(isequal(NlxParametr(spkHd, 'DspDelayCompensation'), 'Disabled'));%DspDelayCompensation (spikes)
             hd.alignmentPt(ch) = NlxParametr(spkHd, 'AlignmentPt');%spike samples back (from peak, including peak point)
         end

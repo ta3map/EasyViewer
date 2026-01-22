@@ -5,9 +5,10 @@ function testResult = clusterPermutationTest(fullTrialData, timeAxis, params)
     %   fullTrialData - массив полных триалов для всего окна (trials × timepoints × channels)
     %   timeAxis - временная ось для всего окна (относительно стимула, в секундах)
     %   params - структура с параметрами:
-    %       numPermutations - количество пермутаций (по умолчанию 1000)
-    %       clusterThreshold - порог значимости для t-статистики (по умолчанию 0.05)
-    %       minClusterSize_ms - минимальный размер кластера в мс (по умолчанию 20)
+    %       numPermutations - количество пермутаций
+    %       threshold_t - порог t-статистики (всегда положительный, знак применяется автоматически по polarity)
+    %       minClusterSize_ms - минимальный размер кластера в мс
+    %       polarity - полярность ('positive' или 'negative')
     %
     % Выходные данные:
     %   testResult - структура с результатами:
@@ -16,23 +17,16 @@ function testResult = clusterPermutationTest(fullTrialData, timeAxis, params)
     %       perm_percentiles - перцентили пермутированных t-статистик (2 × timepoints × channels)
     %       threshold_t - порог t-статистики
     
-    if nargin < 5
-        params = struct();
-    end
+    numPermutations = params.numPermutations;
+    threshold_t_abs = abs(params.threshold_t);
+    minClusterSize_ms = params.minClusterSize_ms;
+    polarity = params.polarity;
     
-    numPermutations = 1000;
-    if isfield(params, 'numPermutations')
-        numPermutations = params.numPermutations;
-    end
-    
-    clusterThreshold = 0.05;
-    if isfield(params, 'clusterThreshold')
-        clusterThreshold = params.clusterThreshold;
-    end
-    
-    minClusterSize_ms = 20;
-    if isfield(params, 'minClusterSize_ms')
-        minClusterSize_ms = params.minClusterSize_ms;
+    % Применяем знак порога в зависимости от полярности
+    if strcmpi(polarity, 'positive')
+        threshold_t = threshold_t_abs;
+    else
+        threshold_t = -threshold_t_abs;
     end
     
     % Размеры данных
@@ -96,16 +90,14 @@ function testResult = clusterPermutationTest(fullTrialData, timeAxis, params)
         end
     end
     
-    % Порог t-статистики на основе clusterThreshold (двусторонний тест)
-    % Для парного t-теста: df = n - 1, где n - количество триалов
-    % Порог рассчитывается динамически в зависимости от количества триалов
-    df = numTrials - 1;
-    threshold_t = tinv(1 - clusterThreshold/2, df);
-    
     % Определение кластеров значимых точек
     clusters = cell(numChannels, 1);
     for ch = 1:numChannels
-        significant_mask = abs(t_observed(:, ch)) > threshold_t;
+        if strcmpi(polarity, 'positive')
+            significant_mask = t_observed(:, ch) > threshold_t;
+        else
+            significant_mask = t_observed(:, ch) < threshold_t;
+        end
         
         % Используем bwlabel для поиска связных компонентов (для 1D массива)
         % bwlabel работает с 2D, поэтому преобразуем в столбец
@@ -129,11 +121,16 @@ function testResult = clusterPermutationTest(fullTrialData, timeAxis, params)
                 end
             end
             
-            % Сумма t-статистик в кластере (с сохранением знаков для двустороннего теста)
+            % Сумма t-статистик в кластере
             t_sum = sum(t_observed(cluster_tp, ch));
             
             % Первая временная точка кластера (onset эффекта)
             onset_timepoint = min(cluster_tp);
+            
+            % Фильтруем кластеры с онсетами до нуля
+            if timeAxis(onset_timepoint) <= 0
+                continue;
+            end
             
             cluster = struct('timepoints', cluster_tp, 't_sum', t_sum, 'p_value', nan, 'onset_timepoint', onset_timepoint);
             channelClusters(end+1) = cluster;
@@ -227,17 +224,31 @@ function testResult = clusterPermutationTest(fullTrialData, timeAxis, params)
     for perm = 1:numPermutations
         for ch = 1:numChannels
             perm_t_ch = perm_t_stats(perm, :, ch);
-            perm_significant = abs(perm_t_ch) > threshold_t;
+            if strcmpi(polarity, 'positive')
+                perm_significant = perm_t_ch > threshold_t;
+            else
+                perm_significant = perm_t_ch < threshold_t;
+            end
             
             if any(perm_significant)
                 [perm_labeled, perm_numClusters] = bwlabel(perm_significant);
                 perm_cluster_sums = [];
                 for pc = 1:perm_numClusters
                     perm_cluster_tp = find(perm_labeled == pc);
+                    % Фильтруем кластеры с онсетами до нуля
+                    perm_onset = min(perm_cluster_tp);
+                    if timeAxis(perm_onset) <= 0
+                        continue;
+                    end
                     perm_cluster_sums(end+1) = sum(perm_t_ch(perm_cluster_tp));
                 end
-                % Для двустороннего теста сравниваем абсолютные значения статистик
-                max_cluster_stats(perm, ch) = max(abs(perm_cluster_sums));
+                if isempty(perm_cluster_sums)
+                    max_cluster_stats(perm, ch) = 0;
+                elseif strcmpi(polarity, 'positive')
+                    max_cluster_stats(perm, ch) = max(perm_cluster_sums);
+                else
+                    max_cluster_stats(perm, ch) = min(perm_cluster_sums);
+                end
             else
                 max_cluster_stats(perm, ch) = 0;
             end
@@ -290,9 +301,12 @@ function testResult = clusterPermutationTest(fullTrialData, timeAxis, params)
         for c = 1:length(channelClusters)
             cluster = channelClusters(c);
             
-            % P-значение: доля пермутаций с кластерами >= наблюдаемого
-            % Для двустороннего теста сравниваем абсолютные значения статистик
-            num_exceeding = sum(max_perm_t_sums >= abs(cluster.t_sum));
+            % P-значение: доля пермутаций с кластерами >= наблюдаемого (для одностороннего теста)
+            if strcmpi(polarity, 'positive')
+                num_exceeding = sum(max_perm_t_sums >= cluster.t_sum);
+            else
+                num_exceeding = sum(max_perm_t_sums <= cluster.t_sum);
+            end
             p_value = num_exceeding / numPermutations;
             if p_value == 0
                 p_value = 1 / numPermutations; % минимальное p-значение

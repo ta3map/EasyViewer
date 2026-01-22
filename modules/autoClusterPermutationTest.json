@@ -14,12 +14,9 @@
   },
   "test_parameters": {
     "numPermutations": 1000,
-    "clusterThreshold": 0.05,
-    "minClusterSize_ms": 20,
-    "polarity": "positive",
-    "startTrial": "[]",
-    "endTrial": "[]",
-    "removeEdgeTrials": false
+    "threshold_t": 8,
+    "minClusterSize_ms": 10,
+    "polarity": "negative"
   },
   "output": {
     "figureFormat": "png",

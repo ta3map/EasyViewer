@@ -139,10 +139,15 @@ function convertNlx2zavGUI
 
     function extractChannels()
         % Извлечение списка каналов из папки Neuralynx
+        wb = [];
         try
+            wb = waitbar(0, 'Loading Neuralynx channels...', 'Name', 'Loading Channels');
+            
             if (recordPath(end) ~= '\')
                 recordPath(end + 1) = '\';
             end
+            
+            waitbar(0.1, wb, 'Scanning for .ncs files...');
             
             % Находим все .ncs файлы
             dirCnt = dir(recordPath);
@@ -173,6 +178,7 @@ function convertNlx2zavGUI
             ncsFiles = ncsFiles(sortIdx);
             
             if isempty(ncsFiles)
+                close(wb);
                 warndlg('No .ncs files found in the selected folder.', 'No Channels Found');
                 set(recordPathLabel, 'String', 'No folder selected');
             recordPath = '';
@@ -184,6 +190,8 @@ function convertNlx2zavGUI
                 return;
             end
             
+            waitbar(0.2, wb, sprintf('Reading headers from %d channels...', length(ncsFiles)));
+            
             % Читаем заголовки для получения имен каналов и частоты дискретизации
             channelNames = cell(length(ncsFiles), 1);
             channelNums = zeros(length(ncsFiles), 1);
@@ -192,6 +200,7 @@ function convertNlx2zavGUI
             for i = 1:length(ncsFiles)
                 fileToRead = ncsFiles(i).f;
                 if exist(fileToRead, 'file')
+                    waitbar(0.2 + 0.7 * (i / length(ncsFiles)), wb, sprintf('Reading channel %d of %d...', i, length(ncsFiles)));
                     cscHd = Nlx2MatCSC(fileToRead, [0 0 0 0 0], 1, 1, []);
                     % Используем сохраненное имя канала
                     channelNames{i} = ncsFiles(i).chName;
@@ -204,6 +213,8 @@ function convertNlx2zavGUI
                     end
                 end
             end
+            
+            waitbar(0.9, wb, 'Updating channel list...');
             
             availableChannels = channelNames;
             channelNumbers = channelNums; % Сохраняем номера каналов в persistent переменную
@@ -228,7 +239,13 @@ function convertNlx2zavGUI
                 set(FsOrigLabel, 'String', 'Fs (Hz): N/A');
             end
             
+            waitbar(1, wb, 'Complete');
+            close(wb);
+            
         catch ME
+            if ~isempty(wb) && ishandle(wb)
+                close(wb);
+            end
             disp(['Error loading Neuralynx channels: ', ME.message]);
             warndlg(['An error occurred while loading Neuralynx channels: ', ME.message], 'Loading Error');
             set(recordPathLabel, 'String', 'No folder selected');
@@ -324,10 +341,15 @@ function convertNlx2zavGUI
             return;
         end
 
-        % Предлагаем имя для выходного файла на основе имени папки
-        [~, folderName, ~] = fileparts(recordPath);
+        % Предлагаем имя для выходного файла на основе имени папки Neuralynx
+        recordPathClean = recordPath;
+        if recordPathClean(end) == '\' || recordPathClean(end) == '/'
+            recordPathClean = recordPathClean(1:end-1);
+        end
+        [~, folderName, ~] = fileparts(recordPathClean);
         defaultOutputName = [folderName, '.mat'];
-        [file, path] = uiputfile('*.mat', 'Save ZAV File As', fullfile(active_folder, defaultOutputName));
+        % Предлагаем сохранить в той же папке, где находится папка Neuralynx
+        [file, path] = uiputfile('*.mat', 'Save ZAV File As', fullfile(fileparts(recordPathClean), defaultOutputName));
         if isequal(file, 0)
             disp('User canceled file save');
             return;
@@ -342,32 +364,51 @@ function convertNlx2zavGUI
 
         try
             channels_n = numel(channels_list);
-            lfp = []; % инициализация переменной для lfp
 
             % Считываем данные первого канала для определения размера матрицы lfp
-            [data, ~, hd, ~, ~] = ZavNrlynx2(recordPath, [], channels_list(1), [], []);
+            fprintf('DEBUG: Requesting first channel: %d, channels_list: %s\n', channels_list(1), mat2str(channels_list));
+            fprintf('DEBUG: Calling ZavNrlynx2 with rCh = %d (type: %s)\n', channels_list(1), class(channels_list(1)));
+            [data, ~, hd] = ZavNrlynx2(recordPath, [], channels_list(1), [], []);
+            fprintf('DEBUG: First channel data size: %s, hd.nADCNumChannels: %d\n', mat2str(size(data)), hd.nADCNumChannels);
             orig_Fs = 1e6/hd.si; % оригинальная частота дискретизации
             lfp_length = floor(length(data) * lfp_Fs / orig_Fs); % новая длина сигнала после ресемплинга
-            lfp = zeros(lfp_length, channels_n); % предварительное выделение памяти для lfp
+            fprintf('DEBUG: lfp_length: %d, channels_n: %d\n', lfp_length, channels_n);
+            
+            % Создаем MAT-файл v7.3 и инициализируем переменные для прямого доступа
+            waitbar(0, hWaitBar, 'Initializing MAT file...');
+            m = matfile(zavFilePath, 'Writable', true);
+            
+            % Инициализируем lfp в файле (не в памяти)
+            m.lfp = zeros(lfp_length, channels_n, 'single');
+            fprintf('DEBUG: Initialized lfp in file, size: [%d %d]\n', lfp_length, channels_n);
 
             clear spks
             ch_inx = 0;
-            for ch = channels_list
+            for ch_idx = 1:length(channels_list)
+                ch = channels_list(ch_idx);
                 ch_inx = ch_inx + 1;
                 
-                [data, ~, hd, spkTS, spkSM] = ZavNrlynx2(recordPath, [], ch, [], []);
-
-                ampl = min(spkSM.s(:, :));
+                fprintf('DEBUG: Requesting channel %d (index %d)\n', ch, ch_inx);
+                fprintf('DEBUG: Calling ZavNrlynx2 with rCh = %d (type: %s, size: %s)\n', ch, class(ch), mat2str(size(ch)));
+                [data, ~, hd_ch] = ZavNrlynx2(recordPath, [], ch, [], []);
+                fprintf('DEBUG: Channel %d data size: %s, hd_ch.nADCNumChannels: %d\n', ch, mat2str(size(data)), hd_ch.nADCNumChannels);
+                
+                % Убеждаемся, что data - вектор-столбец (один канал)
+                if size(data, 2) > 1
+                    fprintf('DEBUG: WARNING - data has %d columns, extracting first column\n', size(data, 2));
+                    data = data(:, 1);
+                end
+                data = data(:);
 
                 if detectMua
-                    [tStamp, ampl, shape] = detectMUA(data, hd, mua_std_coef, true);
+                    [tStamp, ampl, shape] = detectMUA(data, hd_ch, mua_std_coef, true);
                     spks(ch_inx).tStamp = single(tStamp); % сохраняем спайки канала в миллисекундном формате
                     spks(ch_inx).ampl = single(ampl);
                     spks(ch_inx).shape = shape;
                 else
-                    % по ZAV формату
-                    spks(ch_inx).tStamp = single(spkTS.s'); % сохраняем спайки канала в миллисекундном формате
-                    spks(ch_inx).ampl = single(ampl');
+                    % Пустые спайки, если не детектируем MUA
+                    spks(ch_inx).tStamp = single([]);
+                    spks(ch_inx).ampl = single([]);
                     spks(ch_inx).shape = [];
                 end
 
@@ -377,7 +418,14 @@ function convertNlx2zavGUI
                 else
                     data_resampled = data;
                 end
-                lfp(:, ch_inx) = data_resampled; % добавляем ресемплированные данные в матрицу lfp
+                
+                % Убеждаемся, что data_resampled - вектор-столбец
+                data_resampled = data_resampled(:);
+                
+                fprintf('DEBUG: data_resampled size: %s\n', mat2str(size(data_resampled)));
+                
+                % Записываем данные канала напрямую в файл (не держим в памяти)
+                m.lfp(:, ch_inx) = single(data_resampled);
 
                 % Обновление индикатора прогресса
                 waitbar(ch_inx / numel(channels_list), hWaitBar, sprintf('Channel %d from %d...', ch, numel(channels_list)));
@@ -394,13 +442,19 @@ function convertNlx2zavGUI
             hd.recChNames = hd.recChNames(channels_list);
             hd.ch_si = hd.ch_si(channels_list);
             
-            waitbar(1, hWaitBar, 'Saving data...');
+            waitbar(0.95, hWaitBar, 'Finalizing data...');
             
-            % Сохранение данных
+            % Вычисляем lfpVar из данных в файле (читаем по частям для экономии памяти)
+            lfpVar = zeros(1, channels_n);
+            for ch_idx = 1:channels_n
+                channel_data = m.lfp(:, ch_idx);
+                lfpVar(ch_idx) = std(channel_data) / 10;
+            end
+            lfpVar = np_flatten(lfpVar)';
+            
+            % Сохранение остальных данных
             skip_points = orig_Fs/lfp_Fs;
-            clear chnlGrp lfpVar zavp
             chnlGrp = {};
-            lfpVar = np_flatten(std(lfp)/10)';
             zavp.file = recordPath;
             zavp.siS = (hd.si/1000)/lfp_Fs;
             zavp.dwnSmplFrq = lfp_Fs;
@@ -417,7 +471,14 @@ function convertNlx2zavGUI
             zavp.realStim.f = f_i;
             zavp.rarStep = hd.ch_si'*0+skip_points;
 
-            save(zavFilePath, 'chnlGrp', 'hd', 'lfp', 'lfpVar', 'spks', 'zavp');
+            % Записываем остальные переменные в файл
+            m.chnlGrp = chnlGrp;
+            m.hd = hd;
+            m.lfpVar = lfpVar;
+            m.spks = spks;
+            m.zavp = zavp;
+            
+            waitbar(1, hWaitBar, 'Complete');
             
             % Сохраняем информацию о последней открытой папке
             lastOpenedFolders = {recordPath};
