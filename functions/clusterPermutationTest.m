@@ -6,7 +6,7 @@ function testResult = clusterPermutationTest(fullTrialData, timeAxis, params)
     %   timeAxis - временная ось для всего окна (относительно стимула, в секундах)
     %   params - структура с параметрами:
     %       numPermutations - количество пермутаций
-    %       threshold_t - порог t-статистики (всегда положительный, знак применяется автоматически по polarity)
+    %       alpha_level - уровень значимости (например, 0.001, 0.01, 0.05)
     %       minClusterSize_ms - минимальный размер кластера в мс
     %       polarity - полярность ('positive' или 'negative')
     %
@@ -18,9 +18,19 @@ function testResult = clusterPermutationTest(fullTrialData, timeAxis, params)
     %       threshold_t - порог t-статистики
     
     numPermutations = params.numPermutations;
-    threshold_t_abs = abs(params.threshold_t);
+    alpha_level = params.alpha_level;
     minClusterSize_ms = params.minClusterSize_ms;
     polarity = params.polarity;
+    
+    % Размеры данных
+    numTrials = size(fullTrialData, 1);
+    numTimepoints = size(fullTrialData, 2); % ВСЕ точки (baseline + post-stimulus)
+    numChannels = size(fullTrialData, 3);
+    
+    % Вычисляем порог t-статистики из уровня значимости
+    % Для одностороннего t-теста: df = numTrials - 1
+    df = numTrials - 1;
+    threshold_t_abs = tinv(1 - alpha_level, df);
     
     % Применяем знак порога в зависимости от полярности
     if strcmpi(polarity, 'positive')
@@ -28,11 +38,6 @@ function testResult = clusterPermutationTest(fullTrialData, timeAxis, params)
     else
         threshold_t = -threshold_t_abs;
     end
-    
-    % Размеры данных
-    numTrials = size(fullTrialData, 1);
-    numTimepoints = size(fullTrialData, 2); % ВСЕ точки (baseline + post-stimulus)
-    numChannels = size(fullTrialData, 3);
     
     % Определяем индексы baseline и post-stimulus по временной оси
     baselineIdx = timeAxis <= 0;
@@ -266,7 +271,8 @@ function testResult = clusterPermutationTest(fullTrialData, timeAxis, params)
         % Диагностика: выводим информацию о распределении пермутаций
         if ~isempty(channelClusters)
             fprintf('\n=== Диагностика для канала %d ===\n', ch);
-            fprintf('Порог t-статистики: %.4f\n', threshold_t);
+            fprintf('Уровень значимости (alpha): %.4f\n', alpha_level);
+            fprintf('Порог t-статистики: %.4f (df = %d)\n', threshold_t, df);
             fprintf('Количество пермутаций: %d\n', numPermutations);
             fprintf('Максимальная статистика кластера в пермутациях:\n');
             fprintf('  Min: %.2f, Max: %.2f, Median: %.2f, Mean: %.2f\n', ...

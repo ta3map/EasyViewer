@@ -1437,6 +1437,146 @@ function fileManagerGUI()
         end
     end
     
+    function result = showParameterReplacementDialog(moduleName, jsonParams)
+        result = struct('paramName', '', 'paramValue', []);
+        
+        if isempty(fieldnames(jsonParams))
+            return
+        end
+        
+        paramNames = fieldnames(jsonParams);
+        paramList = paramNames;
+        
+        dialogWidth = 500;
+        dialogHeight = 250;
+        screenSize = get(0, 'ScreenSize');
+        dialogX = (screenSize(3) - dialogWidth) / 2;
+        dialogY = (screenSize(4) - dialogHeight) / 2;
+        
+        dialogFig = figure('Position', [dialogX, dialogY, dialogWidth, dialogHeight], ...
+            'Name', sprintf('Replace Parameter: %s', moduleName), ...
+            'NumberTitle', 'off', ...
+            'MenuBar', 'none', ...
+            'Resize', 'off', ...
+            'WindowStyle', 'modal');
+        
+        margin = 15;
+        buttonHeight = 30;
+        buttonWidth = 80;
+        labelHeight = 20;
+        editHeight = 25;
+        spacing = 10;
+        
+        yPos = dialogHeight - margin - labelHeight;
+        
+        uicontrol('Parent', dialogFig, 'Style', 'text', ...
+            'Position', [margin, yPos, 150, labelHeight], ...
+            'String', 'Parameter:', ...
+            'HorizontalAlignment', 'left', ...
+            'FontSize', 11);
+        
+        paramPopup = uicontrol('Parent', dialogFig, 'Style', 'popupmenu', ...
+            'Position', [margin + 160, yPos - 2, dialogWidth - 2*margin - 160, editHeight], ...
+            'String', paramList, ...
+            'Value', 1, ...
+            'FontSize', 11, ...
+            'Callback', @(src,evt) updateValueEdit());
+        
+        yPos = yPos - labelHeight - spacing - editHeight;
+        
+        uicontrol('Parent', dialogFig, 'Style', 'text', ...
+            'Position', [margin, yPos, 150, labelHeight], ...
+            'String', 'New value:', ...
+            'HorizontalAlignment', 'left', ...
+            'FontSize', 11);
+        
+        valueEdit = uicontrol('Parent', dialogFig, 'Style', 'edit', ...
+            'Position', [margin + 160, yPos - 2, dialogWidth - 2*margin - 160, editHeight], ...
+            'String', '', ...
+            'FontSize', 11, ...
+            'HorizontalAlignment', 'left');
+        
+        function updateValueEdit()
+            paramIdx = get(paramPopup, 'Value');
+            selectedParamName = paramNames{paramIdx};
+            selectedParamValue = jsonParams.(selectedParamName);
+            if islogical(selectedParamValue)
+                valueStr = mat2str(selectedParamValue);
+            elseif isnumeric(selectedParamValue)
+                valueStr = mat2str(selectedParamValue);
+            elseif ischar(selectedParamValue) || isstring(selectedParamValue)
+                if isstring(selectedParamValue)
+                    valueStr = char(selectedParamValue);
+                else
+                    valueStr = selectedParamValue;
+                end
+            else
+                valueStr = mat2str(selectedParamValue);
+            end
+            set(valueEdit, 'String', valueStr);
+        end
+        
+        updateValueEdit();
+        
+        yPos = margin;
+        
+        applyBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+            'Position', [dialogWidth - 2*buttonWidth - spacing - margin, yPos, buttonWidth, buttonHeight], ...
+            'String', 'Apply', ...
+            'FontSize', 11, ...
+            'Callback', @(src,evt) applyCallback());
+        
+        skipBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+            'Position', [dialogWidth - buttonWidth - margin, yPos, buttonWidth, buttonHeight], ...
+            'String', 'Skip', ...
+            'FontSize', 11, ...
+            'Callback', @(src,evt) close(dialogFig));
+        
+        uicontrol(valueEdit);
+        
+        function applyCallback()
+            paramIdx = get(paramPopup, 'Value');
+            selectedParamName = paramNames{paramIdx};
+            newValueStr = get(valueEdit, 'String');
+            
+            originalValue = jsonParams.(selectedParamName);
+            if islogical(originalValue)
+                newValue = str2num(newValueStr); %#ok<ST2NM>
+                if isempty(newValue)
+                    newValue = strcmpi(newValueStr, 'true');
+                else
+                    newValue = logical(newValue);
+                end
+            elseif isnumeric(originalValue)
+                newValue = str2num(newValueStr); %#ok<ST2NM>
+                if isempty(newValue)
+                    msgbox('Invalid numeric value', 'Error', 'error');
+                    return
+                end
+                if numel(originalValue) > 1
+                    newValue = reshape(newValue, size(originalValue));
+                end
+            elseif ischar(originalValue) || isstring(originalValue)
+                newValue = char(newValueStr);
+            else
+                newValue = str2num(newValueStr); %#ok<ST2NM>
+                if isempty(newValue)
+                    newValue = newValueStr;
+                end
+            end
+            
+            result.paramName = selectedParamName;
+            result.paramValue = newValue;
+            uiresume(dialogFig);
+        end
+        
+        uiwait(dialogFig);
+        
+        if ishandle(dialogFig)
+            close(dialogFig);
+        end
+    end
+    
     function rerunAnalysisCallback(~, ~)
         if ~ishandle(analysisTable)
             msgbox('Analysis table not available', 'Error', 'error');
@@ -1489,13 +1629,33 @@ function fileManagerGUI()
                 continue
             end
             
-            if ~isfield(metaData, 'parameters')
-                warning('Re-run analysis: skipping result - no parameters in .meta file for file_id=%d, module=%s', ...
-                    fileId, moduleName);
-                continue
+            params = struct();
+            if isfield(metaData, 'parameters')
+                params = metaData.parameters;
             end
             
-            params = metaData.parameters;
+            jsonParams = struct();
+            try
+                global timeUnitFactor
+                if isempty(timeUnitFactor)
+                    timeUnitFactor = 1;
+                end
+                jsonParams = loadModuleParams(moduleName, timeUnitFactor);
+            catch ME
+                debugState('fileManagerGUI', 'Re-run analysis: failed to load JSON parameters for module %s: %s', moduleName, ME.message);
+            end
+            
+            if ~isempty(fieldnames(jsonParams))
+                jsonFieldNames = fieldnames(jsonParams);
+                for j = 1:numel(jsonFieldNames)
+                    fieldName = jsonFieldNames{j};
+                    if ~isfield(params, fieldName)
+                        params.(fieldName) = jsonParams.(fieldName);
+                        debugState('fileManagerGUI', 'Re-run analysis: added missing parameter "%s" from JSON for file_id=%d, module=%s', ...
+                            fieldName, fileId, moduleName);
+                    end
+                end
+            end
             
             task = struct(...
                 'fileId', fileId, ...
@@ -1510,6 +1670,43 @@ function fileManagerGUI()
         if isempty(tasks)
             msgbox('No valid analysis results to re-run', 'Info', 'help');
             return
+        end
+        
+        moduleGroups = containers.Map();
+        for i = 1:numel(tasks)
+            moduleName = tasks(i).moduleName;
+            if ~isKey(moduleGroups, moduleName)
+                moduleGroups(moduleName) = [];
+            end
+            moduleGroups(moduleName) = [moduleGroups(moduleName); i];
+        end
+        
+        moduleNames = keys(moduleGroups);
+        for i = 1:numel(moduleNames)
+            moduleName = moduleNames{i};
+            taskIndices = moduleGroups(moduleName);
+            
+            global timeUnitFactor
+            if isempty(timeUnitFactor)
+                timeUnitFactor = 1;
+            end
+            jsonParams = loadModuleParams(moduleName, timeUnitFactor);
+            
+            if ~isempty(fieldnames(jsonParams))
+                choice = questdlg(sprintf('Do you want to replace any parameter for module "%s"?', moduleName), ...
+                    'Replace Parameter', 'Yes', 'No', 'No');
+                if strcmp(choice, 'Yes')
+                    replacement = showParameterReplacementDialog(moduleName, jsonParams);
+                    if ~isempty(replacement.paramName)
+                        for j = 1:numel(taskIndices)
+                            taskIdx = taskIndices(j);
+                            tasks(taskIdx).params.(replacement.paramName) = replacement.paramValue;
+                            debugState('fileManagerGUI', 'Re-run analysis: replaced parameter "%s" for task %d (module: %s)', ...
+                                replacement.paramName, taskIdx, moduleName);
+                        end
+                    end
+                end
+            end
         end
         
         stats = executeModuleTasks(tasks, ...

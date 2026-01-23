@@ -19,7 +19,7 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
     
     % Параметры теста
     testParams.numPermutations = params.numPermutations;
-    testParams.threshold_t = params.threshold_t;
+    testParams.alpha_level = params.alpha_level;
     testParams.polarity = params.polarity;
     testParams.minClusterSize_ms = params.minClusterSize_ms;
     
@@ -36,9 +36,10 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
     
     % Вывод результатов в консоль
     fprintf('\n=== Cluster Permutation Test Results ===\n');
-    fprintf('Parameters: %d permutations, threshold_t = %.3f\n', ...
-        testParams.numPermutations, testParams.threshold_t);
-    fprintf('Threshold t-statistic: %.3f\n', testResult.threshold_t);
+    fprintf('Parameters: %d permutations, alpha_level = %.4f\n', ...
+        testParams.numPermutations, testParams.alpha_level);
+    fprintf('Threshold t-statistic: %.3f (computed from alpha = %.4f)\n', ...
+        testResult.threshold_t, testParams.alpha_level);
     fprintf('Number of channels: %d\n', numChannels);
     fprintf('Number of timepoints: %d\n', size(testResult.t_observed, 1));
     fprintf('\n');

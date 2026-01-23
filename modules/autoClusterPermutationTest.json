@@ -14,7 +14,7 @@
   },
   "test_parameters": {
     "numPermutations": 1000,
-    "threshold_t": 8,
+    "alpha_level": 0.001,
     "minClusterSize_ms": 10,
     "polarity": "negative"
   },

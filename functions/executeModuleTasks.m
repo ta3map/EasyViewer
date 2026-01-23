@@ -48,6 +48,7 @@ function stats = executeModuleTasks(tasks, varargin)
     stats.failed = 0;
     
     progressBar = waitbar(0, 'Initializing...', 'Name', progressBarTitle);
+    startTime = tic;
     
     try
         for i = 1:numel(tasks)
@@ -59,8 +60,21 @@ function stats = executeModuleTasks(tasks, varargin)
             
             if ishandle(progressBar)
                 progress = (i - 1) / stats.total;
-                waitbar(progress, progressBar, sprintf('Processing task %d/%d: %s', ...
-                    i, stats.total, task.moduleName));
+                elapsedTime = toc(startTime);
+                
+                message = sprintf('Processing task %d/%d: %s', i, stats.total, task.moduleName);
+                
+                if i > 1 && elapsedTime > 0
+                    avgTimePerTask = elapsedTime / (i - 1);
+                    remainingTasks = stats.total - i + 1;
+                    estimatedRemaining = avgTimePerTask * remainingTasks;
+                    
+                    elapsedStr = formatTime(elapsedTime);
+                    remainingStr = formatTime(estimatedRemaining);
+                    message = sprintf('%s\nElapsed: %s | Remaining: ~%s', message, elapsedStr, remainingStr);
+                end
+                
+                waitbar(progress, progressBar, message);
             end
             
             try
@@ -106,7 +120,9 @@ function stats = executeModuleTasks(tasks, varargin)
         end
         
         if ishandle(progressBar)
-            waitbar(1.0, progressBar, 'Completed!');
+            totalTime = toc(startTime);
+            totalTimeStr = formatTime(totalTime);
+            waitbar(1.0, progressBar, sprintf('Completed! (Total time: %s)', totalTimeStr));
             pause(0.5);
             close(progressBar);
         end
@@ -134,5 +150,20 @@ function result = callModule(moduleName, filePath, fileId, params)
         result = macroFunc(filePath, fileId, params);
     catch ME
         debugState('executeModuleTasks', 'Module call failed: %s (%s)', moduleName, ME.message);
+    end
+end
+
+function formattedTime = formatTime(seconds)
+    if seconds < 60
+        formattedTime = sprintf('%.0f sec', seconds);
+    elseif seconds < 3600
+        minutes = floor(seconds / 60);
+        secs = floor(mod(seconds, 60));
+        formattedTime = sprintf('%.0f min %.0f sec', minutes, secs);
+    else
+        hours = floor(seconds / 3600);
+        minutes = floor(mod(seconds, 3600) / 60);
+        secs = floor(mod(seconds, 60));
+        formattedTime = sprintf('%.0f h %.0f min %.0f sec', hours, minutes, secs);
     end
 end
