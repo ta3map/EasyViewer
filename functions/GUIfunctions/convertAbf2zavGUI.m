@@ -11,7 +11,7 @@ function convertAbf2zavGUI
     end
 
     % Глобальная переменная для хранения пути к настройкам
-    global SettingsFilepath zav_calling
+    global SettingsFilepath zav_calling import_settings
 
     % Инициализация переменных
     persistent abfFilePath detectMua lfp_Fs mua_std_coef doResample selectedChannels availableChannels active_folder
@@ -25,6 +25,20 @@ function convertAbf2zavGUI
     availableChannels = {};
     abfFilePath = '';
     openAfter = true;
+    
+    % Загружаем настройки импорта для ABF
+    if isfield(import_settings, 'abf2zav')
+        settings = import_settings.abf2zav;
+        if isfield(settings, 'filePath') && ~isempty(settings.filePath)
+            abfFilePath = settings.filePath;
+        end
+        if isfield(settings, 'doResample')
+            doResample = settings.doResample;
+        end
+        if isfield(settings, 'selectedChannels')
+            selectedChannels = settings.selectedChannels;
+        end
+    end
     
     % Используем SettingsFilepath для определения последней используемой папки
     try
@@ -108,7 +122,45 @@ function convertAbf2zavGUI
     uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Start Conversion', ...
         'Position', [leftMargin + secondcolumnshift, 20, btnWidth, btnHeight], 'Callback', @startConversion);
 
+    % Применяем загруженные настройки к элементам GUI
+    savedSelectedChannels = selectedChannels; % Сохраняем загруженные каналы
+    if ~isempty(abfFilePath)
+        set(abfFileLabel, 'String', abfFilePath);
+        if exist(abfFilePath, 'file')
+            extractChannels();
+            % Восстанавливаем выбор каналов, если они были сохранены
+            if ~isempty(savedSelectedChannels) && ~isempty(availableChannels)
+                channelData = get(channelTable, 'Data');
+                if ~isempty(channelData)
+                    for i = 1:size(channelData, 1)
+                        channelName = channelData{i, 2};
+                        channelData{i, 1} = any(strcmp(channelName, savedSelectedChannels));
+                    end
+                    set(channelTable, 'Data', channelData);
+                    % Обновляем selectedChannels на основе восстановленного выбора
+                    selectedChannelIndices = find([channelData{:,1}]);
+                    selectedChannels = availableChannels(selectedChannelIndices);
+                end
+            end
+        end
+    end
+    set(doResampleToggle, 'Value', doResample);
+
     % Функции обратного вызова
+    
+    function saveImportSettings()
+
+        
+        if ~isfield(import_settings, 'abf2zav')
+            import_settings.abf2zav = struct();
+        end
+        
+        import_settings.abf2zav.filePath = abfFilePath;
+        import_settings.abf2zav.doResample = doResample;
+        import_settings.abf2zav.selectedChannels = selectedChannels;
+        
+        save(SettingsFilepath, 'import_settings', '-append');
+    end
     function selectAbfFile(~, ~)
         [file, path] = uigetfile('*.abf', 'Select ABF File', active_folder);
         if isequal(file, 0)
@@ -127,6 +179,7 @@ function convertAbf2zavGUI
             active_folder = path;
             % После выбора файла извлекаем доступные каналы
             extractChannels();
+            saveImportSettings();
         end
     end
 
@@ -156,6 +209,7 @@ function convertAbf2zavGUI
         channelData = get(src, 'Data');
         selectedChannelIndices = find([channelData{:,1}]);
         selectedChannels = availableChannels(selectedChannelIndices);
+        saveImportSettings();
     end
 
     function selectAllChannels(~, ~)
@@ -167,6 +221,7 @@ function convertAbf2zavGUI
             end
             set(channelTable, 'Data', channelData);
             selectedChannels = availableChannels;
+            saveImportSettings();
         end
     end
 
@@ -179,6 +234,7 @@ function convertAbf2zavGUI
             end
             set(channelTable, 'Data', channelData);
             selectedChannels = {};
+            saveImportSettings();
         end
     end
 
@@ -210,6 +266,7 @@ function convertAbf2zavGUI
 
     function doResampleCallback(source, ~)
         doResample = get(source, 'Value');
+        saveImportSettings();
     end
 
     function startConversion(~, ~)
@@ -265,6 +322,9 @@ function convertAbf2zavGUI
             % Сохраняем информацию о последнем открытом файле
             lastOpenedFiles = {zavFilePath};
             save(SettingsFilepath, 'lastOpenedFiles', '-append');
+            
+            % Сохраняем настройки импорта
+            saveImportSettings();
 
             disp('Conversion completed successfully.');
 

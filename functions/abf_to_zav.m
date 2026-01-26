@@ -40,6 +40,20 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
 
     % Предварительные переменные для LFP.
     lfp_initialized = false;
+    m = []; % matfile объект
+    numSweeps_total = []; % Общее количество свипов для всех каналов
+    
+    % Profiling: initialize time counters
+    profile_times = struct();
+    profile_times.total = 0;
+    profile_times.abfload = 0;
+    profile_times.resample = 0;
+    profile_times.mua_detect = 0;
+    profile_times.file_write = 0;
+    profile_times.lfpVar_calc = 0;
+    profile_times.other = 0;
+    tic_total = tic;
+    
     chIdx = 1;
     for truechIdx = selectedChannelIndices'        
         chName = channelNames(truechIdx); % Используем круглые скобки.
@@ -49,22 +63,45 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
         waitbar([chIdx/numChannels], hWaitBar, current_message);
         
         % Чтение данных канала.
+        tic_abf = tic;
         [data, ~, ~] = abfload(abfFilePath, 'channels', chName, 'doDispInfo', false);
+        profile_times.abfload = profile_times.abfload + toc(tic_abf);
 
         % Определение количества свипов и длины свипа.
-        numSweeps = size(data, 3);
+        % Для gap-free режима данные 2D, для episodic - 3D
+        if hd_abf.nOperationMode == 3
+            % gap-free режим: данные 2D [data pts] by [channels], но мы запросили один канал
+            numSweeps = 1;
+            if isempty(numSweeps_total)
+                numSweeps_total = 1;
+            end
+        else
+            % episodic режим: данные 3D
+            numSweeps = size(data, 3);
+            if isempty(numSweeps_total)
+                numSweeps_total = numSweeps;
+            end
+        end
 
         % Инициализация матрицы для хранения ресемплированных данных.
         data_resampled_all = cell(numSweeps, 1);
         lfp_lengths = zeros(numSweeps, 1);
 
         for sweepIdx = 1:numSweeps
-            sweepData = data(:, :, sweepIdx);
-            sweepData = reshape(sweepData, [], 1); % Преобразуем в вектор.
+            if hd_abf.nOperationMode == 3
+                % gap-free: данные 2D, преобразуем в вектор
+                sweepData = reshape(data, [], 1);
+            else
+                % episodic: извлекаем данные для текущего свипа
+                sweepData = data(:, :, sweepIdx);
+                sweepData = reshape(sweepData, [], 1); % Преобразуем в вектор.
+            end
 
             if doResample
                 % Используем resample1 для ресемплинга (без краевых эффектов)
+                tic_rs = tic;
                 data_resampled = resample1(sweepData, actual_lfp_Fs, orig_Fs);
+                profile_times.resample = profile_times.resample + toc(tic_rs);
                 lfp_length = length(data_resampled);
             else
                 data_resampled = sweepData;
@@ -77,7 +114,9 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
             % Обнаружение МСА, если требуется.
             if detectMua
                 % Используем данные текущего свипа для обнаружения МСА.
+                tic_mua = tic;
                 [tStamp, ampl, shape] = detectMUA(sweepData, hd_abf, mua_std_coef, true);
+                profile_times.mua_detect = profile_times.mua_detect + toc(tic_mua);
                 spks(chIdx, sweepIdx).tStamp = single(tStamp);
                 spks(chIdx, sweepIdx).ampl = single(-ampl);
                 spks(chIdx, sweepIdx).shape = shape;
@@ -98,44 +137,89 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
             lfp_length = lfp_lengths(1);
         end
 
-        % Инициализация матрицы LFP при первом проходе.
+        % Инициализация матрицы LFP в файле при первом проходе.
         if ~lfp_initialized
-            if collectSweeps
-                lfp = zeros(lfp_length, numChannels, numSweeps);
+            % Создаем matfile для прямого доступа к файлу
+            m = matfile(zavFilePath, 'Writable', true);
+            
+            % Инициализируем lfp в файле (не в памяти)
+            % Для gap-free режима всегда используем 2D массив
+            if hd_abf.nOperationMode == 3
+                % gap-free: 2D массив [lfp_length * numSweeps_total, numChannels]
+                m.lfp = zeros(lfp_length * numSweeps_total, numChannels, 'single');
+            elseif collectSweeps
+                % episodic с collectSweeps: 3D массив
+                m.lfp = zeros(lfp_length, numChannels, numSweeps_total, 'single');
             else
-                lfp = zeros(lfp_length * numSweeps, numChannels);
+                % episodic без collectSweeps: 2D массив
+                m.lfp = zeros(lfp_length * numSweeps_total, numChannels, 'single');
             end
             lfp_initialized = true;
         end
 
-        % Заполнение матрицы LFP.
-        for sweepIdx = 1:numSweeps
-            data_resampled = data_resampled_all{sweepIdx};
-
-            % Усечение или дополнение данных до lfp_length.
+        % Подготовка данных канала: собираем все sweeps в один блок
+        tic_write = tic;
+        if hd_abf.nOperationMode == 3
+            % gap-free: один sweep, записываем как есть
+            data_resampled = data_resampled_all{1};
             if length(data_resampled) > lfp_length
                 data_resampled = data_resampled(1:lfp_length);
             elseif length(data_resampled) < lfp_length
                 data_resampled = [data_resampled; zeros(lfp_length - length(data_resampled), 1)];
             end
-
-            if collectSweeps
-                lfp(:, chIdx, sweepIdx) = data_resampled;
-            else
+            % Записываем весь канал одним блоком
+            m.lfp(:, chIdx) = single(data_resampled);
+        elseif collectSweeps
+            % episodic с collectSweeps: записываем все sweeps канала одним блоком
+            channel_data = zeros(lfp_length, numSweeps, 'single');
+            for sweepIdx = 1:numSweeps
+                data_resampled = data_resampled_all{sweepIdx};
+                if length(data_resampled) > lfp_length
+                    data_resampled = data_resampled(1:lfp_length);
+                elseif length(data_resampled) < lfp_length
+                    data_resampled = [data_resampled; zeros(lfp_length - length(data_resampled), 1)];
+                end
+                channel_data(:, sweepIdx) = single(data_resampled);
+            end
+            % Записываем весь канал со всеми sweeps одним блоком
+            m.lfp(:, chIdx, :) = channel_data;
+        else
+            % episodic без collectSweeps: собираем все sweeps в один вектор
+            channel_data = zeros(lfp_length * numSweeps, 1, 'single');
+            for sweepIdx = 1:numSweeps
+                data_resampled = data_resampled_all{sweepIdx};
+                if length(data_resampled) > lfp_length
+                    data_resampled = data_resampled(1:lfp_length);
+                elseif length(data_resampled) < lfp_length
+                    data_resampled = [data_resampled; zeros(lfp_length - length(data_resampled), 1)];
+                end
                 idx_start = (sweepIdx - 1) * lfp_length + 1;
                 idx_end = sweepIdx * lfp_length;
-                lfp(idx_start:idx_end, chIdx) = data_resampled;
+                channel_data(idx_start:idx_end) = single(data_resampled);
             end
+            % Записываем весь канал одним блоком
+            m.lfp(:, chIdx) = channel_data;
         end
+        profile_times.file_write = profile_times.file_write + toc(tic_write);
         chIdx = chIdx+1;
     end
 
-    % Расчет вариации LFP по каналам.
-    if collectSweeps
-        lfpVar = squeeze(var(lfp));        
-    else
-        lfpVar = var(reshape(lfp, [], numChannels));
+    % Расчет вариации LFP по каналам из данных в файле.
+    tic_lfpVar = tic;
+    lfpVar = zeros(1, numChannels);
+    for chIdx = 1:numChannels
+        % Для gap-free режима всегда используем 2D чтение
+        if hd_abf.nOperationMode == 3
+            channel_data = m.lfp(:, chIdx);
+        elseif collectSweeps
+            channel_data = m.lfp(:, chIdx, :);
+            channel_data = channel_data(:);
+        else
+            channel_data = m.lfp(:, chIdx);
+        end
+        lfpVar(chIdx) = var(channel_data);
     end
+    profile_times.lfpVar_calc = toc(tic_lfpVar);
 
     % Сборка структуры hd для ZAV.
     hd = struct();
@@ -148,7 +232,7 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
     hd.ch_si = repmat(1e6 / actual_lfp_Fs, 1, numChannels); % Интервал сэмплирования в микросекундах.
     hd.dataPtsPerChan = lfp_length;
     if collectSweeps
-        hd.dataPts = lfp_length * numChannels * numSweeps;
+        hd.dataPts = lfp_length * numChannels * numSweeps_total;
     else
         hd.dataPts = lfp_length * numChannels;
     end
@@ -176,7 +260,26 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
     % Инициализация chnlGrp.
     chnlGrp = []; % Если у вас есть информация о группах каналов, можно заполнить.
 
-    % Сохранение данных в ZAV-файл.
-    save(zavFilePath, 'lfp', 'spks', 'hd', 'lfpVar', 'zavp', 'chnlGrp', '-v7.3');
+    % Сохранение остальных данных через matfile.
+    m.hd = hd;
+    m.spks = spks;
+    m.lfpVar = lfpVar;
+    m.zavp = zavp;
+    m.chnlGrp = chnlGrp;
+
+    % Profiling: final calculation and output
+    profile_times.total = toc(tic_total);
+    profile_times.other = profile_times.total - profile_times.abfload - profile_times.resample - ...
+        profile_times.mua_detect - profile_times.file_write - profile_times.lfpVar_calc;
+    
+    fprintf('\n=== Profiling abf_to_zav ===\n');
+    fprintf('Total time: %.2f sec\n', profile_times.total);
+    fprintf('  Data reading (abfload): %.2f sec (%.1f%%)\n', profile_times.abfload, 100*profile_times.abfload/profile_times.total);
+    fprintf('  Resampling: %.2f sec (%.1f%%)\n', profile_times.resample, 100*profile_times.resample/profile_times.total);
+    fprintf('  MUA detection: %.2f sec (%.1f%%)\n', profile_times.mua_detect, 100*profile_times.mua_detect/profile_times.total);
+    fprintf('  File writing (matfile): %.2f sec (%.1f%%)\n', profile_times.file_write, 100*profile_times.file_write/profile_times.total);
+    fprintf('  lfpVar calculation: %.2f sec (%.1f%%)\n', profile_times.lfpVar_calc, 100*profile_times.lfpVar_calc/profile_times.total);
+    fprintf('  Other: %.2f sec (%.1f%%)\n', profile_times.other, 100*profile_times.other/profile_times.total);
+    fprintf('==============================\n\n');
 
 end

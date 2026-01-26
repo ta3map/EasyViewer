@@ -6,7 +6,7 @@ function loadGlobalSettings()
     global lastOpenedFiles figure_position add_event_settings
     global timeUnitFactor selectedUnit autodetection_settings
     global art_rem_window_ms lines_and_styles side_panel_visible
-    global auto_open_last_file SettingsFilepath
+    global auto_open_last_file SettingsFilepath import_settings
     
     % Путь к файлу настроек
     SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
@@ -25,6 +25,7 @@ function loadGlobalSettings()
             art_rem_window_ms = 0;
             add_event_settings = [];
             autodetection_settings = [];
+            import_settings = struct();
             lines_and_styles = [];
             side_panel_visible = true;
             auto_open_last_file = true;
@@ -39,6 +40,7 @@ function loadGlobalSettings()
                 'art_rem_window_ms', ...
                 'add_event_settings', ...
                 'autodetection_settings', ...
+                'import_settings', ...
                 'lines_and_styles', ...
                 'side_panel_visible', ...
                 'auto_open_last_file', ...
@@ -95,6 +97,13 @@ function loadGlobalSettings()
                 autodetection_settings = [];
             end
             
+            % Загружаем настройки импорта
+            if isfield(d, 'import_settings')
+                import_settings = d.import_settings;
+            else
+                import_settings = struct();
+            end
+            
             % Загружаем размер окна очистки артефакта
             if isfield(d, 'art_rem_window_ms')
                 art_rem_window_ms = d.art_rem_window_ms;
@@ -147,6 +156,7 @@ function loadGlobalSettings()
         
         % Остальные настройки по умолчанию
         autodetection_settings = [];
+        import_settings = struct();
         art_rem_window_ms = 0;
         side_panel_visible = true;
         auto_open_last_file = true;
