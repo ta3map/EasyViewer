@@ -1,0 +1,70 @@
+function zavFilePath = autoConvertAbfToZav(abfFilePath)
+    % Автоматически конвертирует ABF файл в ZAV формат с параметрами по умолчанию.
+    %
+    % Параметры:
+    %   abfFilePath - путь к ABF файлу
+    %
+    % Возвращает:
+    %   zavFilePath - путь к сконвертированному ZAV файлу (.mat)
+    %                 Если произошла ошибка, возвращает пустую строку
+    %
+    % Параметры конвертации по умолчанию:
+    %   - doResample = false (без ресемплинга)
+    %   - collectSweeps = false (свипы канала объединены в один трейс)
+    %   - detectMua = false
+    %   - все каналы из файла
+    
+    zavFilePath = '';
+    
+    % Проверка существования файла
+    if ~exist(abfFilePath, 'file')
+        errordlg(['ABF file not found: ', abfFilePath], 'File Error');
+        return;
+    end
+    
+    % Чтение заголовка для получения имен каналов
+    try
+        [~, ~, hd_abf] = abfload(abfFilePath, 'stop', 1, 'doDispInfo', false);
+        selectedChannels = hd_abf.recChNames;
+    catch ME
+        errordlg(['Error reading ABF file header: ', ME.message], 'ABF File Error');
+        return;
+    end
+    
+    % Формирование пути для сохранения (то же имя, но расширение .mat)
+    [zavPath, zavName, ~] = fileparts(abfFilePath);
+    zavFilePath = fullfile(zavPath, [zavName, '.mat']);
+    
+    % Проверка существования уже сконвертированного файла
+    if exist(zavFilePath, 'file')
+        return;
+    end
+    
+    % Создание waitbar для отображения прогресса
+    hWaitBar = waitbar(0, 'Converting ABF to ZAV...', 'Name', 'ABF to ZAV Conversion');
+    
+    try
+        % Параметры конвертации по умолчанию
+        lfp_Fs = 1000; % не используется при doResample = false
+        detectMua = false;
+        doResample = false;
+        collectSweeps = false;
+        mua_std_coef = 1; % не используется при detectMua = false
+        
+        % Вызов функции конвертации
+        abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, collectSweeps, selectedChannels, mua_std_coef, hWaitBar);
+        
+        % Закрытие waitbar
+        if isvalid(hWaitBar)
+            close(hWaitBar);
+        end
+        
+    catch ME
+        % Закрытие waitbar при ошибке
+        if isvalid(hWaitBar)
+            close(hWaitBar);
+        end
+        errordlg(['Error during ABF conversion: ', ME.message], 'Conversion Error');
+        zavFilePath = ''; % Возвращаем пустую строку при ошибке
+    end
+end

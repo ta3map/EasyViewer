@@ -1881,12 +1881,26 @@ function signalViewerGUI(editMode)
             initialDir = fileparts(lastOpenedFiles{end});
         end
         
-        [file, path] = uigetfile('*.mat', 'Load .mat File (ZAV or Heka format)', initialDir);
+        [file, path] = uigetfile({'*.mat'; '*.abf'}, 'Load .mat File (ZAV or Heka format) or ABF file', initialDir);
         if isequal(file, 0)
             debugState('OpenZavLfpFile', 'File selection canceled.');
             return;
         end
         filepath = fullfile(path, file);
+        
+        % Проверка расширения файла
+        [~, ~, ext] = fileparts(filepath);
+        
+        % Если выбран ABF файл, выполняем конвертацию
+        if strcmpi(ext, '.abf')
+            debugState('OpenZavLfpFile', 'ABF file selected, starting conversion...');
+            
+            % Автоматическая конвертация ABF в ZAV с параметрами по умолчанию
+            zavFilePath = autoConvertAbfToZav(filepath);
+
+            % Используем путь к сконвертированному файлу для загрузки
+            filepath = zavFilePath;
+        end
         
         % Очистка таблицы событий ДО загрузки файла
         events = [];

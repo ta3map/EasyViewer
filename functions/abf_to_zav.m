@@ -252,6 +252,13 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
     if isfield(hd_abf, 'sweepStartInPts')
         if collectSweeps && sweepStartAsStim
             zavp.realStim = struct('r', zeros(size(hd_abf.sweepStartInPts))');
+        elseif ~collectSweeps && sweepStartAsStim && hd_abf.nOperationMode ~= 3
+            % episodic режим без collectSweeps: упаковываем свипы в один вектор
+            % Время стимула = начало каждого свипа в сэмплах сохраненных данных
+            % В итоговом векторе начало каждого свипа: 0, lfp_length, 2*lfp_length, ...
+            zavp.realStim = struct('r', (0:(numSweeps_total-1))' * lfp_length);
+        else
+            zavp.realStim = struct('r', []); 
         end
     else
         zavp.realStim = struct('r', []); 
