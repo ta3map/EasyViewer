@@ -24,6 +24,7 @@ function saveEventsToFile(events, time, matFilePath, varargin)
 %   'autodetection_settings' - настройки автодетекции
 %   'add_event_settings' - настройки добавления событий
 %   'EV_version' - версия EV
+%   'saveExcel' - сохранить также в Excel файл (по умолчанию: false)
 
     % Парсинг опциональных параметров
     p = inputParser;
@@ -40,6 +41,7 @@ function saveEventsToFile(events, time, matFilePath, varargin)
     addParameter(p, 'autodetection_settings', [], @(x) isstruct(x) || isempty(x));
     addParameter(p, 'add_event_settings', [], @(x) isstruct(x) || isempty(x));
     addParameter(p, 'EV_version', [], @(x) ischar(x) || isstring(x) || isempty(x));
+    addParameter(p, 'saveExcel', false, @islogical);
     
     parse(p, varargin{:});
     params = p.Results;
@@ -50,17 +52,28 @@ function saveEventsToFile(events, time, matFilePath, varargin)
     % Подготовка имени файла по умолчанию
     waitbar(0.05, wb, 'Preparing file path...');
     [path, name, ~] = fileparts(matFilePath);
-    defaultFileName = fullfile(path, [name params.defaultFileNameSuffix '.ev']);
     
-    % Диалог выбора файла
+    % Диалог выбора файла в зависимости от формата
     waitbar(0.1, wb, 'Selecting save location...');
-    [file, path] = uiputfile('*.ev', params.dialogTitle, defaultFileName);
-    if isequal(file, 0)
-        close(wb);
-        fprintf('File save canceled.\n');
-        return;
+    if params.saveExcel
+        defaultFileName = fullfile(path, [name params.defaultFileNameSuffix '.xlsx']);
+        [file, path] = uiputfile('*.xlsx', params.dialogTitle, defaultFileName);
+        if isequal(file, 0)
+            close(wb);
+            fprintf('File save canceled.\n');
+            return;
+        end
+        filepath = fullfile(path, file);
+    else
+        defaultFileName = fullfile(path, [name params.defaultFileNameSuffix '.ev']);
+        [file, path] = uiputfile('*.ev', params.dialogTitle, defaultFileName);
+        if isequal(file, 0)
+            close(wb);
+            fprintf('File save canceled.\n');
+            return;
+        end
+        filepath = fullfile(path, file);
     end
-    filepath = fullfile(path, file);
     
     % Подготовка комментариев
     waitbar(0.15, wb, 'Preparing event comments...');
@@ -162,12 +175,152 @@ function saveEventsToFile(events, time, matFilePath, varargin)
     end
     
     % Сохранение файла
-    waitbar(0.9, wb, 'Saving to file...');
-    save(filepath, 'manlDet', 'event_comments', 'viewer_data');
+    if params.saveExcel
+        % Сохранение только в Excel
+        waitbar(0.92, wb, 'Preparing Excel file...');
+        excelPath = filepath;
+        
+        try
+            % Подготовка данных для листа Raw Data
+            waitbar(0.94, wb, 'Preparing raw data...');
+            rawData = cell(numEvents + 1, 7);
+            rawData(1, :) = {'Event Index', 'Time (s)', 'Channel(s)', 'Amplitude', 'Width', 'Prominence', 'Comment'};
+            
+            for i = 1:numEvents
+                rawData{i+1, 1} = i;
+                rawData{i+1, 2} = events(i);
+                
+                % Обработка каналов
+                if isscalar(manlDet(i).channels)
+                    rawData{i+1, 3} = manlDet(i).channels;
+                else
+                    channelsStr = mat2str(manlDet(i).channels);
+                    rawData{i+1, 3} = channelsStr;
+                end
+                
+                rawData{i+1, 4} = manlDet(i).amplitude;
+                rawData{i+1, 5} = manlDet(i).width;
+                rawData{i+1, 6} = manlDet(i).prominence;
+                
+                if i <= length(event_comments)
+                    if iscell(event_comments)
+                        rawData{i+1, 7} = event_comments{i};
+                    else
+                        rawData{i+1, 7} = event_comments(i);
+                    end
+                else
+                    rawData{i+1, 7} = '...';
+                end
+            end
+            
+            % Запись листа Raw Data
+            waitbar(0.96, wb, 'Writing raw data to Excel...');
+            writecell(rawData, excelPath, 'Sheet', 'Raw Data');
+            
+            % Подготовка статистики
+            waitbar(0.97, wb, 'Calculating statistics...');
+            statsData = cell(1, 9);
+            statsData(1, :) = {'Parameter', 'Count', 'Mean', 'Std', 'Median', 'Q25', 'Q75', 'Min', 'Max'};
+            row = 2;
+            
+            % Статистика по времени событий
+            timeStats = calculateVectorStatistics(events);
+            statsData{row, 1} = 'Time (s)';
+            statsData{row, 2} = timeStats.count;
+            statsData{row, 3} = timeStats.mean;
+            statsData{row, 4} = timeStats.std;
+            statsData{row, 5} = timeStats.median;
+            statsData{row, 6} = timeStats.q25;
+            statsData{row, 7} = timeStats.q75;
+            statsData{row, 8} = timeStats.min;
+            statsData{row, 9} = timeStats.max;
+            row = row + 1;
+            
+            % Статистика по амплитудам
+            amplitudes = [manlDet.amplitude]';
+            if ~all(isnan(amplitudes))
+                ampStats = calculateVectorStatistics(amplitudes);
+                statsData{row, 1} = 'Amplitude';
+                statsData{row, 2} = ampStats.count;
+                statsData{row, 3} = ampStats.mean;
+                statsData{row, 4} = ampStats.std;
+                statsData{row, 5} = ampStats.median;
+                statsData{row, 6} = ampStats.q25;
+                statsData{row, 7} = ampStats.q75;
+                statsData{row, 8} = ampStats.min;
+                statsData{row, 9} = ampStats.max;
+                row = row + 1;
+            end
+            
+            % Статистика по ширинам
+            widths = [manlDet.width]';
+            if ~all(isnan(widths))
+                widthStats = calculateVectorStatistics(widths);
+                statsData{row, 1} = 'Width';
+                statsData{row, 2} = widthStats.count;
+                statsData{row, 3} = widthStats.mean;
+                statsData{row, 4} = widthStats.std;
+                statsData{row, 5} = widthStats.median;
+                statsData{row, 6} = widthStats.q25;
+                statsData{row, 7} = widthStats.q75;
+                statsData{row, 8} = widthStats.min;
+                statsData{row, 9} = widthStats.max;
+                row = row + 1;
+            end
+            
+            % Статистика по выраженности
+            prominences = [manlDet.prominence]';
+            if ~all(isnan(prominences))
+                promStats = calculateVectorStatistics(prominences);
+                statsData{row, 1} = 'Prominence';
+                statsData{row, 2} = promStats.count;
+                statsData{row, 3} = promStats.mean;
+                statsData{row, 4} = promStats.std;
+                statsData{row, 5} = promStats.median;
+                statsData{row, 6} = promStats.q25;
+                statsData{row, 7} = promStats.q75;
+                statsData{row, 8} = promStats.min;
+                statsData{row, 9} = promStats.max;
+                row = row + 1;
+            end
+            
+            % Статистика по каналам (первый канал или среднее для многоканальных)
+            channels = zeros(numEvents, 1);
+            for i = 1:numEvents
+                if isscalar(manlDet(i).channels)
+                    channels(i) = manlDet(i).channels;
+                else
+                    channels(i) = mean(manlDet(i).channels(~isnan(manlDet(i).channels) & ~isinf(manlDet(i).channels)));
+                end
+            end
+            chStats = calculateVectorStatistics(channels);
+            statsData{row, 1} = 'Channel';
+            statsData{row, 2} = chStats.count;
+            statsData{row, 3} = chStats.mean;
+            statsData{row, 4} = chStats.std;
+            statsData{row, 5} = chStats.median;
+            statsData{row, 6} = chStats.q25;
+            statsData{row, 7} = chStats.q75;
+            statsData{row, 8} = chStats.min;
+            statsData{row, 9} = chStats.max;
+            
+            % Запись листа Statistics
+            waitbar(0.98, wb, 'Writing statistics to Excel...');
+            writecell(statsData, excelPath, 'Sheet', 'Statistics');
+            
+            fprintf('Saved Excel file to %s\n', excelPath);
+        catch ME
+            fprintf('Warning: Failed to save Excel file: %s\n', ME.message);
+        end
+        fprintf('Saved %d events to %s\n', numel(events), file);
+    else
+        % Сохранение только в .ev файл
+        waitbar(0.9, wb, 'Saving to file...');
+        save(filepath, 'manlDet', 'event_comments', 'viewer_data');
+        fprintf('Saved %d events to %s\n', numel(events), file);
+    end
     
     waitbar(1.0, wb, 'Complete');
     close(wb);
-    
-    fprintf('Saved %d events to %s\n', numel(events), file);
 end
 

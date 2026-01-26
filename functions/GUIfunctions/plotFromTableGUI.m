@@ -231,8 +231,8 @@ function createUI(fig, coordsData)
         'Position', paramsTablePos, ...
         'ColumnName', {'Show', 'Group', 'Column', 'Filter', 'Label', 'Color', 'LineWidth'}, ...
         'ColumnEditable', [true, true, true, true, true, true, true], ...
-        'ColumnFormat', {'logical', 'numeric', 'char', 'char', 'char', 'char', 'numeric'}, ...
-        'ColumnWidth', {40, 50, 100, 80, 80, 70, 70}, ...
+        'ColumnFormat', {'logical', 'char', 'char', 'char', 'char', 'char', 'numeric'}, ...
+        'ColumnWidth', {40, 70, 100, 80, 80, 70, 70}, ...
         'Data', cell(0, 7), ...
         'Tag', 'paramsTable', ...
         'CellEditCallback', @(src, event) paramsTableEditCallback(fig, src, event), ...
@@ -524,6 +524,16 @@ function state = restoreStateFromSavedState(state, savedState)
     
     if isfield(savedState, 'parameters')
         state.parameters = savedState.parameters;
+        for i = 1:length(state.parameters)
+            p = state.parameters{i};
+            if ~isfield(p, 'groupName')
+                if isfield(p, 'groupNumber')
+                    state.parameters{i}.groupName = num2str(p.groupNumber);
+                else
+                    state.parameters{i}.groupName = '1';
+                end
+            end
+        end
     end
     if isfield(savedState, 'nextGroupNumber')
         state.nextGroupNumber = savedState.nextGroupNumber;
@@ -1053,7 +1063,7 @@ function addColumnToAnalysis(fig)
             colorIndex = length(state.parameters) + 1;
             colors = getColors(colorIndex);
             colorHex = colors{colorIndex};
-            state.parameters{end+1} = struct('column', colName, 'groupNumber', 1, 'filter', '', 'label', colName, 'color', colorHex, 'lineWidth', 1, 'visible', true);
+            state.parameters{end+1} = struct('column', colName, 'groupName', '1', 'filter', '', 'label', colName, 'color', colorHex, 'lineWidth', 1, 'visible', true);
         end
     end
     
@@ -1300,7 +1310,13 @@ function updateAnalysisColumnsDisplay(fig)
     for i = 1:length(state.parameters)
         v = state.parameters{i};
         tableData{i, 1} = (isfield(v, 'visible') && v.visible) || ~isfield(v, 'visible');
-        tableData{i, 2} = v.groupNumber;
+        if isfield(v, 'groupName')
+            tableData{i, 2} = v.groupName;
+        elseif isfield(v, 'groupNumber')
+            tableData{i, 2} = num2str(v.groupNumber);
+        else
+            tableData{i, 2} = '1';
+        end
         tableData{i, 3} = v.column;
         tableData{i, 4} = v.filter;
         tableData{i, 5} = v.label;
@@ -1340,9 +1356,9 @@ function paramsTableEditCallback(fig, src, event)
     
     for i = 1:min(length(state.parameters), size(tableData, 1))
         state.parameters{i}.visible = logical(tableData{i, 1});
-        newGroupNumber = tableData{i, 2};
-        if isnumeric(newGroupNumber) && newGroupNumber > 0
-            state.parameters{i}.groupNumber = newGroupNumber;
+        g = tableData{i, 2};
+        if ischar(g) || isstring(g)
+            state.parameters{i}.groupName = char(g);
         end
         if ischar(tableData{i, 3}) || isstring(tableData{i, 3})
             newColumnName = char(tableData{i, 3});
@@ -2221,6 +2237,16 @@ function updateFilteredDataStructure(fig)
             end
         end
         
+        if isfield(paramStruct, 'groupName')
+            gn = paramStruct.groupName;
+        elseif isfield(paramStruct, 'groupNumber')
+            gn = num2str(paramStruct.groupNumber);
+        else
+            gn = '1';
+        end
+        if isempty(gn)
+            gn = '1';
+        end
         validFieldName = matlab.lang.makeValidName(fieldName);
         state.parameterToFieldName{i} = validFieldName;
         state.filteredData.(validFieldName) = struct(...
@@ -2230,7 +2256,7 @@ function updateFilteredDataStructure(fig)
             'color', paramStruct.color, ...
             'parsedColor', parsedColor, ...
             'lineWidth', paramStruct.lineWidth, ...
-            'groupNumber', paramStruct.groupNumber, ...
+            'groupName', gn, ...
             'filter', filterStr, ...
             'fieldName', validFieldName, ...
             'stats', stats, ...
@@ -2266,40 +2292,33 @@ function createCorrelationFigure(fig, state)
     % Получаем все поля из структуры filteredData
     filteredDataFields = fieldnames(state.filteredData);
     
-    % Группируем параметры по groupNumber
-    groupNumbers = [];
+    groupNames = {};
     for i = 1:length(filteredDataFields)
         fieldName = filteredDataFields{i};
         paramData = state.filteredData.(fieldName);
-        if isstruct(paramData)
-            groupNumbers(end+1) = paramData.groupNumber;
+        if isstruct(paramData) && isfield(paramData, 'groupName')
+            groupNames{end+1} = paramData.groupName;
         else
-            groupNumbers(end+1) = 1;
+            groupNames{end+1} = '1';
         end
     end
-    uniqueGroupNumbers = unique(groupNumbers);
-    nPlotGroups = length(uniqueGroupNumbers);
+    uniqueGroupNames = unique(groupNames, 'stable');
+    nPlotGroups = length(uniqueGroupNames);
     
     if nPlotGroups == 0
         return
     end
     
-    % Создаем tiledlayout для автоматического управления расположением осей
     t = tiledlayout(plotPanel, nPlotGroups, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
     
-    % Обрабатываем каждую группу
     for plotGroupIdx = 1:nPlotGroups
-        groupNum = uniqueGroupNumbers(plotGroupIdx);
+        groupName = uniqueGroupNames{plotGroupIdx};
         
-        % Находим все параметры с этим номером группы
         paramsInGroup = {};
         for i = 1:length(filteredDataFields)
             fieldName = filteredDataFields{i};
             paramData = state.filteredData.(fieldName);
-            if isstruct(paramData) && paramData.groupNumber == groupNum
-                paramData.fieldName = fieldName;
-                paramsInGroup{end+1} = paramData;
-            elseif isstruct(paramData) && paramData.groupNumber == 1 && groupNum == 1
+            if isstruct(paramData) && isfield(paramData, 'groupName') && strcmp(paramData.groupName, groupName)
                 paramData.fieldName = fieldName;
                 paramsInGroup{end+1} = paramData;
             end
@@ -2630,14 +2649,22 @@ function createCorrelationFigure(fig, state)
             xLabelText = strjoin(uniqueXLabels, ', ');
             xlabel(ax, xLabelText, 'Interpreter', 'none');
         else
-            xlabel(ax, sprintf('Group %d', groupNum), 'Interpreter', 'none');
+            lbl = groupName;
+            if isempty(lbl)
+                lbl = '(no name)';
+            end
+            xlabel(ax, lbl, 'Interpreter', 'none');
         end
         
         if ~isempty(uniqueYLabels)
             yLabelText = strjoin(uniqueYLabels, ', ');
             ylabel(ax, yLabelText, 'Interpreter', 'none');
         else
-            ylabel(ax, sprintf('Group %d', groupNum), 'Interpreter', 'none');
+            lbl = groupName;
+            if isempty(lbl)
+                lbl = '(no name)';
+            end
+            ylabel(ax, lbl, 'Interpreter', 'none');
         end
         
         % Сетка
@@ -2654,7 +2681,7 @@ end
 
 function createHistogramFigure(fig, state)
     % Построение гистограмм
-    % Группирует данные по groupNumber из параметров анализа (как в boxplot)
+    % Группирует данные по groupName из параметров анализа (как в boxplot)
     
     % Находим панель для графиков
     plotPanel = findobj(fig, 'Tag', 'plotPanel');
@@ -2678,36 +2705,29 @@ function createHistogramFigure(fig, state)
     % Получаем все поля из структуры filteredData
     filteredDataFields = fieldnames(state.filteredData);
     
-    % Группируем параметры по groupNumber (как в boxplot)
-    groupNumbers = [];
+    groupNames = {};
     for i = 1:length(filteredDataFields)
         fieldName = filteredDataFields{i};
         paramData = state.filteredData.(fieldName);
-        if isstruct(paramData)
-            groupNumbers(end+1) = paramData.groupNumber;
+        if isstruct(paramData) && isfield(paramData, 'groupName')
+            groupNames{end+1} = paramData.groupName;
         else
-            groupNumbers(end+1) = 1;
+            groupNames{end+1} = '1';
         end
     end
-    uniqueGroupNumbers = unique(groupNumbers);
-    nPlotGroups = length(uniqueGroupNumbers);
+    uniqueGroupNames = unique(groupNames, 'stable');
+    nPlotGroups = length(uniqueGroupNames);
     
-    % Создаем tiledlayout для автоматического управления расположением осей
     t = tiledlayout(plotPanel, nPlotGroups, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
     
-    % Строим графики по группам (как в boxplot)
     for plotGroupIdx = 1:nPlotGroups
-        groupNum = uniqueGroupNumbers(plotGroupIdx);
+        groupName = uniqueGroupNames{plotGroupIdx};
         
-        % Находим все параметры с этим номером группы
         paramsInGroup = {};
         for i = 1:length(filteredDataFields)
             fieldName = filteredDataFields{i};
             paramData = state.filteredData.(fieldName);
-            if isstruct(paramData) && paramData.groupNumber == groupNum
-                paramData.fieldName = fieldName;
-                paramsInGroup{end+1} = paramData;
-            elseif isstruct(paramData) && paramData.groupNumber == 1 && groupNum == 1
+            if isstruct(paramData) && isfield(paramData, 'groupName') && strcmp(paramData.groupName, groupName)
                 paramData.fieldName = fieldName;
                 paramsInGroup{end+1} = paramData;
             end
@@ -2882,7 +2902,11 @@ function createHistogramFigure(fig, state)
             end
             xlabel(ax, label, 'Interpreter', 'none');
         else
-            xlabel(ax, sprintf('Group %d', groupNum), 'Interpreter', 'none');
+            lbl = groupName;
+            if isempty(lbl)
+                lbl = '(no name)';
+            end
+            xlabel(ax, lbl, 'Interpreter', 'none');
         end
         ylabel(ax, 'N', 'Interpreter', 'none', 'rotation', 0);
         
@@ -2955,38 +2979,29 @@ function createBoxplotFigure(fig, state)
     % Получаем все поля из структуры filteredData
     filteredDataFields = fieldnames(state.filteredData);
     
-    % Группируем параметры по groupNumber
-    groupNumbers = [];
+    groupNames = {};
     for i = 1:length(filteredDataFields)
         fieldName = filteredDataFields{i};
         paramData = state.filteredData.(fieldName);
-        if isstruct(paramData)
-            groupNumbers(end+1) = paramData.groupNumber;
+        if isstruct(paramData) && isfield(paramData, 'groupName')
+            groupNames{end+1} = paramData.groupName;
         else
-            groupNumbers(end+1) = 1;
+            groupNames{end+1} = '1';
         end
     end
-    uniqueGroupNumbers = unique(groupNumbers);
-    nPlotGroups = length(uniqueGroupNumbers);
+    uniqueGroupNames = unique(groupNames, 'stable');
+    nPlotGroups = length(uniqueGroupNames);
     
-    % Создаем tiledlayout для автоматического управления расположением осей
     t = tiledlayout(plotPanel, nPlotGroups, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
     
-    % Строим графики по группам
     for plotGroupIdx = 1:nPlotGroups
-        groupNum = uniqueGroupNumbers(plotGroupIdx);
+        groupName = uniqueGroupNames{plotGroupIdx};
         
-        % Находим все параметры с этим номером группы из структуры filteredData
         paramsInGroup = {};
         for i = 1:length(filteredDataFields)
             fieldName = filteredDataFields{i};
             paramData = state.filteredData.(fieldName);
-            if isstruct(paramData) && paramData.groupNumber == groupNum
-                % Добавляем fieldName в структуру для использования в метках
-                paramData.fieldName = fieldName;
-                paramsInGroup{end+1} = paramData;
-            elseif isstruct(paramData) && paramData.groupNumber == 1 && groupNum == 1
-                % Добавляем fieldName в структуру для использования в метках
+            if isstruct(paramData) && isfield(paramData, 'groupName') && strcmp(paramData.groupName, groupName)
                 paramData.fieldName = fieldName;
                 paramsInGroup{end+1} = paramData;
             end
@@ -3184,14 +3199,19 @@ function createBoxplotFigure(fig, state)
                     end
                 end
                 
-                % Сохраняем результаты тестов для этого полотна
-                paramKey = sprintf('Group%d', groupNum);
-                paramKeyValid = matlab.lang.makeValidName(paramKey);
+                gnForKey = groupName;
+                if isempty(gnForKey)
+                    gnForKey = 'noname';
+                end
+                paramKeyValid = matlab.lang.makeValidName(sprintf('Group_%s', gnForKey));
                 statisticalTests.(paramKeyValid) = testResultsForGroup;
                 
-                % Вывод статистических тестов в консоль
                 if ~isempty(testResultsForGroup) && ~isempty(fieldnames(testResultsForGroup))
-                    fprintf('\n=== Statistical Tests for Group %d ===\n', groupNum);
+                    gnDisp = groupName;
+                    if isempty(gnDisp)
+                        gnDisp = '(no name)';
+                    end
+                    fprintf('\n=== Statistical Tests for Group %s ===\n', gnDisp);
                     fprintf('%-30s %-30s %12s %8s %8s %12s\n', 'Parameter 1', 'Parameter 2', 'p-value', 'n1', 'n2', 'Significant');
                     fprintf('%s\n', repmat('-', 1, 100));
                     testFields = fieldnames(testResultsForGroup);
@@ -3212,11 +3232,13 @@ function createBoxplotFigure(fig, state)
             end
         end
         
-        % Формируем название для оси Y
         if length(paramsInGroup) == 1
             yLabelText = paramsInGroup{1}.column;
         else
-            yLabelText = sprintf('Group %d', groupNum);
+            yLabelText = groupName;
+            if isempty(yLabelText)
+                yLabelText = '(no name)';
+            end
         end
         ylabel(ax, yLabelText, 'Interpreter', 'none');
         if plotGroupIdx == nPlotGroups
@@ -3251,10 +3273,12 @@ function createBoxplotFigure(fig, state)
             xlim(ax, [state.xAxisMin, state.xAxisMax]);
         end
         
-        % Скобки значимости (если статистика включена) - между параметрами на полотне
         if state.showStatistics
-            paramKey = sprintf('Group%d', groupNum);
-            paramKeyValid = matlab.lang.makeValidName(paramKey);
+            gnForKey = groupName;
+            if isempty(gnForKey)
+                gnForKey = 'noname';
+            end
+            paramKeyValid = matlab.lang.makeValidName(sprintf('Group_%s', gnForKey));
             
             if isfield(statisticalTests, paramKeyValid)
                 currentYLim = ylim(ax);
