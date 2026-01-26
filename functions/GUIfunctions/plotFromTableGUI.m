@@ -229,10 +229,11 @@ function createUI(fig, coordsData)
     
     paramsTable = uitable('Parent', fig, ...
         'Position', paramsTablePos, ...
-        'ColumnName', {'Group', 'Column', 'Filter', 'Label', 'Color', 'LineWidth'}, ...
-        'ColumnEditable', [true, true, true, true, true, true], ...
-        'ColumnWidth', {50, 100, 80, 80, 70, 70}, ...
-        'Data', cell(0, 6), ...
+        'ColumnName', {'Show', 'Group', 'Column', 'Filter', 'Label', 'Color', 'LineWidth'}, ...
+        'ColumnEditable', [true, true, true, true, true, true, true], ...
+        'ColumnFormat', {'logical', 'numeric', 'char', 'char', 'char', 'char', 'numeric'}, ...
+        'ColumnWidth', {40, 50, 100, 80, 80, 70, 70}, ...
+        'Data', cell(0, 7), ...
         'Tag', 'paramsTable', ...
         'CellEditCallback', @(src, event) paramsTableEditCallback(fig, src, event), ...
         'CellSelectionCallback', @paramsTableSelectionCallback);
@@ -890,34 +891,27 @@ function paramsTableSelectionCallback(src, event)
         return
     end
     
-    % Получаем все поля из state.filteredData в порядке их создания
-    filteredFields = fieldnames(state.filteredData);
-    if isempty(filteredFields)
+    if ~isfield(state, 'parameterToFieldName') || isempty(state.filteredData)
         return
     end
     
-    % Собираем данные для всех выделенных строк
     allColumnData = {};
     columnNames = {};
-    allParamData = {}; % Сохраняем paramData для статистики
+    allParamData = {};
     
     for rowIdx = selectedRows(:)'
-        if rowIdx < 1 || rowIdx > length(state.parameters)
+        if rowIdx < 1 || rowIdx > length(state.parameterToFieldName)
             continue
         end
-        
-        if rowIdx > length(filteredFields)
+        fieldName = state.parameterToFieldName{rowIdx};
+        if isempty(fieldName) || ~isfield(state.filteredData, fieldName)
             continue
         end
-        
         param = state.parameters{rowIdx};
-        fieldName = filteredFields{rowIdx};
         paramData = state.filteredData.(fieldName);
-        
         if ~isfield(paramData, 'data')
             continue
         end
-        
         columnData = paramData.data;
         
         % Преобразуем данные в cell array
@@ -1059,7 +1053,7 @@ function addColumnToAnalysis(fig)
             colorIndex = length(state.parameters) + 1;
             colors = getColors(colorIndex);
             colorHex = colors{colorIndex};
-            state.parameters{end+1} = struct('column', colName, 'groupNumber', 1, 'filter', '', 'label', colName, 'color', colorHex, 'lineWidth', 1);
+            state.parameters{end+1} = struct('column', colName, 'groupNumber', 1, 'filter', '', 'label', colName, 'color', colorHex, 'lineWidth', 1, 'visible', true);
         end
     end
     
@@ -1298,19 +1292,20 @@ function updateAnalysisColumnsDisplay(fig)
     end
     
     if isempty(state.parameters)
-        set(paramsTable, 'Data', cell(0, 6));
+        set(paramsTable, 'Data', cell(0, 7));
         return
     end
     
-    % Формируем данные для таблицы (поля уже нормализованы)
-    tableData = cell(length(state.parameters), 6);
+    tableData = cell(length(state.parameters), 7);
     for i = 1:length(state.parameters)
-        tableData{i, 1} = state.parameters{i}.groupNumber;
-        tableData{i, 2} = state.parameters{i}.column;
-        tableData{i, 3} = state.parameters{i}.filter;
-        tableData{i, 4} = state.parameters{i}.label;
-        tableData{i, 5} = state.parameters{i}.color;
-        tableData{i, 6} = state.parameters{i}.lineWidth;
+        v = state.parameters{i};
+        tableData{i, 1} = (isfield(v, 'visible') && v.visible) || ~isfield(v, 'visible');
+        tableData{i, 2} = v.groupNumber;
+        tableData{i, 3} = v.column;
+        tableData{i, 4} = v.filter;
+        tableData{i, 5} = v.label;
+        tableData{i, 6} = v.color;
+        tableData{i, 7} = v.lineWidth;
     end
     
     set(paramsTable, 'Data', tableData);
@@ -1330,49 +1325,42 @@ function paramsTableEditCallback(fig, src, event)
     editedRow = event.Indices(1);
     editedCol = event.Indices(2);
     
-    % Если редактировалась колонка Column (индекс 2), проверяем существование колонки
-    if editedCol == 2 && editedRow <= length(state.parameters)
-        newColumnName = tableData{editedRow, 2};
+    if editedCol == 3 && editedRow <= length(state.parameters)
+        newColumnName = tableData{editedRow, 3};
         if ischar(newColumnName) || isstring(newColumnName)
             newColumnName = char(newColumnName);
             if ~ismember(newColumnName, state.table.Properties.VariableNames)
                 msgbox(sprintf('Column "%s" does not exist in the table', newColumnName), 'Warning', 'warn');
-                tableData{editedRow, 2} = state.parameters{editedRow}.column;
+                tableData{editedRow, 3} = state.parameters{editedRow}.column;
                 set(paramsTable, 'Data', tableData);
                 return
             end
         end
     end
     
-    % Обновляем state.parameters из таблицы
     for i = 1:min(length(state.parameters), size(tableData, 1))
-        % Group number
-        newGroupNumber = tableData{i, 1};
+        state.parameters{i}.visible = logical(tableData{i, 1});
+        newGroupNumber = tableData{i, 2};
         if isnumeric(newGroupNumber) && newGroupNumber > 0
             state.parameters{i}.groupNumber = newGroupNumber;
         end
-        % Column
-        if ischar(tableData{i, 2}) || isstring(tableData{i, 2})
-            newColumnName = char(tableData{i, 2});
+        if ischar(tableData{i, 3}) || isstring(tableData{i, 3})
+            newColumnName = char(tableData{i, 3});
             if ismember(newColumnName, state.table.Properties.VariableNames)
                 state.parameters{i}.column = newColumnName;
             end
         end
-        % Filter
-        if ischar(tableData{i, 3}) || isstring(tableData{i, 3})
-            state.parameters{i}.filter = char(tableData{i, 3});
-        end
-        % Label
         if ischar(tableData{i, 4}) || isstring(tableData{i, 4})
-            state.parameters{i}.label = char(tableData{i, 4});
+            state.parameters{i}.filter = char(tableData{i, 4});
         end
-        % Color
         if ischar(tableData{i, 5}) || isstring(tableData{i, 5})
-            state.parameters{i}.color = char(tableData{i, 5});
+            state.parameters{i}.label = char(tableData{i, 5});
         end
-        % LineWidth
-        if isnumeric(tableData{i, 6}) && tableData{i, 6} > 0
-            state.parameters{i}.lineWidth = tableData{i, 6};
+        if ischar(tableData{i, 6}) || isstring(tableData{i, 6})
+            state.parameters{i}.color = char(tableData{i, 6});
+        end
+        if isnumeric(tableData{i, 7}) && tableData{i, 7} > 0
+            state.parameters{i}.lineWidth = tableData{i, 7};
         end
     end
     
@@ -2102,21 +2090,22 @@ function updateFilteredDataStructure(fig)
     state = get(fig, 'UserData');
     if isempty(state.table) || isempty(state.parameters)
         state.filteredData = struct();
+        state.parameterToFieldName = {};
         set(fig, 'UserData', state);
         return
     end
     
-    % Очищаем структуру
     state.filteredData = struct();
+    state.parameterToFieldName = cell(1, length(state.parameters));
     
-    % Счетчики для индексации (сколько раз уже встретили этот параметр)
     columnIndices = containers.Map();
     
-    % Обрабатываем каждый параметр
     for i = 1:length(state.parameters)
         paramStruct = state.parameters{i};
+        if isfield(paramStruct, 'visible') && ~paramStruct.visible
+            continue
+        end
         columnName = paramStruct.column;
-        
         if ~ismember(columnName, state.table.Properties.VariableNames)
             continue
         end
@@ -2232,8 +2221,8 @@ function updateFilteredDataStructure(fig)
             end
         end
         
-        % Сохраняем в структуру с метаданными, статистикой и распарсенным цветом
         validFieldName = matlab.lang.makeValidName(fieldName);
+        state.parameterToFieldName{i} = validFieldName;
         state.filteredData.(validFieldName) = struct(...
             'data', filteredData, ...
             'column', columnName, ...
@@ -2243,7 +2232,7 @@ function updateFilteredDataStructure(fig)
             'lineWidth', paramStruct.lineWidth, ...
             'groupNumber', paramStruct.groupNumber, ...
             'filter', filterStr, ...
-            'fieldName', fieldName, ...
+            'fieldName', validFieldName, ...
             'stats', stats, ...
             'fileIds', fileIds);
         
@@ -3007,55 +2996,34 @@ function createBoxplotFigure(fig, state)
         ax = nexttile(t);
         hold(ax, 'on');
         
-        % Строим боксплоты для всех параметров в группе используя структуру filteredData
+        % Строим боксплоты: один бокс на параметр (без объединения по displayLabel)
         allDataForGroup = [];
         groupLabelsForBoxplot = {};
-        fileIdsForGroup = []; % Массив File ID, параллельный allDataForGroup
-        paramDataByFieldName = containers.Map(); % Map для доступа к paramData по fieldName
-        displayLabelToFieldName = containers.Map(); % Map для связи displayLabel -> fieldName
+        fileIdsForGroup = [];
+        paramDataByFieldName = containers.Map();
+        displayLabelsByFieldName = containers.Map(); % displayLabel для подписей оси X
         
         for p = 1:length(paramsInGroup)
             paramData = paramsInGroup{p};
-            
             if isempty(paramData.data)
                 continue
             end
-            
-            % Получаем данные из структуры
             data = paramData.data;
-            
-            % Получаем метку - используем label или column
             if ~isempty(paramData.label)
                 displayLabel = paramData.label;
             else
                 displayLabel = paramData.column;
             end
             
-            % Получаем цвет и lineWidth из структуры (уже распарсены)
-            color = paramData.parsedColor;
-            paramLineWidth = paramData.lineWidth;
-            
-            % Добавляем данные
-            if ~isempty(data)
-                allDataForGroup = [allDataForGroup; data];
-                groupLabelsForBoxplot = [groupLabelsForBoxplot; repmat({displayLabel}, length(data), 1)];
-                
-                % Добавляем File ID для каждой точки
-                if isfield(paramData, 'fileIds') && ~isempty(paramData.fileIds) && length(paramData.fileIds) == length(data)
-                    fileIdsForGroup = [fileIdsForGroup; paramData.fileIds(:)];
-                else
-                    % Если File ID нет, заполняем NaN
-                    fileIdsForGroup = [fileIdsForGroup; NaN(length(data), 1)];
-                end
-                
-                % Сохраняем paramData по fieldName
-                paramDataByFieldName(paramData.fieldName) = paramData;
-                
-                % Сохраняем связь displayLabel -> fieldName (берем первый fieldName для каждого displayLabel)
-                if ~isKey(displayLabelToFieldName, displayLabel)
-                    displayLabelToFieldName(displayLabel) = paramData.fieldName;
-                end
+            allDataForGroup = [allDataForGroup; data];
+            groupLabelsForBoxplot = [groupLabelsForBoxplot; repmat({paramData.fieldName}, length(data), 1)];
+            if isfield(paramData, 'fileIds') && ~isempty(paramData.fileIds) && length(paramData.fileIds) == length(data)
+                fileIdsForGroup = [fileIdsForGroup; paramData.fileIds(:)];
+            else
+                fileIdsForGroup = [fileIdsForGroup; NaN(length(data), 1)];
             end
+            paramDataByFieldName(paramData.fieldName) = paramData;
+            displayLabelsByFieldName(paramData.fieldName) = displayLabel;
         end
         
         % Построение боксплотов
@@ -3063,26 +3031,10 @@ function createBoxplotFigure(fig, state)
             boxplot(ax, allDataForGroup, groupLabelsForBoxplot, 'Symbol', '');
             hold(ax, 'on');
             
-            % Применение цветов к боксплотам
-            uniqueDisplayLabels = unique(groupLabelsForBoxplot, 'stable');
-            
-            % Создаем Map fieldNameToPosition по порядку displayLabel
+            uniqueGroupLabels = unique(groupLabelsForBoxplot, 'stable');
             fieldNameToPosition = containers.Map();
-            for g = 1:length(uniqueDisplayLabels)
-                displayLabel = uniqueDisplayLabels{g};
-                % Находим все fieldName с этим displayLabel
-                fieldNames = keys(paramDataByFieldName);
-                for f = 1:length(fieldNames)
-                    fieldName = fieldNames{f};
-                    paramData = paramDataByFieldName(fieldName);
-                    paramDisplayLabel = paramData.label;
-                    if isempty(paramDisplayLabel)
-                        paramDisplayLabel = paramData.column;
-                    end
-                    if strcmp(paramDisplayLabel, displayLabel)
-                        fieldNameToPosition(fieldName) = g;
-                    end
-                end
+            for g = 1:length(uniqueGroupLabels)
+                fieldNameToPosition(uniqueGroupLabels{g}) = g;
             end
             
             % Находим все patch объекты (боксы)
@@ -3116,40 +3068,25 @@ function createBoxplotFigure(fig, state)
             % Находим все line объекты
             allLines = findobj(ax, 'Type', 'line');
             
-            for g = 1:length(uniqueDisplayLabels)
-                displayLabel = uniqueDisplayLabels{g};
+            for g = 1:length(uniqueGroupLabels)
+                fieldName = uniqueGroupLabels{g};
+                paramDataForLabel = paramDataByFieldName(fieldName);
+                color = paramDataForLabel.parsedColor;
+                paramLineWidth = paramDataForLabel.lineWidth;
                 
-                % Получаем paramData из Map
-                color = [0.5 0.5 0.5]; % серый по умолчанию
-                paramLineWidth = 1; % по умолчанию
-                if isKey(displayLabelToFieldName, displayLabel)
-                    fieldName = displayLabelToFieldName(displayLabel);
-                    if isKey(paramDataByFieldName, fieldName)
-                        paramDataForLabel = paramDataByFieldName(fieldName);
-                        color = paramDataForLabel.parsedColor;
-                        paramLineWidth = paramDataForLabel.lineWidth;
-                    end
-                end
-                
-                % Применяем цвет к боксу (patch) - по порядку после сортировки
                 if ~isempty(boxPatches) && g <= length(boxPatches)
                     set(boxPatches(g), 'FaceColor', color, 'EdgeColor', color * 0.7, 'LineWidth', paramLineWidth);
                 end
-                
-                % Применяем цвет и толщину к линиям по их позиции X
                 xPos = g;
                 for i = 1:length(allLines)
                     xData = get(allLines(i), 'XData');
                     if ~isempty(xData)
-                        % Проверяем, относится ли линия к этой позиции
                         xMean = mean(xData);
                         if abs(xMean - xPos) < 0.3
                             currentLineWidth = get(allLines(i), 'LineWidth');
                             if currentLineWidth > 1
-                                % Это медиана
                                 set(allLines(i), 'Color', color * 0.5, 'LineWidth', paramLineWidth);
                             else
-                                % Это усы или другие линии
                                 set(allLines(i), 'Color', color, 'LineWidth', paramLineWidth);
                             end
                         end
@@ -3157,73 +3094,65 @@ function createBoxplotFigure(fig, state)
                 end
             end
             
-            % Добавление точек данных с jitter
-            for g = 1:length(uniqueDisplayLabels)
-                displayLabel = uniqueDisplayLabels{g};
-                mask = strcmp(groupLabelsForBoxplot, displayLabel);
+            % Точки данных с jitter, File ID, Y-значения, n=X
+            for g = 1:length(uniqueGroupLabels)
+                fieldName = uniqueGroupLabels{g};
+                mask = strcmp(groupLabelsForBoxplot, fieldName);
                 data = allDataForGroup(mask);
                 fileIdsForLabel = fileIdsForGroup(mask);
-                
-                if ~isempty(data)
-                    x_pos = g;
-                    x_jitter = x_pos + 0.1 * (rand(size(data)) - 0.5);
-                    
-                    % Получаем paramData из Map
-                    color = [0 0 0]; % черный по умолчанию
-                    paramLineWidth = 1; % по умолчанию
-                    paramDataForLabel = [];
-                    if isKey(displayLabelToFieldName, displayLabel)
-                        fieldName = displayLabelToFieldName(displayLabel);
-                        if isKey(paramDataByFieldName, fieldName)
-                            paramDataForLabel = paramDataByFieldName(fieldName);
-                            color = paramDataForLabel.parsedColor;
-                            paramLineWidth = paramDataForLabel.lineWidth;
-                        end
-                    end
-                    
-                    % Размер маркера = lineWidth * 30
-                    markerSize = paramLineWidth * 30;
-                    
-                    % Scatter с заполненными кругами и белым обрамлением
-                    scatter(ax, x_jitter, data, markerSize, color, 'o', ...
-                        'MarkerFaceColor', color, ...
-                        'MarkerEdgeColor', 'white', ...
-                        'LineWidth', paramLineWidth, ...
-                        'MarkerFaceAlpha', 1);
-                    
-                    % Вычисляем dataRange один раз для обоих случаев
-                    dataRange = max(data) - min(data);
+                if isempty(data)
+                    continue
+                end
+                paramDataForLabel = paramDataByFieldName(fieldName);
+                color = paramDataForLabel.parsedColor;
+                paramLineWidth = paramDataForLabel.lineWidth;
+                x_pos = g;
+                x_jitter = x_pos + 0.1 * (rand(size(data)) - 0.5);
+                markerSize = paramLineWidth * 30;
+                scatter(ax, x_jitter, data, markerSize, color, 'o', ...
+                    'MarkerFaceColor', color, ...
+                    'MarkerEdgeColor', 'white', ...
+                    'LineWidth', paramLineWidth, ...
+                    'MarkerFaceAlpha', 1);
+                dataRange = max(data) - min(data);
+                if dataRange == 0
+                    dataRange = abs(max(data)) * 0.01;
                     if dataRange == 0
-                        dataRange = abs(max(data)) * 0.01;
-                        if dataRange == 0
-                            dataRange = 1;
-                        end
+                        dataRange = 1;
                     end
-                    
-                    % Отображение File ID рядом с точками (если включено)
-                    if state.showFileIds && ~isempty(fileIdsForLabel)
-                        plotFileIdsOnAxes(ax, x_jitter, data, fileIdsForLabel, -0.05, 0.01 * dataRange, true);
+                end
+                if state.showFileIds && ~isempty(fileIdsForLabel)
+                    plotFileIdsOnAxes(ax, x_jitter, data, fileIdsForLabel, -0.05, 0.01 * dataRange, true);
+                end
+                if state.showYValues
+                    plotYValuesOnAxes(ax, x_jitter, data, data, 0.05, 0.01 * dataRange, '%.3f', true);
+                end
+                medianVal = paramDataForLabel.stats.median;
+                if isnan(medianVal)
+                    medianVal = median(data);
+                end
+                if state.showStatistics
+                    s = paramDataForLabel.stats;
+                    q25 = s.q25;
+                    q75 = s.q75;
+                    if ~isnan(q25) && ~isnan(q75)
+                        statsStr = sprintf('n=%d\nM=%.3f\n[%.2f–%.2f]', length(data), medianVal, q25, q75);
+                    else
+                        statsStr = sprintf('n=%d\nM=%.3f\n—', length(data), medianVal);
                     end
-                    
-                    % Отображение значений Y рядом с точками (если включено)
-                    if state.showYValues
-                        plotYValuesOnAxes(ax, x_jitter, data, data, 0.05, 0.01 * dataRange, '%.3f', true);
-                    end
-                    
-                    % Аннотация n=X (используем медиану из stats)
-                    medianVal = NaN;
-                    if ~isempty(paramDataForLabel)
-                        medianVal = paramDataForLabel.stats.median;
-                    end
-                    if isnan(medianVal)
-                        medianVal = median(data);
-                    end
-                    text(ax, x_pos, medianVal, sprintf('n=%d', length(data)), ...
-                        'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', ...
-                        'FontSize', 9, 'BackgroundColor', 'white', ...
+                    text(ax, x_pos - 0.4, medianVal, statsStr, ...
+                        'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', ...
+                        'FontSize', 9, 'Color', color, 'BackgroundColor', 'white', ...
                         'Interpreter', 'none');
                 end
             end
+            
+            % Подписи оси X: displayLabel (дубликаты допустимы)
+            tickLabels = cell(1, length(uniqueGroupLabels));
+            for g = 1:length(uniqueGroupLabels)
+                tickLabels{g} = displayLabelsByFieldName(uniqueGroupLabels{g});
+            end
+            set(ax, 'XTick', 1:length(uniqueGroupLabels), 'XTickLabel', tickLabels);
             
             % Вычисляем статистические тесты между параметрами на этом полотне
             if state.showStatistics && length(paramDataByFieldName) >= 2
