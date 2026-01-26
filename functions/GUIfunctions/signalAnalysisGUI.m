@@ -3300,6 +3300,19 @@ updateCursorEditFields();
             filepath = fullfile(path, file);
         end
         
+        % Автоконверсия ABF файлов
+        [~, ~, ext] = fileparts(filepath);
+        if strcmpi(ext, '.abf')
+            debugState('openFile', 'ABF file detected, converting to ZAV...');
+            zavFilePath = autoConvertAbfToZav(filepath);
+            if ~isempty(zavFilePath) && exist(zavFilePath, 'file')
+                filepath = zavFilePath;
+            else
+                debugState('openFile', 'Failed to convert ABF file');
+                return;
+            end
+        end
+        
         % Проверка, открыт ли уже файл
         if exist('matFilePath', 'var') && ~isempty(matFilePath) && exist('hd', 'var') && ~isempty(hd)
             [~, currentFileName, ~] = fileparts(matFilePath);

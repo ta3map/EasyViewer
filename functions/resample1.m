@@ -23,9 +23,12 @@ orig_Fs = q;
 new_Fs = p;
 
 % Create time vectors
-t_original = (0:length(x)-1) / orig_Fs;
-totalDuration = t_original(end);
-numPoints = round(totalDuration * new_Fs) + 1;
+% Более точный расчет количества точек на основе соотношения частот
+% Длительность = (N-1) / Fs_old, для новой частоты: (M-1) / Fs_new = (N-1) / Fs_old
+% Отсюда: M = round((N-1) * Fs_new / Fs_old) + 1
+N = length(x);
+numPoints = round((N - 1) * new_Fs / orig_Fs) + 1;
+t_original = (0:N-1) / orig_Fs;
 t_resampled = (0:numPoints-1) / new_Fs;
 
 % Perform linear interpolation

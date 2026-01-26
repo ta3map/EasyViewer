@@ -2555,7 +2555,7 @@ function fileManagerGUI()
             if rowIdx >= 1 && rowIdx <= numel(state.files)
                 filePath = state.files(rowIdx).path;
                 [~, ~, ext] = fileparts(filePath);
-                supportedExtensions = {'.mat', '.ev'};
+                supportedExtensions = {'.mat', '.ev', '.abf'};
                 openBtnEnabled = any(strcmpi(ext, supportedExtensions));
             end
         end
@@ -4291,13 +4291,7 @@ function metadata = launchFile(filePath)
         lastOpenedFiles = {};
     end
     
-    lastOpenedFiles{end + 1} = filePath;
-    
-    try
-        save(SettingsFilepath, 'lastOpenedFiles', '-append');
-    catch ME
-        warning('Failed to save last opened file path: %s', ME.message);
-    end
+
     
     debugState('fileManagerGUI', 'Please wait...');
     global event_amplitudes event_channels event_widths event_prominences event_metadata event_comments events_exist
@@ -4315,13 +4309,23 @@ function metadata = launchFile(filePath)
     switch lower(ext)
         case '.ev'
             metadata = event_calling();
-        case '.mat'
+        case {'.mat', '.abf'}
             metadata = zav_calling(filePath);
             table_calling();
         otherwise
             debugState('fileManagerGUI', 'Unknown extension: %s', ext);
     end
     debugState('fileManagerGUI', 'File loaded.');
+
+
+    lastOpenedFiles{end + 1} = filePath;
+    
+    try
+        save(SettingsFilepath, 'lastOpenedFiles', '-append');
+    catch ME
+        warning('Failed to save last opened file path: %s', ME.message);
+    end
+
     try
         close(wb);
     catch

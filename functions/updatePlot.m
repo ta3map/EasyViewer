@@ -90,7 +90,10 @@ function updatePlot()
         lfp_Fs = round(newFs);
 
         % Используем resample1 для ресемплинга (без краевых эффектов)
-        data_res = zeros(round((time_in(end) - time_in(1)) * lfp_Fs) + 1, size(data, 2));
+        % Используем ту же формулу, что и в resample1 для точного совпадения размеров
+        N = size(data, 1);
+        numPoints = round((N - 1) * lfp_Fs / raw_Fs) + 1;
+        data_res = zeros(numPoints, size(data, 2));
 
         for ch = 1:size(data, 2)
             data_res(:, ch) = resample1(data(:, ch), lfp_Fs, raw_Fs);

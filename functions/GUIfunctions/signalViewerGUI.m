@@ -1888,20 +1888,6 @@ function signalViewerGUI(editMode)
         end
         filepath = fullfile(path, file);
         
-        % Проверка расширения файла
-        [~, ~, ext] = fileparts(filepath);
-        
-        % Если выбран ABF файл, выполняем конвертацию
-        if strcmpi(ext, '.abf')
-            debugState('OpenZavLfpFile', 'ABF file selected, starting conversion...');
-            
-            % Автоматическая конвертация ABF в ZAV с параметрами по умолчанию
-            zavFilePath = autoConvertAbfToZav(filepath);
-
-            % Используем путь к сконвертированному файлу для загрузки
-            filepath = zavFilePath;
-        end
-        
         % Очистка таблицы событий ДО загрузки файла
         events = [];
         event_amplitudes = [];
@@ -1978,6 +1964,19 @@ function signalViewerGUI(editMode)
         if ~isempty(outside_calling_filepath)
             filepath = outside_calling_filepath;
             outside_calling_filepath = [];          
+        end
+        
+        % Автоконверсия ABF файлов
+        [~, ~, ext] = fileparts(filepath);
+        if strcmpi(ext, '.abf')
+            debugState('loadMatFile', 'ABF file detected, converting to ZAV...');
+            zavFilePath = autoConvertAbfToZav(filepath);
+            if ~isempty(zavFilePath) && exist(zavFilePath, 'file')
+                filepath = zavFilePath;
+            else
+                debugState('loadMatFile', 'Failed to convert ABF file');
+                return;
+            end
         end
         
         % Проверка, открыт ли уже файл
