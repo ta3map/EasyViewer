@@ -29,17 +29,9 @@ function groupStats = boxplotCalculateGroupStatistics(table, parameters, groupCo
             
             mask = strcmp(table{:, 'group_label'}, groupLabel);
             data = table{mask, columnName};
-            data = data(~isnan(data) & ~isinf(data));
             
-            if ~isempty(data)
-                paramStats.(matlab.lang.makeValidName(groupLabel)) = struct(...
-                    'mean', mean(data), ...
-                    'std', std(data), ...
-                    'median', median(data), ...
-                    'q25', prctile(data, 25), ...
-                    'q75', prctile(data, 75), ...
-                    'count', length(data));
-            end
+            stats = calculateVectorStatistics(data);
+            paramStats.(matlab.lang.makeValidName(groupLabel)) = stats;
         end
         
         % Используем название колонки как ключ

@@ -2176,39 +2176,7 @@ function updateFilteredDataStructure(fig)
         end
         
         % Рассчитываем статистику для отфильтрованных данных
-        stats = struct();
-        if ~isempty(filteredData)
-            stats.count = length(filteredData);
-            stats.nanCount = sum(isnan(filteredData) | isinf(filteredData));
-            validData = filteredData(~isnan(filteredData) & ~isinf(filteredData));
-            if ~isempty(validData)
-                stats.mean = mean(validData);
-                stats.std = std(validData);
-                stats.median = median(validData);
-                stats.q25 = prctile(validData, 25);
-                stats.q75 = prctile(validData, 75);
-                stats.min = min(validData);
-                stats.max = max(validData);
-            else
-                stats.mean = NaN;
-                stats.std = NaN;
-                stats.median = NaN;
-                stats.q25 = NaN;
-                stats.q75 = NaN;
-                stats.min = NaN;
-                stats.max = NaN;
-            end
-        else
-            stats.mean = NaN;
-            stats.std = NaN;
-            stats.median = NaN;
-            stats.q25 = NaN;
-            stats.q75 = NaN;
-            stats.min = NaN;
-            stats.max = NaN;
-            stats.count = 0;
-            stats.nanCount = 0;
-        end
+        stats = calculateVectorStatistics(filteredData);
         
         % Парсим цвет один раз и сохраняем RGB
         parsedColor = [0.5 0.5 0.5]; % серый по умолчанию
