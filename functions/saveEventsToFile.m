@@ -236,6 +236,20 @@ function saveEventsToFile(events, time, matFilePath, varargin)
             statsData{row, 9} = timeStats.max;
             row = row + 1;
             
+            % Статистика по интервалам между событиями (среднее время между событиями)
+            intervals = diff(events);
+            intervalStats = calculateVectorStatistics(intervals);
+            statsData{row, 1} = 'Inter-event interval (s)';
+            statsData{row, 2} = intervalStats.count;
+            statsData{row, 3} = intervalStats.mean;
+            statsData{row, 4} = intervalStats.std;
+            statsData{row, 5} = intervalStats.median;
+            statsData{row, 6} = intervalStats.q25;
+            statsData{row, 7} = intervalStats.q75;
+            statsData{row, 8} = intervalStats.min;
+            statsData{row, 9} = intervalStats.max;
+            row = row + 1;
+            
             % Статистика по амплитудам
             amplitudes = [manlDet.amplitude]';
             if ~all(isnan(amplitudes))

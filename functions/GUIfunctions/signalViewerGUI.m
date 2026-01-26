@@ -2730,7 +2730,8 @@ function loadEvents(~, ~)
     if isfield(loadedData, 'viewer_data')
         if isfield(loadedData.viewer_data, 'matFilePath') && ~isempty(loadedData.viewer_data.matFilePath)
             if exist(loadedData.viewer_data.matFilePath, 'file')
-                if ~strcmp(loadedData.viewer_data.matFilePath, matFilePath)
+                % Загружаем файл, если путь отличается ИЛИ данные не загружены
+                if ~strcmp(loadedData.viewer_data.matFilePath, matFilePath) || ~exist('time', 'var') || isempty(time)
                     loadMatFile(loadedData.viewer_data.matFilePath);
                 else
                     updatePlot();
