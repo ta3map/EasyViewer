@@ -30,7 +30,7 @@ function groupStats = boxplotCalculateGroupStatistics(table, parameters, groupCo
             mask = strcmp(table{:, 'group_label'}, groupLabel);
             data = table{mask, columnName};
             
-            stats = calculateVectorStatistics(data);
+            stats = statProc(data);
             paramStats.(matlab.lang.makeValidName(groupLabel)) = stats;
         end
         

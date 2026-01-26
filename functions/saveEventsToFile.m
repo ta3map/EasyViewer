@@ -224,7 +224,7 @@ function saveEventsToFile(events, time, matFilePath, varargin)
             row = 2;
             
             % Статистика по времени событий
-            timeStats = calculateVectorStatistics(events);
+            timeStats = statProc(events);
             statsData{row, 1} = 'Time (s)';
             statsData{row, 2} = timeStats.count;
             statsData{row, 3} = timeStats.mean;
@@ -238,7 +238,7 @@ function saveEventsToFile(events, time, matFilePath, varargin)
             
             % Статистика по интервалам между событиями (среднее время между событиями)
             intervals = diff(events);
-            intervalStats = calculateVectorStatistics(intervals);
+            intervalStats = statProc(intervals);
             statsData{row, 1} = 'Inter-event interval (s)';
             statsData{row, 2} = intervalStats.count;
             statsData{row, 3} = intervalStats.mean;
@@ -253,7 +253,7 @@ function saveEventsToFile(events, time, matFilePath, varargin)
             % Статистика по амплитудам
             amplitudes = [manlDet.amplitude]';
             if ~all(isnan(amplitudes))
-                ampStats = calculateVectorStatistics(amplitudes);
+                ampStats = statProc(amplitudes);
                 statsData{row, 1} = 'Amplitude';
                 statsData{row, 2} = ampStats.count;
                 statsData{row, 3} = ampStats.mean;
@@ -269,7 +269,7 @@ function saveEventsToFile(events, time, matFilePath, varargin)
             % Статистика по ширинам
             widths = [manlDet.width]';
             if ~all(isnan(widths))
-                widthStats = calculateVectorStatistics(widths);
+                widthStats = statProc(widths);
                 statsData{row, 1} = 'Width';
                 statsData{row, 2} = widthStats.count;
                 statsData{row, 3} = widthStats.mean;
@@ -285,7 +285,7 @@ function saveEventsToFile(events, time, matFilePath, varargin)
             % Статистика по выраженности
             prominences = [manlDet.prominence]';
             if ~all(isnan(prominences))
-                promStats = calculateVectorStatistics(prominences);
+                promStats = statProc(prominences);
                 statsData{row, 1} = 'Prominence';
                 statsData{row, 2} = promStats.count;
                 statsData{row, 3} = promStats.mean;
@@ -307,7 +307,7 @@ function saveEventsToFile(events, time, matFilePath, varargin)
                     channels(i) = mean(manlDet(i).channels(~isnan(manlDet(i).channels) & ~isinf(manlDet(i).channels)));
                 end
             end
-            chStats = calculateVectorStatistics(channels);
+            chStats = statProc(channels);
             statsData{row, 1} = 'Channel';
             statsData{row, 2} = chStats.count;
             statsData{row, 3} = chStats.mean;

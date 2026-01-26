@@ -2176,7 +2176,7 @@ function updateFilteredDataStructure(fig)
         end
         
         % Рассчитываем статистику для отфильтрованных данных
-        stats = calculateVectorStatistics(filteredData);
+        stats = statProc(filteredData);
         
         % Парсим цвет один раз и сохраняем RGB
         parsedColor = [0.5 0.5 0.5]; % серый по умолчанию
