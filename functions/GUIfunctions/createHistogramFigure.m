@@ -215,11 +215,9 @@ function createHistogramFigure(fig, state)
         
         % Подписи осей (X и Y поменяны местами)
         xlabel(ax, 'N', 'Interpreter', 'none');
-        lbl = groupName;
-        if isempty(lbl)
-            lbl = '(no name)';
-        end
-        ylabel(ax, lbl, 'Interpreter', 'none');
+        yLabelText = getYAxisLabelFromGroupParams(paramsInGroup, 'first');
+        ylabel(ax, yLabelText, 'Interpreter', 'none');
+        setSubplotGroupTitle(ax, groupName, nPlotGroups);
         
         % Заголовок будет добавлен через tiledlayout после цикла
         

@@ -104,13 +104,12 @@ function createCorrelationFigure(fig, state)
                     uniqueXLabels{end+1} = label1;
                 end
                 
-                % Собираем Label для Y-оси (из param2)
-                label2 = param2.label;
-                if isempty(label2)
-                    label2 = param2.column;
-                end
-                if ~ismember(label2, uniqueYLabels)
-                    uniqueYLabels{end+1} = label2;
+                % Собираем Column для Y-оси (из param2)
+                if isfield(param2, 'column') && ~isempty(param2.column)
+                    col2 = param2.column;
+                    if ~ismember(col2, uniqueYLabels)
+                        uniqueYLabels{end+1} = col2;
+                    end
                 end
                 
                 if isempty(param1.data) || isempty(param2.data)
@@ -266,7 +265,7 @@ function createCorrelationFigure(fig, state)
         if mod(numParams, 2) == 1
             param = paramsInFilter{end};
             
-            % Собираем Label для одиночного параметра (добавляем в X и Y)
+            % Собираем Label для X-оси и Column для Y-оси одиночного параметра
             label = param.label;
             if isempty(label)
                 label = param.column;
@@ -274,8 +273,12 @@ function createCorrelationFigure(fig, state)
             if ~ismember(label, uniqueXLabels)
                 uniqueXLabels{end+1} = label;
             end
-            if ~ismember(label, uniqueYLabels)
-                uniqueYLabels{end+1} = label;
+            % Для Y-оси используем column
+            if isfield(param, 'column') && ~isempty(param.column)
+                col = param.column;
+                if ~ismember(col, uniqueYLabels)
+                    uniqueYLabels{end+1} = col;
+                end
             end
             
             if ~isempty(param.data)
@@ -380,11 +383,13 @@ function createCorrelationFigure(fig, state)
             xlabel(ax, lbl, 'Interpreter', 'none');
         end
         
-        lbl = groupName;
-        if isempty(lbl)
-            lbl = '(no name)';
+        if ~isempty(uniqueYLabels)
+            yLabelText = strjoin(uniqueYLabels, ', ');
+        else
+            yLabelText = '';
         end
-        ylabel(ax, lbl, 'Interpreter', 'none');
+        ylabel(ax, yLabelText, 'Interpreter', 'none');
+        setSubplotGroupTitle(ax, groupName, nPlotGroups);
         
         % Сетка
         grid(ax, 'on');

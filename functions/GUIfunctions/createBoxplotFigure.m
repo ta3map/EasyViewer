@@ -287,11 +287,9 @@ function createBoxplotFigure(fig, state)
             end
         end
         
-        yLabelText = groupName;
-        if isempty(yLabelText)
-            yLabelText = '(no name)';
-        end
+        yLabelText = getYAxisLabelFromGroupParams(paramsInGroup, 'all');
         ylabel(ax, yLabelText, 'Interpreter', 'none');
+        setSubplotGroupTitle(ax, groupName, nPlotGroups);
         if plotGroupIdx == nPlotGroups
             xlabel(ax, 'Groups', 'Interpreter', 'none');
         end
