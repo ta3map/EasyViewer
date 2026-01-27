@@ -3,16 +3,36 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
     global stims lfp time Fs N
     
     metadata = zav_calling(filePath);
-    
+    if isempty(metadata)
+        result = [];
+        return
+    end
+
     % Извлечение параметров из структуры params
     xLimits = params.xLimits;
     removeBaseline = params.removeBaseline;
     removeArtifact = params.removeArtifact;
     artifactWindow_ms = params.artifactWindow_ms;
     
+    lfpToUse = lfp;
+    if isfield(params, 'Channel') && ~isempty(params.Channel)
+        lfpToUse = lfp(:, round(params.Channel));
+    end
+    
     [~, ~, fullTrialData, timeAxis] = extractTrialData(...
-        lfp, time, Fs, N, stims, xLimits, timeUnitFactor, ...
+        lfpToUse, time, Fs, N, stims, xLimits, timeUnitFactor, ...
         removeBaseline, removeArtifact, artifactWindow_ms, [], [], false);
+    
+    global hd channelTable
+    channelSettings = get(channelTable, 'Data');
+    activeChannels = find([channelSettings{:, 2}]);
+    ch_labels = hd.recChNames(:);
+    
+    if isfield(params, 'Channel') && ~isempty(params.Channel)
+        channelLabels = {ch_labels{round(params.Channel)}};
+    else
+        channelLabels = ch_labels(activeChannels);
+    end
     
     % Количество проанализированных триалов
     numTrials = size(fullTrialData, 1);
@@ -24,12 +44,6 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
     testParams.minClusterSize_ms = params.minClusterSize_ms;
     
     testResult = clusterPermutationTest(fullTrialData, timeAxis, testParams);
-    
-    global hd channelTable
-    channelSettings = get(channelTable, 'Data');
-    activeChannels = find([channelSettings{:, 2}]);
-    ch_labels = hd.recChNames(:);
-    channelLabels = ch_labels(activeChannels);
     
     % Определяем количество каналов из результатов теста
     numChannels = size(testResult.t_observed, 2);

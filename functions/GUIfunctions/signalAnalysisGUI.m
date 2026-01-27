@@ -3309,6 +3309,8 @@ updateCursorEditFields();
                 filepath = zavFilePath;
             else
                 debugState('openFile', 'Failed to convert ABF file');
+                resetToNoFileState();
+                metadata = [];
                 return;
             end
         end
@@ -3488,10 +3490,27 @@ updateCursorEditFields();
             
         catch ME
             debugState('openFile', '❌ Error loading file: %s', ME.message);
-            % Восстанавливаем предыдущие данные если загрузка не удалась
-            metadata = struct('hd', [], 'stims', [], 'filePath', '');
+            resetToNoFileState();
+            metadata = [];
             return;
         end
+    end
+
+    function resetToNoFileState()
+        lfp = []; spks = []; hd = []; zavp = []; lfpVar = []; chnlGrp = []; time = []; stims = [];
+        sweep_info = struct('is_sweep_data', false, 'sweep_count', 0, 'sweep_times', []);
+        time_forward = []; time_back = []; matFilePath = ''; matFileName = ''; stims_exist = false;
+        N = []; Fs = []; newFs = []; sweep_inx = 1; selectedCenter = 'time'; stim_inx = 1;
+        chosen_time_interval = [0, 0];
+        slope_measurement_results = []; current_loaded_excel_path = [];
+        selected_row_slope = []; selected_measurement_row = [];
+        mean_results_active = false; mean_signal_data = []; mean_signal_time = [];
+        axes(hPlotAxes);
+        cla(hPlotAxes);
+        text(hPlotAxes, 0.5, 0.5, 'Load ZAV or EV file', 'color', 'r', 'horizontalalignment', 'center', 'Units', 'normalized');
+        set(hPlotAxes, 'Visible', 'off');
+        updateResultsTable();
+        updateReplaceButtonState();
     end
     
     function clearAllResults(~, ~)

@@ -2,7 +2,11 @@ function result = autoMeanStimulus(filePath, fileId, params)
     global zav_calling autodetection_settings timeUnitFactor
     
     metadata = zav_calling(filePath);
-    
+    if isempty(metadata)
+        result = [];
+        return
+    end
+
     % Подготовка opts для calculateAndPlotMeanEvents
     % tiledlayoutSize: [4, 1] - основной график (2 строки), таблица (1 строка), scatter (1 строка)
     opts = struct('autoScale', params.autoScale, 'xLimits', params.xLimits, 'showOriginalTraces', params.showOriginalTraces, 'removeBaseline', params.removeBaseline, 'tiledlayoutSize', [4, 1]);

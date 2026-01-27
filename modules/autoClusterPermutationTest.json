@@ -16,7 +16,8 @@
     "numPermutations": 1000,
     "alpha_level": 0.001,
     "minClusterSize_ms": 10,
-    "polarity": "negative"
+    "polarity": "positive",
+    "Channel": 1
   },
   "output": {
     "figureFormat": "png",

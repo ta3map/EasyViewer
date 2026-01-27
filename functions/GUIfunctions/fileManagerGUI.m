@@ -1260,6 +1260,11 @@ function fileManagerGUI()
             return
         end
         
+        % Если report_path существует и пустое, не сохраняем .meta файл
+        if isfield(result, 'report_path') && isempty(result.report_path)
+            return
+        end
+        
         % Определяем путь к .meta файлу
         metaPath = '';
         
@@ -4312,6 +4317,14 @@ function metadata = launchFile(filePath)
         case {'.mat', '.abf'}
             metadata = zav_calling(filePath);
             table_calling();
+            if isempty(metadata)
+                debugState('fileManagerGUI', 'File load failed.');
+                try
+                    close(wb);
+                catch
+                end
+                return
+            end
         otherwise
             debugState('fileManagerGUI', 'Unknown extension: %s', ext);
     end

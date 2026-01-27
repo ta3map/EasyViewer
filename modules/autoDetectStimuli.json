@@ -2,10 +2,10 @@
   "detection": {
     "Polarity": "positive",
     "MinPeakProminence": 100,
-    "MinPeakDistance_s": 0.2,
+    "MinPeakDistance_s": 0.8,
     "MaxPeakWidth_s": 0.05,
     "SmoothingKernel_s": 0.001,
-    "Channel": 1
+    "Channel": 3
   },
   "output": {
     "AddTimestamp": false,

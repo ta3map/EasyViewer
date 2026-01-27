@@ -1975,6 +1975,8 @@ function signalViewerGUI(editMode)
                 filepath = zavFilePath;
             else
                 debugState('loadMatFile', 'Failed to convert ABF file');
+                resetToNoFileState();
+                metadata = [];
                 return;
             end
         end
@@ -2084,6 +2086,31 @@ function signalViewerGUI(editMode)
        loadChannelSettings();
        metadata = struct('hd', hd, 'stims', stims, 'filePath', filepath);
    end
+
+    function resetToNoFileState()
+        lfp = []; spks = []; hd = []; zavp = []; lfpVar = []; chnlGrp = []; time = []; stims = [];
+        sweep_info = struct('is_sweep_data', false, 'sweep_count', 0, 'sweep_times', []);
+        time_forward = []; time_back = []; matFilePath = ''; matFileName = ''; stims_exist = false;
+        N = []; Fs = []; newFs = []; sweep_inx = 1; selectedCenter = 'time'; stim_inx = 1;
+        chosen_time_interval = [0, 0];
+        set(StimuliTitle, 'String', 'Stimuli');
+        axes(multiax);
+        cla(multiax);
+        text(multiax, 0.5, 0.5, 'Open MAT or EV file', 'color', 'r', 'horizontalalignment', 'center', 'Units', 'normalized');
+        set(multiax, 'Visible', 'off');
+        if ~isempty(loading_text_handle) && isvalid(loading_text_handle)
+            set(loading_text_handle, 'Visible', 'off');
+        end
+        set(OptBtn, 'Enable', 'off');
+        set(viewBtn, 'Enable', 'off');
+        set(analysisBtn, 'Enable', 'off');
+        setUIControlsEnable({sidePanel, mainPanel}, 'off');
+        set(LoadMatFileBtn, 'Enable', 'on');
+        set(FMbutton, 'Enable', 'on');
+        set(loadEventsBtn, 'Enable', 'on');
+        data_loaded = false;
+    end
+
     function closeChildWindows()
         % Список тегов окон для закрытия
         windowTags = {

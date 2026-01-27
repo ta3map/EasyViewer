@@ -18,7 +18,7 @@ function zavFilePath = autoConvertAbfToZav(abfFilePath)
     
     % Проверка существования файла
     if ~exist(abfFilePath, 'file')
-        errordlg(['ABF file not found: ', abfFilePath], 'File Error');
+        warning('autoConvertAbfToZav: ABF file not found: %s', abfFilePath);
         return;
     end
     
@@ -27,7 +27,7 @@ function zavFilePath = autoConvertAbfToZav(abfFilePath)
         [~, ~, hd_abf] = abfload(abfFilePath, 'stop', 1, 'doDispInfo', false);
         selectedChannels = hd_abf.recChNames;
     catch ME
-        errordlg(['Error reading ABF file header: ', ME.message], 'ABF File Error');
+        warning('autoConvertAbfToZav: Error reading ABF file header: %s', ME.message);
         return;
     end
     
@@ -64,7 +64,7 @@ function zavFilePath = autoConvertAbfToZav(abfFilePath)
         if isvalid(hWaitBar)
             close(hWaitBar);
         end
-        errordlg(['Error during ABF conversion: ', ME.message], 'Conversion Error');
+        warning('autoConvertAbfToZav: Error during ABF conversion: %s', ME.message);
         zavFilePath = ''; % Возвращаем пустую строку при ошибке
     end
 end

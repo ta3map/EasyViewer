@@ -2,7 +2,11 @@ function result = splitChannels(filePath, fileId, params)
     global zav_calling
     
     metadata = zav_calling(filePath);
-    
+    if isempty(metadata)
+        result = [];
+        return
+    end
+
     global lfp spks hd zavp chnlGrp lfpVar stims stims_exist
     
     lfp_orig = lfp;

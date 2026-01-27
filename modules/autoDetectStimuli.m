@@ -3,7 +3,11 @@ function result = autoDetectStimuli(filePath, fileId, params)
     global lfp time Fs channelTable updatePlot
     
     metadata = zav_calling(filePath);
-    
+    if isempty(metadata)
+        result = [];
+        return
+    end
+
     % Получение активных каналов
     channelSettings = get(channelTable, 'Data');
     channelEnabled = [channelSettings{:, 2}];
@@ -16,27 +20,19 @@ function result = autoDetectStimuli(filePath, fileId, params)
             'module_display_name', 'Auto Detect Stimuli', ...
             'module_description', 'Автодетекция стимулов в сигнале', ...
             'parameters', params, ...
-            'num_stimuli', 0);
+            'num_stimuli', 0, ...
+            'median_stim_delta', NaN, ...
+            'anomalous_stim_count', 0, ...
+            'tableResultInsert', {{'num_stimuli', 'median_stim_delta', 'anomalous_stim_count'}});
         return;
     end
     
-    % Выбор канала для детекции
-    % Channel - индекс канала (начиная с 1), 0 означает все активные каналы
-    if isfield(params, 'Channel') && isnumeric(params.Channel) && params.Channel > 0
-        channelIdx = round(params.Channel);
-        if channelIdx > size(lfp, 2)
-            fprintf('Channel index %d is out of range. Using first active channel.\n', channelIdx);
-            selectedChannels = activeChannels(1);
-        elseif ~ismember(channelIdx, activeChannels)
-            fprintf('Channel %d is not active. Using first active channel.\n', channelIdx);
-            selectedChannels = activeChannels(1);
-        else
-            selectedChannels = channelIdx;
-        end
-        selectedChannels = selectedChannels(:);
+    if params.Channel > 0
+        selectedChannels = round(params.Channel);
     else
-        selectedChannels = activeChannels(:);
+        selectedChannels = activeChannels;
     end
+    selectedChannels = selectedChannels(:);
     
     % Детекция событий
     events_detected = detectPeaksInSignal(lfp, time, Fs, timeUnitFactor, selectedChannels, params);
@@ -54,6 +50,16 @@ function result = autoDetectStimuli(filePath, fileId, params)
     % Обновление графика после обновления stims
     updatePlot();
     
+    anomalousStimCount = 0;
+    medianStimDelta = NaN;
+    if ~isempty(stims) && length(stims) >= 2
+        sortedStims = sort(stims(:));
+        stimDiffs = diff(sortedStims);
+        medianStimDelta = median(stimDiffs);
+        anomalousMask = stimDiffs < 0.9 * medianStimDelta;
+        anomalousStimCount = sum(anomalousMask);
+    end
+    
     [folder, baseName, ~] = fileparts(metadata.filePath);
     
     result = struct( ...
@@ -61,7 +67,10 @@ function result = autoDetectStimuli(filePath, fileId, params)
         'module_display_name', 'Auto Detect Stimuli', ...
         'module_description', 'Автодетекция стимулов в сигнале', ...
         'parameters', params, ...
-        'num_stimuli', length(stims));
+        'num_stimuli', length(stims), ...
+        'median_stim_delta', medianStimDelta, ...
+        'anomalous_stim_count', anomalousStimCount, ...
+        'tableResultInsert', {{'num_stimuli', 'median_stim_delta', 'anomalous_stim_count'}});
 end
 
 function events_detected = detectPeaksInSignal(lfp, time, Fs, timeUnitFactor, channels, params)
@@ -71,12 +80,7 @@ function events_detected = detectPeaksInSignal(lfp, time, Fs, timeUnitFactor, ch
     MinPeakDistance = params.MinPeakDistance_s * timeUnitFactor;
     max_peak_width = params.MaxPeakWidth_s * timeUnitFactor;
     
-    % Размер ядра сглаживания
-    if isfield(params, 'SmoothingKernel_s')
-        kernel_time_scaled = params.SmoothingKernel_s * timeUnitFactor;
-    else
-        kernel_time_scaled = 0.01 * timeUnitFactor;
-    end
+    kernel_time_scaled = params.SmoothingKernel_s * timeUnitFactor;
     
     debugState('detectPeaksInSignal', '=== Detection parameters ===');
     debugState('detectPeaksInSignal', 'Polarity: %s', Polarity);

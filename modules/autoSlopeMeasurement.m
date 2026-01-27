@@ -17,7 +17,11 @@ function result = autoSlopeMeasurement(filePath, fileId, params)
     
     % Загрузка файла через zav_calling
     metadata = zav_calling(filePath);
-    
+    if isempty(metadata)
+        result = [];
+        return
+    end
+
     % Проверка наличия стимулов
     if ~stims_exist || isempty(stims)
         debugState('autoSlopeMeasurement', '❌ No stimuli found in file');

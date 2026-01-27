@@ -1,0 +1,9 @@
+{
+  "analysis": {
+    "Channel": 2
+  },
+  "output": {
+    "AddTimestamp": false,
+    "ResultSuffix": ""
+  }
+}
