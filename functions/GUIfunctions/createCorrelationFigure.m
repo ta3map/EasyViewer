@@ -380,16 +380,11 @@ function createCorrelationFigure(fig, state)
             xlabel(ax, lbl, 'Interpreter', 'none');
         end
         
-        if ~isempty(uniqueYLabels)
-            yLabelText = strjoin(uniqueYLabels, ', ');
-            ylabel(ax, yLabelText, 'Interpreter', 'none');
-        else
-            lbl = groupName;
-            if isempty(lbl)
-                lbl = '(no name)';
-            end
-            ylabel(ax, lbl, 'Interpreter', 'none');
+        lbl = groupName;
+        if isempty(lbl)
+            lbl = '(no name)';
         end
+        ylabel(ax, lbl, 'Interpreter', 'none');
         
         % Сетка
         grid(ax, 'on');

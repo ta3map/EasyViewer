@@ -158,10 +158,10 @@ function createHistogramFigure(fig, state)
         end
         
         % Определяем диапазон и количество бинов
-        if strcmp(state.xAxisRange, 'manual') && ~isempty(state.xAxisMin) && ~isempty(state.xAxisMax)
-            % Если X-ось в manual режиме, используем лимиты X
-            dataMin = state.xAxisMin;
-            dataMax = state.xAxisMax;
+        if strcmp(state.yAxisRange, 'manual') && ~isempty(state.yAxisMin) && ~isempty(state.yAxisMax)
+            % Если Y-ось в manual режиме, используем лимиты Y для определения диапазона бинов
+            dataMin = state.yAxisMin;
+            dataMax = state.yAxisMax;
             
             % Вычисляем количество бинов, кратное 10
             range = dataMax - dataMin;
@@ -208,37 +208,28 @@ function createHistogramFigure(fig, state)
             counts = histcounts(data, binEdges);
             binCenters = (binEdges(1:end-1) + binEdges(2:end)) / 2;
             
-            % Строим столбцы гистограммы
-            bar(ax, binCenters, counts, 'FaceColor', color, 'EdgeColor', color * 0.7, ...
+            % Строим горизонтальные столбцы гистограммы (X и Y поменяны местами)
+            barh(ax, binCenters, counts, 'FaceColor', color, 'EdgeColor', color * 0.7, ...
                 'FaceAlpha', 0.6, 'BarWidth', 0.8);
         end
         
-        % Подписи осей
-        if length(paramsInGroup) == 1
-            label = paramsInGroup{1}.label;
-            if isempty(label)
-                label = paramsInGroup{1}.column;
-            end
-            xlabel(ax, label, 'Interpreter', 'none');
-        else
-            lbl = groupName;
-            if isempty(lbl)
-                lbl = '(no name)';
-            end
-            xlabel(ax, lbl, 'Interpreter', 'none');
+        % Подписи осей (X и Y поменяны местами)
+        xlabel(ax, 'N', 'Interpreter', 'none');
+        lbl = groupName;
+        if isempty(lbl)
+            lbl = '(no name)';
         end
-        ylabel(ax, 'N', 'Interpreter', 'none', 'rotation', 0);
+        ylabel(ax, lbl, 'Interpreter', 'none');
         
         % Заголовок будет добавлен через tiledlayout после цикла
         
-        % Настройка диапазона Y-оси
-        if strcmp(state.yAxisRange, 'manual') && ~isempty(state.yAxisMin) && ~isempty(state.yAxisMax)
-            ylim(ax, [state.yAxisMin, state.yAxisMax]);
-        end
-        
-        % Настройка диапазона X-оси
+        % Настройка диапазона осей (X и Y поменяны местами)
         if strcmp(state.xAxisRange, 'manual') && ~isempty(state.xAxisMin) && ~isempty(state.xAxisMax)
             xlim(ax, [state.xAxisMin, state.xAxisMax]);
+        end
+        
+        if strcmp(state.yAxisRange, 'manual') && ~isempty(state.yAxisMin) && ~isempty(state.yAxisMax)
+            ylim(ax, [state.yAxisMin, state.yAxisMax]);
         end
         
         % Легенда (показываем источник данных - Column)

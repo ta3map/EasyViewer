@@ -287,13 +287,9 @@ function createBoxplotFigure(fig, state)
             end
         end
         
-        if length(paramsInGroup) == 1
-            yLabelText = paramsInGroup{1}.column;
-        else
-            yLabelText = groupName;
-            if isempty(yLabelText)
-                yLabelText = '(no name)';
-            end
+        yLabelText = groupName;
+        if isempty(yLabelText)
+            yLabelText = '(no name)';
         end
         ylabel(ax, yLabelText, 'Interpreter', 'none');
         if plotGroupIdx == nPlotGroups
