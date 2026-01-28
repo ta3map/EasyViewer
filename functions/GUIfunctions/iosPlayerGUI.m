@@ -45,16 +45,19 @@ function iosPlayerGUI(iosPath)
         'Position', [0.44 0.22 0.1 0.03], 'String', 'Add Cursor');
     hGetTracesBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
         'Position', [0.56 0.22 0.1 0.03], 'String', 'Get Traces');
+    hAddReferenceBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
+        'Position', [0.68 0.22 0.1 0.03], 'String', 'Add Reference');
 
     h = struct('slider', hSlider, 'timeEdit', hTimeEdit, 'playBtn', hPlayBtn, ...
         'speedPopup', hSpeedPopup, 'openBtn', hOpenBtn, 'contrastSlider', hContrastSlider, ...
         'navStart', hNavStart, 'navPrev', hNavPrev, 'navNext', hNavNext, 'navEnd', hNavEnd, ...
         'iosCheck', hIosCheck, 'baseStartEdit', hBaseStartEdit, 'baseEndEdit', hBaseEndEdit, ...
         'setBaseBtn', hSetBaseBtn, 'gaussianSlider', hGaussianSlider, 'gaussianEdit', hGaussianEdit, ...
-        'addCursorBtn', hAddCursorBtn, 'getTracesBtn', hGetTracesBtn);
+        'addCursorBtn', hAddCursorBtn, 'getTracesBtn', hGetTracesBtn, 'addReferenceBtn', hAddReferenceBtn);
     state = struct('iosPath', iosPath, 'meta', [], 'playTimer', [], 'clim', [0 65535], 'h', h, 'him', [], ...
         'iosMode', false, 'baseframeStart', 1, 'baseframeEnd', 1, 'baseframeData', [], 'baseframeRangeUsed', [], ...
-        'gaussianSigma', 3.0, 'climIosBase', [], 'cursors', [], 'awaitingClick', false);
+        'gaussianSigma', 3.0, 'climIosBase', [], 'cursors', [], 'awaitingClick', false, ...
+        'referenceCursor', [], 'awaitingReferenceClick', false);
     fig.UserData = state;
 
     hSlider.Callback = @(src,~) onSlider(src, fig, ax);
@@ -74,6 +77,7 @@ function iosPlayerGUI(iosPath)
     hBaseEndEdit.Callback = @(src,~) onBaseRangeEdit(src, fig, ax, 'end');
     hAddCursorBtn.Callback = @(src,~) onAddCursor(src, fig, ax);
     hGetTracesBtn.Callback = @(src,~) onGetTraces(src, fig, ax);
+    hAddReferenceBtn.Callback = @(src,~) onAddReference(src, fig, ax);
 
     if ~isempty(iosPath) && exist(iosPath, 'file')
         openFile(fig, ax, iosPath);
@@ -183,6 +187,8 @@ function openFile(fig, ax, fname)
     state.h.baseEndEdit.String = num2str(state.baseframeEnd);
     state.cursors = [];
     state.awaitingClick = false;
+    state.referenceCursor = [];
+    state.awaitingReferenceClick = false;
     fig.UserData = state;
 
     N = meta.totalFrames;
@@ -227,7 +233,18 @@ function showFrame(fig, ax, k)
         denom = base;
         denom(denom == 0) = NaN;
         iosFrame = (frameD - denom) ./ denom;
-        displayFrame = iosFrame;
+        
+        if ~isempty(state.referenceCursor)
+            refCursor = state.referenceCursor;
+            rowRange = [refCursor.rect(1), refCursor.rect(2)];
+            colRange = [refCursor.rect(3), refCursor.rect(4)];
+            refRegion = iosFrame(rowRange(1):rowRange(2), colRange(1):colRange(2));
+            refIosValue = mean(refRegion(:), 'omitnan');
+            displayFrame = iosFrame - refIosValue;
+        else
+            displayFrame = iosFrame;
+        end
+        
         climIos = max(abs(displayFrame(:)));
         if ~isfinite(climIos) || climIos == 0
             climIos = 0.01;
@@ -494,12 +511,63 @@ function onAddCursor(src, fig, ax)
         return
     end
     state.awaitingClick = true;
+    state.awaitingReferenceClick = false;
+    state.h.addReferenceBtn.String = 'Add Reference';
+    src.String = 'Click on image...';
+    fig.UserData = state;
+end
+
+function onAddReference(src, fig, ax)
+    state = fig.UserData;
+    if ~hasValidMeta(fig)
+        return
+    end
+    state.awaitingReferenceClick = true;
+    state.awaitingClick = false;
+    state.h.addCursorBtn.String = 'Add Cursor';
     src.String = 'Click on image...';
     fig.UserData = state;
 end
 
 function onImageClick(fig, ax)
     state = fig.UserData;
+    if state.awaitingReferenceClick
+        if ~hasValidMeta(fig)
+            return
+        end
+        cp = get(ax, 'CurrentPoint');
+        col = round(cp(1, 1));
+        row = round(cp(1, 2));
+        
+        if isempty(state.him) || ~isvalid(state.him)
+            return
+        end
+        
+        frameSize = size(state.him.CData);
+        if row < 1 || row > frameSize(1) || col < 1 || col > frameSize(2)
+            return
+        end
+        
+        halfSize = 5;
+        row_min = max(1, row - halfSize);
+        row_max = min(frameSize(1), row + halfSize);
+        col_min = max(1, col - halfSize);
+        col_max = min(frameSize(2), col + halfSize);
+        
+        referenceCursor = struct();
+        referenceCursor.center = [row, col];
+        referenceCursor.rect = [row_min, row_max, col_min, col_max];
+        referenceCursor.handle = [];
+        
+        state.referenceCursor = referenceCursor;
+        state.awaitingReferenceClick = false;
+        state.h.addReferenceBtn.String = 'Add Reference';
+        fig.UserData = state;
+        
+        drawCursors(fig, ax);
+        return
+    end
+    
     if ~state.awaitingClick
         return
     end
@@ -545,27 +613,48 @@ end
 
 function drawCursors(fig, ax)
     state = fig.UserData;
-    if isempty(state.cursors) || isempty(state.him) || ~isvalid(state.him)
+    if isempty(state.him) || ~isvalid(state.him)
         return
     end
     
-    for i = 1:length(state.cursors)
-        cursor = state.cursors(i);
-        if ~isempty(cursor.handle) && isvalid(cursor.handle)
-            delete(cursor.handle);
+    if ~isempty(state.cursors)
+        for i = 1:length(state.cursors)
+            cursor = state.cursors(i);
+            if ~isempty(cursor.handle) && isvalid(cursor.handle)
+                delete(cursor.handle);
+            end
+            
+            row_min = cursor.rect(1);
+            row_max = cursor.rect(2);
+            col_min = cursor.rect(3);
+            col_max = cursor.rect(4);
+            
+            x = [col_min, col_max, col_max, col_min, col_min] - 0.5;
+            y = [row_min, row_min, row_max, row_max, row_min] - 0.5;
+            
+            cursor.handle = line(ax, x, y, 'Color', 'r', 'LineWidth', 2, 'HitTest', 'off');
+            state.cursors(i) = cursor;
+        end
+    end
+    
+    if ~isempty(state.referenceCursor)
+        refCursor = state.referenceCursor;
+        if ~isempty(refCursor.handle) && isvalid(refCursor.handle)
+            delete(refCursor.handle);
         end
         
-        row_min = cursor.rect(1);
-        row_max = cursor.rect(2);
-        col_min = cursor.rect(3);
-        col_max = cursor.rect(4);
+        row_min = refCursor.rect(1);
+        row_max = refCursor.rect(2);
+        col_min = refCursor.rect(3);
+        col_max = refCursor.rect(4);
         
         x = [col_min, col_max, col_max, col_min, col_min] - 0.5;
         y = [row_min, row_min, row_max, row_max, row_min] - 0.5;
         
-        cursor.handle = line(ax, x, y, 'Color', 'r', 'LineWidth', 2, 'HitTest', 'off');
-        state.cursors(i) = cursor;
+        refCursor.handle = line(ax, x, y, 'Color', 'b', 'LineWidth', 2, 'HitTest', 'off');
+        state.referenceCursor = refCursor;
     end
+    
     fig.UserData = state;
 end
 
@@ -644,6 +733,11 @@ function onGetTraces(src, fig, ax)
         end
         times = zeros(totalFrames, 1);
         
+        referenceTrace = [];
+        if ~isempty(state.referenceCursor)
+            referenceTrace = zeros(totalFrames, 1);
+        end
+        
         base = double(state.baseframeData);
         
         waitbar(0.3, hWaitbar, 'Reading and processing frames...');
@@ -674,6 +768,22 @@ function onGetTraces(src, fig, ax)
                 frame = double(data(:, :, frameIdx));
                 frameFiltered = applyGaussianFilter(frame, state.gaussianSigma);
                 
+                if ~isempty(state.referenceCursor)
+                    refCursor = state.referenceCursor;
+                    rowRange = [refCursor.rect(1), refCursor.rect(2)];
+                    colRange = [refCursor.rect(3), refCursor.rect(4)];
+                    
+                    frameRegion = frameFiltered(rowRange(1):rowRange(2), colRange(1):colRange(2));
+                    baseRegion = base(rowRange(1):rowRange(2), colRange(1):colRange(2));
+                    
+                    denom = baseRegion;
+                    denom(denom == 0) = NaN;
+                    iosRegion = (frameRegion - denom) ./ denom;
+                    
+                    refIosValue = mean(iosRegion(:), 'omitnan');
+                    referenceTrace(globalFrameIdx) = refIosValue;
+                end
+                
                 for cursorIdx = 1:numCursors
                     cursor = state.cursors(cursorIdx);
                     rowRange = [cursor.rect(1), cursor.rect(2)];
@@ -691,6 +801,15 @@ function onGetTraces(src, fig, ax)
                 end
             end
             fprintf('onGetTraces: Processed frames %d-%d\n', batchStart, batchEnd);
+        end
+        
+        if ~isempty(referenceTrace)
+            waitbar(0.95, hWaitbar, 'Applying reference correction...');
+            drawnow;
+            fprintf('onGetTraces: Applying reference correction to traces\n');
+            for i = 1:numCursors
+                traces{i} = traces{i} - referenceTrace;
+            end
         end
         
         waitbar(0.95, hWaitbar, 'Creating plots...');
