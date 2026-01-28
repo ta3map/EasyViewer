@@ -205,14 +205,16 @@ function createBoxplotFigure(fig, state)
                     s = paramDataForLabel.stats;
                     q25 = s.q25;
                     q75 = s.q75;
+                    % Используем количество валидных данных (без NaN)
+                    validDataCount = s.count - s.nanCount;
                     if ~isnan(q25) && ~isnan(q75)
-                        statsStr = sprintf('n=%d\nM=%.3f\n[%.2f–%.2f]', length(data), medianVal, q25, q75);
+                        statsStr = sprintf('n=%d\nM=%.3f\n[%.2f–%.2f]', validDataCount, medianVal, q25, q75);
                     else
-                        statsStr = sprintf('n=%d\nM=%.3f\n—', length(data), medianVal);
+                        statsStr = sprintf('n=%d\nM=%.3f\n—', validDataCount, medianVal);
                     end
                     text(ax, x_pos - 0.4, medianVal, statsStr, ...
                         'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', ...
-                        'FontSize', 9, 'Color', color, 'BackgroundColor', 'white', ...
+                        'FontSize', 9, 'Color', color, ...
                         'Interpreter', 'none');
                 end
             end

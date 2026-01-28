@@ -229,11 +229,11 @@ function createUI(fig, coordsData)
     
     paramsTable = uitable('Parent', fig, ...
         'Position', paramsTablePos, ...
-        'ColumnName', {'Show', 'Group', 'Column', 'Filter', 'Label', 'Color', 'LineWidth'}, ...
-        'ColumnEditable', [true, true, true, true, true, true, true], ...
-        'ColumnFormat', {'logical', 'char', 'char', 'char', 'char', 'char', 'numeric'}, ...
-        'ColumnWidth', {40, 70, 100, 80, 80, 70, 70}, ...
-        'Data', cell(0, 7), ...
+        'ColumnName', {'Show', 'Group', 'Column', 'Filter', 'Ranges', 'Label', 'Color', 'LineWidth'}, ...
+        'ColumnEditable', [true, true, true, true, true, true, true, true], ...
+        'ColumnFormat', {'logical', 'char', 'char', 'char', 'char', 'char', 'char', 'numeric'}, ...
+        'ColumnWidth', {40, 70, 100, 80, 120, 80, 70, 70}, ...
+        'Data', cell(0, 8), ...
         'Tag', 'paramsTable', ...
         'CellEditCallback', @(src, event) paramsTableEditCallback(fig, src, event), ...
         'CellSelectionCallback', @paramsTableSelectionCallback);
@@ -532,6 +532,10 @@ function state = restoreStateFromSavedState(state, savedState)
                 else
                     state.parameters{i}.groupName = '1';
                 end
+            end
+            % Инициализируем ranges для старых состояний
+            if ~isfield(p, 'ranges')
+                state.parameters{i}.ranges = '';
             end
         end
     end
@@ -1063,7 +1067,7 @@ function addColumnToAnalysis(fig)
             colorIndex = length(state.parameters) + 1;
             colors = getColors(colorIndex);
             colorHex = colors{colorIndex};
-            state.parameters{end+1} = struct('column', colName, 'groupName', '1', 'filter', '', 'label', colName, 'color', colorHex, 'lineWidth', 1, 'visible', true);
+            state.parameters{end+1} = struct('column', colName, 'groupName', '1', 'filter', '', 'ranges', '', 'label', colName, 'color', colorHex, 'lineWidth', 1, 'visible', true);
         end
     end
     
@@ -1302,11 +1306,11 @@ function updateAnalysisColumnsDisplay(fig)
     end
     
     if isempty(state.parameters)
-        set(paramsTable, 'Data', cell(0, 7));
+        set(paramsTable, 'Data', cell(0, 8));
         return
     end
     
-    tableData = cell(length(state.parameters), 7);
+    tableData = cell(length(state.parameters), 8);
     for i = 1:length(state.parameters)
         v = state.parameters{i};
         tableData{i, 1} = (isfield(v, 'visible') && v.visible) || ~isfield(v, 'visible');
@@ -1319,9 +1323,14 @@ function updateAnalysisColumnsDisplay(fig)
         end
         tableData{i, 3} = v.column;
         tableData{i, 4} = v.filter;
-        tableData{i, 5} = v.label;
-        tableData{i, 6} = v.color;
-        tableData{i, 7} = v.lineWidth;
+        if isfield(v, 'ranges')
+            tableData{i, 5} = v.ranges;
+        else
+            tableData{i, 5} = '';
+        end
+        tableData{i, 6} = v.label;
+        tableData{i, 7} = v.color;
+        tableData{i, 8} = v.lineWidth;
     end
     
     set(paramsTable, 'Data', tableData);
@@ -1370,13 +1379,16 @@ function paramsTableEditCallback(fig, src, event)
             state.parameters{i}.filter = char(tableData{i, 4});
         end
         if ischar(tableData{i, 5}) || isstring(tableData{i, 5})
-            state.parameters{i}.label = char(tableData{i, 5});
+            state.parameters{i}.ranges = char(tableData{i, 5});
         end
         if ischar(tableData{i, 6}) || isstring(tableData{i, 6})
-            state.parameters{i}.color = char(tableData{i, 6});
+            state.parameters{i}.label = char(tableData{i, 6});
         end
-        if isnumeric(tableData{i, 7}) && tableData{i, 7} > 0
-            state.parameters{i}.lineWidth = tableData{i, 7};
+        if ischar(tableData{i, 7}) || isstring(tableData{i, 7})
+            state.parameters{i}.color = char(tableData{i, 7});
+        end
+        if isnumeric(tableData{i, 8}) && tableData{i, 8} > 0
+            state.parameters{i}.lineWidth = tableData{i, 8};
         end
     end
     
@@ -2142,41 +2154,21 @@ function updateFilteredDataStructure(fig)
             filterStr = '';
         end
         
-        filteredData = [];
-        fileIds = [];
+        % Получаем отфильтрованную таблицу
+        filteredTable = [];
         if ~isempty(filterStr)
             parsedFilters = boxplotParseGroupFilters(filterStr);
             if ~isempty(parsedFilters)
                 filteredTable = boxplotApplyGroupFilters(state.table, parsedFilters);
-                if ~isempty(filteredTable) && ismember(columnName, filteredTable.Properties.VariableNames)
-                    columnData = filteredTable{:, columnName};
-                    if isnumeric(columnData)
-                        filteredData = double(columnData);
-                    else
-                        filteredData = [];
-                    end
-                    % Извлекаем File ID
-                    if ismember('FileID', filteredTable.Properties.VariableNames)
-                        fileIds = filteredTable{:, 'FileID'};
-                    end
-                end
             end
         else
             % Нет фильтра - используем все данные
-            columnData = state.table{:, columnName};
-            if isnumeric(columnData)
-                filteredData = double(columnData);
-            else
-                filteredData = [];
-            end
-            % Извлекаем File ID
-            if ismember('FileID', state.table.Properties.VariableNames)
-                fileIds = state.table{:, 'FileID'};
-            end
+            filteredTable = state.table;
         end
         
-        % Рассчитываем статистику для отфильтрованных данных
-        stats = statProc(filteredData);
+        if isempty(filteredTable) || ~ismember(columnName, filteredTable.Properties.VariableNames)
+            continue
+        end
         
         % Парсим цвет один раз и сохраняем RGB
         parsedColor = [0.5 0.5 0.5]; % серый по умолчанию
@@ -2215,28 +2207,64 @@ function updateFilteredDataStructure(fig)
         if isempty(gn)
             gn = '1';
         end
-        validFieldName = matlab.lang.makeValidName(fieldName);
-        state.parameterToFieldName{i} = validFieldName;
-        state.filteredData.(validFieldName) = struct(...
-            'data', filteredData, ...
-            'column', columnName, ...
-            'label', paramStruct.label, ...
-            'color', paramStruct.color, ...
-            'parsedColor', parsedColor, ...
-            'lineWidth', paramStruct.lineWidth, ...
-            'groupName', gn, ...
-            'filter', filterStr, ...
-            'fieldName', validFieldName, ...
-            'stats', stats, ...
-            'fileIds', fileIds);
         
-        % Выводим превью в консоль
-        filterDisplay = filterStr;
-        if isempty(filterDisplay)
-            filterDisplay = '';
+        % Проверяем наличие разбиения по диапазонам
+        rangesStr = '';
+        if isfield(paramStruct, 'ranges')
+            rangesStr = paramStruct.ranges;
         end
-        fprintf('%s: filter: ''%s'', size: %d, median: %.3f, std: %.3f\n', ...
-            fieldName, filterDisplay, stats.count, stats.median, stats.std);
+        if isempty(rangesStr)
+            rangesStr = '';
+        end
+        
+        % Парсим диапазоны
+        parsedRanges = boxplotParseRanges(rangesStr);
+        
+        % Если диапазоны не указаны или парсинг не удался, работаем как раньше
+        if isempty(parsedRanges) || isempty(parsedRanges.columnName) || isempty(parsedRanges.ranges)
+            % Обычная обработка без разбиения по диапазонам
+            columnData = filteredTable{:, columnName};
+            if isnumeric(columnData)
+                filteredData = double(columnData);
+            else
+                filteredData = [];
+            end
+            
+            % Извлекаем File ID
+            fileIds = [];
+            if ismember('FileID', filteredTable.Properties.VariableNames)
+                fileIds = filteredTable{:, 'FileID'};
+            end
+            
+            % Рассчитываем статистику для отфильтрованных данных
+            stats = statProc(filteredData);
+            
+            validFieldName = matlab.lang.makeValidName(fieldName);
+            state.parameterToFieldName{i} = validFieldName;
+            state.filteredData.(validFieldName) = struct(...
+                'data', filteredData, ...
+                'column', columnName, ...
+                'label', paramStruct.label, ...
+                'color', paramStruct.color, ...
+                'parsedColor', parsedColor, ...
+                'lineWidth', paramStruct.lineWidth, ...
+                'groupName', gn, ...
+                'filter', filterStr, ...
+                'fieldName', validFieldName, ...
+                'stats', stats, ...
+                'fileIds', fileIds);
+            
+            % Выводим превью в консоль
+            filterDisplay = filterStr;
+            if isempty(filterDisplay)
+                filterDisplay = '';
+            end
+            fprintf('%s: filter: ''%s'', size: %d, median: %.3f, std: %.3f\n', ...
+                fieldName, filterDisplay, stats.count, stats.median, stats.std);
+        else
+            % Разбиение по диапазонам
+            state = applyRangesSplit(state, i, fieldName, columnName, paramStruct, parsedColor, gn, filterStr, parsedRanges, filteredTable);
+        end
     end
     
     set(fig, 'UserData', state);
