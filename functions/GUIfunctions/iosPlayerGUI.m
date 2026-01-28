@@ -29,11 +29,9 @@ function iosPlayerGUI(iosPath)
     uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
         'Position', [0.42 0.26 0.08 0.03], 'String', 'Gaussian:', 'HorizontalAlignment', 'left');
     hGaussianSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
-        'Position', [0.5 0.26 0.15 0.03], 'Min', 0, 'Max', 20, 'Value', 1);
+        'Position', [0.5 0.26 0.15 0.03], 'Min', 0, 'Max', 20, 'Value', 3);
     hGaussianEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
-        'Position', [0.67 0.26 0.05 0.03], 'String', '1.0');
-    hSubtractMeanCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
-        'Position', [0.74 0.26 0.12 0.03], 'String', 'Subtract mean', 'Value', 0);
+        'Position', [0.67 0.26 0.05 0.03], 'String', '3.0');
     hIosCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
         'Position', [0.1 0.22 0.04 0.03], 'String', 'IOS', 'Value', 0);
     hBaseStartEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
@@ -47,11 +45,10 @@ function iosPlayerGUI(iosPath)
         'speedPopup', hSpeedPopup, 'openBtn', hOpenBtn, 'contrastSlider', hContrastSlider, ...
         'navStart', hNavStart, 'navPrev', hNavPrev, 'navNext', hNavNext, 'navEnd', hNavEnd, ...
         'iosCheck', hIosCheck, 'baseStartEdit', hBaseStartEdit, 'baseEndEdit', hBaseEndEdit, ...
-        'setBaseBtn', hSetBaseBtn, 'gaussianSlider', hGaussianSlider, 'gaussianEdit', hGaussianEdit, ...
-        'subtractMeanCheck', hSubtractMeanCheck);
+        'setBaseBtn', hSetBaseBtn, 'gaussianSlider', hGaussianSlider, 'gaussianEdit', hGaussianEdit);
     state = struct('iosPath', iosPath, 'meta', [], 'playTimer', [], 'clim', [0 65535], 'h', h, 'him', [], ...
         'iosMode', false, 'baseframeStart', 1, 'baseframeEnd', 1, 'baseframeData', [], 'baseframeRangeUsed', [], ...
-        'gaussianSigma', 1.0, 'subtractMean', false);
+        'gaussianSigma', 3.0, 'climIosBase', []);
     fig.UserData = state;
 
     hSlider.Callback = @(src,~) onSlider(src, fig, ax);
@@ -61,7 +58,6 @@ function iosPlayerGUI(iosPath)
     hContrastSlider.Callback = @(src,~) onContrast(src, fig, ax);
     hGaussianSlider.Callback = @(src,~) onGaussianSlider(src, fig, ax);
     hGaussianEdit.Callback = @(src,~) onGaussianEdit(src, fig, ax);
-    hSubtractMeanCheck.Callback = @(src,~) onSubtractMean(src, fig, ax);
     hNavStart.Callback = @(src,~) onNav(src, fig, ax, 'start');
     hNavPrev.Callback = @(src,~) onNav(src, fig, ax, 'prev');
     hNavNext.Callback = @(src,~) onNav(src, fig, ax, 'next');
@@ -90,9 +86,48 @@ function filtered = applyGaussianFilter(img, sigma)
     end
 end
 
+function valid = hasValidMeta(fig)
+    state = fig.UserData;
+    valid = ~isempty(state.meta);
+end
+
+function k = getCurrentFrame(state)
+    k = round(state.h.slider.Value);
+end
+
+function n20 = calculateN20Frames(meta)
+    n20 = 1;
+    if meta.dt > 0
+        n20 = round(20 / meta.dt);
+    end
+end
+
+function state = clearBaseframe(state)
+    state.baseframeData = [];
+    state.baseframeRangeUsed = [];
+end
+
+function data = ensure2DFrame(data)
+    if ndims(data) == 4
+        data = squeeze(data);
+    end
+end
+
+function baseRange = getBaseRange(state)
+    ranges = {state.clim, state.climIosBase};
+    idx = 1 + double(~isempty(state.climIosBase));
+    baseRange = ranges{idx};
+end
+
+function applyContrast(ax, baseRange, contrastValue)
+    center = double(baseRange(1) + baseRange(2)) / 2;
+    half = double(baseRange(2) - baseRange(1)) / 2;
+    ax.CLim = center + (half / contrastValue) * [-1 1];
+end
+
 function state = computeBaseframe(fig)
     state = fig.UserData;
-    if isempty(state.meta)
+    if ~hasValidMeta(fig)
         return
     end
     s = state.baseframeStart;
@@ -104,24 +139,14 @@ function state = computeBaseframe(fig)
         return
     end
     data = double(data);
-    if ndims(data) == 4
-        data = squeeze(data);
-    end
+    data = ensure2DFrame(data);
     if ndims(data) == 3
         for i = 1:size(data, 3)
-            fr = applyGaussianFilter(data(:, :, i), state.gaussianSigma);
-            if state.subtractMean
-                fr = fr - mean(fr(:));
-            end
-            data(:, :, i) = fr;
+            data(:, :, i) = applyGaussianFilter(data(:, :, i), state.gaussianSigma);
         end
         state.baseframeData = mean(data, 3);
     else
-        fr = applyGaussianFilter(data, state.gaussianSigma);
-        if state.subtractMean
-            fr = fr - mean(fr(:));
-        end
-        state.baseframeData = fr;
+        state.baseframeData = applyGaussianFilter(data, state.gaussianSigma);
     end
     state.baseframeRangeUsed = [s e];
     fig.UserData = state;
@@ -142,12 +167,9 @@ function openFile(fig, ax, fname)
     state.h.contrastSlider.Value = 1;
     state.h.gaussianSlider.Value = state.gaussianSigma;
     state.h.gaussianEdit.String = sprintf('%.2f', state.gaussianSigma);
-    state.baseframeData = [];
+    state = clearBaseframe(state);
     state.baseframeStart = 1;
-    n20 = 1;
-    if meta.dt > 0
-        n20 = round(20 / meta.dt);
-    end
+    n20 = calculateN20Frames(meta);
     state.baseframeEnd = min(meta.totalFrames, 1 + n20);
     state.h.baseStartEdit.String = num2str(state.baseframeStart);
     state.h.baseEndEdit.String = num2str(state.baseframeEnd);
@@ -167,21 +189,14 @@ end
 
 function showFrame(fig, ax, k)
     state = fig.UserData;
-    if isempty(state.meta)
+    if ~hasValidMeta(fig)
         return
     end
     [data, t, ~] = readIOS2(state.iosPath, 'startframe', k, 'endframe', k, 'Format', 'Lin');
     if isempty(data) || any(isnan(data(:)))
         return
     end
-    if ndims(data) == 4
-        frame = squeeze(data);
-    else
-        frame = data;
-    end
-    if ndims(frame) ~= 2
-        return
-    end
+    frame = ensure2DFrame(data);
     if state.iosMode
         needBase = isempty(state.baseframeData) || isempty(state.baseframeRangeUsed) || ...
             state.baseframeStart ~= state.baseframeRangeUsed(1) || ...
@@ -196,19 +211,10 @@ function showFrame(fig, ax, k)
             fig.UserData = state;
             return
         end
-        base = state.baseframeData;
-        if ~isequal(size(frame), size(base))
-            state.h.timeEdit.String = sec2timeStr(t(1));
-            state.h.slider.Value = k;
-            fig.UserData = state;
-            return
-        end
         frameD = double(frame);
         frameD = applyGaussianFilter(frameD, state.gaussianSigma);
-        if state.subtractMean
-            frameD = frameD - mean(frameD(:));
-        end
-        denom = double(base);
+        base = double(state.baseframeData);
+        denom = base;
         denom(denom == 0) = NaN;
         iosFrame = (frameD - denom) ./ denom;
         displayFrame = iosFrame;
@@ -217,16 +223,11 @@ function showFrame(fig, ax, k)
             climIos = 0.01;
         end
         climIos = [-climIos climIos];
+        state.climIosBase = climIos;
     else
         frameD = double(frame);
         displayFrame = applyGaussianFilter(frameD, state.gaussianSigma);
-        if state.subtractMean
-            displayFrame = displayFrame - mean(displayFrame(:));
-        end
         climIos = [];
-    end
-    if ndims(displayFrame) ~= 2
-        return
     end
     if isempty(state.him) || ~isvalid(state.him)
         state.clim = [min(frame(:)) max(frame(:))];
@@ -237,14 +238,8 @@ function showFrame(fig, ax, k)
         state.him.CData = displayFrame;
     end
     ax.YDir = 'normal';
-    if state.iosMode && ~isempty(climIos)
-        ax.CLim = climIos;
-    else
-        c = double(state.h.contrastSlider.Value);
-        center = double(state.clim(1) + state.clim(2)) / 2;
-        half = double(state.clim(2) - state.clim(1)) / 2;
-        ax.CLim = center + (half / c) * [-1 1];
-    end
+    c = double(state.h.contrastSlider.Value);
+    applyContrast(ax, getBaseRange(state), c);
 
     state.h.timeEdit.String = sec2timeStr(t(1));
     state.h.slider.Value = k;
@@ -252,22 +247,22 @@ function showFrame(fig, ax, k)
 end
 
 function onSlider(src, fig, ax)
-    state = fig.UserData;
-    if isempty(state.meta)
+    if ~hasValidMeta(fig)
         return
     end
+    state = fig.UserData;
     k = round(src.Value);
     k = max(1, min(k, state.meta.totalFrames));
     showFrame(fig, ax, k);
 end
 
 function onNav(~, fig, ax, where)
-    state = fig.UserData;
-    if isempty(state.meta)
+    if ~hasValidMeta(fig)
         return
     end
+    state = fig.UserData;
     N = state.meta.totalFrames;
-    cur = round(state.h.slider.Value);
+    cur = getCurrentFrame(state);
     switch where
         case 'start'
             cur = 1;
@@ -282,10 +277,10 @@ function onNav(~, fig, ax, where)
 end
 
 function onTimeEdit(src, fig, ax)
-    state = fig.UserData;
-    if isempty(state.meta)
+    if ~hasValidMeta(fig)
         return
     end
+    state = fig.UserData;
     sec = timeStr2sec(src.String);
     if isnan(sec)
         return
@@ -300,10 +295,10 @@ function onTimeEdit(src, fig, ax)
 end
 
 function onPlayPause(src, fig, ax)
-    state = fig.UserData;
-    if isempty(state.meta)
+    if ~hasValidMeta(fig)
         return
     end
+    state = fig.UserData;
     if ~isempty(state.playTimer) && isvalid(state.playTimer)
         stop(state.playTimer);
         delete(state.playTimer);
@@ -313,7 +308,7 @@ function onPlayPause(src, fig, ax)
         return
     end
     N = state.meta.totalFrames;
-    cur = round(state.h.slider.Value);
+    cur = getCurrentFrame(state);
     speeds = [0.5 1 2];
     speed = speeds(state.h.speedPopup.Value);
     dt = state.meta.dt / speed;
@@ -352,43 +347,41 @@ function onIosCheck(src, fig, ax)
     vis = 'off';
     if state.iosMode
         vis = 'on';
+    else
+        state.climIosBase = [];
     end
     state.h.baseStartEdit.Visible = vis;
     state.h.baseEndEdit.Visible = vis;
     state.h.setBaseBtn.Visible = vis;
     fig.UserData = state;
-    k = round(state.h.slider.Value);
+    k = getCurrentFrame(state);
     showFrame(fig, ax, k);
 end
 
 function onSetBaseframe(~, fig, ax)
-    state = fig.UserData;
-    if isempty(state.meta)
+    if ~hasValidMeta(fig)
         return
     end
-    cur = round(state.h.slider.Value);
+    state = fig.UserData;
+    cur = getCurrentFrame(state);
     state.baseframeStart = cur;
-    n20 = 20;
-    if state.meta.dt > 0
-        n20 = round(20 / state.meta.dt);
-    end
+    n20 = calculateN20Frames(state.meta);
     state.baseframeEnd = min(state.meta.totalFrames, cur + n20);
-    state.baseframeData = [];
-    state.baseframeRangeUsed = [];
+    state = clearBaseframe(state);
     state.h.baseStartEdit.String = num2str(state.baseframeStart);
     state.h.baseEndEdit.String = num2str(state.baseframeEnd);
     fig.UserData = state;
     if state.iosMode
-        k = round(state.h.slider.Value);
+        k = getCurrentFrame(state);
         showFrame(fig, ax, k);
     end
 end
 
 function onBaseRangeEdit(src, fig, ax, which)
-    state = fig.UserData;
-    if isempty(state.meta)
+    if ~hasValidMeta(fig)
         return
     end
+    state = fig.UserData;
     v = round(str2double(src.String));
     if isnan(v) || v < 1
         return
@@ -399,11 +392,10 @@ function onBaseRangeEdit(src, fig, ax, which)
     else
         state.baseframeEnd = v;
     end
-    state.baseframeData = [];
-    state.baseframeRangeUsed = [];
+    state = clearBaseframe(state);
     fig.UserData = state;
     if state.iosMode
-        k = round(state.h.slider.Value);
+        k = getCurrentFrame(state);
         showFrame(fig, ax, k);
     end
 end
@@ -413,11 +405,10 @@ function onGaussianSlider(src, fig, ax)
     sigma = double(src.Value);
     state.gaussianSigma = sigma;
     state.h.gaussianEdit.String = sprintf('%.2f', sigma);
-    state.baseframeData = [];
-    state.baseframeRangeUsed = [];
+    state = clearBaseframe(state);
     fig.UserData = state;
-    if ~isempty(state.meta)
-        k = round(state.h.slider.Value);
+    if hasValidMeta(fig)
+        k = getCurrentFrame(state);
         showFrame(fig, ax, k);
     end
 end
@@ -432,36 +423,24 @@ function onGaussianEdit(src, fig, ax)
     sigma = max(0, min(20, sigma));
     state.gaussianSigma = sigma;
     state.h.gaussianSlider.Value = sigma;
-    state.baseframeData = [];
-    state.baseframeRangeUsed = [];
+    state = clearBaseframe(state);
     fig.UserData = state;
-    if ~isempty(state.meta)
-        k = round(state.h.slider.Value);
-        showFrame(fig, ax, k);
-    end
-end
-
-function onSubtractMean(src, fig, ax)
-    state = fig.UserData;
-    state.subtractMean = logical(src.Value);
-    state.baseframeData = [];
-    state.baseframeRangeUsed = [];
-    fig.UserData = state;
-    if ~isempty(state.meta)
-        k = round(state.h.slider.Value);
+    if hasValidMeta(fig)
+        k = getCurrentFrame(state);
         showFrame(fig, ax, k);
     end
 end
 
 function onContrast(~, fig, ax)
+    if ~hasValidMeta(fig)
+        return
+    end
     state = fig.UserData;
-    if isempty(state.meta) || isempty(state.him) || ~isvalid(state.him)
+    if isempty(state.him) || ~isvalid(state.him)
         return
     end
     c = double(state.h.contrastSlider.Value);
-    center = double(state.clim(1) + state.clim(2)) / 2;
-    half = double(state.clim(2) - state.clim(1)) / 2;
-    ax.CLim = center + (half / c) * [-1 1];
+    applyContrast(ax, getBaseRange(state), c);
 end
 
 function onOpen(~, fig, ax)
