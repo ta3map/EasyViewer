@@ -58,17 +58,21 @@ function iosPlayerGUI(iosPath)
         'Position', [0.1 0.15 0.2 0.03], 'String', 'Cursors:', 'HorizontalAlignment', 'left');
     hCursorsTable = uitable(fig, 'Units', 'normalized', ...
         'Position', [0.1 0.05 0.5 0.1], ...
-        'ColumnName', {'#', 'Row', 'Col'}, ...
-        'ColumnEditable', [false false false], ...
-        'ColumnWidth', {30 80 80}, ...
-        'Data', cell(0, 3), ...
-        'CellSelectionCallback', @(src, event) onCursorsTableSelection(src, event, fig));
+        'ColumnName', {'#', 'Row', 'Col', 'Visible'}, ...
+        'ColumnEditable', [false false false true], ...
+        'ColumnFormat', {'numeric', 'numeric', 'numeric', 'logical'}, ...
+        'ColumnWidth', {30 80 80 60}, ...
+        'Data', cell(0, 4), ...
+        'CellSelectionCallback', @(src, event) onCursorsTableSelection(src, event, fig), ...
+        'CellEditCallback', @(src, event) onCursorsTableEdit(src, event, fig, ax));
     hEditCursorBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
         'Position', [0.62 0.11 0.12 0.03], 'String', 'Edit Position');
     hDeleteCursorBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
         'Position', [0.62 0.08 0.12 0.03], 'String', 'Delete Selected');
     hClearCursorsBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
         'Position', [0.62 0.05 0.12 0.03], 'String', 'Clear All');
+    hShowIosCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
+        'Position', [0.76 0.11 0.14 0.03], 'String', 'Show IOS values', 'Value', 0);
 
     h = struct('slider', hSlider, 'timeEdit', hTimeEdit, 'playBtn', hPlayBtn, ...
         'speedPopup', hSpeedPopup, 'openBtn', hOpenBtn, 'contrastSlider', hContrastSlider, ...
@@ -78,12 +82,13 @@ function iosPlayerGUI(iosPath)
         'addCursorBtn', hAddCursorBtn, 'getTracesBtn', hGetTracesBtn, 'addReferenceBtn', hAddReferenceBtn, ...
         'deleteReferenceBtn', hDeleteReferenceBtn, 'floatingBaseCheck', hFloatingBaseCheck, 'baseDelayEdit', hBaseDelayEdit, ...
         'cursorsTable', hCursorsTable, 'editCursorBtn', hEditCursorBtn, ...
-        'deleteCursorBtn', hDeleteCursorBtn, 'clearCursorsBtn', hClearCursorsBtn);
+        'deleteCursorBtn', hDeleteCursorBtn, 'clearCursorsBtn', hClearCursorsBtn, ...
+        'showIosCheck', hShowIosCheck);
     state = struct('iosPath', iosPath, 'meta', [], 'playTimer', [], 'clim', [0 65535], 'h', h, 'him', [], ...
         'iosMode', false, 'baseframeStart', 1, 'baseframeEnd', 1, 'baseframeData', [], 'baseframeRangeUsed', [], ...
         'gaussianSigma', 3.0, 'climIosBase', [], 'cursors', [], 'awaitingClick', false, ...
         'referenceCursor', [], 'awaitingReferenceClick', false, 'floatingBaseMode', false, 'baseDelay', 1.0, ...
-        'editingCursorIndex', []);
+        'editingCursorIndex', [], 'showIosValues', false, 'selectedCursorIndex', []);
     fig.UserData = state;
 
     hSlider.Callback = @(src,~) onSlider(src, fig, ax);
@@ -110,6 +115,7 @@ function iosPlayerGUI(iosPath)
     hEditCursorBtn.Callback = @(src,~) onEditCursor(src, fig, ax);
     hDeleteCursorBtn.Callback = @(src,~) onDeleteCursor(src, fig, ax);
     hClearCursorsBtn.Callback = @(src,~) onClearCursors(src, fig, ax);
+    hShowIosCheck.Callback = @(src,~) onShowIosCheck(src, fig, ax);
 
     if ~isempty(iosPath) && exist(iosPath, 'file')
         openFile(fig, ax, iosPath);
@@ -230,10 +236,7 @@ function openFile(fig, ax, fname)
     
     if ~isempty(state.cursors)
         for i = 1:length(state.cursors)
-            cursor = state.cursors(i);
-            if ~isempty(cursor.handle) && isvalid(cursor.handle)
-                delete(cursor.handle);
-            end
+            deleteCursorGraphics(state.cursors(i));
         end
     end
     
@@ -270,6 +273,7 @@ function openFile(fig, ax, fname)
     state.referenceCursor = [];
     state.awaitingReferenceClick = false;
     state.editingCursorIndex = [];
+    state.selectedCursorIndex = [];
     fig.UserData = state;
     updateCursorsTable(fig);
 
@@ -749,6 +753,12 @@ function onImageClick(fig, ax)
         cursor.center = [row, col];
         cursor.rect = [row_min, row_max, col_min, col_max];
         cursor.handle = [];
+        if ~isfield(cursor, 'visible')
+            cursor.visible = true;
+        end
+        if ~isfield(cursor, 'textHandle')
+            cursor.textHandle = [];
+        end
         
         state.cursors(cursorIdx) = cursor;
         state.editingCursorIndex = [];
@@ -789,6 +799,8 @@ function onImageClick(fig, ax)
     cursor.center = [row, col];
     cursor.rect = [row_min, row_max, col_min, col_max];
     cursor.handle = [];
+    cursor.visible = true;
+    cursor.textHandle = [];
     
     if isempty(state.cursors)
         state.cursors = cursor;
@@ -810,11 +822,34 @@ function drawCursors(fig, ax)
         return
     end
     
+    children = ax.Children;
+    for i = length(children):-1:1
+        child = children(i);
+        if (isa(child, 'matlab.graphics.primitive.Line') && ...
+           (isequal(child.Color, [1 0 0]) || isequal(child.Color, [0 0 0]))) || ...
+           (isa(child, 'matlab.graphics.primitive.Patch') && ...
+           isequal(child.FaceColor, [1 0 0]))
+            delete(child);
+        elseif isa(child, 'matlab.graphics.primitive.Text')
+            delete(child);
+        end
+    end
+    
+    displayFrame = state.him.CData;
+    
     if ~isempty(state.cursors)
         for i = 1:length(state.cursors)
             cursor = state.cursors(i);
-            if ~isempty(cursor.handle) && isvalid(cursor.handle)
-                delete(cursor.handle);
+            if ~isfield(cursor, 'visible')
+                cursor.visible = true;
+            end
+            if ~isfield(cursor, 'textHandle')
+                cursor.textHandle = [];
+            end
+            
+            if ~cursor.visible
+                state.cursors(i) = cursor;
+                continue
             end
             
             row_min = cursor.rect(1);
@@ -822,10 +857,29 @@ function drawCursors(fig, ax)
             col_min = cursor.rect(3);
             col_max = cursor.rect(4);
             
-            x = [col_min, col_max, col_max, col_min, col_min] - 0.5;
-            y = [row_min, row_min, row_max, row_max, row_min] - 0.5;
+            isSelected = (~isempty(state.selectedCursorIndex) && state.selectedCursorIndex == i);
             
-            cursor.handle = line(ax, x, y, 'Color', 'r', 'LineWidth', 2, 'HitTest', 'off');
+            if isSelected
+                x = [col_min, col_max, col_max, col_min] - 0.5;
+                y = [row_min, row_min, row_max, row_max] - 0.5;
+                cursor.handle = patch(ax, x, y, 'r', 'FaceAlpha', 0.6, 'EdgeColor', 'r', 'LineWidth', 3, 'HitTest', 'off');
+            else
+                x = [col_min, col_max, col_max, col_min, col_min] - 0.5;
+                y = [row_min, row_min, row_max, row_max, row_min] - 0.5;
+                cursor.handle = line(ax, x, y, 'Color', 'k', 'LineWidth', 2, 'HitTest', 'off');
+            end
+            
+            if state.showIosValues
+                iosValue = computeCursorIos(state, cursor, displayFrame, state.iosMode, state.baseframeData, []);
+                if ~isnan(iosValue) && isfinite(iosValue)
+                    textX = col_max + 2;
+                    textY = row_min;
+                    cursor.textHandle = text(ax, textX, textY, sprintf('%.4f', iosValue), ...
+                        'Color', 'yellow', 'FontSize', 10, 'FontWeight', 'bold', ...
+                        'BackgroundColor', 'black', 'EdgeColor', 'yellow', 'Margin', 2);
+                end
+            end
+            
             state.cursors(i) = cursor;
         end
     end
@@ -868,6 +922,42 @@ function meanIos = computeIosForRegion(state, rowRange, colRange, frameFiltered,
     iosRegion = (frameRegion - denom) ./ denom;
     
     meanIos = mean(iosRegion(:), 'omitnan');
+end
+
+function iosValue = computeCursorIos(state, cursor, displayFrame, iosMode, baseframeData, frameFiltered)
+    rowRange = [cursor.rect(1), cursor.rect(2)];
+    colRange = [cursor.rect(3), cursor.rect(4)];
+    
+    if iosMode
+        cursorRegion = displayFrame(rowRange(1):rowRange(2), colRange(1):colRange(2));
+        iosValue = mean(cursorRegion(:), 'omitnan');
+    else
+        if isempty(baseframeData) || isempty(frameFiltered)
+            iosValue = NaN;
+            return
+        end
+        frameRegion = double(frameFiltered(rowRange(1):rowRange(2), colRange(1):colRange(2)));
+        baseRegion = double(baseframeData(rowRange(1):rowRange(2), colRange(1):colRange(2)));
+        
+        denom = baseRegion;
+        denom(denom == 0) = NaN;
+        iosRegion = (frameRegion - denom) ./ denom;
+        
+        iosValue = mean(iosRegion(:), 'omitnan');
+        
+        if ~isempty(state.referenceCursor)
+            refCursor = state.referenceCursor;
+            refRowRange = [refCursor.rect(1), refCursor.rect(2)];
+            refColRange = [refCursor.rect(3), refCursor.rect(4)];
+            refRegion = double(frameFiltered(refRowRange(1):refRowRange(2), refColRange(1):refColRange(2)));
+            refBaseRegion = double(baseframeData(refRowRange(1):refRowRange(2), refColRange(1):refColRange(2)));
+            refDenom = refBaseRegion;
+            refDenom(refDenom == 0) = NaN;
+            refIosRegion = (refRegion - refDenom) ./ refDenom;
+            refIosValue = mean(refIosRegion(:), 'omitnan');
+            iosValue = iosValue - refIosValue;
+        end
+    end
 end
 
 function onGetTraces(src, fig, ax)
@@ -1069,18 +1159,51 @@ end
 function updateCursorsTable(fig)
     state = fig.UserData;
     if isempty(state.cursors)
-        state.h.cursorsTable.Data = cell(0, 3);
+        state.h.cursorsTable.Data = cell(0, 4);
     else
         numCursors = length(state.cursors);
-        data = cell(numCursors, 3);
+        data = cell(numCursors, 4);
         for i = 1:numCursors
+            cursor = state.cursors(i);
+            if ~isfield(cursor, 'visible')
+                cursor.visible = true;
+                state.cursors(i) = cursor;
+            end
             data{i, 1} = i;
-            data{i, 2} = state.cursors(i).center(1);
-            data{i, 3} = state.cursors(i).center(2);
+            data{i, 2} = cursor.center(1);
+            data{i, 3} = cursor.center(2);
+            data{i, 4} = cursor.visible;
         end
         state.h.cursorsTable.Data = data;
     end
     fig.UserData = state;
+end
+
+function onCursorsTableEdit(src, event, fig, ax)
+    state = fig.UserData;
+    if isempty(state.cursors)
+        return
+    end
+    if event.Indices(2) ~= 4
+        return
+    end
+    rowIdx = event.Indices(1);
+    if rowIdx < 1 || rowIdx > length(state.cursors)
+        return
+    end
+    newValue = event.NewData;
+    cursor = state.cursors(rowIdx);
+    cursor.visible = logical(newValue);
+    state.cursors(rowIdx) = cursor;
+    fig.UserData = state;
+    drawCursors(fig, ax);
+end
+
+function onShowIosCheck(src, fig, ax)
+    state = fig.UserData;
+    state.showIosValues = logical(src.Value);
+    fig.UserData = state;
+    drawCursors(fig, ax);
 end
 
 function onEditCursor(src, fig, ax)
@@ -1109,6 +1232,15 @@ function onEditCursor(src, fig, ax)
     fig.UserData = state;
 end
 
+function deleteCursorGraphics(cursor)
+    if ~isempty(cursor.handle) && isvalid(cursor.handle)
+        delete(cursor.handle);
+    end
+    if isfield(cursor, 'textHandle') && ~isempty(cursor.textHandle) && isvalid(cursor.textHandle)
+        delete(cursor.textHandle);
+    end
+end
+
 function onDeleteCursor(~, fig, ax)
     state = fig.UserData;
     if isempty(state.cursors)
@@ -1123,12 +1255,8 @@ function onDeleteCursor(~, fig, ax)
         return
     end
     
-    cursor = state.cursors(selectedRow);
-    if ~isempty(cursor.handle) && isvalid(cursor.handle)
-        delete(cursor.handle);
-    end
-    
-    state.cursors(selectedRow) = [];
+    deleteCursorGraphics(state.cursors(selectedRow));
+    state.cursors = state.cursors([1:selectedRow-1, selectedRow+1:end]);
     fig.UserData = state;
     
     updateCursorsTable(fig);
@@ -1142,10 +1270,7 @@ function onClearCursors(~, fig, ax)
     end
     
     for i = 1:length(state.cursors)
-        cursor = state.cursors(i);
-        if ~isempty(cursor.handle) && isvalid(cursor.handle)
-            delete(cursor.handle);
-        end
+        deleteCursorGraphics(state.cursors(i));
     end
     
     state.cursors = [];
@@ -1157,6 +1282,22 @@ end
 
 function onCursorsTableSelection(src, event, fig)
     src.UserData = event;
+    state = fig.UserData;
+    if ~isempty(event.Indices) && size(event.Indices, 1) > 0
+        selectedRow = event.Indices(1, 1);
+        if selectedRow >= 1 && selectedRow <= length(state.cursors)
+            state.selectedCursorIndex = selectedRow;
+        else
+            state.selectedCursorIndex = [];
+        end
+    else
+        state.selectedCursorIndex = [];
+    end
+    fig.UserData = state;
+    ax = findobj(fig, 'Type', 'axes');
+    if ~isempty(ax)
+        drawCursors(fig, ax);
+    end
 end
 
 function onDeleteReference(~, fig, ax)
