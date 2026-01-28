@@ -3,8 +3,8 @@ function iosPlayerGUI(iosPath)
         iosPath = '';
     end
     fig = figure('Name', 'IOS Player', 'NumberTitle', 'off', ...
-        'Units', 'normalized', 'Position', [0.25 0.2 0.5 0.6]);
-    ax = axes(fig, 'Units', 'normalized', 'Position', [0.1 0.45 0.8 0.5]);
+        'Units', 'normalized', 'Position', [0.25 0.15 0.5 0.7]);
+    ax = axes(fig, 'Units', 'normalized', 'Position', [0.1 0.5 0.8 0.45]);
     colormap(fig, gray);
     hSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
         'Position', [0.1 0.38 0.8 0.04], 'Min', 1, 'Max', 2, 'Value', 1);
@@ -40,6 +40,10 @@ function iosPlayerGUI(iosPath)
         'Position', [0.24 0.22 0.06 0.03], 'String', '1', 'Visible', 'off');
     hSetBaseBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
         'Position', [0.32 0.22 0.1 0.03], 'String', 'Set baseframe', 'Visible', 'off');
+    hFloatingBaseCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
+        'Position', [0.1 0.19 0.12 0.03], 'String', 'Floating base', 'Value', 0, 'Visible', 'off');
+    hBaseDelayEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
+        'Position', [0.24 0.19 0.06 0.03], 'String', '1.0', 'Visible', 'off');
 
     hAddCursorBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
         'Position', [0.44 0.22 0.1 0.03], 'String', 'Add Cursor');
@@ -47,17 +51,39 @@ function iosPlayerGUI(iosPath)
         'Position', [0.56 0.22 0.1 0.03], 'String', 'Get Traces');
     hAddReferenceBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
         'Position', [0.68 0.22 0.1 0.03], 'String', 'Add Reference');
+    hDeleteReferenceBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
+        'Position', [0.8 0.22 0.1 0.03], 'String', 'Delete Reference');
+
+    uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.1 0.15 0.2 0.03], 'String', 'Cursors:', 'HorizontalAlignment', 'left');
+    hCursorsTable = uitable(fig, 'Units', 'normalized', ...
+        'Position', [0.1 0.05 0.5 0.1], ...
+        'ColumnName', {'#', 'Row', 'Col'}, ...
+        'ColumnEditable', [false false false], ...
+        'ColumnWidth', {30 80 80}, ...
+        'Data', cell(0, 3), ...
+        'CellSelectionCallback', @(src, event) onCursorsTableSelection(src, event, fig));
+    hEditCursorBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
+        'Position', [0.62 0.11 0.12 0.03], 'String', 'Edit Position');
+    hDeleteCursorBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
+        'Position', [0.62 0.08 0.12 0.03], 'String', 'Delete Selected');
+    hClearCursorsBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
+        'Position', [0.62 0.05 0.12 0.03], 'String', 'Clear All');
 
     h = struct('slider', hSlider, 'timeEdit', hTimeEdit, 'playBtn', hPlayBtn, ...
         'speedPopup', hSpeedPopup, 'openBtn', hOpenBtn, 'contrastSlider', hContrastSlider, ...
         'navStart', hNavStart, 'navPrev', hNavPrev, 'navNext', hNavNext, 'navEnd', hNavEnd, ...
         'iosCheck', hIosCheck, 'baseStartEdit', hBaseStartEdit, 'baseEndEdit', hBaseEndEdit, ...
         'setBaseBtn', hSetBaseBtn, 'gaussianSlider', hGaussianSlider, 'gaussianEdit', hGaussianEdit, ...
-        'addCursorBtn', hAddCursorBtn, 'getTracesBtn', hGetTracesBtn, 'addReferenceBtn', hAddReferenceBtn);
+        'addCursorBtn', hAddCursorBtn, 'getTracesBtn', hGetTracesBtn, 'addReferenceBtn', hAddReferenceBtn, ...
+        'deleteReferenceBtn', hDeleteReferenceBtn, 'floatingBaseCheck', hFloatingBaseCheck, 'baseDelayEdit', hBaseDelayEdit, ...
+        'cursorsTable', hCursorsTable, 'editCursorBtn', hEditCursorBtn, ...
+        'deleteCursorBtn', hDeleteCursorBtn, 'clearCursorsBtn', hClearCursorsBtn);
     state = struct('iosPath', iosPath, 'meta', [], 'playTimer', [], 'clim', [0 65535], 'h', h, 'him', [], ...
         'iosMode', false, 'baseframeStart', 1, 'baseframeEnd', 1, 'baseframeData', [], 'baseframeRangeUsed', [], ...
         'gaussianSigma', 3.0, 'climIosBase', [], 'cursors', [], 'awaitingClick', false, ...
-        'referenceCursor', [], 'awaitingReferenceClick', false);
+        'referenceCursor', [], 'awaitingReferenceClick', false, 'floatingBaseMode', false, 'baseDelay', 1.0, ...
+        'editingCursorIndex', []);
     fig.UserData = state;
 
     hSlider.Callback = @(src,~) onSlider(src, fig, ax);
@@ -75,9 +101,15 @@ function iosPlayerGUI(iosPath)
     hSetBaseBtn.Callback = @(src,~) onSetBaseframe(src, fig, ax);
     hBaseStartEdit.Callback = @(src,~) onBaseRangeEdit(src, fig, ax, 'start');
     hBaseEndEdit.Callback = @(src,~) onBaseRangeEdit(src, fig, ax, 'end');
+    hFloatingBaseCheck.Callback = @(src,~) onFloatingBaseCheck(src, fig, ax);
+    hBaseDelayEdit.Callback = @(src,~) onBaseDelayEdit(src, fig, ax);
     hAddCursorBtn.Callback = @(src,~) onAddCursor(src, fig, ax);
     hGetTracesBtn.Callback = @(src,~) onGetTraces(src, fig, ax);
     hAddReferenceBtn.Callback = @(src,~) onAddReference(src, fig, ax);
+    hDeleteReferenceBtn.Callback = @(src,~) onDeleteReference(src, fig, ax);
+    hEditCursorBtn.Callback = @(src,~) onEditCursor(src, fig, ax);
+    hDeleteCursorBtn.Callback = @(src,~) onDeleteCursor(src, fig, ax);
+    hClearCursorsBtn.Callback = @(src,~) onClearCursors(src, fig, ax);
 
     if ~isempty(iosPath) && exist(iosPath, 'file')
         openFile(fig, ax, iosPath);
@@ -164,6 +196,29 @@ function state = computeBaseframe(fig)
     fig.UserData = state;
 end
 
+function baseframeData = computeFloatingBaseframe(fig, currentTime)
+    state = fig.UserData;
+    baseframeData = [];
+    if ~hasValidMeta(fig)
+        return
+    end
+    meta = state.meta;
+    delay = state.baseDelay;
+    baseTime = currentTime - delay;
+    k_base = 1;
+    if meta.dt > 0
+        k_base = round((baseTime - meta.t0) / meta.dt) + 1;
+    end
+    k_base = max(1, min(k_base, meta.totalFrames));
+    [data, ~, ~] = readIOS2(state.iosPath, 'startframe', k_base, 'endframe', k_base, 'Format', 'Lin');
+    if isempty(data)
+        return
+    end
+    data = double(data);
+    data = ensure2DFrame(data);
+    baseframeData = applyGaussianFilter(data, state.gaussianSigma);
+end
+
 function openFile(fig, ax, fname)
     state = fig.UserData;
     if ~isempty(state.playTimer) && isvalid(state.playTimer)
@@ -172,6 +227,27 @@ function openFile(fig, ax, fname)
         state.playTimer = [];
         state.h.playBtn.String = 'Play';
     end
+    
+    if ~isempty(state.cursors)
+        for i = 1:length(state.cursors)
+            cursor = state.cursors(i);
+            if ~isempty(cursor.handle) && isvalid(cursor.handle)
+                delete(cursor.handle);
+            end
+        end
+    end
+    
+    if ~isempty(state.referenceCursor) && ~isempty(state.referenceCursor.handle) && isvalid(state.referenceCursor.handle)
+        delete(state.referenceCursor.handle);
+    end
+    
+    if ~isempty(state.him) && isvalid(state.him)
+        delete(state.him);
+        state.him = [];
+    end
+    
+    cla(ax);
+    
     meta = readIOS2(fname, 'metadataOnly', true);
     state.meta = meta;
     state.iosPath = fname;
@@ -185,11 +261,17 @@ function openFile(fig, ax, fname)
     state.baseframeEnd = min(meta.totalFrames, 1 + n20);
     state.h.baseStartEdit.String = num2str(state.baseframeStart);
     state.h.baseEndEdit.String = num2str(state.baseframeEnd);
+    state.floatingBaseMode = false;
+    state.baseDelay = 1.0;
+    state.h.baseDelayEdit.String = sprintf('%.2f', state.baseDelay);
+    
     state.cursors = [];
     state.awaitingClick = false;
     state.referenceCursor = [];
     state.awaitingReferenceClick = false;
+    state.editingCursorIndex = [];
     fig.UserData = state;
+    updateCursorsTable(fig);
 
     N = meta.totalFrames;
     state.h.slider.Min = 1;
@@ -214,22 +296,33 @@ function showFrame(fig, ax, k)
     end
     frame = ensure2DFrame(data);
     if state.iosMode
-        needBase = isempty(state.baseframeData) || isempty(state.baseframeRangeUsed) || ...
-            state.baseframeStart ~= state.baseframeRangeUsed(1) || ...
-            state.baseframeEnd ~= state.baseframeRangeUsed(2);
-        if needBase
-            state = computeBaseframe(fig);
-            state = fig.UserData;
-        end
-        if isempty(state.baseframeData)
-            state.h.timeEdit.String = sec2timeStr(t(1));
-            state.h.slider.Value = k;
-            fig.UserData = state;
-            return
+        if state.floatingBaseMode
+            baseframeData = computeFloatingBaseframe(fig, t(1));
+            if isempty(baseframeData)
+                state.h.timeEdit.String = sec2timeStr(t(1));
+                state.h.slider.Value = k;
+                fig.UserData = state;
+                return
+            end
+            base = double(baseframeData);
+        else
+            needBase = isempty(state.baseframeData) || isempty(state.baseframeRangeUsed) || ...
+                state.baseframeStart ~= state.baseframeRangeUsed(1) || ...
+                state.baseframeEnd ~= state.baseframeRangeUsed(2);
+            if needBase
+                state = computeBaseframe(fig);
+                state = fig.UserData;
+            end
+            if isempty(state.baseframeData)
+                state.h.timeEdit.String = sec2timeStr(t(1));
+                state.h.slider.Value = k;
+                fig.UserData = state;
+                return
+            end
+            base = double(state.baseframeData);
         end
         frameD = double(frame);
         frameD = applyGaussianFilter(frameD, state.gaussianSigma);
-        base = double(state.baseframeData);
         denom = base;
         denom(denom == 0) = NaN;
         iosFrame = (frameD - denom) ./ denom;
@@ -257,6 +350,7 @@ function showFrame(fig, ax, k)
         climIos = [];
     end
     if isempty(state.him) || ~isvalid(state.him)
+        cla(ax);
         state.clim = [min(frame(:)) max(frame(:))];
         state.him = imagesc(ax, displayFrame);
         axis(ax, 'image');
@@ -380,12 +474,56 @@ function onIosCheck(src, fig, ax)
     else
         state.climIosBase = [];
     end
-    state.h.baseStartEdit.Visible = vis;
-    state.h.baseEndEdit.Visible = vis;
-    state.h.setBaseBtn.Visible = vis;
+    state.h.floatingBaseCheck.Visible = vis;
+    state.h.baseDelayEdit.Visible = vis;
+    if state.floatingBaseMode && state.iosMode
+        visBase = 'off';
+    else
+        visBase = vis;
+    end
+    state.h.baseStartEdit.Visible = visBase;
+    state.h.baseEndEdit.Visible = visBase;
+    state.h.setBaseBtn.Visible = visBase;
     fig.UserData = state;
     k = getCurrentFrame(state);
     showFrame(fig, ax, k);
+end
+
+function onFloatingBaseCheck(src, fig, ax)
+    state = fig.UserData;
+    state.floatingBaseMode = logical(src.Value);
+    if state.floatingBaseMode && state.iosMode
+        visBase = 'off';
+    elseif state.iosMode
+        visBase = 'on';
+    else
+        visBase = 'off';
+    end
+    state.h.baseStartEdit.Visible = visBase;
+    state.h.baseEndEdit.Visible = visBase;
+    state.h.setBaseBtn.Visible = visBase;
+    state = clearBaseframe(state);
+    fig.UserData = state;
+    if state.iosMode
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
+end
+
+function onBaseDelayEdit(src, fig, ax)
+    state = fig.UserData;
+    delay = str2double(src.String);
+    if isnan(delay) || delay < 0
+        src.String = sprintf('%.2f', state.baseDelay);
+        return
+    end
+    state.baseDelay = delay;
+    state = clearBaseframe(state);
+    fig.UserData = state;
+    if state.iosMode
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
 end
 
 function onSetBaseframe(~, fig, ax)
@@ -512,7 +650,9 @@ function onAddCursor(src, fig, ax)
     end
     state.awaitingClick = true;
     state.awaitingReferenceClick = false;
+    state.editingCursorIndex = [];
     state.h.addReferenceBtn.String = 'Add Reference';
+    state.h.editCursorBtn.String = 'Edit Position';
     src.String = 'Click on image...';
     fig.UserData = state;
 end
@@ -524,7 +664,9 @@ function onAddReference(src, fig, ax)
     end
     state.awaitingReferenceClick = true;
     state.awaitingClick = false;
+    state.editingCursorIndex = [];
     state.h.addCursorBtn.String = 'Add Cursor';
+    state.h.editCursorBtn.String = 'Edit Position';
     src.String = 'Click on image...';
     fig.UserData = state;
 end
@@ -564,6 +706,56 @@ function onImageClick(fig, ax)
         state.h.addReferenceBtn.String = 'Add Reference';
         fig.UserData = state;
         
+        drawCursors(fig, ax);
+        return
+    end
+    
+    if ~isempty(state.editingCursorIndex)
+        if ~hasValidMeta(fig)
+            return
+        end
+        cp = get(ax, 'CurrentPoint');
+        col = round(cp(1, 1));
+        row = round(cp(1, 2));
+        
+        if isempty(state.him) || ~isvalid(state.him)
+            return
+        end
+        
+        frameSize = size(state.him.CData);
+        if row < 1 || row > frameSize(1) || col < 1 || col > frameSize(2)
+            return
+        end
+        
+        cursorIdx = state.editingCursorIndex;
+        if cursorIdx < 1 || cursorIdx > length(state.cursors)
+            state.editingCursorIndex = [];
+            state.h.editCursorBtn.String = 'Edit Position';
+            fig.UserData = state;
+            return
+        end
+        
+        halfSize = 5;
+        row_min = max(1, row - halfSize);
+        row_max = min(frameSize(1), row + halfSize);
+        col_min = max(1, col - halfSize);
+        col_max = min(frameSize(2), col + halfSize);
+        
+        cursor = state.cursors(cursorIdx);
+        if ~isempty(cursor.handle) && isvalid(cursor.handle)
+            delete(cursor.handle);
+        end
+        
+        cursor.center = [row, col];
+        cursor.rect = [row_min, row_max, col_min, col_max];
+        cursor.handle = [];
+        
+        state.cursors(cursorIdx) = cursor;
+        state.editingCursorIndex = [];
+        state.h.editCursorBtn.String = 'Edit Position';
+        fig.UserData = state;
+        
+        updateCursorsTable(fig);
         drawCursors(fig, ax);
         return
     end
@@ -608,6 +800,7 @@ function onImageClick(fig, ax)
     state.h.addCursorBtn.String = 'Add Cursor';
     fig.UserData = state;
     
+    updateCursorsTable(fig);
     drawCursors(fig, ax);
 end
 
@@ -653,6 +846,14 @@ function drawCursors(fig, ax)
         
         refCursor.handle = line(ax, x, y, 'Color', 'b', 'LineWidth', 2, 'HitTest', 'off');
         state.referenceCursor = refCursor;
+    else
+        children = ax.Children;
+        for i = length(children):-1:1
+            if isa(children(i), 'matlab.graphics.primitive.Line') && ...
+               isequal(children(i).Color, [0 0 1])
+                delete(children(i));
+            end
+        end
     end
     
     fig.UserData = state;
@@ -695,36 +896,46 @@ function onGetTraces(src, fig, ax)
             state.iosMode = true;
             state.h.iosCheck.Value = 1;
             vis = 'on';
-            state.h.baseStartEdit.Visible = vis;
-            state.h.baseEndEdit.Visible = vis;
-            state.h.setBaseBtn.Visible = vis;
+            state.h.floatingBaseCheck.Visible = vis;
+            state.h.baseDelayEdit.Visible = vis;
+            if state.floatingBaseMode
+                visBase = 'off';
+            else
+                visBase = vis;
+            end
+            state.h.baseStartEdit.Visible = visBase;
+            state.h.baseEndEdit.Visible = visBase;
+            state.h.setBaseBtn.Visible = visBase;
             fig.UserData = state;
-        end
-        
-        waitbar(0.1, hWaitbar, 'Checking baseframe...');
-        drawnow;
-        fprintf('onGetTraces: Checking baseframe...\n');
-        
-        needBase = isempty(state.baseframeData) || isempty(state.baseframeRangeUsed) || ...
-            state.baseframeStart ~= state.baseframeRangeUsed(1) || ...
-            state.baseframeEnd ~= state.baseframeRangeUsed(2);
-        if needBase
-            waitbar(0.2, hWaitbar, 'Computing baseframe...');
-            drawnow;
-            fprintf('onGetTraces: Computing baseframe (frames %d-%d)...\n', state.baseframeStart, state.baseframeEnd);
-            state = computeBaseframe(fig);
-            state = fig.UserData;
-            fprintf('onGetTraces: Baseframe computed\n');
-        end
-        if isempty(state.baseframeData)
-            close(hWaitbar);
-            fprintf('ERROR: Baseframe computation failed\n');
-            return
         end
         
         meta = state.meta;
         totalFrames = meta.totalFrames;
         fprintf('onGetTraces: Total frames: %d\n', totalFrames);
+        
+        if ~state.floatingBaseMode
+            waitbar(0.1, hWaitbar, 'Checking baseframe...');
+            drawnow;
+            fprintf('onGetTraces: Checking baseframe...\n');
+            
+            needBase = isempty(state.baseframeData) || isempty(state.baseframeRangeUsed) || ...
+                state.baseframeStart ~= state.baseframeRangeUsed(1) || ...
+                state.baseframeEnd ~= state.baseframeRangeUsed(2);
+            if needBase
+                waitbar(0.2, hWaitbar, 'Computing baseframe...');
+                drawnow;
+                fprintf('onGetTraces: Computing baseframe (frames %d-%d)...\n', state.baseframeStart, state.baseframeEnd);
+                state = computeBaseframe(fig);
+                state = fig.UserData;
+                fprintf('onGetTraces: Baseframe computed\n');
+            end
+            if isempty(state.baseframeData)
+                close(hWaitbar);
+                fprintf('ERROR: Baseframe computation failed\n');
+                return
+            end
+            base = double(state.baseframeData);
+        end
         
         numCursors = length(state.cursors);
         traces = cell(numCursors, 1);
@@ -737,8 +948,6 @@ function onGetTraces(src, fig, ax)
         if ~isempty(state.referenceCursor)
             referenceTrace = zeros(totalFrames, 1);
         end
-        
-        base = double(state.baseframeData);
         
         waitbar(0.3, hWaitbar, 'Reading and processing frames...');
         drawnow;
@@ -764,9 +973,18 @@ function onGetTraces(src, fig, ax)
             
             for frameIdx = 1:size(data, 3)
                 globalFrameIdx = batchStart + frameIdx - 1;
+                currentTime = t(frameIdx);
                 
                 frame = double(data(:, :, frameIdx));
                 frameFiltered = applyGaussianFilter(frame, state.gaussianSigma);
+                
+                if state.floatingBaseMode
+                    baseframeData = computeFloatingBaseframe(fig, currentTime);
+                    if isempty(baseframeData)
+                        continue
+                    end
+                    base = double(baseframeData);
+                end
                 
                 if ~isempty(state.referenceCursor)
                     refCursor = state.referenceCursor;
@@ -845,5 +1063,127 @@ function onGetTraces(src, fig, ax)
             fprintf('  %s at line %d\n', ME.stack(k).file, ME.stack(k).line);
         end
         rethrow(ME);
+    end
+end
+
+function updateCursorsTable(fig)
+    state = fig.UserData;
+    if isempty(state.cursors)
+        state.h.cursorsTable.Data = cell(0, 3);
+    else
+        numCursors = length(state.cursors);
+        data = cell(numCursors, 3);
+        for i = 1:numCursors
+            data{i, 1} = i;
+            data{i, 2} = state.cursors(i).center(1);
+            data{i, 3} = state.cursors(i).center(2);
+        end
+        state.h.cursorsTable.Data = data;
+    end
+    fig.UserData = state;
+end
+
+function onEditCursor(src, fig, ax)
+    state = fig.UserData;
+    if ~hasValidMeta(fig)
+        return
+    end
+    if isempty(state.cursors)
+        return
+    end
+    selection = state.h.cursorsTable.UserData;
+    if isempty(selection) || isempty(selection.Indices)
+        return
+    end
+    selectedRow = selection.Indices(1, 1);
+    if selectedRow < 1 || selectedRow > length(state.cursors)
+        return
+    end
+    
+    state.awaitingClick = false;
+    state.awaitingReferenceClick = false;
+    state.editingCursorIndex = selectedRow;
+    state.h.addCursorBtn.String = 'Add Cursor';
+    state.h.addReferenceBtn.String = 'Add Reference';
+    src.String = 'Click on image...';
+    fig.UserData = state;
+end
+
+function onDeleteCursor(~, fig, ax)
+    state = fig.UserData;
+    if isempty(state.cursors)
+        return
+    end
+    selection = state.h.cursorsTable.UserData;
+    if isempty(selection) || isempty(selection.Indices)
+        return
+    end
+    selectedRow = selection.Indices(1, 1);
+    if selectedRow < 1 || selectedRow > length(state.cursors)
+        return
+    end
+    
+    cursor = state.cursors(selectedRow);
+    if ~isempty(cursor.handle) && isvalid(cursor.handle)
+        delete(cursor.handle);
+    end
+    
+    state.cursors(selectedRow) = [];
+    fig.UserData = state;
+    
+    updateCursorsTable(fig);
+    drawCursors(fig, ax);
+end
+
+function onClearCursors(~, fig, ax)
+    state = fig.UserData;
+    if isempty(state.cursors)
+        return
+    end
+    
+    for i = 1:length(state.cursors)
+        cursor = state.cursors(i);
+        if ~isempty(cursor.handle) && isvalid(cursor.handle)
+            delete(cursor.handle);
+        end
+    end
+    
+    state.cursors = [];
+    fig.UserData = state;
+    
+    updateCursorsTable(fig);
+    drawCursors(fig, ax);
+end
+
+function onCursorsTableSelection(src, event, fig)
+    src.UserData = event;
+end
+
+function onDeleteReference(~, fig, ax)
+    state = fig.UserData;
+    if isempty(state.referenceCursor)
+        return
+    end
+    
+    if ~isempty(state.referenceCursor.handle) && isvalid(state.referenceCursor.handle)
+        delete(state.referenceCursor.handle);
+    end
+    
+    children = ax.Children;
+    for i = length(children):-1:1
+        if isa(children(i), 'matlab.graphics.primitive.Line') && ...
+           isequal(children(i).Color, [0 0 1])
+            delete(children(i));
+        end
+    end
+    
+    state.referenceCursor = [];
+    fig.UserData = state;
+    
+    if hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    else
+        drawCursors(fig, ax);
     end
 end
