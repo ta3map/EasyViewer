@@ -41,14 +41,20 @@ function iosPlayerGUI(iosPath)
     hSetBaseBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
         'Position', [0.32 0.22 0.1 0.03], 'String', 'Set baseframe', 'Visible', 'off');
 
+    hAddCursorBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
+        'Position', [0.44 0.22 0.1 0.03], 'String', 'Add Cursor');
+    hGetTracesBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
+        'Position', [0.56 0.22 0.1 0.03], 'String', 'Get Traces');
+
     h = struct('slider', hSlider, 'timeEdit', hTimeEdit, 'playBtn', hPlayBtn, ...
         'speedPopup', hSpeedPopup, 'openBtn', hOpenBtn, 'contrastSlider', hContrastSlider, ...
         'navStart', hNavStart, 'navPrev', hNavPrev, 'navNext', hNavNext, 'navEnd', hNavEnd, ...
         'iosCheck', hIosCheck, 'baseStartEdit', hBaseStartEdit, 'baseEndEdit', hBaseEndEdit, ...
-        'setBaseBtn', hSetBaseBtn, 'gaussianSlider', hGaussianSlider, 'gaussianEdit', hGaussianEdit);
+        'setBaseBtn', hSetBaseBtn, 'gaussianSlider', hGaussianSlider, 'gaussianEdit', hGaussianEdit, ...
+        'addCursorBtn', hAddCursorBtn, 'getTracesBtn', hGetTracesBtn);
     state = struct('iosPath', iosPath, 'meta', [], 'playTimer', [], 'clim', [0 65535], 'h', h, 'him', [], ...
         'iosMode', false, 'baseframeStart', 1, 'baseframeEnd', 1, 'baseframeData', [], 'baseframeRangeUsed', [], ...
-        'gaussianSigma', 3.0, 'climIosBase', []);
+        'gaussianSigma', 3.0, 'climIosBase', [], 'cursors', [], 'awaitingClick', false);
     fig.UserData = state;
 
     hSlider.Callback = @(src,~) onSlider(src, fig, ax);
@@ -66,6 +72,8 @@ function iosPlayerGUI(iosPath)
     hSetBaseBtn.Callback = @(src,~) onSetBaseframe(src, fig, ax);
     hBaseStartEdit.Callback = @(src,~) onBaseRangeEdit(src, fig, ax, 'start');
     hBaseEndEdit.Callback = @(src,~) onBaseRangeEdit(src, fig, ax, 'end');
+    hAddCursorBtn.Callback = @(src,~) onAddCursor(src, fig, ax);
+    hGetTracesBtn.Callback = @(src,~) onGetTraces(src, fig, ax);
 
     if ~isempty(iosPath) && exist(iosPath, 'file')
         openFile(fig, ax, iosPath);
@@ -173,6 +181,8 @@ function openFile(fig, ax, fname)
     state.baseframeEnd = min(meta.totalFrames, 1 + n20);
     state.h.baseStartEdit.String = num2str(state.baseframeStart);
     state.h.baseEndEdit.String = num2str(state.baseframeEnd);
+    state.cursors = [];
+    state.awaitingClick = false;
     fig.UserData = state;
 
     N = meta.totalFrames;
@@ -234,10 +244,13 @@ function showFrame(fig, ax, k)
         state.him = imagesc(ax, displayFrame);
         axis(ax, 'image');
         axis(ax, 'off');
+        state.him.ButtonDownFcn = @(~,~) onImageClick(fig, ax);
     else
         state.him.CData = displayFrame;
     end
     ax.YDir = 'normal';
+    
+    drawCursors(fig, ax);
     c = double(state.h.contrastSlider.Value);
     applyContrast(ax, getBaseRange(state), c);
 
@@ -473,4 +486,245 @@ function s = sec2timeStr(sec)
     m = floor(sec / 60);
     sVal = sec - m * 60;
     s = sprintf('%d:%05.2f', m, sVal);
+end
+
+function onAddCursor(src, fig, ax)
+    state = fig.UserData;
+    if ~hasValidMeta(fig)
+        return
+    end
+    state.awaitingClick = true;
+    src.String = 'Click on image...';
+    fig.UserData = state;
+end
+
+function onImageClick(fig, ax)
+    state = fig.UserData;
+    if ~state.awaitingClick
+        return
+    end
+    if ~hasValidMeta(fig)
+        return
+    end
+    cp = get(ax, 'CurrentPoint');
+    col = round(cp(1, 1));
+    row = round(cp(1, 2));
+    
+    if isempty(state.him) || ~isvalid(state.him)
+        return
+    end
+    
+    frameSize = size(state.him.CData);
+    if row < 1 || row > frameSize(1) || col < 1 || col > frameSize(2)
+        return
+    end
+    
+    halfSize = 5;
+    row_min = max(1, row - halfSize);
+    row_max = min(frameSize(1), row + halfSize);
+    col_min = max(1, col - halfSize);
+    col_max = min(frameSize(2), col + halfSize);
+    
+    cursor = struct();
+    cursor.center = [row, col];
+    cursor.rect = [row_min, row_max, col_min, col_max];
+    cursor.handle = [];
+    
+    if isempty(state.cursors)
+        state.cursors = cursor;
+    else
+        state.cursors(end + 1) = cursor;
+    end
+    
+    state.awaitingClick = false;
+    state.h.addCursorBtn.String = 'Add Cursor';
+    fig.UserData = state;
+    
+    drawCursors(fig, ax);
+end
+
+function drawCursors(fig, ax)
+    state = fig.UserData;
+    if isempty(state.cursors) || isempty(state.him) || ~isvalid(state.him)
+        return
+    end
+    
+    for i = 1:length(state.cursors)
+        cursor = state.cursors(i);
+        if ~isempty(cursor.handle) && isvalid(cursor.handle)
+            delete(cursor.handle);
+        end
+        
+        row_min = cursor.rect(1);
+        row_max = cursor.rect(2);
+        col_min = cursor.rect(3);
+        col_max = cursor.rect(4);
+        
+        x = [col_min, col_max, col_max, col_min, col_min] - 0.5;
+        y = [row_min, row_min, row_max, row_max, row_min] - 0.5;
+        
+        cursor.handle = line(ax, x, y, 'Color', 'r', 'LineWidth', 2, 'HitTest', 'off');
+        state.cursors(i) = cursor;
+    end
+    fig.UserData = state;
+end
+
+function meanIos = computeIosForRegion(state, rowRange, colRange, frameFiltered, baseframeData)
+    frameRegion = double(frameFiltered(rowRange(1):rowRange(2), colRange(1):colRange(2)));
+    baseRegion = double(baseframeData(rowRange(1):rowRange(2), colRange(1):colRange(2)));
+    
+    denom = baseRegion;
+    denom(denom == 0) = NaN;
+    iosRegion = (frameRegion - denom) ./ denom;
+    
+    meanIos = mean(iosRegion(:), 'omitnan');
+end
+
+function onGetTraces(src, fig, ax)
+    state = fig.UserData;
+    hWaitbar = waitbar(0, 'Initializing...');
+    drawnow;
+    
+    try
+        fprintf('onGetTraces: Starting...\n');
+        if ~hasValidMeta(fig)
+            close(hWaitbar);
+            fprintf('ERROR: No file loaded\n');
+            return
+        end
+        if isempty(state.cursors)
+            close(hWaitbar);
+            fprintf('ERROR: No cursors added\n');
+            return
+        end
+        fprintf('onGetTraces: Found %d cursors\n', length(state.cursors));
+        
+        if ~state.iosMode
+            waitbar(0.05, hWaitbar, 'Enabling IOS mode...');
+            drawnow;
+            fprintf('onGetTraces: Enabling IOS mode\n');
+            state.iosMode = true;
+            state.h.iosCheck.Value = 1;
+            vis = 'on';
+            state.h.baseStartEdit.Visible = vis;
+            state.h.baseEndEdit.Visible = vis;
+            state.h.setBaseBtn.Visible = vis;
+            fig.UserData = state;
+        end
+        
+        waitbar(0.1, hWaitbar, 'Checking baseframe...');
+        drawnow;
+        fprintf('onGetTraces: Checking baseframe...\n');
+        
+        needBase = isempty(state.baseframeData) || isempty(state.baseframeRangeUsed) || ...
+            state.baseframeStart ~= state.baseframeRangeUsed(1) || ...
+            state.baseframeEnd ~= state.baseframeRangeUsed(2);
+        if needBase
+            waitbar(0.2, hWaitbar, 'Computing baseframe...');
+            drawnow;
+            fprintf('onGetTraces: Computing baseframe (frames %d-%d)...\n', state.baseframeStart, state.baseframeEnd);
+            state = computeBaseframe(fig);
+            state = fig.UserData;
+            fprintf('onGetTraces: Baseframe computed\n');
+        end
+        if isempty(state.baseframeData)
+            close(hWaitbar);
+            fprintf('ERROR: Baseframe computation failed\n');
+            return
+        end
+        
+        meta = state.meta;
+        totalFrames = meta.totalFrames;
+        fprintf('onGetTraces: Total frames: %d\n', totalFrames);
+        
+        numCursors = length(state.cursors);
+        traces = cell(numCursors, 1);
+        for i = 1:numCursors
+            traces{i} = zeros(totalFrames, 1);
+        end
+        times = zeros(totalFrames, 1);
+        
+        base = double(state.baseframeData);
+        
+        waitbar(0.3, hWaitbar, 'Reading and processing frames...');
+        drawnow;
+        fprintf('onGetTraces: Starting to read frames from %s\n', state.iosPath);
+        
+        batchSize = 100;
+        for batchStart = 1:batchSize:totalFrames
+            batchEnd = min(batchStart + batchSize - 1, totalFrames);
+            progress = 0.3 + 0.65 * (batchStart / totalFrames);
+            waitbar(progress, hWaitbar, sprintf('Reading frames %d-%d/%d...', batchStart, batchEnd, totalFrames));
+            drawnow;
+            fprintf('onGetTraces: Reading frames %d-%d/%d\n', batchStart, batchEnd, totalFrames);
+            
+            [data, t, ~] = readIOS2(state.iosPath, 'startframe', batchStart, 'endframe', batchEnd, 'Format', 'Lin');
+            if isempty(data)
+                fprintf('ERROR: Failed to read frames %d-%d\n', batchStart, batchEnd);
+                close(hWaitbar);
+                return
+            end
+            
+            data = ensure2DFrame(data);
+            times(batchStart:batchEnd) = t;
+            
+            for frameIdx = 1:size(data, 3)
+                globalFrameIdx = batchStart + frameIdx - 1;
+                
+                frame = double(data(:, :, frameIdx));
+                frameFiltered = applyGaussianFilter(frame, state.gaussianSigma);
+                
+                for cursorIdx = 1:numCursors
+                    cursor = state.cursors(cursorIdx);
+                    rowRange = [cursor.rect(1), cursor.rect(2)];
+                    colRange = [cursor.rect(3), cursor.rect(4)];
+                    
+                    frameRegion = frameFiltered(rowRange(1):rowRange(2), colRange(1):colRange(2));
+                    baseRegion = base(rowRange(1):rowRange(2), colRange(1):colRange(2));
+                    
+                    denom = baseRegion;
+                    denom(denom == 0) = NaN;
+                    iosRegion = (frameRegion - denom) ./ denom;
+                    
+                    meanIos = mean(iosRegion(:), 'omitnan');
+                    traces{cursorIdx}(globalFrameIdx) = meanIos;
+                end
+            end
+            fprintf('onGetTraces: Processed frames %d-%d\n', batchStart, batchEnd);
+        end
+        
+        waitbar(0.95, hWaitbar, 'Creating plots...');
+        drawnow;
+        
+        traceFig = figure('Name', 'IOS Traces', 'NumberTitle', 'off');
+        numCursors = length(traces);
+        cols = ceil(sqrt(numCursors));
+        rows = ceil(numCursors / cols);
+        
+        for i = 1:numCursors
+            subplot(rows, cols, i);
+            plot(times, traces{i}, 'LineWidth', 1.5);
+            xlabel('Time (s)');
+            ylabel('IOS');
+            title(sprintf('Cursor %d (row=%d, col=%d)', i, state.cursors(i).center(1), state.cursors(i).center(2)));
+            grid on;
+        end
+        
+        waitbar(1.0, hWaitbar, 'Complete!');
+        drawnow;
+        fprintf('onGetTraces: Complete! Created %d traces\n', numCursors);
+        pause(0.5);
+        close(hWaitbar);
+        
+    catch ME
+        if exist('hWaitbar', 'var') && isvalid(hWaitbar)
+            close(hWaitbar);
+        end
+        fprintf('ERROR in onGetTraces: %s\n', ME.message);
+        fprintf('Stack trace:\n');
+        for k = 1:length(ME.stack)
+            fprintf('  %s at line %d\n', ME.stack(k).file, ME.stack(k).line);
+        end
+        rethrow(ME);
+    end
 end
