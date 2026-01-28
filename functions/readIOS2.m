@@ -56,6 +56,7 @@ function varargout = readIOS2(filename, varargin)
     ip.addParameter('startframe', 1);
     ip.addParameter('endframe', inf);
     ip.addParameter('timestamp', [-1, inf], @isnumeric);
+    ip.addParameter('metadataOnly', false, @(x) islogical(x) || (isnumeric(x) && (x==0 || x==1)));
     ip.parse(filename, varargin{:});
     
     outMode = ip.Results.format;
@@ -73,6 +74,7 @@ function varargout = readIOS2(filename, varargin)
     startframe = ip.Results.startframe; 
     eachframe = ip.Results.eachframe;
     endframe = ip.Results.endframe; 
+    metadataOnly = ip.Results.metadataOnly;
     
     recfileID = fopen(fname, 'r');  
     try
@@ -83,7 +85,48 @@ function varargout = readIOS2(filename, varargin)
         base = fread(recfileID, 1, 'single=>double');
         signal = fread(recfileID, 1, 'single=>double');
         
-        n2read = nbands*vidRes(1)*vidRes(2); % size of frame to read at a time
+        n2read = nbands*vidRes(1)*vidRes(2);
+        bytesPerPixel = 2;
+        recordSize = bytesPerPixel*n2read + 3*2 + 2;
+        headerSize = 101;
+        d = dir(fname);
+        filesize = d.bytes;
+        totalFrames = floor((filesize - headerSize) / recordSize);
+        
+        if metadataOnly
+            t_all = zeros(totalFrames, 1, 'double');
+            ntrig_all = zeros(totalFrames, 1, 'double');
+            for k = 1:totalFrames
+                fseek(recfileID, headerSize + (k-1)*recordSize + bytesPerPixel*n2read, 0);
+                fulltime = fread(recfileID, 3, 'uint16=>double');
+                trignum = fread(recfileID, 1, 'uint16=>double');
+                if isempty(fulltime) || isempty(trignum)
+                    break
+                end
+                t_all(k) = fulltime(1)+fulltime(2)*1e-3+fulltime(3)*1e-6;
+                ntrig_all(k) = trignum;
+            end
+            physIdx_all = (1:totalFrames)';
+            valid = ntrig_all > 0;
+            t_all = t_all(valid);
+            ntrig_all = ntrig_all(valid);
+            physIdx_all = physIdx_all(valid);
+            acqLabel = unique(ntrig_all, 'stable')';
+            dt = 0;
+            if length(t_all) >= 2
+                dt = mean(diff(t_all));
+            end
+            meta = struct('totalFrames', totalFrames, 'vidRes', vidRes', ...
+                't0', t_all(1), 'dt', dt, ...
+                'acqFrameIdx', struct(), 'acqLabel', acqLabel);
+            for a = 1:length(acqLabel)
+                meta.acqFrameIdx.(getAcqName(acqLabel(a))) = physIdx_all(ntrig_all == acqLabel(a));
+            end
+            fclose(recfileID);
+            varargout{1} = meta;
+            return
+        end
+        
         bandOfInterest = 1;
 
         % preparing to parse binary data
