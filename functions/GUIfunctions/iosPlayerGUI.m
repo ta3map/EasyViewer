@@ -4,7 +4,8 @@ function iosPlayerGUI(iosPath)
     end
     fig = figure('Name', 'IOS Player', 'NumberTitle', 'off', ...
         'Units', 'normalized', 'Position', [0.25 0.15 0.5 0.7]);
-    ax = axes(fig, 'Units', 'normalized', 'Position', [0.1 0.5 0.8 0.45]);
+    ax = axes(fig, 'Units', 'normalized', 'Position', [0.1 0.5 0.65 0.45]);
+    chartAx = axes(fig, 'Units', 'normalized', 'Position', [0.77 0.5 0.2 0.45], 'Visible', 'off');
     colormap(fig, gray);
     hSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
         'Position', [0.1 0.38 0.8 0.04], 'Min', 1, 'Max', 2, 'Value', 1);
@@ -73,6 +74,12 @@ function iosPlayerGUI(iosPath)
         'Position', [0.62 0.05 0.12 0.03], 'String', 'Clear All');
     hShowIosCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
         'Position', [0.76 0.11 0.14 0.03], 'String', 'Show IOS values', 'Value', 0);
+    hClearChartBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
+        'Position', [0.77 0.45 0.2 0.04], 'String', 'Clear Chart', 'Visible', 'off');
+    hChartSmoothingText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.77 0.41 0.08 0.03], 'String', 'Smoothing:', 'HorizontalAlignment', 'left', 'Visible', 'off');
+    hChartSmoothingEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
+        'Position', [0.86 0.41 0.11 0.03], 'String', '1', 'Visible', 'off');
 
     h = struct('slider', hSlider, 'timeEdit', hTimeEdit, 'playBtn', hPlayBtn, ...
         'speedPopup', hSpeedPopup, 'openBtn', hOpenBtn, 'contrastSlider', hContrastSlider, ...
@@ -83,12 +90,15 @@ function iosPlayerGUI(iosPath)
         'deleteReferenceBtn', hDeleteReferenceBtn, 'floatingBaseCheck', hFloatingBaseCheck, 'baseDelayEdit', hBaseDelayEdit, ...
         'cursorsTable', hCursorsTable, 'editCursorBtn', hEditCursorBtn, ...
         'deleteCursorBtn', hDeleteCursorBtn, 'clearCursorsBtn', hClearCursorsBtn, ...
-        'showIosCheck', hShowIosCheck);
+        'showIosCheck', hShowIosCheck, 'clearChartBtn', hClearChartBtn, ...
+        'chartSmoothingText', hChartSmoothingText, 'chartSmoothingEdit', hChartSmoothingEdit);
     state = struct('iosPath', iosPath, 'meta', [], 'playTimer', [], 'clim', [0 65535], 'h', h, 'him', [], ...
         'iosMode', false, 'baseframeStart', 1, 'baseframeEnd', 1, 'baseframeData', [], 'baseframeRangeUsed', [], ...
         'gaussianSigma', 3.0, 'climIosBase', [], 'cursors', [], 'awaitingClick', false, ...
         'referenceCursor', [], 'awaitingReferenceClick', false, 'floatingBaseMode', false, 'baseDelay', 1.0, ...
-        'editingCursorIndex', [], 'showIosValues', false, 'selectedCursorIndex', []);
+        'editingCursorIndex', [], 'showIosValues', false, 'selectedCursorIndex', [], ...
+        'chartAx', chartAx, 'chartLines', [], 'chartData', struct('x', {}, 'y', {}, 'cursorIdx', {}), ...
+        'chartSmoothingWindow', 1, 'chartRawData', struct('x', {}, 'y', {}));
     fig.UserData = state;
 
     hSlider.Callback = @(src,~) onSlider(src, fig, ax);
@@ -116,6 +126,8 @@ function iosPlayerGUI(iosPath)
     hDeleteCursorBtn.Callback = @(src,~) onDeleteCursor(src, fig, ax);
     hClearCursorsBtn.Callback = @(src,~) onClearCursors(src, fig, ax);
     hShowIosCheck.Callback = @(src,~) onShowIosCheck(src, fig, ax);
+    hClearChartBtn.Callback = @(src,~) onClearChart(src, fig);
+    hChartSmoothingEdit.Callback = @(src,~) onChartSmoothingChange(src, fig, ax);
 
     if ~isempty(iosPath) && exist(iosPath, 'file')
         openFile(fig, ax, iosPath);
@@ -250,6 +262,7 @@ function openFile(fig, ax, fname)
     end
     
     cla(ax);
+    clearChart(fig);
     
     meta = readIOS2(fname, 'metadataOnly', true);
     state.meta = meta;
@@ -276,6 +289,7 @@ function openFile(fig, ax, fname)
     state.selectedCursorIndex = [];
     fig.UserData = state;
     updateCursorsTable(fig);
+    showHideChart(fig);
 
     N = meta.totalFrames;
     state.h.slider.Min = 1;
@@ -372,6 +386,8 @@ function showFrame(fig, ax, k)
     state.h.timeEdit.String = sec2timeStr(t(1));
     state.h.slider.Value = k;
     fig.UserData = state;
+    
+    updateChart(fig, ax, t(1));
 end
 
 function onSlider(src, fig, ax)
@@ -489,6 +505,7 @@ function onIosCheck(src, fig, ax)
     state.h.baseEndEdit.Visible = visBase;
     state.h.setBaseBtn.Visible = visBase;
     fig.UserData = state;
+    showHideChart(fig);
     k = getCurrentFrame(state);
     showFrame(fig, ax, k);
 end
@@ -767,6 +784,10 @@ function onImageClick(fig, ax)
         
         updateCursorsTable(fig);
         drawCursors(fig, ax);
+        if state.iosMode && hasValidMeta(fig)
+            k = getCurrentFrame(state);
+            showFrame(fig, ax, k);
+        end
         return
     end
     
@@ -814,6 +835,11 @@ function onImageClick(fig, ax)
     
     updateCursorsTable(fig);
     drawCursors(fig, ax);
+    showHideChart(fig);
+    if state.iosMode && hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
 end
 
 function drawCursors(fig, ax)
@@ -1197,6 +1223,10 @@ function onCursorsTableEdit(src, event, fig, ax)
     state.cursors(rowIdx) = cursor;
     fig.UserData = state;
     drawCursors(fig, ax);
+    if state.iosMode && hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
 end
 
 function onShowIosCheck(src, fig, ax)
@@ -1261,6 +1291,11 @@ function onDeleteCursor(~, fig, ax)
     
     updateCursorsTable(fig);
     drawCursors(fig, ax);
+    showHideChart(fig);
+    if state.iosMode && hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
 end
 
 function onClearCursors(~, fig, ax)
@@ -1278,6 +1313,11 @@ function onClearCursors(~, fig, ax)
     
     updateCursorsTable(fig);
     drawCursors(fig, ax);
+    showHideChart(fig);
+    if state.iosMode && hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
 end
 
 function onCursorsTableSelection(src, event, fig)
@@ -1326,5 +1366,245 @@ function onDeleteReference(~, fig, ax)
         showFrame(fig, ax, k);
     else
         drawCursors(fig, ax);
+    end
+end
+
+function updateChart(fig, ax, t)
+    state = fig.UserData;
+    if ~state.iosMode || isempty(state.cursors)
+        return
+    end
+    
+    if isempty(state.him) || ~isvalid(state.him)
+        return
+    end
+    
+    displayFrame = state.him.CData;
+    chartAx = state.chartAx;
+    
+    numCursors = length(state.cursors);
+    visibleCursors = [];
+    iosValues = [];
+    
+    for i = 1:numCursors
+        cursor = state.cursors(i);
+        if ~isfield(cursor, 'visible')
+            cursor.visible = true;
+        end
+        if cursor.visible
+            iosValue = computeCursorIos(state, cursor, displayFrame, state.iosMode, state.baseframeData, []);
+            if ~isnan(iosValue) && isfinite(iosValue)
+                visibleCursors(end + 1) = i;
+                iosValues(end + 1) = iosValue;
+            end
+        end
+    end
+    
+    if isempty(visibleCursors)
+        return
+    end
+    
+    if ~isfield(state, 'chartData') || isempty(state.chartData)
+        state.chartData = struct('x', {}, 'y', {}, 'cursorIdx', {});
+    end
+    
+    numVisible = length(visibleCursors);
+    
+    needInit = isempty(state.chartLines) || length(state.chartLines) ~= numCursors;
+    if ~needInit
+        validLines = false(1, length(state.chartLines));
+        for i = 1:length(state.chartLines)
+            if ~isempty(state.chartLines(i)) && ishghandle(state.chartLines(i))
+                validLines(i) = true;
+            end
+        end
+        needInit = ~any(validLines);
+    end
+    
+    if needInit
+        cla(chartAx);
+        hold(chartAx, 'on');
+        
+        if exist('lines', 'file') == 2
+            colors = lines(numCursors);
+        else
+            colors = hsv(numCursors);
+            colors = colors([1:numCursors], :);
+        end
+        chartLines = [];
+        
+        for i = 1:numCursors
+            hLine = plot(chartAx, NaN, NaN, 'Color', colors(i, :), 'LineWidth', 1.5);
+            chartLines = [chartLines; hLine];
+        end
+        
+        state.chartLines = chartLines;
+        state.chartRawData = struct('x', {}, 'y', {});
+        for i = 1:numCursors
+            state.chartRawData(i).x = [];
+            state.chartRawData(i).y = [];
+        end
+        xlabel(chartAx, 'Time (s)');
+        ylabel(chartAx, 'IOS');
+        grid(chartAx, 'on');
+    end
+    
+    if ~isfield(state, 'chartRawData') || isempty(state.chartRawData)
+        for i = 1:numCursors
+            state.chartRawData(i).x = [];
+            state.chartRawData(i).y = [];
+        end
+    end
+    
+    for idx = 1:length(visibleCursors)
+        cursorIdx = visibleCursors(idx);
+        iosValue = iosValues(idx);
+        
+        if cursorIdx <= length(state.chartRawData)
+            state.chartRawData(cursorIdx).x(end + 1) = t;
+            state.chartRawData(cursorIdx).y(end + 1) = iosValue;
+        end
+    end
+    
+    for idx = 1:length(visibleCursors)
+        cursorIdx = visibleCursors(idx);
+        
+        if cursorIdx <= length(state.chartLines) && ~isempty(state.chartLines(cursorIdx)) && ...
+           cursorIdx <= length(state.chartRawData)
+            try
+                h = state.chartLines(cursorIdx);
+                if ishghandle(h)
+                    xRaw = state.chartRawData(cursorIdx).x;
+                    yRaw = state.chartRawData(cursorIdx).y;
+                    
+                    if isempty(xRaw)
+                        continue
+                    end
+                    
+                    if state.chartSmoothingWindow > 1 && length(xRaw) >= state.chartSmoothingWindow
+                        [xSmoothed, ySmoothed] = applySmoothingToChartData(xRaw, yRaw, state.chartSmoothingWindow);
+                        set(h, 'XData', xSmoothed, 'YData', ySmoothed);
+                    else
+                        set(h, 'XData', xRaw, 'YData', yRaw);
+                    end
+                end
+            catch ME
+                fprintf('Error updating chart line: %s\n', ME.message);
+            end
+        end
+    end
+    
+    if ~isempty(state.chartLines)
+        hasValidLine = false;
+        for i = 1:length(state.chartLines)
+            if ~isempty(state.chartLines(i)) && ishghandle(state.chartLines(i))
+                hasValidLine = true;
+                break;
+            end
+        end
+        if hasValidLine
+            xlabel(chartAx, 'Time (s)');
+            ylabel(chartAx, 'IOS');
+            title(chartAx, sprintf('Current: %s', sec2timeStr(t)));
+        end
+    end
+    
+    fig.UserData = state;
+end
+
+function clearChart(fig)
+    state = fig.UserData;
+    chartAx = state.chartAx;
+    
+    if ~isempty(chartAx) && ishghandle(chartAx)
+        cla(chartAx);
+    end
+    
+    if ~isempty(state.chartLines)
+        for i = 1:length(state.chartLines)
+            if ~isempty(state.chartLines(i)) && ishghandle(state.chartLines(i))
+                delete(state.chartLines(i));
+            end
+        end
+    end
+    
+    state.chartLines = [];
+    state.chartData = struct('x', {}, 'y', {}, 'cursorIdx', {});
+    state.chartRawData = struct('x', {}, 'y', {});
+    fig.UserData = state;
+end
+
+function showHideChart(fig)
+    state = fig.UserData;
+    chartAx = state.chartAx;
+    
+    shouldShow = state.iosMode && ~isempty(state.cursors);
+    
+    if shouldShow
+        chartAx.Visible = 'on';
+        state.h.clearChartBtn.Visible = 'on';
+        state.h.chartSmoothingText.Visible = 'on';
+        state.h.chartSmoothingEdit.Visible = 'on';
+    else
+        chartAx.Visible = 'off';
+        state.h.clearChartBtn.Visible = 'off';
+        state.h.chartSmoothingText.Visible = 'off';
+        state.h.chartSmoothingEdit.Visible = 'off';
+        clearChart(fig);
+    end
+    
+    fig.UserData = state;
+end
+
+function onClearChart(~, fig)
+    clearChart(fig);
+end
+
+function [xSmoothed, ySmoothed] = applySmoothingToChartData(xData, yData, windowSize)
+    if windowSize <= 1 || length(yData) < windowSize
+        xSmoothed = xData;
+        ySmoothed = yData;
+        return
+    end
+    
+    windowSize = round(windowSize);
+    if windowSize < 1
+        windowSize = 1;
+    end
+    
+    if exist('movmean', 'file') == 2
+        ySmoothed = movmean(yData, windowSize);
+        xSmoothed = xData;
+    else
+        n = length(yData);
+        ySmoothed = zeros(size(yData));
+        halfWindow = floor(windowSize / 2);
+        
+        for i = 1:n
+            startIdx = max(1, i - halfWindow);
+            endIdx = min(n, i + halfWindow);
+            ySmoothed(i) = mean(yData(startIdx:endIdx), 'omitnan');
+        end
+        xSmoothed = xData;
+    end
+end
+
+function onChartSmoothingChange(src, fig, ax)
+    state = fig.UserData;
+    newValue = str2double(src.String);
+    
+    if isnan(newValue) || ~isfinite(newValue) || newValue < 1
+        src.String = num2str(state.chartSmoothingWindow);
+        return
+    end
+    
+    newValue = round(newValue);
+    state.chartSmoothingWindow = newValue;
+    src.String = num2str(newValue);
+    fig.UserData = state;
+    
+    if state.iosMode && hasValidMeta(fig) && ~isempty(state.cursors)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
     end
 end
