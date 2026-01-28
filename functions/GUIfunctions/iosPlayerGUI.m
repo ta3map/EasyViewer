@@ -22,7 +22,7 @@ function iosPlayerGUI(iosPath)
     hPlayBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
         'Position', [0.5 0.32 0.06 0.04], 'String', 'Play');
     hSpeedPopup = uicontrol(fig, 'Style', 'popupmenu', 'Units', 'normalized', ...
-        'Position', [0.58 0.32 0.08 0.04], 'String', {'0.5x','1x','2x'}, 'Value', 2);
+        'Position', [0.58 0.32 0.08 0.04], 'String', {'0.5x','1x','2x','10x','20x','50x','100x','200x','500x','1000x'}, 'Value', 2);
     hOpenBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
         'Position', [0.68 0.32 0.12 0.04], 'String', 'Open');
     hContrastSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
@@ -104,6 +104,7 @@ function iosPlayerGUI(iosPath)
     hSlider.Callback = @(src,~) onSlider(src, fig, ax);
     hTimeEdit.Callback = @(src,~) onTimeEdit(src, fig, ax);
     hPlayBtn.Callback = @(src,~) onPlayPause(src, fig, ax);
+    hSpeedPopup.Callback = @(src,~) onSpeedChange(src, fig, ax);
     hOpenBtn.Callback = @(src,~) onOpen(src, fig, ax);
     hContrastSlider.Callback = @(src,~) onContrast(src, fig, ax);
     hGaussianSlider.Callback = @(src,~) onGaussianSlider(src, fig, ax);
@@ -453,7 +454,7 @@ function onPlayPause(src, fig, ax)
     end
     N = state.meta.totalFrames;
     cur = getCurrentFrame(state);
-    speeds = [0.5 1 2];
+    speeds = [0.5 1 2 10 20 50 100 200 500 1000];
     speed = speeds(state.h.speedPopup.Value);
     dt = state.meta.dt / speed;
     if dt <= 0
@@ -471,7 +472,10 @@ end
 function playStep(fig, ax)
     state = fig.UserData;
     t = state.playTimer.UserData;
-    t.cur = t.cur + 1;
+    speeds = [0.5 1 2 10 20 50 100 200 500 1000];
+    speed = speeds(state.h.speedPopup.Value);
+    stepSize = max(1, round(speed));
+    t.cur = t.cur + stepSize;
     if t.cur > t.N
         stop(state.playTimer);
         delete(state.playTimer);
@@ -483,6 +487,22 @@ function playStep(fig, ax)
     state.playTimer.UserData = t;
     fig.UserData = state;
     showFrame(fig, ax, t.cur);
+end
+
+function onSpeedChange(src, fig, ax)
+    state = fig.UserData;
+    if ~isempty(state.playTimer) && isvalid(state.playTimer)
+        speeds = [0.5 1 2 10 20 50 100 200 500 1000];
+        speed = speeds(src.Value);
+        dt = state.meta.dt / speed;
+        if dt <= 0
+            dt = 0.05;
+        end
+        stop(state.playTimer);
+        state.playTimer.Period = dt;
+        start(state.playTimer);
+        fig.UserData = state;
+    end
 end
 
 function onIosCheck(src, fig, ax)
