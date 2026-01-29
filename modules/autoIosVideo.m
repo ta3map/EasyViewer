@@ -17,16 +17,48 @@ function result = autoIosVideo(filePath, fileId, params)
     contrast = params.contrast;
     speed = params.speed;
     outputFolder = params.output_folder;
+    probeCount = params.probe;
+    smoothingWindow = params.smoothing_window;
     
     fig = figure('Name', 'IOS Video Recording', 'NumberTitle', 'off', ...
-        'Units', 'normalized', 'Position', [0.25 0.25 0.5 0.5], 'Visible', 'on');
-    ax = axes(fig, 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
+        'Units', 'normalized', 'Position', [0.25 0.15 0.5 0.7], 'Visible', 'on');
+    ax = axes(fig, 'Units', 'normalized', 'Position', [0.1 0.15 0.6 0.75]);
+    chartAx = axes(fig, 'Units', 'normalized', 'Position', [0.75 0.1 0.2 0.8], 'Visible', 'off');
     colormap(fig, gray);
     
-    state = struct('iosPath', filePath, 'meta', meta, 'him', [], 'timeText', [], ...
+    [~, fileName, ~] = fileparts(filePath);
+    
+    totalTime = 0;
+    if meta.totalFrames > 0
+        [~, tLast, ~] = readIOS2(filePath, 'startframe', meta.totalFrames, 'endframe', meta.totalFrames, 'Format', 'Lin');
+        if ~isempty(tLast)
+            totalTime = tLast(1);
+        end
+    end
+    totalTimeStr = sec2timeStr(totalTime);
+    
+    hTimeEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
+        'Position', [0.1 0.05 0.6 0.04], 'String', sprintf('0:00.00 / %s', totalTimeStr), ...
+        'HorizontalAlignment', 'center', 'Enable', 'inactive', 'BackgroundColor', 'white');
+    
+    probeHintText = [];
+    if probeCount > 0
+        probeHintText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+            'Position', [0.1 0.92 0.6 0.03], 'String', sprintf('%s - Click to add %d probe(s)', fileName, probeCount), ...
+            'HorizontalAlignment', 'center', 'FontSize', 12, 'FontWeight', 'bold');
+    else
+        probeHintText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+            'Position', [0.1 0.92 0.6 0.03], 'String', fileName, ...
+            'HorizontalAlignment', 'center', 'FontSize', 12, 'FontWeight', 'bold');
+    end
+    
+    state = struct('iosPath', filePath, 'meta', meta, 'him', [], 'timeEdit', hTimeEdit, 'probeHintText', probeHintText, ...
         'iosMode', iosMode, 'baseframeStart', 1, 'baseframeEnd', 1, 'baseframeData', [], 'baseframeRangeUsed', [], ...
         'gaussianSigma', gaussianSigma, 'floatingBaseMode', floatingBaseMode, ...
-        'baseDelay', baseframeDurationSeconds, 'contrast', contrast, 'clim', [0 65535], 'climIosBase', []);
+        'baseDelay', baseframeDurationSeconds, 'contrast', contrast, 'clim', [0 65535], 'climIosBase', [], ...
+        'probeCount', probeCount, 'probes', [], 'awaitingProbeClick', false, 'probeData', [], 'probeHandles', [], ...
+        'probesReady', false, 'chartAx', chartAx, 'chartLines', [], 'chartRawData', struct('x', {}, 'y', {}), ...
+        'probeTimes', [], 'chartSmoothingWindow', smoothingWindow, 'totalTime', totalTime, 'fileName', fileName);
     
     if ~floatingBaseMode
         state.baseframeStart = 1;
@@ -76,6 +108,25 @@ function result = autoIosVideo(filePath, fileId, params)
         frameRate = 30;
     end
     
+    numProbes = 0;
+    probeTimes = [];
+    if probeCount > 0
+        showFrame(fig, ax, 1);
+        drawnow;
+        
+        uiwait(fig);
+        
+        state = fig.UserData;
+        numProbes = length(state.probes);
+        state.probeData = cell(numProbes, 1);
+        state.probeTimes = [];
+        for i = 1:numProbes
+            state.probeData{i} = [];
+        end
+        probeTimes = [];
+        fig.UserData = state;
+    end
+    
     v = VideoWriter(outputPath, 'MPEG-4');
     v.FrameRate = frameRate;
     open(v);
@@ -86,15 +137,97 @@ function result = autoIosVideo(filePath, fileId, params)
     try
         for idx = 1:numFramesToRecord
             k = framesToRecord(idx);
-            showFrame(fig, ax, k);
+            [data, t, ~] = readIOS2(filePath, 'startframe', k, 'endframe', k, 'Format', 'Lin');
+            if isempty(data) || any(isnan(data(:)))
+                continue
+            end
+            
+            showFrame(fig, ax, k, data, t);
             drawnow;
+            
+            if probeCount > 0 && ~isempty(state.probes)
+                state = fig.UserData;
+                frame = ensure2DFrame(data);
+                frameD = double(frame);
+                frameFiltered = applyGaussianFilter(frameD, state.gaussianSigma);
+                
+                if state.iosMode
+                    if state.floatingBaseMode
+                        baseframeData = computeFloatingBaseframe(fig, t(1));
+                        if isempty(baseframeData)
+                            base = [];
+                        else
+                            base = double(baseframeData);
+                        end
+                    else
+                        if isempty(state.baseframeData)
+                            state = computeBaseframe(fig);
+                            state = fig.UserData;
+                        end
+                        base = double(state.baseframeData);
+                    end
+                    
+                    if ~isempty(base)
+                        for probeIdx = 1:numProbes
+                            probe = state.probes(probeIdx);
+                            rowRange = [probe.rect(1), probe.rect(2)];
+                            colRange = [probe.rect(3), probe.rect(4)];
+                            
+                            frameRegion = frameFiltered(rowRange(1):rowRange(2), colRange(1):colRange(2));
+                            baseRegion = base(rowRange(1):rowRange(2), colRange(1):colRange(2));
+                            
+                            denom = baseRegion;
+                            denom(denom == 0) = NaN;
+                            iosRegion = (frameRegion - denom) ./ denom;
+                            
+                            meanIos = mean(iosRegion(:), 'omitnan');
+                            state.probeData{probeIdx}(end + 1) = meanIos;
+                        end
+                        state.probeTimes(end + 1) = t(1);
+                        probeTimes(end + 1) = t(1);
+                    end
+                else
+                    for probeIdx = 1:numProbes
+                        probe = state.probes(probeIdx);
+                        rowRange = [probe.rect(1), probe.rect(2)];
+                        colRange = [probe.rect(3), probe.rect(4)];
+                        
+                        region = frameFiltered(rowRange(1):rowRange(2), colRange(1):colRange(2));
+                        meanVal = mean(region(:), 'omitnan');
+                        state.probeData{probeIdx}(end + 1) = meanVal;
+                    end
+                    state.probeTimes(end + 1) = t(1);
+                    probeTimes(end + 1) = t(1);
+                end
+                fig.UserData = state;
+                updateChart(fig, ax, t(1));
+            end
             
             frame = getframe(fig);
             writeVideo(v, frame);
         end
         
         close(v);
+        
+        state = fig.UserData;
+        if probeCount > 0 && ~isempty(state.probes) && ~isempty(state.probeData)
+            createProbeTracesFigure(state.probes, state.probeData, probeTimes, outputPath);
+        end
+        
         close(fig);
+        
+        probeDataResult = [];
+        if probeCount > 0 && ~isempty(state.probes) && ~isempty(state.probeData)
+            probeDataResult = struct();
+            for i = 1:length(state.probes)
+                probeDataResult(i).center = state.probes(i).center;
+                probeDataResult(i).rect = state.probes(i).rect;
+                probeDataResult(i).data = state.probeData{i};
+                if ~isempty(probeTimes)
+                    probeDataResult(i).times = probeTimes;
+                end
+            end
+        end
         
         result = struct( ...
             'module_name', 'autoIosVideo', ...
@@ -102,6 +235,10 @@ function result = autoIosVideo(filePath, fileId, params)
             'module_description', 'Автоматическое сохранение видео iOS', ...
             'report_path', outputPath, ...
             'parameters', params);
+        
+        if ~isempty(probeDataResult)
+            result.probe_data = probeDataResult;
+        end
     catch ME
         if ~isempty(v) && isvalid(v)
             close(v);
@@ -183,13 +320,49 @@ function baseframeData = computeFloatingBaseframe(fig, currentTime)
     baseframeData = applyGaussianFilter(data, state.gaussianSigma);
 end
 
-function showFrame(fig, ax, k)
+function showFrame(fig, ax, k, data, t)
     state = fig.UserData;
-    [data, t, ~] = readIOS2(state.iosPath, 'startframe', k, 'endframe', k, 'Format', 'Lin');
+    if nargin < 4
+        [data, t, ~] = readIOS2(state.iosPath, 'startframe', k, 'endframe', k, 'Format', 'Lin');
+        if isempty(data) || any(isnan(data(:)))
+            return
+        end
+    end
     if isempty(data) || any(isnan(data(:)))
         return
     end
     frame = ensure2DFrame(data);
+    
+    if state.probeCount > 0 && length(state.probes) < state.probeCount
+        displayFrame = double(frame);
+        if isempty(state.him) || ~isvalid(state.him)
+            cla(ax);
+            state.him = imagesc(ax, displayFrame);
+            axis(ax, 'image');
+            axis(ax, 'off');
+            state.him.ButtonDownFcn = @(~,~) onProbeClick(fig, ax);
+        else
+            state.him.CData = displayFrame;
+        end
+        ax.YDir = 'normal';
+        ax.CLim = [min(frame(:)) max(frame(:))];
+        
+        timeStr = sec2timeStr(t(1));
+        totalTimeStr = sec2timeStr(state.totalTime);
+        state.timeEdit.String = sprintf('%s / %s', timeStr, totalTimeStr);
+        
+        remainingProbes = state.probeCount - length(state.probes);
+        if remainingProbes > 0 && ~isempty(state.probeHintText) && isvalid(state.probeHintText)
+            state.probeHintText.String = sprintf('%s - Click to add %d more probe(s)', state.fileName, remainingProbes);
+        elseif remainingProbes == 0 && ~isempty(state.probeHintText) && isvalid(state.probeHintText)
+            state.probeHintText.String = state.fileName;
+        end
+        
+        drawProbes(fig, ax);
+        fig.UserData = state;
+        return
+    end
+    
     if state.iosMode
         if state.floatingBaseMode
             baseframeData = computeFloatingBaseframe(fig, t(1));
@@ -222,7 +395,9 @@ function showFrame(fig, ax, k)
     else
         frameD = double(frame);
         displayFrame = applyGaussianFilter(frameD, state.gaussianSigma);
-        state.clim = [min(frame(:)) max(frame(:))];
+        if isempty(state.clim) || state.clim(1) == 0 && state.clim(2) == 65535
+            state.clim = [min(frame(:)) max(frame(:))];
+        end
         applyContrast(ax, state.clim, state.contrast);
     end
     if isempty(state.him) || ~isvalid(state.him)
@@ -236,13 +411,19 @@ function showFrame(fig, ax, k)
     ax.YDir = 'normal';
     
     timeStr = sec2timeStr(t(1));
-    if isempty(state.timeText) || ~isvalid(state.timeText)
-        state.timeText = text(ax, 0.02, 0.98, timeStr, ...
-            'Units', 'normalized', 'Color', 'yellow', 'FontSize', 14, ...
-            'FontWeight', 'bold', 'BackgroundColor', 'black', ...
-            'EdgeColor', 'yellow', 'Margin', 5, 'VerticalAlignment', 'top');
-    else
-        state.timeText.String = timeStr;
+    totalTimeStr = sec2timeStr(state.totalTime);
+    state.timeEdit.String = sprintf('%s / %s', timeStr, totalTimeStr);
+    
+    if state.probeCount > 0
+        if ~isempty(state.probes)
+            drawProbes(fig, ax);
+        end
+        remainingProbes = state.probeCount - length(state.probes);
+        if remainingProbes > 0 && ~isempty(state.probeHintText) && isvalid(state.probeHintText)
+            state.probeHintText.String = sprintf('%s - Click to add %d more probe(s)', state.fileName, remainingProbes);
+        elseif remainingProbes == 0 && ~isempty(state.probeHintText) && isvalid(state.probeHintText)
+            state.probeHintText.String = state.fileName;
+        end
     end
     
     fig.UserData = state;
@@ -263,5 +444,241 @@ function isAbs = isabsolutepath(path)
         isAbs = length(path) >= 2 && path(2) == ':';
     else
         isAbs = length(path) >= 1 && path(1) == '/';
+    end
+end
+
+function onProbeClick(fig, ax)
+    state = fig.UserData;
+    if state.probeCount <= 0 || length(state.probes) >= state.probeCount
+        return
+    end
+    
+    cp = get(ax, 'CurrentPoint');
+    col = round(cp(1, 1));
+    row = round(cp(1, 2));
+    
+    if isempty(state.him) || ~isvalid(state.him)
+        return
+    end
+    
+    frameSize = size(state.him.CData);
+    if row < 1 || row > frameSize(1) || col < 1 || col > frameSize(2)
+        return
+    end
+    
+    halfSize = 5;
+    row_min = max(1, row - halfSize);
+    row_max = min(frameSize(1), row + halfSize);
+    col_min = max(1, col - halfSize);
+    col_max = min(frameSize(2), col + halfSize);
+    
+    probe = struct();
+    probe.center = [row, col];
+    probe.rect = [row_min, row_max, col_min, col_max];
+    probe.handle = [];
+    
+    numProbes = length(state.probes);
+    colors = getColors(numProbes + 1);
+    probe.color = colors{numProbes + 1};
+    
+    if isempty(state.probes)
+        state.probes = probe;
+    else
+        state.probes(end + 1) = probe;
+    end
+    
+    remainingProbes = state.probeCount - length(state.probes);
+    if remainingProbes > 0 && ~isempty(state.probeHintText) && isvalid(state.probeHintText)
+        state.probeHintText.String = sprintf('%s - Click to add %d more probe(s)', state.fileName, remainingProbes);
+    elseif remainingProbes == 0 && ~isempty(state.probeHintText) && isvalid(state.probeHintText)
+        state.probeHintText.String = state.fileName;
+    end
+    
+    fig.UserData = state;
+    
+    showFrame(fig, ax, 1);
+    
+    if length(state.probes) >= state.probeCount
+        uiresume(fig);
+    end
+end
+
+function drawProbes(fig, ax)
+    state = fig.UserData;
+    if isempty(state.probes) || isempty(state.him) || ~isvalid(state.him)
+        return
+    end
+    
+    if isempty(state.probeHandles)
+        state.probeHandles = [];
+    end
+    
+    for i = 1:length(state.probeHandles)
+        if ~isempty(state.probeHandles(i)) && isvalid(state.probeHandles(i))
+            delete(state.probeHandles(i));
+        end
+    end
+    
+    state.probeHandles = [];
+    
+    for i = 1:length(state.probes)
+        probe = state.probes(i);
+        row_min = probe.rect(1);
+        row_max = probe.rect(2);
+        col_min = probe.rect(3);
+        col_max = probe.rect(4);
+        
+        x = [col_min, col_max, col_max, col_min, col_min] - 0.5;
+        y = [row_min, row_min, row_max, row_max, row_min] - 0.5;
+        
+        probeColor = hex2rgb(probe.color);
+        hLine = line(ax, x, y, 'Color', probeColor, 'LineWidth', 2, 'HitTest', 'off');
+        state.probeHandles(end + 1) = hLine;
+    end
+    
+    fig.UserData = state;
+end
+
+function updateChart(fig, ax, t)
+    state = fig.UserData;
+    if state.probeCount <= 0 || isempty(state.probes) || isempty(state.probeData)
+        return
+    end
+    
+    chartAx = state.chartAx;
+    numProbes = length(state.probes);
+    
+    if isempty(state.chartLines) || length(state.chartLines) ~= numProbes
+        cla(chartAx);
+        hold(chartAx, 'on');
+        chartLines = [];
+        colors = getColors(numProbes);
+        for i = 1:numProbes
+            probeColor = hex2rgb(colors{i});
+            hLine = plot(chartAx, NaN, NaN, 'Color', probeColor, 'LineWidth', 1.5);
+            chartLines = [chartLines; hLine];
+        end
+        state.chartLines = chartLines;
+        state.chartRawData = struct('x', {}, 'y', {});
+        for i = 1:numProbes
+            state.chartRawData(i).x = [];
+            state.chartRawData(i).y = [];
+        end
+        xlabel(chartAx, 'Time (s)');
+        ylabel(chartAx, 'IOS');
+        grid(chartAx, 'on');
+        chartAx.Visible = 'on';
+    end
+    
+    if ~isfield(state, 'chartRawData') || isempty(state.chartRawData)
+        for i = 1:numProbes
+            state.chartRawData(i).x = [];
+            state.chartRawData(i).y = [];
+        end
+    end
+    
+    for probeIdx = 1:numProbes
+        if probeIdx <= length(state.probeData) && ~isempty(state.probeData{probeIdx})
+            if probeIdx <= length(state.chartRawData) && ~isempty(state.probeTimes)
+                dataLen = length(state.probeData{probeIdx});
+                timeLen = length(state.probeTimes);
+                if dataLen <= timeLen
+                    state.chartRawData(probeIdx).x = state.probeTimes(1:dataLen);
+                    state.chartRawData(probeIdx).y = state.probeData{probeIdx};
+                end
+            end
+        end
+    end
+    
+    for probeIdx = 1:numProbes
+        if probeIdx <= length(state.chartLines) && ~isempty(state.chartLines(probeIdx)) && ...
+           probeIdx <= length(state.chartRawData)
+            h = state.chartLines(probeIdx);
+            if ishghandle(h)
+                xRaw = state.chartRawData(probeIdx).x;
+                yRaw = state.chartRawData(probeIdx).y;
+                if ~isempty(xRaw) && ~isempty(yRaw)
+                    if state.chartSmoothingWindow > 1 && length(xRaw) >= state.chartSmoothingWindow
+                        [xSmoothed, ySmoothed] = applySmoothingToChartData(xRaw, yRaw, state.chartSmoothingWindow);
+                        set(h, 'XData', xSmoothed, 'YData', ySmoothed);
+                    else
+                        set(h, 'XData', xRaw, 'YData', yRaw);
+                    end
+                end
+            end
+        end
+    end
+    
+    fig.UserData = state;
+end
+
+function [xSmoothed, ySmoothed] = applySmoothingToChartData(xData, yData, windowSize)
+    if windowSize <= 1 || length(yData) < windowSize
+        xSmoothed = xData;
+        ySmoothed = yData;
+        return
+    end
+    
+    windowSize = round(windowSize);
+    if windowSize < 1
+        windowSize = 1;
+    end
+    
+    if exist('movmean', 'file') == 2
+        ySmoothed = movmean(yData, windowSize);
+        xSmoothed = xData;
+    else
+        n = length(yData);
+        ySmoothed = zeros(size(yData));
+        halfWindow = floor(windowSize / 2);
+        
+        for i = 1:n
+            startIdx = max(1, i - halfWindow);
+            endIdx = min(n, i + halfWindow);
+            ySmoothed(i) = mean(yData(startIdx:endIdx), 'omitnan');
+        end
+        xSmoothed = xData;
+    end
+end
+
+function createProbeTracesFigure(probes, probeData, times, outputPath)
+    if isempty(probes) || isempty(probeData)
+        return
+    end
+    
+    figTag = 'AutoIosVideoProbeTraces';
+    
+    existingFig = findobj('Type', 'figure', 'Tag', figTag);
+    if ~isempty(existingFig)
+        figure(existingFig);
+        clf(existingFig);
+    else
+        existingFig = figure('Name', 'IOS Probe Traces', 'NumberTitle', 'off', 'Tag', figTag);
+    end
+    
+    numProbes = length(probes);
+    cols = ceil(sqrt(numProbes));
+    rows = ceil(numProbes / cols);
+    
+    colors = getColors(numProbes);
+    
+    for i = 1:numProbes
+        subplot(rows, cols, i);
+        probeColor = hex2rgb(colors{i});
+        if ~isempty(times) && length(times) == length(probeData{i})
+            plot(times, probeData{i}, 'Color', probeColor, 'LineWidth', 1.5);
+        else
+            plot(probeData{i}, 'Color', probeColor, 'LineWidth', 1.5);
+        end
+        xlabel('Time (s)');
+        ylabel('IOS');
+        title(sprintf('Probe %d (row=%d, col=%d)', i, probes(i).center(1), probes(i).center(2)));
+        grid on;
+    end
+    
+    if nargin >= 4 && ~isempty(outputPath)
+        [fileDir, fileName, ~] = fileparts(outputPath);
+        tracesPath = fullfile(fileDir, [fileName, '_traces.png']);
+        print(existingFig, tracesPath, '-dpng', '-r300');
     end
 end

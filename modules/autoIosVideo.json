@@ -1,16 +1,18 @@
 {
   "ios": {
     "ios_mode": true,
-    "floating_base": true,
-    "baseframe_duration_seconds": 2,
+    "floating_base": false,
+    "baseframe_duration_seconds": 10,
     "gaussian_sigma": 3,
-    "contrast": 1
+    "contrast": 1,
+    "probe": 1
   },
   "playback": {
-    "speed": 2
+    "speed": 5,
+    "smoothing_window": 5
   },
   "output": {
-    "output_folder": "",
+    "output_folder": "C:/Users/AzaRGajnutdinov/Videos",
     "AddTimestamp": false,
     "ResultSuffix": ""
   }
