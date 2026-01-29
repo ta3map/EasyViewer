@@ -8,7 +8,7 @@ function iosPlayerGUI(iosPath)
     chartAx = axes(fig, 'Units', 'normalized', 'Position', [0.77 0.5 0.2 0.45], 'Visible', 'off');
     colormap(fig, gray);
     hSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
-        'Position', [0.1 0.38 0.8 0.04], 'Min', 1, 'Max', 2, 'Value', 1);
+        'Position', [0.1 0.38 0.5 0.04], 'Min', 1, 'Max', 2, 'Value', 1);
     hTimeEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
         'Position', [0.1 0.32 0.12 0.04], 'String', '0:00.0');
     hNavStart = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
@@ -80,6 +80,8 @@ function iosPlayerGUI(iosPath)
         'Position', [0.77 0.41 0.08 0.03], 'String', 'Smoothing:', 'HorizontalAlignment', 'left', 'Visible', 'off');
     hChartSmoothingEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
         'Position', [0.86 0.41 0.11 0.03], 'String', '1', 'Visible', 'off');
+    hShowChartCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
+        'Position', [0.77 0.37 0.2 0.03], 'String', 'Show Chart', 'Value', 1, 'Visible', 'off');
 
     h = struct('slider', hSlider, 'timeEdit', hTimeEdit, 'playBtn', hPlayBtn, ...
         'speedPopup', hSpeedPopup, 'openBtn', hOpenBtn, 'contrastSlider', hContrastSlider, ...
@@ -91,14 +93,16 @@ function iosPlayerGUI(iosPath)
         'cursorsTable', hCursorsTable, 'editCursorBtn', hEditCursorBtn, ...
         'deleteCursorBtn', hDeleteCursorBtn, 'clearCursorsBtn', hClearCursorsBtn, ...
         'showIosCheck', hShowIosCheck, 'clearChartBtn', hClearChartBtn, ...
-        'chartSmoothingText', hChartSmoothingText, 'chartSmoothingEdit', hChartSmoothingEdit);
+        'chartSmoothingText', hChartSmoothingText, 'chartSmoothingEdit', hChartSmoothingEdit, ...
+        'showChartCheck', hShowChartCheck);
     state = struct('iosPath', iosPath, 'meta', [], 'playTimer', [], 'clim', [0 65535], 'h', h, 'him', [], ...
         'iosMode', false, 'baseframeStart', 1, 'baseframeEnd', 1, 'baseframeData', [], 'baseframeRangeUsed', [], ...
         'gaussianSigma', 3.0, 'climIosBase', [], 'cursors', [], 'awaitingClick', false, ...
         'referenceCursor', [], 'awaitingReferenceClick', false, 'floatingBaseMode', false, 'baseDelay', 1.0, ...
         'editingCursorIndex', [], 'showIosValues', false, 'selectedCursorIndex', [], ...
         'chartAx', chartAx, 'chartLines', [], 'chartData', struct('x', {}, 'y', {}, 'cursorIdx', {}), ...
-        'chartSmoothingWindow', 1, 'chartRawData', struct('x', {}, 'y', {}));
+        'chartSmoothingWindow', 1, 'chartRawData', struct('x', {}, 'y', {}), ...
+        'isUpdating', false, 'lastChartUpdateTime', 0);
     fig.UserData = state;
 
     hSlider.Callback = @(src,~) onSlider(src, fig, ax);
@@ -129,6 +133,7 @@ function iosPlayerGUI(iosPath)
     hShowIosCheck.Callback = @(src,~) onShowIosCheck(src, fig, ax);
     hClearChartBtn.Callback = @(src,~) onClearChart(src, fig);
     hChartSmoothingEdit.Callback = @(src,~) onChartSmoothingChange(src, fig, ax);
+    hShowChartCheck.Callback = @(src,~) onShowChartCheck(src, fig);
 
     if ~isempty(iosPath) && exist(iosPath, 'file')
         openFile(fig, ax, iosPath);
@@ -288,6 +293,8 @@ function openFile(fig, ax, fname)
     state.awaitingReferenceClick = false;
     state.editingCursorIndex = [];
     state.selectedCursorIndex = [];
+    state.isUpdating = false;
+    state.lastChartUpdateTime = 0;
     fig.UserData = state;
     updateCursorsTable(fig);
     showHideChart(fig);
@@ -306,89 +313,108 @@ end
 
 function showFrame(fig, ax, k)
     state = fig.UserData;
-    if ~hasValidMeta(fig)
+    if state.isUpdating
         return
     end
-    [data, t, ~] = readIOS2(state.iosPath, 'startframe', k, 'endframe', k, 'Format', 'Lin');
-    if isempty(data) || any(isnan(data(:)))
-        return
-    end
-    frame = ensure2DFrame(data);
-    if state.iosMode
-        if state.floatingBaseMode
-            baseframeData = computeFloatingBaseframe(fig, t(1));
-            if isempty(baseframeData)
-                state.h.timeEdit.String = sec2timeStr(t(1));
-                state.h.slider.Value = k;
-                fig.UserData = state;
-                return
-            end
-            base = double(baseframeData);
-        else
-            needBase = isempty(state.baseframeData) || isempty(state.baseframeRangeUsed) || ...
-                state.baseframeStart ~= state.baseframeRangeUsed(1) || ...
-                state.baseframeEnd ~= state.baseframeRangeUsed(2);
-            if needBase
-                state = computeBaseframe(fig);
-                state = fig.UserData;
-            end
-            if isempty(state.baseframeData)
-                state.h.timeEdit.String = sec2timeStr(t(1));
-                state.h.slider.Value = k;
-                fig.UserData = state;
-                return
-            end
-            base = double(state.baseframeData);
-        end
-        frameD = double(frame);
-        frameD = applyGaussianFilter(frameD, state.gaussianSigma);
-        denom = base;
-        denom(denom == 0) = NaN;
-        iosFrame = (frameD - denom) ./ denom;
-        
-        if ~isempty(state.referenceCursor)
-            refCursor = state.referenceCursor;
-            rowRange = [refCursor.rect(1), refCursor.rect(2)];
-            colRange = [refCursor.rect(3), refCursor.rect(4)];
-            refRegion = iosFrame(rowRange(1):rowRange(2), colRange(1):colRange(2));
-            refIosValue = mean(refRegion(:), 'omitnan');
-            displayFrame = iosFrame - refIosValue;
-        else
-            displayFrame = iosFrame;
-        end
-        
-        climIos = max(abs(displayFrame(:)));
-        if ~isfinite(climIos) || climIos == 0
-            climIos = 0.01;
-        end
-        climIos = [-climIos climIos];
-        state.climIosBase = climIos;
-    else
-        frameD = double(frame);
-        displayFrame = applyGaussianFilter(frameD, state.gaussianSigma);
-        climIos = [];
-    end
-    if isempty(state.him) || ~isvalid(state.him)
-        cla(ax);
-        state.clim = [min(frame(:)) max(frame(:))];
-        state.him = imagesc(ax, displayFrame);
-        axis(ax, 'image');
-        axis(ax, 'off');
-        state.him.ButtonDownFcn = @(~,~) onImageClick(fig, ax);
-    else
-        state.him.CData = displayFrame;
-    end
-    ax.YDir = 'normal';
-    
-    drawCursors(fig, ax);
-    c = double(state.h.contrastSlider.Value);
-    applyContrast(ax, getBaseRange(state), c);
-
-    state.h.timeEdit.String = sec2timeStr(t(1));
-    state.h.slider.Value = k;
+    state.isUpdating = true;
     fig.UserData = state;
     
-    updateChart(fig, ax, t(1));
+    try
+        if ~hasValidMeta(fig)
+            state.isUpdating = false;
+            fig.UserData = state;
+            return
+        end
+        [data, t, ~] = readIOS2(state.iosPath, 'startframe', k, 'endframe', k, 'Format', 'Lin');
+        if isempty(data) || any(isnan(data(:)))
+            state.isUpdating = false;
+            fig.UserData = state;
+            return
+        end
+        frame = ensure2DFrame(data);
+        if state.iosMode
+            if state.floatingBaseMode
+                baseframeData = computeFloatingBaseframe(fig, t(1));
+                if isempty(baseframeData)
+                    state.h.timeEdit.String = sec2timeStr(t(1));
+                    state.h.slider.Value = k;
+                    state.isUpdating = false;
+                    fig.UserData = state;
+                    return
+                end
+                base = double(baseframeData);
+            else
+                needBase = isempty(state.baseframeData) || isempty(state.baseframeRangeUsed) || ...
+                    state.baseframeStart ~= state.baseframeRangeUsed(1) || ...
+                    state.baseframeEnd ~= state.baseframeRangeUsed(2);
+                if needBase
+                    state = computeBaseframe(fig);
+                    state = fig.UserData;
+                end
+                if isempty(state.baseframeData)
+                    state.h.timeEdit.String = sec2timeStr(t(1));
+                    state.h.slider.Value = k;
+                    state.isUpdating = false;
+                    fig.UserData = state;
+                    return
+                end
+                base = double(state.baseframeData);
+            end
+            frameD = double(frame);
+            frameD = applyGaussianFilter(frameD, state.gaussianSigma);
+            denom = base;
+            denom(denom == 0) = NaN;
+            iosFrame = (frameD - denom) ./ denom;
+            
+            if ~isempty(state.referenceCursor)
+                refCursor = state.referenceCursor;
+                rowRange = [refCursor.rect(1), refCursor.rect(2)];
+                colRange = [refCursor.rect(3), refCursor.rect(4)];
+                refRegion = iosFrame(rowRange(1):rowRange(2), colRange(1):colRange(2));
+                refIosValue = mean(refRegion(:), 'omitnan');
+                displayFrame = iosFrame - refIosValue;
+            else
+                displayFrame = iosFrame;
+            end
+            
+            climIos = max(abs(displayFrame(:)));
+            if ~isfinite(climIos) || climIos == 0
+                climIos = 0.01;
+            end
+            climIos = [-climIos climIos];
+            state.climIosBase = climIos;
+        else
+            frameD = double(frame);
+            displayFrame = applyGaussianFilter(frameD, state.gaussianSigma);
+            climIos = [];
+        end
+        if isempty(state.him) || ~isvalid(state.him)
+            cla(ax);
+            state.clim = [min(frame(:)) max(frame(:))];
+            state.him = imagesc(ax, displayFrame);
+            axis(ax, 'image');
+            axis(ax, 'off');
+            state.him.ButtonDownFcn = @(~,~) onImageClick(fig, ax);
+        else
+            state.him.CData = displayFrame;
+        end
+        ax.YDir = 'normal';
+        
+        drawCursors(fig, ax);
+        c = double(state.h.contrastSlider.Value);
+        applyContrast(ax, getBaseRange(state), c);
+
+        state.h.timeEdit.String = sec2timeStr(t(1));
+        state.h.slider.Value = k;
+        state.isUpdating = false;
+        fig.UserData = state;
+        
+        updateChart(fig, ax, t(1));
+    catch ME
+        state.isUpdating = false;
+        fig.UserData = state;
+        rethrow(ME);
+    end
 end
 
 function onSlider(src, fig, ax)
@@ -411,6 +437,7 @@ function onNav(~, fig, ax, where)
     switch where
         case 'start'
             cur = 1;
+            clearChart(fig);
         case 'end'
             cur = N;
         case 'prev'
@@ -454,6 +481,10 @@ function onPlayPause(src, fig, ax)
     end
     N = state.meta.totalFrames;
     cur = getCurrentFrame(state);
+    if cur >= N
+        cur = 1;
+        showFrame(fig, ax, cur);
+    end
     speeds = [0.5 1 2 10 20 50 100 200 500 1000];
     speed = speeds(state.h.speedPopup.Value);
     dt = state.meta.dt / speed;
@@ -481,12 +512,14 @@ function playStep(fig, ax)
         delete(state.playTimer);
         state.playTimer = [];
         state.h.playBtn.String = 'Play';
+        showFrame(fig, ax, t.N);
         fig.UserData = state;
         return
     end
     state.playTimer.UserData = t;
     fig.UserData = state;
     showFrame(fig, ax, t.cur);
+    drawnow;
 end
 
 function onSpeedChange(src, fig, ax)
@@ -787,9 +820,12 @@ function onImageClick(fig, ax)
             delete(cursor.handle);
         end
         
+        cursorColor = cursor.color;
+        
         cursor.center = [row, col];
         cursor.rect = [row_min, row_max, col_min, col_max];
         cursor.handle = [];
+        cursor.color = cursorColor;
         if ~isfield(cursor, 'visible')
             cursor.visible = true;
         end
@@ -843,6 +879,10 @@ function onImageClick(fig, ax)
     cursor.visible = true;
     cursor.textHandle = [];
     
+    numCursors = length(state.cursors);
+    colors = getColors(numCursors + 1);
+    cursor.color = colors{numCursors + 1};
+    
     if isempty(state.cursors)
         state.cursors = cursor;
     else
@@ -868,19 +908,6 @@ function drawCursors(fig, ax)
         return
     end
     
-    children = ax.Children;
-    for i = length(children):-1:1
-        child = children(i);
-        if (isa(child, 'matlab.graphics.primitive.Line') && ...
-           (isequal(child.Color, [1 0 0]) || isequal(child.Color, [0 0 0]))) || ...
-           (isa(child, 'matlab.graphics.primitive.Patch') && ...
-           isequal(child.FaceColor, [1 0 0]))
-            delete(child);
-        elseif isa(child, 'matlab.graphics.primitive.Text')
-            delete(child);
-        end
-    end
-    
     displayFrame = state.him.CData;
     
     if ~isempty(state.cursors)
@@ -894,6 +921,14 @@ function drawCursors(fig, ax)
             end
             
             if ~cursor.visible
+                if ~isempty(cursor.handle) && isvalid(cursor.handle)
+                    delete(cursor.handle);
+                    cursor.handle = [];
+                end
+                if ~isempty(cursor.textHandle) && isvalid(cursor.textHandle)
+                    delete(cursor.textHandle);
+                    cursor.textHandle = [];
+                end
                 state.cursors(i) = cursor;
                 continue
             end
@@ -905,14 +940,33 @@ function drawCursors(fig, ax)
             
             isSelected = (~isempty(state.selectedCursorIndex) && state.selectedCursorIndex == i);
             
+            cursorColor = hex2rgb(cursor.color);
+            
             if isSelected
                 x = [col_min, col_max, col_max, col_min] - 0.5;
                 y = [row_min, row_min, row_max, row_max] - 0.5;
-                cursor.handle = patch(ax, x, y, 'r', 'FaceAlpha', 0.6, 'EdgeColor', 'r', 'LineWidth', 3, 'HitTest', 'off');
+                if ~isempty(cursor.handle) && isvalid(cursor.handle) && isa(cursor.handle, 'matlab.graphics.primitive.Patch')
+                    cursor.handle.XData = x;
+                    cursor.handle.YData = y;
+                else
+                    if ~isempty(cursor.handle) && isvalid(cursor.handle)
+                        delete(cursor.handle);
+                    end
+                    cursor.handle = patch(ax, x, y, 'r', 'FaceAlpha', 0.6, 'EdgeColor', 'r', 'LineWidth', 3, 'HitTest', 'off');
+                end
             else
                 x = [col_min, col_max, col_max, col_min, col_min] - 0.5;
                 y = [row_min, row_min, row_max, row_max, row_min] - 0.5;
-                cursor.handle = line(ax, x, y, 'Color', 'k', 'LineWidth', 2, 'HitTest', 'off');
+                if ~isempty(cursor.handle) && isvalid(cursor.handle) && isa(cursor.handle, 'matlab.graphics.primitive.Line')
+                    cursor.handle.XData = x;
+                    cursor.handle.YData = y;
+                    cursor.handle.Color = cursorColor;
+                else
+                    if ~isempty(cursor.handle) && isvalid(cursor.handle)
+                        delete(cursor.handle);
+                    end
+                    cursor.handle = line(ax, x, y, 'Color', cursorColor, 'LineWidth', 2, 'HitTest', 'off');
+                end
             end
             
             if state.showIosValues
@@ -920,9 +974,24 @@ function drawCursors(fig, ax)
                 if ~isnan(iosValue) && isfinite(iosValue)
                     textX = col_max + 2;
                     textY = row_min;
-                    cursor.textHandle = text(ax, textX, textY, sprintf('%.4f', iosValue), ...
-                        'Color', 'yellow', 'FontSize', 10, 'FontWeight', 'bold', ...
-                        'BackgroundColor', 'black', 'EdgeColor', 'yellow', 'Margin', 2);
+                    if ~isempty(cursor.textHandle) && isvalid(cursor.textHandle)
+                        cursor.textHandle.String = sprintf('%.4f', iosValue);
+                        cursor.textHandle.Position = [textX, textY, 0];
+                    else
+                        cursor.textHandle = text(ax, textX, textY, sprintf('%.4f', iosValue), ...
+                            'Color', 'yellow', 'FontSize', 10, 'FontWeight', 'bold', ...
+                            'BackgroundColor', 'black', 'EdgeColor', 'yellow', 'Margin', 2);
+                    end
+                else
+                    if ~isempty(cursor.textHandle) && isvalid(cursor.textHandle)
+                        delete(cursor.textHandle);
+                        cursor.textHandle = [];
+                    end
+                end
+            else
+                if ~isempty(cursor.textHandle) && isvalid(cursor.textHandle)
+                    delete(cursor.textHandle);
+                    cursor.textHandle = [];
                 end
             end
             
@@ -932,10 +1001,6 @@ function drawCursors(fig, ax)
     
     if ~isempty(state.referenceCursor)
         refCursor = state.referenceCursor;
-        if ~isempty(refCursor.handle) && isvalid(refCursor.handle)
-            delete(refCursor.handle);
-        end
-        
         row_min = refCursor.rect(1);
         row_max = refCursor.rect(2);
         col_min = refCursor.rect(3);
@@ -944,7 +1009,15 @@ function drawCursors(fig, ax)
         x = [col_min, col_max, col_max, col_min, col_min] - 0.5;
         y = [row_min, row_min, row_max, row_max, row_min] - 0.5;
         
-        refCursor.handle = line(ax, x, y, 'Color', 'b', 'LineWidth', 2, 'HitTest', 'off');
+        if ~isempty(refCursor.handle) && isvalid(refCursor.handle) && isa(refCursor.handle, 'matlab.graphics.primitive.Line')
+            refCursor.handle.XData = x;
+            refCursor.handle.YData = y;
+        else
+            if ~isempty(refCursor.handle) && isvalid(refCursor.handle)
+                delete(refCursor.handle);
+            end
+            refCursor.handle = line(ax, x, y, 'Color', 'b', 'LineWidth', 2, 'HitTest', 'off');
+        end
         state.referenceCursor = refCursor;
     else
         children = ax.Children;
@@ -1176,7 +1249,8 @@ function onGetTraces(src, fig, ax)
         
         for i = 1:numCursors
             subplot(rows, cols, i);
-            plot(times, traces{i}, 'LineWidth', 1.5);
+            cursorColor = hex2rgb(state.cursors(i).color);
+            plot(times, traces{i}, 'Color', cursorColor, 'LineWidth', 1.5);
             xlabel('Time (s)');
             ylabel('IOS');
             title(sprintf('Cursor %d (row=%d, col=%d)', i, state.cursors(i).center(1), state.cursors(i).center(2)));
@@ -1354,10 +1428,22 @@ function onCursorsTableSelection(src, event, fig)
         state.selectedCursorIndex = [];
     end
     fig.UserData = state;
-    ax = findobj(fig, 'Type', 'axes');
-    if ~isempty(ax)
-        drawCursors(fig, ax);
+    if ~isempty(state.him) && isvalid(state.him)
+        ax = state.him.Parent;
+    else
+        allAxes = findobj(fig, 'Type', 'axes');
+        chartAx = state.chartAx;
+        for i = 1:length(allAxes)
+            if allAxes(i) ~= chartAx
+                ax = allAxes(i);
+                break;
+            end
+        end
+        if ~exist('ax', 'var')
+            return
+        end
     end
+    drawCursors(fig, ax);
 end
 
 function onDeleteReference(~, fig, ax)
@@ -1394,6 +1480,13 @@ function updateChart(fig, ax, t)
     if ~state.iosMode || isempty(state.cursors)
         return
     end
+    
+    currentTime = now * 86400;
+    if state.lastChartUpdateTime > 0 && (currentTime - state.lastChartUpdateTime) < 0.05
+        return
+    end
+    state.lastChartUpdateTime = currentTime;
+    fig.UserData = state;
     
     if isempty(state.him) || ~isvalid(state.him)
         return
@@ -1445,16 +1538,11 @@ function updateChart(fig, ax, t)
         cla(chartAx);
         hold(chartAx, 'on');
         
-        if exist('lines', 'file') == 2
-            colors = lines(numCursors);
-        else
-            colors = hsv(numCursors);
-            colors = colors([1:numCursors], :);
-        end
         chartLines = [];
         
         for i = 1:numCursors
-            hLine = plot(chartAx, NaN, NaN, 'Color', colors(i, :), 'LineWidth', 1.5);
+            cursorColor = hex2rgb(state.cursors(i).color);
+            hLine = plot(chartAx, NaN, NaN, 'Color', cursorColor, 'LineWidth', 1.5);
             chartLines = [chartLines; hLine];
         end
         
@@ -1561,15 +1649,21 @@ function showHideChart(fig)
     shouldShow = state.iosMode && ~isempty(state.cursors);
     
     if shouldShow
-        chartAx.Visible = 'on';
         state.h.clearChartBtn.Visible = 'on';
         state.h.chartSmoothingText.Visible = 'on';
         state.h.chartSmoothingEdit.Visible = 'on';
+        state.h.showChartCheck.Visible = 'on';
+        if state.h.showChartCheck.Value
+            chartAx.Visible = 'on';
+        else
+            chartAx.Visible = 'off';
+        end
     else
         chartAx.Visible = 'off';
         state.h.clearChartBtn.Visible = 'off';
         state.h.chartSmoothingText.Visible = 'off';
         state.h.chartSmoothingEdit.Visible = 'off';
+        state.h.showChartCheck.Visible = 'off';
         clearChart(fig);
     end
     
@@ -1627,4 +1721,16 @@ function onChartSmoothingChange(src, fig, ax)
         k = getCurrentFrame(state);
         showFrame(fig, ax, k);
     end
+end
+
+function onShowChartCheck(src, fig)
+    state = fig.UserData;
+    if ~isempty(state.chartAx) && ishghandle(state.chartAx)
+        if src.Value
+            state.chartAx.Visible = 'on';
+        else
+            state.chartAx.Visible = 'off';
+        end
+    end
+    fig.UserData = state;
 end
