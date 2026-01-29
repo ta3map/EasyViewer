@@ -53,7 +53,7 @@ function fileManagerGUI()
     loadSortSettings();
     
     % Инициализация фильтра файлов (локальная переменная)
-    currentFilter = struct('columnName', '', 'searchText', '', 'inverted', false);
+    currentFilter = struct('columnName', '', 'searchText', '', 'inverted', false, 'exactMatch', false);
     
     % Загружаем координаты элементов из JSON файла
     coordsFile = getGUIConfigPath('fileManagerGUI_coords.json');
@@ -1151,28 +1151,7 @@ function fileManagerGUI()
             return
         end
         
-        tableData = fileTable.Data;
-        if isempty(tableData)
-            return
-        end
-        
-        rows = state.selectedRows(:)';
-        rows = rows(rows >= 1 & rows <= size(tableData, 1));
-        
-        if isempty(rows)
-            return
-        end
-        
-        selectedFileIds = cellfun(@(id) id, tableData(rows, 1));
-        
-        filesToProcess = [];
-        for i = 1:numel(selectedFileIds)
-            fileId = selectedFileIds(i);
-            fileIdx = find([state.files.id] == fileId, 1);
-            if ~isempty(fileIdx)
-                filesToProcess = [filesToProcess; state.files(fileIdx)];
-            end
-        end
+        filesToProcess = getSelectedFilesFromTable(fileTable);
         
         if isempty(filesToProcess)
             return
@@ -1772,6 +1751,28 @@ function fileManagerGUI()
         metadataAnalysis(metaPaths, fileIdArray, fileTableData, fileTableColumns);
     end
     
+    function selectedFiles = getSelectedFilesFromTable(fileTable)
+        selectedRows = state.selectedRows;
+        if isempty(selectedRows)
+            selectedFiles = state.files;
+        else
+            tableData = fileTable.Data;
+            if ~isempty(tableData) && max(selectedRows) <= size(tableData, 1)
+                selectedFileIds = cellfun(@(id) id, tableData(selectedRows, 1));
+                selectedFiles = [];
+                for i = 1:numel(selectedFileIds)
+                    fileId = selectedFileIds(i);
+                    fileIdx = find([state.files.id] == fileId, 1);
+                    if ~isempty(fileIdx)
+                        selectedFiles = [selectedFiles; state.files(fileIdx)];
+                    end
+                end
+            else
+                selectedFiles = state.files;
+            end
+        end
+    end
+    
     function handleTableModificationSelection(src, ~)
         selectionIdx = src.Value;
         if selectionIdx == 1
@@ -1783,12 +1784,7 @@ function fileManagerGUI()
         userData = get(src, 'UserData');
         moduleConfig = userData{selectionIdx - 1};
         
-        selectedRows = state.selectedRows;
-        if isempty(selectedRows)
-            selectedRows = 1:numel(state.files);
-        end
-        
-        selectedFiles = state.files(selectedRows);
+        selectedFiles = getSelectedFilesFromTable(fileTable);
         wb = waitbar(0, 'Preparing files...', 'Name', moduleConfig.displayName);
         
         waitbar(0.05, wb, 'Building table...');
@@ -2106,7 +2102,6 @@ function fileManagerGUI()
             src.UserData.vpos = [];
             src.UserData.hpos = [];
             updateFileTableCounter(0);
-            debugState('fileManagerGUI', 'Selection cleared');
             return
         end
         rows = unique(event.Indices(:, 1));
@@ -2140,7 +2135,6 @@ function fileManagerGUI()
             if ~isempty(jScroll)
                 src.UserData.vpos = jScroll.getVerticalScrollBar.getValue();
                 src.UserData.hpos = jScroll.getHorizontalScrollBar.getValue();
-                debugState('fileManagerGUI', 'Selection stored row=%d col=%d vpos=%d hpos=%d', rowIdx, colIdx, src.UserData.vpos, src.UserData.hpos);
             end
         catch
             debugState('fileManagerGUI', 'Selection store failed (row=%d col=%d)', rowIdx, colIdx);
@@ -2174,8 +2168,6 @@ function fileManagerGUI()
             if ~isempty(jScroll)
                 fileTable.UserData.vpos = jScroll.getVerticalScrollBar.getValue();
                 fileTable.UserData.hpos = jScroll.getHorizontalScrollBar.getValue();
-                debugState('fileManagerGUI', 'Stored state row=%s col=%s vpos=%s hpos=%s', ...
-                    mat2str(currentRow), mat2str(currentCol), mat2str(fileTable.UserData.vpos), mat2str(fileTable.UserData.hpos));
             end
         catch
             debugState('fileManagerGUI', 'storeTableState failed for row=%s col=%s', mat2str(currentRow), mat2str(currentCol));
@@ -2223,7 +2215,6 @@ function fileManagerGUI()
                 end
             else
                 clearSelection();
-                debugState('fileManagerGUI', 'restoreTableState: no stored row, rows=%d', rowCount);
             end
         else
             state.selectedRow = min(max(1, userData.row), rowCount);
@@ -2237,19 +2228,15 @@ function fileManagerGUI()
             else
                 state.selectedFileId = [];
             end
-            debugState('fileManagerGUI', 'restoreTableState: target row=%d col=%s rows=%d cols=%d', ...
-                state.selectedRow, mat2str(state.selectedColumn), rowCount, colCount);
         end
         try
             jScroll = findjobj(fileTable);
             if ~isempty(jScroll)
                 if isfield(userData, 'vpos') && ~isempty(userData.vpos)
                     jScroll.getVerticalScrollBar.setValue(userData.vpos);
-                    debugState('fileManagerGUI', 'restoreTableState applied vpos=%d', userData.vpos);
                 end
                 if isfield(userData, 'hpos') && ~isempty(userData.hpos)
                     jScroll.getHorizontalScrollBar.setValue(userData.hpos);
-                    debugState('fileManagerGUI', 'restoreTableState applied hpos=%d', userData.hpos);
                 end
                 if ~isempty(state.selectedRow)
                     jTable = jScroll.getViewport.getView();
@@ -2339,10 +2326,14 @@ function fileManagerGUI()
         debugState('fileManagerGUI', 'parseSearchText: final result numel=%d', numel(searchTerms));
     end
     
-    function filteredFiles = applyFilterToFiles(files, columnName, searchText, inverted)
+    function filteredFiles = applyFilterToFiles(files, columnName, searchText, inverted, exactMatch)
         filteredFiles = [];
         if isempty(files)
             return
+        end
+        
+        if nargin < 5
+            exactMatch = false;
         end
         
         searchTerms = parseSearchText(searchText);
@@ -2364,16 +2355,34 @@ function fileManagerGUI()
                 
                 if strcmp(columnName, 'File ID')
                     fileIdStr = num2str(file.id);
-                    if contains(fileIdStr, term, 'IgnoreCase', true)
-                        termMatch = true;
+                    if exactMatch
+                        if strcmpi(fileIdStr, term)
+                            termMatch = true;
+                        end
+                    else
+                        if contains(fileIdStr, term, 'IgnoreCase', true)
+                            termMatch = true;
+                        end
                     end
                 elseif strcmp(columnName, 'File Name')
-                    if contains(file.name, term, 'IgnoreCase', true)
-                        termMatch = true;
+                    if exactMatch
+                        if strcmpi(file.name, term)
+                            termMatch = true;
+                        end
+                    else
+                        if contains(file.name, term, 'IgnoreCase', true)
+                            termMatch = true;
+                        end
                     end
                 elseif strcmp(columnName, 'Path')
-                    if contains(file.path, term, 'IgnoreCase', true)
-                        termMatch = true;
+                    if exactMatch
+                        if strcmpi(file.path, term)
+                            termMatch = true;
+                        end
+                    else
+                        if contains(file.path, term, 'IgnoreCase', true)
+                            termMatch = true;
+                        end
                     end
                 else
                     safeFieldName = makeSafeFieldName(columnName);
@@ -2381,13 +2390,25 @@ function fileManagerGUI()
                     if isfield(state.metadataData, fileIdStr) && isfield(state.metadataData.(fileIdStr), safeFieldName)
                         fieldValue = state.metadataData.(fileIdStr).(safeFieldName);
                         if ischar(fieldValue) || isstring(fieldValue)
-                            if contains(char(fieldValue), term, 'IgnoreCase', true)
-                                termMatch = true;
+                            if exactMatch
+                                if strcmpi(char(fieldValue), term)
+                                    termMatch = true;
+                                end
+                            else
+                                if contains(char(fieldValue), term, 'IgnoreCase', true)
+                                    termMatch = true;
+                                end
                             end
                         else
                             fieldValueStr = num2str(fieldValue);
-                            if contains(fieldValueStr, term, 'IgnoreCase', true)
-                                termMatch = true;
+                            if exactMatch
+                                if strcmpi(fieldValueStr, term)
+                                    termMatch = true;
+                                end
+                            else
+                                if contains(fieldValueStr, term, 'IgnoreCase', true)
+                                    termMatch = true;
+                                end
                             end
                         end
                     end
@@ -2430,7 +2451,7 @@ function fileManagerGUI()
         filesAreAllFiles = isequal(files, state.files) || (numel(files) == numel(state.files) && all([files.id] == [state.files.id]));
         
         if filesAreAllFiles && ~isempty(currentFilter.columnName) && ~isempty(currentFilter.searchText)
-            files = applyFilterToFiles(files, currentFilter.columnName, currentFilter.searchText, currentFilter.inverted);
+            files = applyFilterToFiles(files, currentFilter.columnName, currentFilter.searchText, currentFilter.inverted, currentFilter.exactMatch);
         end
         
         if filesAreAllFiles && (isempty(currentFilter.columnName) || isempty(currentFilter.searchText))
@@ -3855,6 +3876,14 @@ function fileManagerGUI()
             'Value', currentFilter.inverted, ...
             'FontSize', 11);
         
+        yPos = yPos - checkboxHeight - spacing;
+        
+        exactMatchCheckbox = uicontrol('Parent', dialogFig, 'Style', 'checkbox', ...
+            'Position', [margin, yPos, dialogWidth - 2*margin, checkboxHeight], ...
+            'String', 'Exact match', ...
+            'Value', currentFilter.exactMatch, ...
+            'FontSize', 11);
+        
         yPos = margin;
         
         applyBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
@@ -3896,7 +3925,8 @@ function fileManagerGUI()
             end
             debugState('fileManagerGUI', 'applyFilterCallback: searchText type=%s, length=%d', class(searchText), numel(searchText));
             inverted = get(invertCheckbox, 'Value');
-            applyFileFilter(columnName, searchText, inverted);
+            exactMatch = get(exactMatchCheckbox, 'Value');
+            applyFileFilter(columnName, searchText, inverted, exactMatch);
             close(dialogFig);
         end
         
@@ -3908,9 +3938,12 @@ function fileManagerGUI()
         uiwait(dialogFig);
     end
     
-    function applyFileFilter(columnName, searchText, inverted)
+    function applyFileFilter(columnName, searchText, inverted, exactMatch)
         if nargin < 3
             inverted = false;
+        end
+        if nargin < 4
+            exactMatch = false;
         end
         
         savedFileIds = [];
@@ -3922,6 +3955,7 @@ function fileManagerGUI()
             currentFilter.columnName = '';
             currentFilter.searchText = '';
             currentFilter.inverted = false;
+            currentFilter.exactMatch = false;
             updateTable(state.files);
             if ~isempty(savedFileIds)
                 restoreSelectionByFileIds(savedFileIds);
@@ -3932,13 +3966,14 @@ function fileManagerGUI()
         currentFilter.columnName = columnName;
         currentFilter.searchText = searchText;
         currentFilter.inverted = inverted;
+        currentFilter.exactMatch = exactMatch;
         
         if isempty(state.files)
             updateTable([]);
             return
         end
         
-        filteredFiles = applyFilterToFiles(state.files, columnName, searchText, inverted);
+        filteredFiles = applyFilterToFiles(state.files, columnName, searchText, inverted, exactMatch);
         updateTable(filteredFiles);
         
         if ~isempty(savedFileIds)
@@ -3955,6 +3990,7 @@ function fileManagerGUI()
         currentFilter.columnName = '';
         currentFilter.searchText = '';
         currentFilter.inverted = false;
+        currentFilter.exactMatch = false;
         updateTable(state.files);
         
         if ~isempty(savedFileIds)

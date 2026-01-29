@@ -283,6 +283,50 @@ function events = detectPeaksInOriginalData(calcResult, params)
         events.numEventsAfterZero = 0;
     end
     
+    % Попарный t-тест: подсчет количеств до и после нуля по триалам для каждого канала
+    paired_ttest_pvalue_by_channel = NaN(size(activeChannels));
+    more_responses_after_zero_by_channel = false(size(activeChannels));
+    
+    if ~isempty(events.peak_times) && isfield(events, 'eventIndices') && ~isempty(events.eventIndices)
+        for chIdx = 1:length(activeChannels)
+            channelIdx = activeChannels(chIdx);
+            channel_mask = events.channels == channelIdx;
+            
+            if ~any(channel_mask)
+                continue;
+            end
+            
+            unique_trials = unique(events.eventIndices(channel_mask));
+            
+            if length(unique_trials) < 2
+                continue;
+            end
+            
+            count_before = [];
+            count_after = [];
+            
+            for trialIdx = unique_trials(:)'
+                trial_mask = channel_mask & events.eventIndices == trialIdx;
+                count_before(end+1) = sum(trial_mask & events.peak_times < 0);
+                count_after(end+1) = sum(trial_mask & events.peak_times > 0);
+            end
+            
+            if length(count_before) >= 2 && length(count_after) >= 2
+                try
+                    [~, pvalue] = ttest(count_before, count_after);
+                    paired_ttest_pvalue_by_channel(chIdx) = pvalue;
+                    more_responses_after_zero_by_channel(chIdx) = mean(count_after) > mean(count_before);
+                catch
+                    paired_ttest_pvalue_by_channel(chIdx) = NaN;
+                    more_responses_after_zero_by_channel(chIdx) = false;
+                end
+            end
+        end
+    end
+    
+    events.paired_ttest_pvalue_by_channel = paired_ttest_pvalue_by_channel;
+    events.more_responses_after_zero_by_channel = more_responses_after_zero_by_channel;
+    
     debugState('detectPeaksInOriginalData', 'Total events found: %d', events.numEvents);
     debugState('detectPeaksInOriginalData', 'Events before zero: %d', events.numEventsBeforeZero);
     debugState('detectPeaksInOriginalData', 'Events after zero: %d', events.numEventsAfterZero);

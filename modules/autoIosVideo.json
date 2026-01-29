@@ -1,0 +1,17 @@
+{
+  "ios": {
+    "ios_mode": true,
+    "floating_base": true,
+    "baseframe_duration_seconds": 2,
+    "gaussian_sigma": 3,
+    "contrast": 1
+  },
+  "playback": {
+    "speed": 2
+  },
+  "output": {
+    "output_folder": "",
+    "AddTimestamp": false,
+    "ResultSuffix": ""
+  }
+}

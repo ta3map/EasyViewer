@@ -25,6 +25,8 @@ function iosPlayerGUI(iosPath)
         'Position', [0.58 0.32 0.08 0.04], 'String', {'0.5x','1x','2x','10x','20x','50x','100x','200x','500x','1000x'}, 'Value', 2);
     hOpenBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
         'Position', [0.68 0.32 0.12 0.04], 'String', 'Open');
+    hRecordBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
+        'Position', [0.82 0.32 0.12 0.04], 'String', 'Record');
     hContrastSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
         'Position', [0.1 0.26 0.3 0.03], 'Min', 0.2, 'Max', 2, 'Value', 1);
     uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
@@ -84,7 +86,7 @@ function iosPlayerGUI(iosPath)
         'Position', [0.77 0.37 0.2 0.03], 'String', 'Show Chart', 'Value', 1, 'Visible', 'off');
 
     h = struct('slider', hSlider, 'timeEdit', hTimeEdit, 'playBtn', hPlayBtn, ...
-        'speedPopup', hSpeedPopup, 'openBtn', hOpenBtn, 'contrastSlider', hContrastSlider, ...
+        'speedPopup', hSpeedPopup, 'openBtn', hOpenBtn, 'recordBtn', hRecordBtn, 'contrastSlider', hContrastSlider, ...
         'navStart', hNavStart, 'navPrev', hNavPrev, 'navNext', hNavNext, 'navEnd', hNavEnd, ...
         'iosCheck', hIosCheck, 'baseStartEdit', hBaseStartEdit, 'baseEndEdit', hBaseEndEdit, ...
         'setBaseBtn', hSetBaseBtn, 'gaussianSlider', hGaussianSlider, 'gaussianEdit', hGaussianEdit, ...
@@ -102,7 +104,7 @@ function iosPlayerGUI(iosPath)
         'editingCursorIndex', [], 'showIosValues', false, 'selectedCursorIndex', [], ...
         'chartAx', chartAx, 'chartLines', [], 'chartData', struct('x', {}, 'y', {}, 'cursorIdx', {}), ...
         'chartSmoothingWindow', 1, 'chartRawData', struct('x', {}, 'y', {}), ...
-        'isUpdating', false, 'lastChartUpdateTime', 0);
+        'isUpdating', false, 'lastChartUpdateTime', 0, 'isRecording', false, 'videoWriter', []);
     fig.UserData = state;
 
     hSlider.Callback = @(src,~) onSlider(src, fig, ax);
@@ -110,6 +112,7 @@ function iosPlayerGUI(iosPath)
     hPlayBtn.Callback = @(src,~) onPlayPause(src, fig, ax);
     hSpeedPopup.Callback = @(src,~) onSpeedChange(src, fig, ax);
     hOpenBtn.Callback = @(src,~) onOpen(src, fig, ax);
+    hRecordBtn.Callback = @(src,~) onRecord(src, fig, ax);
     hContrastSlider.Callback = @(src,~) onContrast(src, fig, ax);
     hGaussianSlider.Callback = @(src,~) onGaussianSlider(src, fig, ax);
     hGaussianEdit.Callback = @(src,~) onGaussianEdit(src, fig, ax);
@@ -250,6 +253,13 @@ function openFile(fig, ax, fname)
         delete(state.playTimer);
         state.playTimer = [];
         state.h.playBtn.String = 'Play';
+    end
+    
+    if state.isRecording && ~isempty(state.videoWriter) && isvalid(state.videoWriter)
+        close(state.videoWriter);
+        state.isRecording = false;
+        state.videoWriter = [];
+        state.h.recordBtn.String = 'Record';
     end
     
     if ~isempty(state.cursors)
@@ -692,6 +702,113 @@ function onOpen(~, fig, ax)
     end
     fname = fullfile(p, f);
     openFile(fig, ax, fname);
+end
+
+function onRecord(~, fig, ax)
+    state = fig.UserData;
+    
+    if state.isRecording
+        state.isRecording = false;
+        state.h.recordBtn.String = 'Record';
+        fig.UserData = state;
+        return
+    end
+    
+    if ~hasValidMeta(fig)
+        return
+    end
+    
+    iosPath = state.iosPath;
+    if isempty(iosPath)
+        return
+    end
+    
+    [filePath, fileName, ~] = fileparts(iosPath);
+    if isempty(filePath)
+        filePath = pwd;
+    end
+    
+    defaultFileName = [fileName, '.mp4'];
+    defaultPath = fullfile(filePath, defaultFileName);
+    
+    [f, p] = uiputfile('*.mp4', 'Save Video As', defaultPath);
+    if isequal(f, 0)
+        return
+    end
+    outputPath = fullfile(p, f);
+    
+    v = [];
+    try
+        speeds = [0.5 1 2 10 20 50 100 200 500 1000];
+        speed = speeds(state.h.speedPopup.Value);
+        stepSize = max(1, round(speed));
+        
+        totalFrames = state.meta.totalFrames;
+        
+        if state.meta.dt > 0
+            originalFrameRate = 1 / state.meta.dt;
+            frameRate = originalFrameRate;
+        else
+            frameRate = 30;
+        end
+        
+        if frameRate <= 0
+            frameRate = 30;
+        end
+        
+        v = VideoWriter(outputPath, 'MPEG-4');
+        v.FrameRate = frameRate;
+        open(v);
+        
+        state.isRecording = true;
+        state.videoWriter = v;
+        state.h.recordBtn.String = 'Stop Recording';
+        fig.UserData = state;
+        drawnow;
+        
+        framesToRecord = 1:stepSize:totalFrames;
+        numFramesToRecord = length(framesToRecord);
+        
+        for idx = 1:numFramesToRecord
+            state = fig.UserData;
+            if ~state.isRecording
+                break
+            end
+            
+            k = framesToRecord(idx);
+            showFrame(fig, ax, k);
+            drawnow;
+            
+            frame = getframe(fig);
+            writeVideo(v, frame);
+        end
+        
+        close(v);
+        
+        state = fig.UserData;
+        state.isRecording = false;
+        state.videoWriter = [];
+        state.h.recordBtn.String = 'Record';
+        fig.UserData = state;
+        
+        if idx == numFramesToRecord
+            msgbox(sprintf('Video saved successfully to:\n%s', outputPath), 'Recording Complete', 'help');
+        else
+            msgbox('Video recording stopped by user.', 'Recording Stopped', 'warn');
+        end
+        
+    catch ME
+        if ~isempty(v) && isvalid(v)
+            close(v);
+        end
+        state = fig.UserData;
+        state.isRecording = false;
+        state.videoWriter = [];
+        state.h.recordBtn.String = 'Record';
+        fig.UserData = state;
+        errordlg(sprintf('Error during video recording:\n%s', ME.message), 'Recording Error');
+        rethrow(ME);
+    end
 end
 
 function sec = timeStr2sec(s)
@@ -1444,6 +1561,20 @@ function onCursorsTableSelection(src, event, fig)
         end
     end
     drawCursors(fig, ax);
+    
+    if state.iosMode && ~isempty(state.cursors) && ~isempty(state.chartLines)
+        state = fig.UserData;
+        for i = 1:length(state.chartLines)
+            if ~isempty(state.chartLines(i)) && ishghandle(state.chartLines(i))
+                if ~isempty(state.selectedCursorIndex) && state.selectedCursorIndex == i
+                    state.chartLines(i).LineWidth = 3.0;
+                else
+                    state.chartLines(i).LineWidth = 1.5;
+                end
+            end
+        end
+        fig.UserData = state;
+    end
 end
 
 function onDeleteReference(~, fig, ax)
@@ -1542,7 +1673,12 @@ function updateChart(fig, ax, t)
         
         for i = 1:numCursors
             cursorColor = hex2rgb(state.cursors(i).color);
-            hLine = plot(chartAx, NaN, NaN, 'Color', cursorColor, 'LineWidth', 1.5);
+            if ~isempty(state.selectedCursorIndex) && state.selectedCursorIndex == i
+                lineWidth = 3.0;
+            else
+                lineWidth = 1.5;
+            end
+            hLine = plot(chartAx, NaN, NaN, 'Color', cursorColor, 'LineWidth', lineWidth);
             chartLines = [chartLines; hLine];
         end
         
@@ -1598,6 +1734,16 @@ function updateChart(fig, ax, t)
                 end
             catch ME
                 fprintf('Error updating chart line: %s\n', ME.message);
+            end
+        end
+    end
+    
+    for i = 1:length(state.chartLines)
+        if ~isempty(state.chartLines(i)) && ishghandle(state.chartLines(i))
+            if ~isempty(state.selectedCursorIndex) && state.selectedCursorIndex == i
+                state.chartLines(i).LineWidth = 3.0;
+            else
+                state.chartLines(i).LineWidth = 1.5;
             end
         end
     end

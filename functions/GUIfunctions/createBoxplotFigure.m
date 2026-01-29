@@ -224,7 +224,7 @@ function createBoxplotFigure(fig, state)
             for g = 1:length(uniqueGroupLabels)
                 tickLabels{g} = displayLabelsByFieldName(uniqueGroupLabels{g});
             end
-            set(ax, 'XTick', 1:length(uniqueGroupLabels), 'XTickLabel', tickLabels);
+            set(ax, 'XTick', 1:length(uniqueGroupLabels), 'XTickLabel', tickLabels, 'TickLabelInterpreter', 'none');
             
             % Вычисляем статистические тесты между параметрами на этом полотне
             if state.showStatistics && length(paramDataByFieldName) >= 2

@@ -352,7 +352,7 @@ function createUI(fig, coordsData)
     % Режим визуализации (выпадающий список на месте кнопки Plot)
     plotModePopup = uicontrol('Parent', fig, 'Style', 'popupmenu', ...
         'Position', getElementPosition('plotModePopup'), ...
-        'String', {'BoxPlot', 'Correlation', 'Histogram'}, ...
+        'String', {'BoxPlot', 'Correlation', 'Histogram', 'CountBars'}, ...
         'Tag', 'plotModePopup', ...
         'Value', 1);
     
@@ -1677,6 +1677,8 @@ function plotBoxplotCallback(fig)
                 state.plotMode = 'Correlation';
             elseif selectedValue == 3
                 state.plotMode = 'Histogram';
+            elseif selectedValue == 4
+                state.plotMode = 'CountBars';
             else
                 state.plotMode = 'BoxPlot';
             end
@@ -1721,6 +1723,8 @@ function plotBoxplotCallback(fig)
             wbName = 'Correlation Plot Generation';
         elseif strcmp(state.plotMode, 'Histogram')
             wbName = 'Histogram Generation';
+        elseif strcmp(state.plotMode, 'CountBars')
+            wbName = 'Count Bars Generation';
         else
             wbName = 'Boxplot Generation';
         end
@@ -1749,6 +1753,8 @@ function plotBoxplotCallback(fig)
                 createCorrelationFigure(fig, state);
             elseif strcmp(state.plotMode, 'Histogram')
                 createHistogramFigure(fig, state);
+            elseif strcmp(state.plotMode, 'CountBars')
+                createCountBarsFigure(fig, state);
             else
                 createBoxplotFigure(fig, state);
             end
@@ -2036,6 +2042,8 @@ function updateUIFromState(fig)
                 set(plotModePopup, 'Value', 2);
             elseif strcmp(state.plotMode, 'Histogram')
                 set(plotModePopup, 'Value', 3);
+            elseif strcmp(state.plotMode, 'CountBars')
+                set(plotModePopup, 'Value', 4);
             else
                 set(plotModePopup, 'Value', 1);
             end

@@ -62,6 +62,35 @@ function addResultsTable(fig, events, calcResult)
     end
     summaryData(end+1, :) = totalRow;
     
+    % Строка: Paired t-test (p-value / More after zero) по каналам
+    ttestRow = {'Paired t-test (p-value / More after zero)'};
+    if isfield(events, 'paired_ttest_pvalue_by_channel') && isfield(events, 'more_responses_after_zero_by_channel') && numChannels > 0
+        for i = 1:numChannels
+            chIdx = uniqueChannels(i);
+            activeChIdx = find(calcResult.activeChannels == chIdx, 1);
+            if ~isempty(activeChIdx) && activeChIdx <= length(events.paired_ttest_pvalue_by_channel)
+                pval = events.paired_ttest_pvalue_by_channel(activeChIdx);
+                moreAfter = events.more_responses_after_zero_by_channel(activeChIdx);
+                if ~isnan(pval)
+                    moreAfterStr = 'Yes';
+                    if ~moreAfter
+                        moreAfterStr = 'No';
+                    end
+                    ttestRow{end+1} = sprintf('%.4f / %s', pval, moreAfterStr);
+                else
+                    ttestRow{end+1} = 'N/A';
+                end
+            else
+                ttestRow{end+1} = 'N/A';
+            end
+        end
+    else
+        for i = 1:numChannels
+            ttestRow{end+1} = 'N/A';
+        end
+    end
+    summaryData(end+1, :) = ttestRow;
+    
     if events.numEvents > 0 && numChannels > 0
         % Статистика по каналам для событий до нуля
         beforeZeroMask = events.peak_times < 0;
