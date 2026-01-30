@@ -5,7 +5,7 @@ function iosPlayerGUI(iosPath)
     fig = figure('Name', 'IOS Player', 'NumberTitle', 'off', ...
         'Units', 'normalized', 'Position', [0.25 0.15 0.5 0.7]);
     ax = axes(fig, 'Units', 'normalized', 'Position', [0.1 0.5 0.65 0.45]);
-    chartAx = axes(fig, 'Units', 'normalized', 'Position', [0.77 0.5 0.2 0.45], 'Visible', 'off');
+    chartAx = axes(fig, 'Units', 'normalized', 'Position', [0.77 0.5 0.18 0.45], 'Visible', 'off');
     colormap(fig, gray);
     hSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
         'Position', [0.1 0.38 0.5 0.04], 'Min', 1, 'Max', 2, 'Value', 1);
@@ -26,19 +26,29 @@ function iosPlayerGUI(iosPath)
     hOpenBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
         'Position', [0.68 0.32 0.12 0.04], 'String', 'Open');
     hRecordBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.82 0.32 0.12 0.04], 'String', 'Record');
+        'Position', [0.80 0.32 0.10 0.04], 'String', 'Record');
     hContrastSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
-        'Position', [0.1 0.26 0.3 0.03], 'Min', 0.2, 'Max', 2, 'Value', 1);
+        'Position', [0.1 0.26 0.2 0.03], 'Min', 0.2, 'Max', 2, 'Value', 1);
     hGaussianText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.42 0.26 0.08 0.03], 'String', 'Gaussian:', 'HorizontalAlignment', 'left');
+        'Position', [0.32 0.26 0.08 0.03], 'String', 'Gaussian:', 'HorizontalAlignment', 'left');
     hGaussianSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
-        'Position', [0.5 0.26 0.15 0.03], 'Min', 0, 'Max', 20, 'Value', 3);
+        'Position', [0.41 0.26 0.1 0.03], 'Min', 0, 'Max', 100, 'Value', 3);
     hGaussianEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
-        'Position', [0.67 0.26 0.05 0.03], 'String', '3.0');
+        'Position', [0.52 0.26 0.05 0.03], 'String', '3.0');
+    hNoiseFilterText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.59 0.26 0.08 0.03], 'String', 'Noise filter:', 'HorizontalAlignment', 'left');
+    hNoiseFilterPopup = uicontrol(fig, 'Style', 'popupmenu', 'Units', 'normalized', ...
+        'Position', [0.68 0.26 0.12 0.03], 'String', {'None','Median','Wiener','Highpass'}, 'Value', 1);
     hColormapText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.74 0.26 0.08 0.03], 'String', 'Colormap:', 'HorizontalAlignment', 'left');
+        'Position', [0.72 0.26 0.08 0.03], 'String', 'Colormap:', 'HorizontalAlignment', 'left');
     hColormapPopup = uicontrol(fig, 'Style', 'popupmenu', 'Units', 'normalized', ...
-        'Position', [0.82 0.26 0.12 0.03], 'String', {'gray','jet','hot','cool','parula','hsv','spring','summer','autumn','winter','bone','copper','pink','lines'}, 'Value', 1);
+        'Position', [0.81 0.26 0.15 0.03], 'String', {'gray','jet','hot','cool','parula','hsv','spring','summer','autumn','winter','bone','copper','pink','lines'}, 'Value', 1);
+    hBlurSigmaText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.59 0.23 0.08 0.03], 'String', 'Kernel size:', 'HorizontalAlignment', 'left', 'Visible', 'off');
+    hBlurSigmaSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
+        'Position', [0.68 0.23 0.1 0.03], 'Min', 1, 'Max', 1000, 'Value', 5, 'Visible', 'off');
+    hBlurSigmaEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
+        'Position', [0.79 0.23 0.05 0.03], 'String', '5', 'Visible', 'off');
     hIosCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
         'Position', [0.1 0.22 0.04 0.03], 'String', 'IOS', 'Value', 0);
     hBaseStartEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
@@ -47,38 +57,37 @@ function iosPlayerGUI(iosPath)
         'Position', [0.24 0.22 0.06 0.03], 'String', '1', 'Visible', 'off');
     hSetBaseBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
         'Position', [0.32 0.22 0.1 0.03], 'String', 'Set baseframe', 'Visible', 'off');
+    hGetTracesBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
+        'Position', [0.44 0.22 0.1 0.03], 'String', 'Get Traces');
+    hAddReferenceBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
+        'Position', [0.56 0.22 0.08 0.03], 'String', 'Add Reference');
+    hDeleteReferenceBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
+        'Position', [0.65 0.22 0.08 0.03], 'String', 'Delete Reference');
     hFloatingBaseCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
         'Position', [0.1 0.19 0.12 0.03], 'String', 'Floating base', 'Value', 0, 'Visible', 'off');
     hBaseDelayEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
         'Position', [0.24 0.19 0.06 0.03], 'String', '1.0', 'Visible', 'off');
-
-    hGetTracesBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.44 0.22 0.1 0.03], 'String', 'Get Traces');
+    hReferenceSizeText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.56 0.19 0.06 0.03], 'String', 'Ref Size:', 'HorizontalAlignment', 'left', 'Visible', 'off');
+    hReferenceSizeEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
+        'Position', [0.63 0.19 0.05 0.03], 'String', '10', 'Visible', 'off');
+    hReferenceFullSizeCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
+        'Position', [0.56 0.16 0.17 0.03], 'String', 'Full Image Reference', 'Value', 0, 'Visible', 'off');
     hAddCursorBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
         'Position', [0.62 0.14 0.12 0.03], 'String', 'Add Cursor');
-    hAddReferenceBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.68 0.22 0.08 0.03], 'String', 'Add Reference');
-    hDeleteReferenceBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.77 0.22 0.08 0.03], 'String', 'Delete Reference');
-    hReferenceSizeText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.68 0.19 0.06 0.03], 'String', 'Ref Size:', 'HorizontalAlignment', 'left', 'Visible', 'off');
-    hReferenceSizeEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
-        'Position', [0.75 0.19 0.05 0.03], 'String', '10', 'Visible', 'off');
-    hReferenceFullSizeCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
-        'Position', [0.68 0.16 0.17 0.03], 'String', 'Full Image Reference', 'Value', 0, 'Visible', 'off');
     hIosMinText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
         'Position', [0.75 0.07 0.06 0.03], 'String', 'IOS Min:', 'HorizontalAlignment', 'left');
     hIosMinEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
         'Position', [0.75 0.05 0.05 0.03], 'String', '');
     hIosMaxText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.89 0.07 0.06 0.03], 'String', 'IOS Max:', 'HorizontalAlignment', 'left');
+        'Position', [0.87 0.07 0.06 0.03], 'String', 'IOS Max:', 'HorizontalAlignment', 'left');
     hIosMaxEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
-        'Position', [0.89 0.05 0.05 0.03], 'String', '');
+        'Position', [0.87 0.05 0.05 0.03], 'String', '');
 
     hCursorsText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.1 0.15 0.2 0.03], 'String', 'Cursors:', 'HorizontalAlignment', 'left');
+        'Position', [0.1 0.16 0.2 0.03], 'String', 'Cursors:', 'HorizontalAlignment', 'left');
     hCursorsTable = uitable(fig, 'Units', 'normalized', ...
-        'Position', [0.1 0.05 0.5 0.1], ...
+        'Position', [0.1 0.05 0.5 0.11], ...
         'ColumnName', {'#', 'Row', 'Col', 'Size', 'Visible'}, ...
         'ColumnEditable', [false false false true true], ...
         'ColumnFormat', {'numeric', 'numeric', 'numeric', 'numeric', 'logical'}, ...
@@ -95,11 +104,11 @@ function iosPlayerGUI(iosPath)
     hShowIosCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
         'Position', [0.76 0.11 0.14 0.03], 'String', 'Show IOS values', 'Value', 0);
     hClearChartBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.77 0.45 0.2 0.04], 'String', 'Clear Chart', 'Visible', 'off');
+        'Position', [0.77 0.45 0.18 0.04], 'String', 'Clear Chart', 'Visible', 'off');
     hChartSmoothingText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
         'Position', [0.77 0.41 0.08 0.03], 'String', 'Smoothing:', 'HorizontalAlignment', 'left', 'Visible', 'off');
     hChartSmoothingEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
-        'Position', [0.86 0.41 0.11 0.03], 'String', '1', 'Visible', 'off');
+        'Position', [0.86 0.41 0.09 0.03], 'String', '1', 'Visible', 'off');
     hShowChartCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
         'Position', [0.77 0.37 0.2 0.03], 'String', 'Show Chart', 'Value', 1, 'Visible', 'off');
 
@@ -113,6 +122,8 @@ function iosPlayerGUI(iosPath)
         'deleteReferenceBtn', hDeleteReferenceBtn, 'referenceSizeEdit', hReferenceSizeEdit, 'referenceSizeText', hReferenceSizeText, ...
         'referenceFullSizeCheck', hReferenceFullSizeCheck, ...
         'floatingBaseCheck', hFloatingBaseCheck, 'baseDelayEdit', hBaseDelayEdit, ...
+        'noiseFilterText', hNoiseFilterText, 'noiseFilterPopup', hNoiseFilterPopup, ...
+        'blurSigmaText', hBlurSigmaText, 'blurSigmaSlider', hBlurSigmaSlider, 'blurSigmaEdit', hBlurSigmaEdit, ...
         'cursorsText', hCursorsText, 'cursorsTable', hCursorsTable, 'editCursorBtn', hEditCursorBtn, ...
         'deleteCursorBtn', hDeleteCursorBtn, 'clearCursorsBtn', hClearCursorsBtn, ...
         'showIosCheck', hShowIosCheck, 'clearChartBtn', hClearChartBtn, ...
@@ -124,6 +135,7 @@ function iosPlayerGUI(iosPath)
         'gaussianSigma', 3.0, 'climIosBase', [], 'climIosMin', [], 'climIosMax', [], 'cursors', [], 'awaitingClick', false, ...
         'referenceCursor', [], 'awaitingReferenceClick', false, 'referenceSize', 10, 'referenceFullSize', false, ...
         'floatingBaseMode', false, 'baseDelay', 1.0, ...
+        'noiseFilterType', 'none', 'noiseFilterParam', 5, ...
         'editingCursorIndex', [], 'showIosValues', false, 'selectedCursorIndex', [], ...
         'chartAx', chartAx, 'chartLines', [], 'chartData', struct('x', {}, 'y', {}, 'cursorIdx', {}), ...
         'chartSmoothingWindow', 1, 'chartRawData', struct('x', {}, 'y', {}), ...
@@ -166,6 +178,9 @@ function iosPlayerGUI(iosPath)
     hIosMinEdit.Callback = @(src,~) onIosRangeEdit(src, fig, ax, 'min');
     hIosMaxEdit.Callback = @(src,~) onIosRangeEdit(src, fig, ax, 'max');
     hColormapPopup.Callback = @(src,~) onColormapChange(src, fig, ax);
+    hNoiseFilterPopup.Callback = @(src,~) onNoiseFilterChange(src, fig, ax);
+    hBlurSigmaSlider.Callback = @(src,~) onNoiseFilterParamSlider(src, fig, ax);
+    hBlurSigmaEdit.Callback = @(src,~) onNoiseFilterParamEdit(src, fig, ax);
 
     if ~isempty(iosPath) && exist(iosPath, 'file')
         openFile(fig, ax, iosPath);
@@ -183,6 +198,69 @@ function filtered = applyGaussianFilter(img, sigma)
         hsize = max(3, 2 * ceil(3 * sigma) + 1);
         h = fspecial('gaussian', hsize, sigma);
         filtered = conv2(img, h, 'same');
+    end
+end
+
+function resultFrame = applySubtractBlurred(frame, blurSigma)
+    if blurSigma <= 0
+        resultFrame = frame;
+        return
+    end
+    blurredFrame = applyGaussianFilter(frame, blurSigma);
+    resultFrame = frame - blurredFrame;
+end
+
+function filtered = applyMedianFilter(img, windowSize)
+    if windowSize < 3
+        filtered = img;
+        return
+    end
+    windowSize = round(windowSize);
+    if mod(windowSize, 2) == 0
+        windowSize = windowSize + 1;
+    end
+    if exist('medfilt2', 'file') == 2
+        filtered = medfilt2(img, [windowSize windowSize]);
+    else
+        filtered = img;
+    end
+end
+
+function filtered = applyWienerFilter(img, windowSize)
+    if windowSize < 3
+        filtered = img;
+        return
+    end
+    windowSize = round(windowSize);
+    if mod(windowSize, 2) == 0
+        windowSize = windowSize + 1;
+    end
+    if exist('wiener2', 'file') == 2
+        filtered = wiener2(img, [windowSize windowSize]);
+    else
+        filtered = img;
+    end
+end
+
+function filtered = applyHighpassFilter(img, sigma)
+    if sigma <= 0
+        filtered = img;
+        return
+    end
+    lowpass = applyGaussianFilter(img, sigma);
+    filtered = img - lowpass;
+end
+
+function filtered = applyNoiseFilter(frame, filterType, param)
+    switch filterType
+        case 'median'
+            filtered = applyMedianFilter(frame, param);
+        case 'wiener'
+            filtered = applyWienerFilter(frame, param);
+        case 'highpass'
+            filtered = applyHighpassFilter(frame, param);
+        otherwise
+            filtered = frame;
     end
 end
 
@@ -289,6 +367,129 @@ function baseframeData = computeFloatingBaseframe(fig, k)
     baseframeData = applyGaussianFilter(data, state.gaussianSigma);
 end
 
+function [rawFrame, t] = loadRawFrame(state, k)
+    [data, t, ~] = readIOS2(state.iosPath, 'startframe', k, 'endframe', k, 'Format', 'Lin');
+    rawFrame = ensure2DFrame(data);
+end
+
+function baseFrame = getBaseFrame(fig, k)
+    state = fig.UserData;
+    baseFrame = [];
+    
+    if ~state.iosMode
+        return
+    end
+    
+    if state.floatingBaseMode
+        baseFrame = computeFloatingBaseframe(fig, k);
+    else
+        needBase = isempty(state.baseframeData) || isempty(state.baseframeRangeUsed) || ...
+            state.baseframeStart ~= state.baseframeRangeUsed(1) || ...
+            state.baseframeEnd ~= state.baseframeRangeUsed(2);
+        if needBase
+            state = computeBaseframe(fig);
+            state = fig.UserData;
+        end
+        if ~isempty(state.baseframeData)
+            baseFrame = double(state.baseframeData);
+        end
+    end
+end
+
+function processedFrame = computeIOS(filteredFrame, baseFrame, state)
+    if ~state.iosMode || isempty(baseFrame)
+        processedFrame = filteredFrame;
+        return
+    end
+    
+    denom = double(baseFrame);
+    denom(denom == 0) = NaN;
+    processedFrame = (filteredFrame - denom) ./ denom;
+end
+
+function [displayFrame, state] = applyReferenceCorrection(frame, state, fig)
+    displayFrame = frame;
+    
+    if ~state.iosMode
+        return
+    end
+    
+    if state.referenceFullSize && isempty(state.referenceCursor)
+        frameSize = size(frame);
+        referenceCursor = struct();
+        referenceCursor.center = [round(frameSize(1)/2), round(frameSize(2)/2)];
+        referenceCursor.rect = [1, frameSize(1), 1, frameSize(2)];
+        referenceCursor.handle = [];
+        referenceCursor.size = max(frameSize(1), frameSize(2));
+        state.referenceCursor = referenceCursor;
+        fig.UserData = state;
+    end
+    
+    if ~isempty(state.referenceCursor)
+        refCursor = state.referenceCursor;
+        rowRange = [refCursor.rect(1), refCursor.rect(2)];
+        colRange = [refCursor.rect(3), refCursor.rect(4)];
+        refRegion = frame(rowRange(1):rowRange(2), colRange(1):colRange(2));
+        refIosValue = median(refRegion(:), 'omitnan');
+        displayFrame = frame - refIosValue;
+    end
+end
+
+function [baseRange, state] = computeDisplayRange(displayFrame, rawFrame, state, fig)
+    percentileMin = 0.01;
+    percentileMax = 99.99;
+    
+    if state.iosMode
+        if isempty(state.climIosMin) || isempty(state.climIosMax)
+            state.climIosMin = prctile(displayFrame(:), percentileMin);
+            state.climIosMax = prctile(displayFrame(:), percentileMax);
+            state.h.iosMinEdit.String = sprintf('%.6f', state.climIosMin);
+            state.h.iosMaxEdit.String = sprintf('%.6f', state.climIosMax);
+        end
+        state.climIosBase = [state.climIosMin state.climIosMax];
+        baseRange = state.climIosBase;
+        fig.UserData = state;
+    else
+        if isempty(state.clim) || (state.clim(1) == 0 && state.clim(2) == 65535)
+            state.clim = [prctile(rawFrame(:), percentileMin) prctile(rawFrame(:), percentileMax)];
+        end
+        baseRange = state.clim;
+        fig.UserData = state;
+    end
+end
+
+function [displayFrame, baseRange, state, t] = processFramePipeline(fig, k)
+    state = fig.UserData;
+    
+    [rawFrame, t] = loadRawFrame(state, k);
+    if isempty(rawFrame) || any(isnan(rawFrame(:)))
+        displayFrame = [];
+        baseRange = [];
+        return
+    end
+    
+    filteredFrame = applyGaussianFilter(double(rawFrame), state.gaussianSigma);
+    
+    baseFrame = getBaseFrame(fig, k);
+    if state.iosMode && isempty(baseFrame)
+        displayFrame = [];
+        baseRange = [];
+        return
+    end
+    
+    processedFrame = computeIOS(filteredFrame, baseFrame, state);
+    
+    [displayFrame, state] = applyReferenceCorrection(processedFrame, state, fig);
+    
+    if ~strcmp(state.noiseFilterType, 'none')
+        displayFrame = applyNoiseFilter(displayFrame, state.noiseFilterType, state.noiseFilterParam);
+    end
+    
+    [baseRange, state] = computeDisplayRange(displayFrame, rawFrame, state, fig);
+    
+    fig.UserData = state;
+end
+
 function openFile(fig, ax, fname)
     state = fig.UserData;
     if ~isempty(state.playTimer) && isvalid(state.playTimer)
@@ -340,6 +541,15 @@ function openFile(fig, ax, fname)
     state.baseDelay = 1.0;
     state.h.baseDelayEdit.String = sprintf('%.2f', state.baseDelay);
     state.h.baseDelayEdit.Visible = 'off';
+    
+    state.noiseFilterType = 'none';
+    state.noiseFilterParam = 5;
+    state.h.noiseFilterPopup.Value = 1;
+    state.h.blurSigmaText.Visible = 'off';
+    state.h.blurSigmaSlider.Visible = 'off';
+    state.h.blurSigmaSlider.Value = 5;
+    state.h.blurSigmaEdit.Visible = 'off';
+    state.h.blurSigmaEdit.String = '5';
     
     state.cursors = [];
     state.awaitingClick = false;
@@ -402,73 +612,19 @@ function showFrame(fig, ax, k)
             fig.UserData = state;
             return
         end
-        [data, t, ~] = readIOS2(state.iosPath, 'startframe', k, 'endframe', k, 'Format', 'Lin');
-        if isempty(data) || any(isnan(data(:)))
+        
+        [displayFrame, baseRange, state, t] = processFramePipeline(fig, k);
+        
+        if isempty(displayFrame)
+            state.h.timeEdit.String = sec2timeStr(t(1));
+            state.h.slider.Value = k;
             state.isUpdating = false;
             fig.UserData = state;
             return
         end
-        frame = ensure2DFrame(data);
-        if state.iosMode
-            if state.floatingBaseMode
-                baseframeData = computeFloatingBaseframe(fig, k);
-                if isempty(baseframeData)
-                    state.h.timeEdit.String = sec2timeStr(t(1));
-                    state.h.slider.Value = k;
-                    state.isUpdating = false;
-                    fig.UserData = state;
-                    return
-                end
-                base = double(baseframeData);
-            else
-                needBase = isempty(state.baseframeData) || isempty(state.baseframeRangeUsed) || ...
-                    state.baseframeStart ~= state.baseframeRangeUsed(1) || ...
-                    state.baseframeEnd ~= state.baseframeRangeUsed(2);
-                if needBase
-                    state = computeBaseframe(fig);
-                    state = fig.UserData;
-                end
-                if isempty(state.baseframeData)
-                    state.h.timeEdit.String = sec2timeStr(t(1));
-                    state.h.slider.Value = k;
-                    state.isUpdating = false;
-                    fig.UserData = state;
-                    return
-                end
-                base = double(state.baseframeData);
-            end
-            frameD = double(frame);
-            frameD = applyGaussianFilter(frameD, state.gaussianSigma);
-            denom = base;
-            denom(denom == 0) = NaN;
-            iosFrame = (frameD - denom) ./ denom;
-            
-            if ~isempty(state.referenceCursor)
-                refCursor = state.referenceCursor;
-                rowRange = [refCursor.rect(1), refCursor.rect(2)];
-                colRange = [refCursor.rect(3), refCursor.rect(4)];
-                refRegion = iosFrame(rowRange(1):rowRange(2), colRange(1):colRange(2));
-                refIosValue = median(refRegion(:), 'omitnan');
-                displayFrame = iosFrame - refIosValue;
-            else
-                displayFrame = iosFrame;
-            end
-            
-            if isempty(state.climIosMin) || isempty(state.climIosMax)
-                state.climIosMin = prctile(displayFrame(:), 1);
-                state.climIosMax = prctile(displayFrame(:), 99);
-                state.h.iosMinEdit.String = sprintf('%.6f', state.climIosMin);
-                state.h.iosMaxEdit.String = sprintf('%.6f', state.climIosMax);
-            end
-            state.climIosBase = [state.climIosMin state.climIosMax];
-        else
-            frameD = double(frame);
-            displayFrame = applyGaussianFilter(frameD, state.gaussianSigma);
-            climIos = [];
-        end
+        
         if isempty(state.him) || ~isvalid(state.him)
             cla(ax);
-            state.clim = [prctile(frame(:), 1) prctile(frame(:), 99)];
             state.him = imagesc(ax, displayFrame);
             axis(ax, 'image');
             axis(ax, 'off');
@@ -480,11 +636,7 @@ function showFrame(fig, ax, k)
         
         drawCursors(fig, ax);
         c = double(state.h.contrastSlider.Value);
-        if state.iosMode && ~isempty(state.climIosBase)
-            applyContrast(ax, state.climIosBase, c);
-        else
-            applyContrast(ax, getBaseRange(state), c);
-        end
+        applyContrast(ax, baseRange, c);
 
         state.h.timeEdit.String = sec2timeStr(t(1));
         state.h.slider.Value = k;
@@ -766,10 +918,107 @@ function onGaussianEdit(src, fig, ax)
         src.String = sprintf('%.2f', state.gaussianSigma);
         return
     end
-    sigma = max(0, min(20, sigma));
+    sigma = max(0, min(100, sigma));
     state.gaussianSigma = sigma;
     state.h.gaussianSlider.Value = sigma;
     state = clearBaseframe(state);
+    fig.UserData = state;
+    if hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
+end
+
+function onNoiseFilterChange(src, fig, ax)
+    state = fig.UserData;
+    filterTypes = {'none', 'median', 'wiener', 'highpass'};
+    selectedIdx = src.Value;
+    if selectedIdx < 1 || selectedIdx > length(filterTypes)
+        selectedIdx = 1;
+    end
+    state.noiseFilterType = filterTypes{selectedIdx};
+    
+    if strcmp(state.noiseFilterType, 'none')
+        state.h.blurSigmaText.Visible = 'off';
+        state.h.blurSigmaSlider.Visible = 'off';
+        state.h.blurSigmaEdit.Visible = 'off';
+    else
+        state.h.blurSigmaText.Visible = 'on';
+        state.h.blurSigmaSlider.Visible = 'on';
+        state.h.blurSigmaEdit.Visible = 'on';
+        if strcmp(state.noiseFilterType, 'median')
+            state.h.blurSigmaText.String = 'Kernel size:';
+            state.h.blurSigmaSlider.Min = 3;
+            state.h.blurSigmaSlider.Max = 1000;
+            if state.noiseFilterParam < 3
+                state.noiseFilterParam = 5;
+            end
+        elseif strcmp(state.noiseFilterType, 'wiener')
+            state.h.blurSigmaText.String = 'Kernel size:';
+            state.h.blurSigmaSlider.Min = 3;
+            state.h.blurSigmaSlider.Max = 1000;
+            if state.noiseFilterParam < 3
+                state.noiseFilterParam = 5;
+            end
+        elseif strcmp(state.noiseFilterType, 'highpass')
+            state.h.blurSigmaText.String = 'Sigma:';
+            state.h.blurSigmaSlider.Min = 0.1;
+            state.h.blurSigmaSlider.Max = 1000;
+            if state.noiseFilterParam < 0.1
+                state.noiseFilterParam = 3.0;
+            end
+        end
+        state.h.blurSigmaSlider.Value = state.noiseFilterParam;
+        if strcmp(state.noiseFilterType, 'highpass')
+            state.h.blurSigmaEdit.String = sprintf('%.2f', state.noiseFilterParam);
+        elseif strcmp(state.noiseFilterType, 'median') || strcmp(state.noiseFilterType, 'wiener')
+            state.h.blurSigmaEdit.String = sprintf('%d', round(state.noiseFilterParam));
+        else
+            state.h.blurSigmaEdit.String = sprintf('%.2f', state.noiseFilterParam);
+        end
+    end
+    
+    fig.UserData = state;
+    if hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
+end
+
+function onNoiseFilterParamSlider(src, fig, ax)
+    state = fig.UserData;
+    param = double(src.Value);
+    state.noiseFilterParam = param;
+    if strcmp(state.noiseFilterType, 'highpass')
+        state.h.blurSigmaEdit.String = sprintf('%.2f', param);
+    elseif strcmp(state.noiseFilterType, 'median') || strcmp(state.noiseFilterType, 'wiener')
+        state.h.blurSigmaEdit.String = sprintf('%d', round(param));
+    else
+        state.h.blurSigmaEdit.String = sprintf('%.2f', param);
+    end
+    fig.UserData = state;
+    if hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
+end
+
+function onNoiseFilterParamEdit(src, fig, ax)
+    state = fig.UserData;
+    param = str2double(src.String);
+    if isnan(param) || param < state.h.blurSigmaSlider.Min
+        if strcmp(state.noiseFilterType, 'highpass')
+            src.String = sprintf('%.2f', state.noiseFilterParam);
+        elseif strcmp(state.noiseFilterType, 'median') || strcmp(state.noiseFilterType, 'wiener')
+            src.String = sprintf('%d', round(state.noiseFilterParam));
+        else
+            src.String = sprintf('%.2f', state.noiseFilterParam);
+        end
+        return
+    end
+    param = max(state.h.blurSigmaSlider.Min, min(state.h.blurSigmaSlider.Max, param));
+    state.noiseFilterParam = param;
+    state.h.blurSigmaSlider.Value = param;
     fig.UserData = state;
     if hasValidMeta(fig)
         k = getCurrentFrame(state);
@@ -1367,29 +1616,6 @@ function onGetTraces(src, fig, ax)
         totalFrames = meta.totalFrames;
         fprintf('onGetTraces: Total frames: %d\n', totalFrames);
         
-        if ~state.floatingBaseMode
-            waitbar(0.1, hWaitbar, 'Checking baseframe...');
-            drawnow;
-            fprintf('onGetTraces: Checking baseframe...\n');
-            
-            needBase = isempty(state.baseframeData) || isempty(state.baseframeRangeUsed) || ...
-                state.baseframeStart ~= state.baseframeRangeUsed(1) || ...
-                state.baseframeEnd ~= state.baseframeRangeUsed(2);
-            if needBase
-                waitbar(0.2, hWaitbar, 'Computing baseframe...');
-                drawnow;
-                fprintf('onGetTraces: Computing baseframe (frames %d-%d)...\n', state.baseframeStart, state.baseframeEnd);
-                state = computeBaseframe(fig);
-                state = fig.UserData;
-                fprintf('onGetTraces: Baseframe computed\n');
-            end
-            if isempty(state.baseframeData)
-                close(hWaitbar);
-                fprintf('ERROR: Baseframe computation failed\n');
-                return
-            end
-            base = double(state.baseframeData);
-        end
         
         numCursors = length(state.cursors);
         traces = cell(numCursors, 1);
@@ -1415,60 +1641,42 @@ function onGetTraces(src, fig, ax)
             drawnow;
             fprintf('onGetTraces: Reading frames %d-%d/%d\n', batchStart, batchEnd, totalFrames);
             
-            [data, t, ~] = readIOS2(state.iosPath, 'startframe', batchStart, 'endframe', batchEnd, 'Format', 'Lin');
-            if isempty(data)
-                fprintf('ERROR: Failed to read frames %d-%d\n', batchStart, batchEnd);
-                close(hWaitbar);
-                return
-            end
-            
-            data = ensure2DFrame(data);
-            times(batchStart:batchEnd) = t;
-            
-            for frameIdx = 1:size(data, 3)
-                globalFrameIdx = batchStart + frameIdx - 1;
-                currentTime = t(frameIdx);
-                
-                frame = double(data(:, :, frameIdx));
-                frameFiltered = applyGaussianFilter(frame, state.gaussianSigma);
-                
-                if state.floatingBaseMode
-                    baseframeData = computeFloatingBaseframe(fig, globalFrameIdx);
-                    if isempty(baseframeData)
-                        continue
-                    end
-                    base = double(baseframeData);
+            for globalFrameIdx = batchStart:batchEnd
+                [rawFrame, t] = loadRawFrame(state, globalFrameIdx);
+                if isempty(rawFrame) || any(isnan(rawFrame(:)))
+                    continue
                 end
+                times(globalFrameIdx) = t(1);
+                
+                filteredFrame = applyGaussianFilter(double(rawFrame), state.gaussianSigma);
+                
+                baseFrame = getBaseFrame(fig, globalFrameIdx);
+                state = fig.UserData;
+                if isempty(baseFrame)
+                    continue
+                end
+                
+                processedFrame = computeIOS(filteredFrame, baseFrame, state);
                 
                 if ~isempty(state.referenceCursor)
                     refCursor = state.referenceCursor;
                     rowRange = [refCursor.rect(1), refCursor.rect(2)];
                     colRange = [refCursor.rect(3), refCursor.rect(4)];
-                    
-                    frameRegion = frameFiltered(rowRange(1):rowRange(2), colRange(1):colRange(2));
-                    baseRegion = base(rowRange(1):rowRange(2), colRange(1):colRange(2));
-                    
-                    denom = baseRegion;
-                    denom(denom == 0) = NaN;
-                    iosRegion = (frameRegion - denom) ./ denom;
-                    
-                    refIosValue = median(iosRegion(:), 'omitnan');
+                    refRegion = processedFrame(rowRange(1):rowRange(2), colRange(1):colRange(2));
+                    refIosValue = median(refRegion(:), 'omitnan');
                     referenceTrace(globalFrameIdx) = refIosValue;
+                end
+                
+                if ~strcmp(state.noiseFilterType, 'none')
+                    processedFrame = applyNoiseFilter(processedFrame, state.noiseFilterType, state.noiseFilterParam);
                 end
                 
                 for cursorIdx = 1:numCursors
                     cursor = state.cursors(cursorIdx);
                     rowRange = [cursor.rect(1), cursor.rect(2)];
                     colRange = [cursor.rect(3), cursor.rect(4)];
-                    
-                    frameRegion = frameFiltered(rowRange(1):rowRange(2), colRange(1):colRange(2));
-                    baseRegion = base(rowRange(1):rowRange(2), colRange(1):colRange(2));
-                    
-                    denom = baseRegion;
-                    denom(denom == 0) = NaN;
-                    iosRegion = (frameRegion - denom) ./ denom;
-                    
-                    meanIos = mean(iosRegion(:), 'omitnan');
+                    cursorRegion = processedFrame(rowRange(1):rowRange(2), colRange(1):colRange(2));
+                    meanIos = mean(cursorRegion(:), 'omitnan');
                     traces{cursorIdx}(globalFrameIdx) = meanIos;
                 end
             end
@@ -1806,18 +2014,34 @@ function onReferenceFullSizeCheck(src, fig, ax)
         state.h.referenceSizeText.Visible = 'off';
         state.h.referenceSizeEdit.Visible = 'off';
         
-        if ~isempty(state.referenceCursor) && ~isempty(state.him) && isvalid(state.him)
+        if ~isempty(state.him) && isvalid(state.him)
             frameSize = size(state.him.CData);
-            refCursor = state.referenceCursor;
             
-            row_min = 1;
-            row_max = frameSize(1);
-            col_min = 1;
-            col_max = frameSize(2);
-            
-            refCursor.rect = [row_min, row_max, col_min, col_max];
-            refCursor.size = max(frameSize(1), frameSize(2));
-            state.referenceCursor = refCursor;
+            if ~isempty(state.referenceCursor)
+                refCursor = state.referenceCursor;
+                row_min = 1;
+                row_max = frameSize(1);
+                col_min = 1;
+                col_max = frameSize(2);
+                
+                refCursor.rect = [row_min, row_max, col_min, col_max];
+                refCursor.size = max(frameSize(1), frameSize(2));
+                refCursor.center = [round(frameSize(1)/2), round(frameSize(2)/2)];
+                state.referenceCursor = refCursor;
+            else
+                row_min = 1;
+                row_max = frameSize(1);
+                col_min = 1;
+                col_max = frameSize(2);
+                
+                referenceCursor = struct();
+                referenceCursor.center = [round(frameSize(1)/2), round(frameSize(2)/2)];
+                referenceCursor.rect = [row_min, row_max, col_min, col_max];
+                referenceCursor.handle = [];
+                referenceCursor.size = max(frameSize(1), frameSize(2));
+                
+                state.referenceCursor = referenceCursor;
+            end
         end
     else
         if state.iosMode
