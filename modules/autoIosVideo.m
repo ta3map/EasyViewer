@@ -55,7 +55,7 @@ function result = autoIosVideo(filePath, fileId, params)
     state = struct('iosPath', filePath, 'meta', meta, 'him', [], 'timeEdit', hTimeEdit, 'probeHintText', probeHintText, ...
         'iosMode', iosMode, 'baseframeStart', 1, 'baseframeEnd', 1, 'baseframeData', [], 'baseframeRangeUsed', [], ...
         'gaussianSigma', gaussianSigma, 'floatingBaseMode', floatingBaseMode, ...
-        'baseDelay', baseframeDurationSeconds, 'contrast', contrast, 'clim', [0 65535], 'climIosBase', [], ...
+        'baseDelay', baseframeDurationSeconds, 'contrast', contrast, 'clim', [0 65535], 'climIosBase', [], 'climIosMin', [], 'climIosMax', [], ...
         'probeCount', probeCount, 'probes', [], 'awaitingProbeClick', false, 'probeData', [], 'probeHandles', [], ...
         'probesReady', false, 'chartAx', chartAx, 'chartLines', [], 'chartRawData', struct('x', {}, 'y', {}), ...
         'probeTimes', [], 'chartSmoothingWindow', smoothingWindow, 'totalTime', totalTime, 'fileName', fileName);
@@ -153,7 +153,7 @@ function result = autoIosVideo(filePath, fileId, params)
                 
                 if state.iosMode
                     if state.floatingBaseMode
-                        baseframeData = computeFloatingBaseframe(fig, t(1));
+                        baseframeData = computeFloatingBaseframe(fig, k);
                         if isempty(baseframeData)
                             base = [];
                         else
@@ -300,17 +300,26 @@ function state = computeBaseframe(fig)
     fig.UserData = state;
 end
 
-function baseframeData = computeFloatingBaseframe(fig, currentTime)
+function baseframeData = computeFloatingBaseframe(fig, k)
     state = fig.UserData;
     baseframeData = [];
     meta = state.meta;
     delay = state.baseDelay;
-    baseTime = currentTime - delay;
-    k_base = 1;
+    frames_back = 1;
     if meta.dt > 0
-        k_base = round((baseTime - meta.t0) / meta.dt) + 1;
+        frames_back = round(delay / meta.dt);
+        k_base = max(1, k - frames_back);
+    elseif meta.dt < 0
+        frames_back = round(delay / abs(meta.dt));
+        if k - frames_back < 1
+            k_base = 1;
+        else
+            k_base = k - frames_back;
+        end
+    else
+        k_base = 1;
     end
-    k_base = max(1, min(k_base, meta.totalFrames));
+    fprintf('computeFloatingBaseframe: k=%d, delay=%.2f, dt=%.6f, frames_back=%d, k_base=%d\n', k, delay, meta.dt, frames_back, k_base);
     [data, ~, ~] = readIOS2(state.iosPath, 'startframe', k_base, 'endframe', k_base, 'Format', 'Lin');
     if isempty(data)
         return
@@ -365,7 +374,7 @@ function showFrame(fig, ax, k, data, t)
     
     if state.iosMode
         if state.floatingBaseMode
-            baseframeData = computeFloatingBaseframe(fig, t(1));
+            baseframeData = computeFloatingBaseframe(fig, k);
             if isempty(baseframeData)
                 return
             end
@@ -386,11 +395,11 @@ function showFrame(fig, ax, k, data, t)
         denom(denom == 0) = NaN;
         displayFrame = (frameD - denom) ./ denom;
         
-        climIos = max(abs(displayFrame(:)));
-        if ~isfinite(climIos) || climIos == 0
-            climIos = 0.01;
+        if isempty(state.climIosMin) || isempty(state.climIosMax)
+            state.climIosMin = min(displayFrame(:));
+            state.climIosMax = max(displayFrame(:));
         end
-        state.climIosBase = [-climIos climIos];
+        state.climIosBase = [state.climIosMin state.climIosMax];
         applyContrast(ax, state.climIosBase, state.contrast);
     else
         frameD = double(frame);

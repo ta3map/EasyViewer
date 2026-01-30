@@ -1,14 +1,14 @@
 {
   "ios": {
     "ios_mode": true,
-    "floating_base": false,
-    "baseframe_duration_seconds": 10,
-    "gaussian_sigma": 3,
+    "floating_base": true,
+    "baseframe_duration_seconds": 50,
+    "gaussian_sigma": 10,
     "contrast": 1,
-    "probe": 1
+    "probe": 0
   },
   "playback": {
-    "speed": 5,
+    "speed": 10,
     "smoothing_window": 5
   },
   "output": {

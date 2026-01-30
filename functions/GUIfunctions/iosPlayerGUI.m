@@ -29,12 +29,16 @@ function iosPlayerGUI(iosPath)
         'Position', [0.82 0.32 0.12 0.04], 'String', 'Record');
     hContrastSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
         'Position', [0.1 0.26 0.3 0.03], 'Min', 0.2, 'Max', 2, 'Value', 1);
-    uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+    hGaussianText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
         'Position', [0.42 0.26 0.08 0.03], 'String', 'Gaussian:', 'HorizontalAlignment', 'left');
     hGaussianSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
         'Position', [0.5 0.26 0.15 0.03], 'Min', 0, 'Max', 20, 'Value', 3);
     hGaussianEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
         'Position', [0.67 0.26 0.05 0.03], 'String', '3.0');
+    hColormapText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.74 0.26 0.08 0.03], 'String', 'Colormap:', 'HorizontalAlignment', 'left');
+    hColormapPopup = uicontrol(fig, 'Style', 'popupmenu', 'Units', 'normalized', ...
+        'Position', [0.82 0.26 0.12 0.03], 'String', {'gray','jet','hot','cool','parula','hsv','spring','summer','autumn','winter','bone','copper','pink','lines'}, 'Value', 1);
     hIosCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
         'Position', [0.1 0.22 0.04 0.03], 'String', 'IOS', 'Value', 0);
     hBaseStartEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
@@ -48,24 +52,38 @@ function iosPlayerGUI(iosPath)
     hBaseDelayEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
         'Position', [0.24 0.19 0.06 0.03], 'String', '1.0', 'Visible', 'off');
 
-    hAddCursorBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.44 0.22 0.1 0.03], 'String', 'Add Cursor');
     hGetTracesBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.56 0.22 0.1 0.03], 'String', 'Get Traces');
+        'Position', [0.44 0.22 0.1 0.03], 'String', 'Get Traces');
+    hAddCursorBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
+        'Position', [0.62 0.14 0.12 0.03], 'String', 'Add Cursor');
     hAddReferenceBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.68 0.22 0.1 0.03], 'String', 'Add Reference');
+        'Position', [0.68 0.22 0.08 0.03], 'String', 'Add Reference');
     hDeleteReferenceBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.8 0.22 0.1 0.03], 'String', 'Delete Reference');
+        'Position', [0.77 0.22 0.08 0.03], 'String', 'Delete Reference');
+    hReferenceSizeText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.68 0.19 0.06 0.03], 'String', 'Ref Size:', 'HorizontalAlignment', 'left', 'Visible', 'off');
+    hReferenceSizeEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
+        'Position', [0.75 0.19 0.05 0.03], 'String', '10', 'Visible', 'off');
+    hReferenceFullSizeCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
+        'Position', [0.68 0.16 0.17 0.03], 'String', 'Full Image Reference', 'Value', 0, 'Visible', 'off');
+    hIosMinText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.75 0.07 0.06 0.03], 'String', 'IOS Min:', 'HorizontalAlignment', 'left');
+    hIosMinEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
+        'Position', [0.75 0.05 0.05 0.03], 'String', '');
+    hIosMaxText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.89 0.07 0.06 0.03], 'String', 'IOS Max:', 'HorizontalAlignment', 'left');
+    hIosMaxEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
+        'Position', [0.89 0.05 0.05 0.03], 'String', '');
 
-    uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+    hCursorsText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
         'Position', [0.1 0.15 0.2 0.03], 'String', 'Cursors:', 'HorizontalAlignment', 'left');
     hCursorsTable = uitable(fig, 'Units', 'normalized', ...
         'Position', [0.1 0.05 0.5 0.1], ...
-        'ColumnName', {'#', 'Row', 'Col', 'Visible'}, ...
-        'ColumnEditable', [false false false true], ...
-        'ColumnFormat', {'numeric', 'numeric', 'numeric', 'logical'}, ...
-        'ColumnWidth', {30 80 80 60}, ...
-        'Data', cell(0, 4), ...
+        'ColumnName', {'#', 'Row', 'Col', 'Size', 'Visible'}, ...
+        'ColumnEditable', [false false false true true], ...
+        'ColumnFormat', {'numeric', 'numeric', 'numeric', 'numeric', 'logical'}, ...
+        'ColumnWidth', {30 80 80 60 60}, ...
+        'Data', cell(0, 5), ...
         'CellSelectionCallback', @(src, event) onCursorsTableSelection(src, event, fig), ...
         'CellEditCallback', @(src, event) onCursorsTableEdit(src, event, fig, ax));
     hEditCursorBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
@@ -89,22 +107,28 @@ function iosPlayerGUI(iosPath)
         'speedPopup', hSpeedPopup, 'openBtn', hOpenBtn, 'recordBtn', hRecordBtn, 'contrastSlider', hContrastSlider, ...
         'navStart', hNavStart, 'navPrev', hNavPrev, 'navNext', hNavNext, 'navEnd', hNavEnd, ...
         'iosCheck', hIosCheck, 'baseStartEdit', hBaseStartEdit, 'baseEndEdit', hBaseEndEdit, ...
-        'setBaseBtn', hSetBaseBtn, 'gaussianSlider', hGaussianSlider, 'gaussianEdit', hGaussianEdit, ...
+        'setBaseBtn', hSetBaseBtn, 'gaussianText', hGaussianText, 'gaussianSlider', hGaussianSlider, 'gaussianEdit', hGaussianEdit, ...
+        'colormapText', hColormapText, 'colormapPopup', hColormapPopup, ...
         'addCursorBtn', hAddCursorBtn, 'getTracesBtn', hGetTracesBtn, 'addReferenceBtn', hAddReferenceBtn, ...
-        'deleteReferenceBtn', hDeleteReferenceBtn, 'floatingBaseCheck', hFloatingBaseCheck, 'baseDelayEdit', hBaseDelayEdit, ...
-        'cursorsTable', hCursorsTable, 'editCursorBtn', hEditCursorBtn, ...
+        'deleteReferenceBtn', hDeleteReferenceBtn, 'referenceSizeEdit', hReferenceSizeEdit, 'referenceSizeText', hReferenceSizeText, ...
+        'referenceFullSizeCheck', hReferenceFullSizeCheck, ...
+        'floatingBaseCheck', hFloatingBaseCheck, 'baseDelayEdit', hBaseDelayEdit, ...
+        'cursorsText', hCursorsText, 'cursorsTable', hCursorsTable, 'editCursorBtn', hEditCursorBtn, ...
         'deleteCursorBtn', hDeleteCursorBtn, 'clearCursorsBtn', hClearCursorsBtn, ...
         'showIosCheck', hShowIosCheck, 'clearChartBtn', hClearChartBtn, ...
         'chartSmoothingText', hChartSmoothingText, 'chartSmoothingEdit', hChartSmoothingEdit, ...
-        'showChartCheck', hShowChartCheck);
+        'showChartCheck', hShowChartCheck, 'iosMinText', hIosMinText, 'iosMinEdit', hIosMinEdit, ...
+        'iosMaxText', hIosMaxText, 'iosMaxEdit', hIosMaxEdit);
     state = struct('iosPath', iosPath, 'meta', [], 'playTimer', [], 'clim', [0 65535], 'h', h, 'him', [], ...
         'iosMode', false, 'baseframeStart', 1, 'baseframeEnd', 1, 'baseframeData', [], 'baseframeRangeUsed', [], ...
-        'gaussianSigma', 3.0, 'climIosBase', [], 'cursors', [], 'awaitingClick', false, ...
-        'referenceCursor', [], 'awaitingReferenceClick', false, 'floatingBaseMode', false, 'baseDelay', 1.0, ...
+        'gaussianSigma', 3.0, 'climIosBase', [], 'climIosMin', [], 'climIosMax', [], 'cursors', [], 'awaitingClick', false, ...
+        'referenceCursor', [], 'awaitingReferenceClick', false, 'referenceSize', 10, 'referenceFullSize', false, ...
+        'floatingBaseMode', false, 'baseDelay', 1.0, ...
         'editingCursorIndex', [], 'showIosValues', false, 'selectedCursorIndex', [], ...
         'chartAx', chartAx, 'chartLines', [], 'chartData', struct('x', {}, 'y', {}, 'cursorIdx', {}), ...
         'chartSmoothingWindow', 1, 'chartRawData', struct('x', {}, 'y', {}), ...
-        'isUpdating', false, 'lastChartUpdateTime', 0, 'isRecording', false, 'videoWriter', []);
+        'isUpdating', false, 'lastChartUpdateTime', 0, 'isRecording', false, 'videoWriter', [], ...
+        'colormapScheme', 'gray');
     fig.UserData = state;
 
     hSlider.Callback = @(src,~) onSlider(src, fig, ax);
@@ -130,6 +154,8 @@ function iosPlayerGUI(iosPath)
     hGetTracesBtn.Callback = @(src,~) onGetTraces(src, fig, ax);
     hAddReferenceBtn.Callback = @(src,~) onAddReference(src, fig, ax);
     hDeleteReferenceBtn.Callback = @(src,~) onDeleteReference(src, fig, ax);
+    hReferenceSizeEdit.Callback = @(src,~) onReferenceSizeEdit(src, fig, ax);
+    hReferenceFullSizeCheck.Callback = @(src,~) onReferenceFullSizeCheck(src, fig, ax);
     hEditCursorBtn.Callback = @(src,~) onEditCursor(src, fig, ax);
     hDeleteCursorBtn.Callback = @(src,~) onDeleteCursor(src, fig, ax);
     hClearCursorsBtn.Callback = @(src,~) onClearCursors(src, fig, ax);
@@ -137,6 +163,9 @@ function iosPlayerGUI(iosPath)
     hClearChartBtn.Callback = @(src,~) onClearChart(src, fig);
     hChartSmoothingEdit.Callback = @(src,~) onChartSmoothingChange(src, fig, ax);
     hShowChartCheck.Callback = @(src,~) onShowChartCheck(src, fig);
+    hIosMinEdit.Callback = @(src,~) onIosRangeEdit(src, fig, ax, 'min');
+    hIosMaxEdit.Callback = @(src,~) onIosRangeEdit(src, fig, ax, 'max');
+    hColormapPopup.Callback = @(src,~) onColormapChange(src, fig, ax);
 
     if ~isempty(iosPath) && exist(iosPath, 'file')
         openFile(fig, ax, iosPath);
@@ -223,20 +252,34 @@ function state = computeBaseframe(fig)
     fig.UserData = state;
 end
 
-function baseframeData = computeFloatingBaseframe(fig, currentTime)
+function baseframeData = computeFloatingBaseframe(fig, k)
     state = fig.UserData;
     baseframeData = [];
     if ~hasValidMeta(fig)
         return
     end
     meta = state.meta;
-    delay = state.baseDelay;
-    baseTime = currentTime - delay;
-    k_base = 1;
-    if meta.dt > 0
-        k_base = round((baseTime - meta.t0) / meta.dt) + 1;
+    delay = str2double(state.h.baseDelayEdit.String);
+    if isnan(delay) || delay < 0
+        delay = state.baseDelay;
     end
-    k_base = max(1, min(k_base, meta.totalFrames));
+    frames_back = 1;
+    if meta.dt > 0
+        frames_back = round(delay / meta.dt);
+    elseif meta.dt < 0
+        frames_back = round(delay / abs(meta.dt));
+        if k - frames_back < 1
+            k_base = 1;
+        else
+            k_base = k - frames_back;
+        end
+    else
+        k_base = 1;
+    end
+    if meta.dt > 0
+        k_base = max(1, k - frames_back);
+    end
+    fprintf('computeFloatingBaseframe: k=%d, delay=%.2f, dt=%.6f, frames_back=%d, k_base=%d\n', k, delay, meta.dt, frames_back, k_base);
     [data, ~, ~] = readIOS2(state.iosPath, 'startframe', k_base, 'endframe', k_base, 'Format', 'Lin');
     if isempty(data)
         return
@@ -296,15 +339,39 @@ function openFile(fig, ax, fname)
     state.floatingBaseMode = false;
     state.baseDelay = 1.0;
     state.h.baseDelayEdit.String = sprintf('%.2f', state.baseDelay);
+    state.h.baseDelayEdit.Visible = 'off';
     
     state.cursors = [];
     state.awaitingClick = false;
     state.referenceCursor = [];
     state.awaitingReferenceClick = false;
+    state.referenceSize = 10;
+    state.referenceFullSize = false;
+    state.h.referenceSizeEdit.String = '10';
+    state.h.referenceFullSizeCheck.Value = 0;
+    if state.iosMode
+        visRefSize = 'on';
+    else
+        visRefSize = 'off';
+    end
+    state.h.referenceSizeText.Visible = visRefSize;
+    state.h.referenceSizeEdit.Visible = visRefSize;
+    state.h.referenceFullSizeCheck.Visible = visRefSize;
+    state.climIosMin = [];
+    state.climIosMax = [];
+    state.h.iosMinEdit.String = '';
+    state.h.iosMaxEdit.String = '';
     state.editingCursorIndex = [];
     state.selectedCursorIndex = [];
     state.isUpdating = false;
     state.lastChartUpdateTime = 0;
+    
+    colormapScheme = state.colormapScheme;
+    if isempty(colormapScheme)
+        colormapScheme = 'gray';
+    end
+    colormap(fig, colormapScheme);
+    
     fig.UserData = state;
     updateCursorsTable(fig);
     showHideChart(fig);
@@ -344,7 +411,7 @@ function showFrame(fig, ax, k)
         frame = ensure2DFrame(data);
         if state.iosMode
             if state.floatingBaseMode
-                baseframeData = computeFloatingBaseframe(fig, t(1));
+                baseframeData = computeFloatingBaseframe(fig, k);
                 if isempty(baseframeData)
                     state.h.timeEdit.String = sec2timeStr(t(1));
                     state.h.slider.Value = k;
@@ -381,18 +448,19 @@ function showFrame(fig, ax, k)
                 rowRange = [refCursor.rect(1), refCursor.rect(2)];
                 colRange = [refCursor.rect(3), refCursor.rect(4)];
                 refRegion = iosFrame(rowRange(1):rowRange(2), colRange(1):colRange(2));
-                refIosValue = mean(refRegion(:), 'omitnan');
+                refIosValue = median(refRegion(:), 'omitnan');
                 displayFrame = iosFrame - refIosValue;
             else
                 displayFrame = iosFrame;
             end
             
-            climIos = max(abs(displayFrame(:)));
-            if ~isfinite(climIos) || climIos == 0
-                climIos = 0.01;
+            if isempty(state.climIosMin) || isempty(state.climIosMax)
+                state.climIosMin = prctile(displayFrame(:), 1);
+                state.climIosMax = prctile(displayFrame(:), 99);
+                state.h.iosMinEdit.String = sprintf('%.6f', state.climIosMin);
+                state.h.iosMaxEdit.String = sprintf('%.6f', state.climIosMax);
             end
-            climIos = [-climIos climIos];
-            state.climIosBase = climIos;
+            state.climIosBase = [state.climIosMin state.climIosMax];
         else
             frameD = double(frame);
             displayFrame = applyGaussianFilter(frameD, state.gaussianSigma);
@@ -400,7 +468,7 @@ function showFrame(fig, ax, k)
         end
         if isempty(state.him) || ~isvalid(state.him)
             cla(ax);
-            state.clim = [min(frame(:)) max(frame(:))];
+            state.clim = [prctile(frame(:), 1) prctile(frame(:), 99)];
             state.him = imagesc(ax, displayFrame);
             axis(ax, 'image');
             axis(ax, 'off');
@@ -412,7 +480,11 @@ function showFrame(fig, ax, k)
         
         drawCursors(fig, ax);
         c = double(state.h.contrastSlider.Value);
-        applyContrast(ax, getBaseRange(state), c);
+        if state.iosMode && ~isempty(state.climIosBase)
+            applyContrast(ax, state.climIosBase, c);
+        else
+            applyContrast(ax, getBaseRange(state), c);
+        end
 
         state.h.timeEdit.String = sec2timeStr(t(1));
         state.h.slider.Value = k;
@@ -558,15 +630,25 @@ function onIosCheck(src, fig, ax)
         state.climIosBase = [];
     end
     state.h.floatingBaseCheck.Visible = vis;
-    state.h.baseDelayEdit.Visible = vis;
     if state.floatingBaseMode && state.iosMode
         visBase = 'off';
+        visDelay = 'on';
     else
         visBase = vis;
+        visDelay = 'off';
     end
+    state.h.baseDelayEdit.Visible = visDelay;
     state.h.baseStartEdit.Visible = visBase;
     state.h.baseEndEdit.Visible = visBase;
     state.h.setBaseBtn.Visible = visBase;
+    if state.iosMode
+        visRefSize = 'on';
+    else
+        visRefSize = 'off';
+    end
+    state.h.referenceSizeText.Visible = visRefSize;
+    state.h.referenceSizeEdit.Visible = visRefSize;
+    state.h.referenceFullSizeCheck.Visible = visRefSize;
     fig.UserData = state;
     showHideChart(fig);
     k = getCurrentFrame(state);
@@ -578,14 +660,26 @@ function onFloatingBaseCheck(src, fig, ax)
     state.floatingBaseMode = logical(src.Value);
     if state.floatingBaseMode && state.iosMode
         visBase = 'off';
+        visDelay = 'on';
     elseif state.iosMode
         visBase = 'on';
+        visDelay = 'off';
     else
         visBase = 'off';
+        visDelay = 'off';
     end
     state.h.baseStartEdit.Visible = visBase;
     state.h.baseEndEdit.Visible = visBase;
     state.h.setBaseBtn.Visible = visBase;
+    state.h.baseDelayEdit.Visible = visDelay;
+    if state.iosMode
+        visRefSize = 'on';
+    else
+        visRefSize = 'off';
+    end
+    state.h.referenceSizeText.Visible = visRefSize;
+    state.h.referenceSizeEdit.Visible = visRefSize;
+    state.h.referenceFullSizeCheck.Visible = visRefSize;
     state = clearBaseframe(state);
     fig.UserData = state;
     if state.iosMode
@@ -604,7 +698,7 @@ function onBaseDelayEdit(src, fig, ax)
     state.baseDelay = delay;
     state = clearBaseframe(state);
     fig.UserData = state;
-    if state.iosMode
+    if state.iosMode && state.floatingBaseMode
         k = getCurrentFrame(state);
         showFrame(fig, ax, k);
     end
@@ -693,6 +787,23 @@ function onContrast(~, fig, ax)
     end
     c = double(state.h.contrastSlider.Value);
     applyContrast(ax, getBaseRange(state), c);
+end
+
+function onColormapChange(src, fig, ax)
+    state = fig.UserData;
+    colormapNames = {'gray','jet','hot','cool','parula','hsv','spring','summer','autumn','winter','bone','copper','pink','lines'};
+    selectedIdx = src.Value;
+    if selectedIdx < 1 || selectedIdx > length(colormapNames)
+        return
+    end
+    selectedScheme = colormapNames{selectedIdx};
+    colormap(fig, selectedScheme);
+    state.colormapScheme = selectedScheme;
+    fig.UserData = state;
+    if hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
 end
 
 function onOpen(~, fig, ax)
@@ -881,16 +992,26 @@ function onImageClick(fig, ax)
             return
         end
         
-        halfSize = 5;
-        row_min = max(1, row - halfSize);
-        row_max = min(frameSize(1), row + halfSize);
-        col_min = max(1, col - halfSize);
-        col_max = min(frameSize(2), col + halfSize);
+        if state.referenceFullSize
+            row_min = 1;
+            row_max = frameSize(1);
+            col_min = 1;
+            col_max = frameSize(2);
+            referenceSize = max(frameSize(1), frameSize(2));
+        else
+            halfSize = state.referenceSize;
+            row_min = max(1, row - halfSize);
+            row_max = min(frameSize(1), row + halfSize);
+            col_min = max(1, col - halfSize);
+            col_max = min(frameSize(2), col + halfSize);
+            referenceSize = halfSize;
+        end
         
         referenceCursor = struct();
         referenceCursor.center = [row, col];
         referenceCursor.rect = [row_min, row_max, col_min, col_max];
         referenceCursor.handle = [];
+        referenceCursor.size = referenceSize;
         
         state.referenceCursor = referenceCursor;
         state.awaitingReferenceClick = false;
@@ -926,13 +1047,16 @@ function onImageClick(fig, ax)
             return
         end
         
-        halfSize = 5;
+        cursor = state.cursors(cursorIdx);
+        if ~isfield(cursor, 'size')
+            cursor.size = 10;
+        end
+        halfSize = cursor.size;
         row_min = max(1, row - halfSize);
         row_max = min(frameSize(1), row + halfSize);
         col_min = max(1, col - halfSize);
         col_max = min(frameSize(2), col + halfSize);
         
-        cursor = state.cursors(cursorIdx);
         if ~isempty(cursor.handle) && isvalid(cursor.handle)
             delete(cursor.handle);
         end
@@ -943,6 +1067,7 @@ function onImageClick(fig, ax)
         cursor.rect = [row_min, row_max, col_min, col_max];
         cursor.handle = [];
         cursor.color = cursorColor;
+        cursor.size = halfSize;
         if ~isfield(cursor, 'visible')
             cursor.visible = true;
         end
@@ -983,7 +1108,7 @@ function onImageClick(fig, ax)
         return
     end
     
-    halfSize = 5;
+    halfSize = 10;
     row_min = max(1, row - halfSize);
     row_max = min(frameSize(1), row + halfSize);
     col_min = max(1, col - halfSize);
@@ -995,6 +1120,7 @@ function onImageClick(fig, ax)
     cursor.handle = [];
     cursor.visible = true;
     cursor.textHandle = [];
+    cursor.size = halfSize;
     
     numCursors = length(state.cursors);
     colors = getColors(numCursors + 1);
@@ -1190,7 +1316,7 @@ function iosValue = computeCursorIos(state, cursor, displayFrame, iosMode, basef
             refDenom = refBaseRegion;
             refDenom(refDenom == 0) = NaN;
             refIosRegion = (refRegion - refDenom) ./ refDenom;
-            refIosValue = mean(refIosRegion(:), 'omitnan');
+            refIosValue = median(refIosRegion(:), 'omitnan');
             iosValue = iosValue - refIosValue;
         end
     end
@@ -1223,12 +1349,14 @@ function onGetTraces(src, fig, ax)
             state.h.iosCheck.Value = 1;
             vis = 'on';
             state.h.floatingBaseCheck.Visible = vis;
-            state.h.baseDelayEdit.Visible = vis;
             if state.floatingBaseMode
                 visBase = 'off';
+                visDelay = 'on';
             else
                 visBase = vis;
+                visDelay = 'off';
             end
+            state.h.baseDelayEdit.Visible = visDelay;
             state.h.baseStartEdit.Visible = visBase;
             state.h.baseEndEdit.Visible = visBase;
             state.h.setBaseBtn.Visible = visBase;
@@ -1305,7 +1433,7 @@ function onGetTraces(src, fig, ax)
                 frameFiltered = applyGaussianFilter(frame, state.gaussianSigma);
                 
                 if state.floatingBaseMode
-                    baseframeData = computeFloatingBaseframe(fig, currentTime);
+                    baseframeData = computeFloatingBaseframe(fig, globalFrameIdx);
                     if isempty(baseframeData)
                         continue
                     end
@@ -1324,7 +1452,7 @@ function onGetTraces(src, fig, ax)
                     denom(denom == 0) = NaN;
                     iosRegion = (frameRegion - denom) ./ denom;
                     
-                    refIosValue = mean(iosRegion(:), 'omitnan');
+                    refIosValue = median(iosRegion(:), 'omitnan');
                     referenceTrace(globalFrameIdx) = refIosValue;
                 end
                 
@@ -1396,20 +1524,25 @@ end
 function updateCursorsTable(fig)
     state = fig.UserData;
     if isempty(state.cursors)
-        state.h.cursorsTable.Data = cell(0, 4);
+        state.h.cursorsTable.Data = cell(0, 5);
     else
         numCursors = length(state.cursors);
-        data = cell(numCursors, 4);
+        data = cell(numCursors, 5);
         for i = 1:numCursors
             cursor = state.cursors(i);
             if ~isfield(cursor, 'visible')
                 cursor.visible = true;
                 state.cursors(i) = cursor;
             end
+            if ~isfield(cursor, 'size')
+                cursor.size = 10;
+                state.cursors(i) = cursor;
+            end
             data{i, 1} = i;
             data{i, 2} = cursor.center(1);
             data{i, 3} = cursor.center(2);
-            data{i, 4} = cursor.visible;
+            data{i, 4} = cursor.size;
+            data{i, 5} = cursor.visible;
         end
         state.h.cursorsTable.Data = data;
     end
@@ -1421,16 +1554,38 @@ function onCursorsTableEdit(src, event, fig, ax)
     if isempty(state.cursors)
         return
     end
-    if event.Indices(2) ~= 4
-        return
-    end
+    colIdx = event.Indices(2);
     rowIdx = event.Indices(1);
     if rowIdx < 1 || rowIdx > length(state.cursors)
         return
     end
     newValue = event.NewData;
     cursor = state.cursors(rowIdx);
-    cursor.visible = logical(newValue);
+    
+    if colIdx == 4
+        sizeValue = str2double(newValue);
+        if isnan(sizeValue) || sizeValue < 1
+            updateCursorsTable(fig);
+            return
+        end
+        cursor.size = round(sizeValue);
+        if ~isempty(state.him) && isvalid(state.him)
+            frameSize = size(state.him.CData);
+            halfSize = cursor.size;
+            row = cursor.center(1);
+            col = cursor.center(2);
+            row_min = max(1, row - halfSize);
+            row_max = min(frameSize(1), row + halfSize);
+            col_min = max(1, col - halfSize);
+            col_max = min(frameSize(2), col + halfSize);
+            cursor.rect = [row_min, row_max, col_min, col_max];
+        end
+    elseif colIdx == 5
+        cursor.visible = logical(newValue);
+    else
+        return
+    end
+    
     state.cursors(rowIdx) = cursor;
     fig.UserData = state;
     drawCursors(fig, ax);
@@ -1577,6 +1732,43 @@ function onCursorsTableSelection(src, event, fig)
     end
 end
 
+function onReferenceSizeEdit(src, fig, ax)
+    state = fig.UserData;
+    sizeValue = str2double(src.String);
+    if isnan(sizeValue) || sizeValue < 1
+        src.String = num2str(state.referenceSize);
+        return
+    end
+    state.referenceSize = round(sizeValue);
+    state.referenceFullSize = false;
+    state.h.referenceFullSizeCheck.Value = 0;
+    src.String = num2str(state.referenceSize);
+    
+    if ~isempty(state.referenceCursor) && ~isempty(state.him) && isvalid(state.him)
+        refCursor = state.referenceCursor;
+        frameSize = size(state.him.CData);
+        halfSize = state.referenceSize;
+        row = refCursor.center(1);
+        col = refCursor.center(2);
+        row_min = max(1, row - halfSize);
+        row_max = min(frameSize(1), row + halfSize);
+        col_min = max(1, col - halfSize);
+        col_max = min(frameSize(2), col + halfSize);
+        refCursor.rect = [row_min, row_max, col_min, col_max];
+        refCursor.size = halfSize;
+        state.referenceCursor = refCursor;
+    end
+    
+    fig.UserData = state;
+    if ~isempty(state.him) && isvalid(state.him)
+        drawCursors(fig, ax);
+        if state.iosMode && hasValidMeta(fig)
+            k = getCurrentFrame(state);
+            showFrame(fig, ax, k);
+        end
+    end
+end
+
 function onDeleteReference(~, fig, ax)
     state = fig.UserData;
     if isempty(state.referenceCursor)
@@ -1596,6 +1788,47 @@ function onDeleteReference(~, fig, ax)
     end
     
     state.referenceCursor = [];
+    fig.UserData = state;
+    
+    if hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    else
+        drawCursors(fig, ax);
+    end
+end
+
+function onReferenceFullSizeCheck(src, fig, ax)
+    state = fig.UserData;
+    state.referenceFullSize = logical(src.Value);
+    
+    if state.referenceFullSize
+        state.h.referenceSizeText.Visible = 'off';
+        state.h.referenceSizeEdit.Visible = 'off';
+        
+        if ~isempty(state.referenceCursor) && ~isempty(state.him) && isvalid(state.him)
+            frameSize = size(state.him.CData);
+            refCursor = state.referenceCursor;
+            
+            row_min = 1;
+            row_max = frameSize(1);
+            col_min = 1;
+            col_max = frameSize(2);
+            
+            refCursor.rect = [row_min, row_max, col_min, col_max];
+            refCursor.size = max(frameSize(1), frameSize(2));
+            state.referenceCursor = refCursor;
+        end
+    else
+        if state.iosMode
+            visRefSize = 'on';
+        else
+            visRefSize = 'off';
+        end
+        state.h.referenceSizeText.Visible = visRefSize;
+        state.h.referenceSizeEdit.Visible = visRefSize;
+    end
+    
     fig.UserData = state;
     
     if hasValidMeta(fig)
@@ -1879,4 +2112,29 @@ function onShowChartCheck(src, fig)
         end
     end
     fig.UserData = state;
+end
+
+function onIosRangeEdit(src, fig, ax, which)
+    state = fig.UserData;
+    if ~hasValidMeta(fig) || ~state.iosMode
+        return
+    end
+    val = str2double(src.String);
+    if isnan(val) || ~isfinite(val)
+        if isequal(which, 'min')
+            src.String = sprintf('%.6f', state.climIosMin);
+        else
+            src.String = sprintf('%.6f', state.climIosMax);
+        end
+        return
+    end
+    if isequal(which, 'min')
+        state.climIosMin = val;
+    else
+        state.climIosMax = val;
+    end
+    state.climIosBase = [state.climIosMin state.climIosMax];
+    fig.UserData = state;
+    k = getCurrentFrame(state);
+    showFrame(fig, ax, k);
 end
