@@ -51,7 +51,12 @@ end
 channelSettings = get(channelTable, 'Data');
 
 params.sourceType = sourceType;
-params.figure = figure('Name', figureName, 'Tag', 'meanSignalResult'); % Создание нового окна для графика;
+buildFigure = ~isfield(opts, 'buildFigure') || logical(opts.buildFigure);
+if buildFigure
+    params.figure = figure('Name', figureName, 'Tag', 'meanSignalResult');
+else
+    params.figure = figure('Name', figureName, 'Tag', 'meanSignalResult', 'Visible', 'off');
+end
 params.figure.Position = [32, 64, 1024, 768];
 
 % Создаем tiledlayout с опциональным размером через opts
@@ -179,6 +184,13 @@ end
 xlim(Xlims)
 % Сохраняем пределы X в calcResult для использования в других функциях
 calculation_result.xLimits = Xlims;
+
+if ~buildFigure
+    close(mean_f);
+    mean_f = [];
+    fprintf('Mean events calculated.\n');
+    return
+end
 
 numChannels = numel(ch_inxs);
 y_pixel_size = 768;             % Размер по Y в пикселях
