@@ -2350,29 +2350,18 @@ function onCursorsTableEdit(src, event, fig, ax)
     if rowIdx < 1 || rowIdx > length(state.cursors)
         return
     end
-    newValue = event.NewData;
+    data = src.Data;
     cursor = state.cursors(rowIdx);
-    
+
     if colIdx == 4
-        sizeValue = str2double(newValue);
-        if isnan(sizeValue) || sizeValue < 1
-            updateCursorsTable(fig);
-            return
-        end
-        cursor.size = round(sizeValue);
-        if ~isempty(state.him) && isvalid(state.him)
-            frameSize = size(state.him.CData);
-            halfSize = cursor.size;
-            row = cursor.center(1);
-            col = cursor.center(2);
-            row_min = max(1, row - halfSize);
-            row_max = min(frameSize(1), row + halfSize);
-            col_min = max(1, col - halfSize);
-            col_max = min(frameSize(2), col + halfSize);
-            cursor.rect = [row_min, row_max, col_min, col_max];
-        end
+        cursor.size = round(data{rowIdx, 4});
+        sz = size(state.him.CData);
+        r = cursor.center(1); c = cursor.center(2); h = cursor.size;
+        cursor.rect = [max(1,r-h), min(sz(1),r+h), max(1,c-h), min(sz(2),c+h)];
+        deleteCursorGraphics(cursor);
+        cursor.handle = [];
     elseif colIdx == 5
-        cursor.visible = logical(newValue);
+        cursor.visible = logical(data{rowIdx, 5});
     else
         return
     end
