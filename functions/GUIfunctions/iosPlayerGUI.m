@@ -71,6 +71,32 @@ function iosPlayerGUI(iosPath)
         'Position', [0.754 0.668 0.158 0.040], 'Min', 1, 'Max', 1000, 'Value', 5, 'Visible', 'off');
     hBlurSigmaEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
         'Position', [0.918 0.668 0.055 0.040], 'String', '5', 'Visible', 'off');
+    hRotationText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.754 0.563 0.080 0.040], 'String', 'Rotation:', 'HorizontalAlignment', 'left');
+    hRotationSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
+        'Position', [0.754 0.5628 0.158 0.020], 'Min', -180, 'Max', 180, 'Value', 0);
+    hRotationEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
+        'Position', [0.918 0.538 0.055 0.040], 'String', '0');
+    hOffsetXText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.754 0.523 0.080 0.040], 'String', 'Offset X:', 'HorizontalAlignment', 'left');
+    hOffsetXSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
+        'Position', [0.754,0.527075804776739,0.158,0.02], 'Min', -200, 'Max', 200, 'Value', 0);
+    hOffsetXEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
+        'Position', [0.918 0.498 0.055 0.040], 'String', '0');
+    hOffsetYText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.754 0.483 0.080 0.040], 'String', 'Offset Y:', 'HorizontalAlignment', 'left');
+    hOffsetYSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
+        'Position', [0.754,0.48523738317757,0.158,0.02], 'Min', -200, 'Max', 200, 'Value', 0);
+    hOffsetYEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
+        'Position', [0.918 0.458 0.055 0.040], 'String', '0');
+    hZoomText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.754 0.443 0.080 0.040], 'String', 'Zoom:', 'HorizontalAlignment', 'left');
+    hZoomSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
+        'Position', [0.754,0.44316,0.158,0.02], 'Min', 0.25, 'Max', 4, 'Value', 1);
+    hZoomEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
+        'Position', [0.918 0.418 0.055 0.040], 'String', '1.0');
+    hResetPipelineBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
+        'Position', [0.754 0.378 0.219 0.040], 'String', 'Reset pipeline');
     hIosCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
         'Position', [0.030 0.294 0.050 0.040], 'String', 'IOS', 'Value', 0);
     hBaseStartText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
@@ -130,7 +156,7 @@ function iosPlayerGUI(iosPath)
     hClearCursorsBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
         'Position', [0.502 0.040 0.090 0.040], 'String', 'Clear All');
     hShowIosCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
-        'Position', [0.760 0.517 0.120 0.040], 'String', 'Show IOS values', 'Value', 0);
+        'Position', [0.115 0.106 0.140 0.040], 'String', 'Show IOS values', 'Value', 0);
     hClearChartBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
         'Position', [0.809 0.010 0.090 0.040], 'String', 'Clear Chart', 'Visible', 'off');
     hChartSmoothingText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
@@ -153,6 +179,11 @@ function iosPlayerGUI(iosPath)
         'floatingBaseCheck', hFloatingBaseCheck, 'baseDelayText', hBaseDelayText, 'baseDelayEdit', hBaseDelayEdit, ...
         'noiseFilterText', hNoiseFilterText, 'noiseFilterPopup', hNoiseFilterPopup, ...
         'blurSigmaText', hBlurSigmaText, 'blurSigmaSlider', hBlurSigmaSlider, 'blurSigmaEdit', hBlurSigmaEdit, ...
+        'rotationText', hRotationText, 'rotationSlider', hRotationSlider, 'rotationEdit', hRotationEdit, ...
+        'offsetXText', hOffsetXText, 'offsetXSlider', hOffsetXSlider, 'offsetXEdit', hOffsetXEdit, ...
+        'offsetYText', hOffsetYText, 'offsetYSlider', hOffsetYSlider, 'offsetYEdit', hOffsetYEdit, ...
+        'zoomText', hZoomText, 'zoomSlider', hZoomSlider, 'zoomEdit', hZoomEdit, ...
+        'resetPipelineBtn', hResetPipelineBtn, ...
         'cursorsText', hCursorsText, 'cursorsTable', hCursorsTable, 'editCursorBtn', hEditCursorBtn, ...
         'deleteCursorBtn', hDeleteCursorBtn, 'clearCursorsBtn', hClearCursorsBtn, ...
         'showIosCheck', hShowIosCheck, 'clearChartBtn', hClearChartBtn, ...
@@ -169,7 +200,8 @@ function iosPlayerGUI(iosPath)
         'chartAx', chartAx, 'chartLines', [], 'chartData', struct('x', {}, 'y', {}, 'cursorIdx', {}), ...
         'chartSmoothingWindow', 1, 'chartRawData', struct('x', {}, 'y', {}), ...
         'isUpdating', false, 'lastChartUpdateTime', 0, 'isRecording', false, 'videoWriter', [], ...
-        'colormapScheme', 'gray', 'playIcon', playIcon, 'pauseIcon', pauseIcon, 'recordIcon', recordIcon, 'stopIcon', stopIcon);
+        'colormapScheme', 'gray', 'playIcon', playIcon, 'pauseIcon', pauseIcon, 'recordIcon', recordIcon, 'stopIcon', stopIcon, ...
+        'rotationAngle', 0, 'offsetX', 0, 'offsetY', 0, 'zoomFactor', 1, 'preGeometricFrame', []);
     fig.UserData = state;
 
     hSlider.Callback = @(src,~) onSlider(src, fig, ax);
@@ -211,6 +243,15 @@ function iosPlayerGUI(iosPath)
     hNoiseFilterPopup.Callback = @(src,~) onNoiseFilterChange(src, fig, ax);
     hBlurSigmaSlider.Callback = @(src,~) onNoiseFilterParamSlider(src, fig, ax);
     hBlurSigmaEdit.Callback = @(src,~) onNoiseFilterParamEdit(src, fig, ax);
+    hRotationSlider.Callback = @(src,~) onRotationSlider(src, fig, ax);
+    hRotationEdit.Callback = @(src,~) onRotationEdit(src, fig, ax);
+    hOffsetXSlider.Callback = @(src,~) onOffsetXSlider(src, fig, ax);
+    hOffsetXEdit.Callback = @(src,~) onOffsetXEdit(src, fig, ax);
+    hOffsetYSlider.Callback = @(src,~) onOffsetYSlider(src, fig, ax);
+    hOffsetYEdit.Callback = @(src,~) onOffsetYEdit(src, fig, ax);
+    hZoomSlider.Callback = @(src,~) onZoomSlider(src, fig, ax);
+    hZoomEdit.Callback = @(src,~) onZoomEdit(src, fig, ax);
+    hResetPipelineBtn.Callback = @(src,~) onResetPipeline(src, fig, ax);
 
     applyLoadedSettings(fig, ax);
     fig.CloseRequestFcn = @(src,~) closeIosPlayerWindow(src);
@@ -252,6 +293,10 @@ function iosPlayerGUI(iosPath)
         s.colormapScheme = state.colormapScheme;
         s.noiseFilterType = state.noiseFilterType;
         s.noiseFilterParam = state.noiseFilterParam;
+        s.rotationAngle = state.rotationAngle;
+        s.offsetX = state.offsetX;
+        s.offsetY = state.offsetY;
+        s.zoomFactor = state.zoomFactor;
         s.referenceSize = state.referenceSize;
         s.referenceFullSize = state.referenceFullSize;
         s.showIosValues = state.showIosValues;
@@ -373,6 +418,30 @@ function iosPlayerGUI(iosPath)
             state.noiseFilterParam = p;
             state.h.blurSigmaSlider.Value = p;
             state.h.blurSigmaEdit.String = num2str(p);
+        end
+        if isfield(settings, 'rotationAngle')
+            a = max(-180, min(180, double(settings.rotationAngle)));
+            state.rotationAngle = a;
+            state.h.rotationSlider.Value = a;
+            state.h.rotationEdit.String = sprintf('%.1f', a);
+        end
+        if isfield(settings, 'offsetX')
+            x = max(-200, min(200, round(double(settings.offsetX))));
+            state.offsetX = x;
+            state.h.offsetXSlider.Value = x;
+            state.h.offsetXEdit.String = sprintf('%.0f', x);
+        end
+        if isfield(settings, 'offsetY')
+            y = max(-200, min(200, round(double(settings.offsetY))));
+            state.offsetY = y;
+            state.h.offsetYSlider.Value = y;
+            state.h.offsetYEdit.String = sprintf('%.0f', y);
+        end
+        if isfield(settings, 'zoomFactor')
+            z = max(0.25, min(4, double(settings.zoomFactor)));
+            state.zoomFactor = z;
+            state.h.zoomSlider.Value = z;
+            state.h.zoomEdit.String = sprintf('%.2f', z);
         end
         if isfield(settings, 'referenceSize')
             state.referenceSize = settings.referenceSize;
@@ -705,6 +774,71 @@ function [baseRange, state] = computeDisplayRange(displayFrame, rawFrame, state,
     end
 end
 
+function [x, y] = originalToDisplay(row, col, state, frameSize)
+    H = frameSize(1);
+    W = frameSize(2);
+    cx = (W + 1) / 2;
+    cy = (H + 1) / 2;
+    angle_rad = -state.rotationAngle * pi / 180;
+    col1 = (col - cx) * cos(angle_rad) - (row - cy) * sin(angle_rad) + cx;
+    row1 = (col - cx) * sin(angle_rad) + (row - cy) * cos(angle_rad) + cy;
+    col2 = col1 + state.offsetX;
+    row2 = row1 + state.offsetY;
+    x = (col2 - cx) * state.zoomFactor + cx;
+    y = (row2 - cy) * state.zoomFactor + cy;
+end
+
+function [row, col] = displayToOriginal(x, y, state, frameSize)
+    H = frameSize(1);
+    W = frameSize(2);
+    cx = (W + 1) / 2;
+    cy = (H + 1) / 2;
+    angle_rad = state.rotationAngle * pi / 180;
+    col2 = (x - cx) / state.zoomFactor + cx;
+    row2 = (y - cy) / state.zoomFactor + cy;
+    col1 = col2 - state.offsetX;
+    row1 = row2 - state.offsetY;
+    col = (col1 - cx) * cos(angle_rad) - (row1 - cy) * sin(angle_rad) + cx;
+    row = (col1 - cx) * sin(angle_rad) + (row1 - cy) * cos(angle_rad) + cy;
+end
+
+function out = applyRotation(frame, angleDeg)
+    if angleDeg == 0
+        out = frame;
+        return
+    end
+    out = imrotate(frame, angleDeg, 'bilinear', 'crop');
+end
+
+function out = applyOffset(frame, offsetX, offsetY)
+    if offsetX == 0 && offsetY == 0
+        out = frame;
+        return
+    end
+    out = imtranslate(frame, [offsetX, offsetY], 'OutputView', 'same');
+end
+
+function out = applyZoom(frame, zoomFactor, origSize)
+    if zoomFactor == 1
+        out = frame;
+        return
+    end
+    H = origSize(1);
+    W = origSize(2);
+    resized = imresize(frame, zoomFactor, 'bilinear');
+    [Hr, Wr] = size(resized);
+    if Hr >= H && Wr >= W
+        r0 = floor((Hr - H) / 2) + 1;
+        c0 = floor((Wr - W) / 2) + 1;
+        out = resized(r0:(r0 + H - 1), c0:(c0 + W - 1));
+    else
+        out = zeros(H, W, 'like', frame);
+        r0 = floor((H - Hr) / 2) + 1;
+        c0 = floor((W - Wr) / 2) + 1;
+        out(r0:(r0 + Hr - 1), c0:(c0 + Wr - 1)) = resized;
+    end
+end
+
 function [displayFrame, baseRange, state, t] = processFramePipeline(fig, k)
     state = fig.UserData;
     
@@ -731,6 +865,11 @@ function [displayFrame, baseRange, state, t] = processFramePipeline(fig, k)
     if ~strcmp(state.noiseFilterType, 'none')
         displayFrame = applyNoiseFilter(displayFrame, state.noiseFilterType, state.noiseFilterParam);
     end
+    
+    state.preGeometricFrame = displayFrame;
+    displayFrame = applyRotation(displayFrame, state.rotationAngle);
+    displayFrame = applyOffset(displayFrame, state.offsetX, state.offsetY);
+    displayFrame = applyZoom(displayFrame, state.zoomFactor, size(displayFrame));
     
     [baseRange, state] = computeDisplayRange(displayFrame, rawFrame, state, fig);
     
@@ -784,6 +923,7 @@ function openFile(fig, ax, fname)
     state.selectedCursorIndex = [];
     state.isUpdating = false;
     state.lastChartUpdateTime = 0;
+    state.preGeometricFrame = [];
     
     fig.UserData = state;
     updateCursorsTable(fig);
@@ -1261,6 +1401,157 @@ function onNoiseFilterParamEdit(src, fig, ax)
     end
 end
 
+function onRotationSlider(src, fig, ax)
+    state = fig.UserData;
+    val = double(src.Value);
+    state.rotationAngle = val;
+    state.h.rotationEdit.String = sprintf('%.1f', val);
+    fig.UserData = state;
+    if hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
+end
+
+function onRotationEdit(src, fig, ax)
+    state = fig.UserData;
+    val = str2double(src.String);
+    if isnan(val)
+        src.String = sprintf('%.1f', state.rotationAngle);
+        return
+    end
+    val = max(-180, min(180, val));
+    state.rotationAngle = val;
+    state.h.rotationSlider.Value = val;
+    state.h.rotationEdit.String = sprintf('%.1f', val);
+    fig.UserData = state;
+    if hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
+end
+
+function onOffsetXSlider(src, fig, ax)
+    state = fig.UserData;
+    val = round(double(src.Value));
+    state.offsetX = val;
+    state.h.offsetXEdit.String = sprintf('%.0f', val);
+    fig.UserData = state;
+    if hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
+end
+
+function onOffsetXEdit(src, fig, ax)
+    state = fig.UserData;
+    val = str2double(src.String);
+    if isnan(val)
+        src.String = sprintf('%.0f', state.offsetX);
+        return
+    end
+    val = max(-200, min(200, round(val)));
+    state.offsetX = val;
+    state.h.offsetXSlider.Value = val;
+    state.h.offsetXEdit.String = sprintf('%.0f', val);
+    fig.UserData = state;
+    if hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
+end
+
+function onOffsetYSlider(src, fig, ax)
+    state = fig.UserData;
+    val = round(double(src.Value));
+    state.offsetY = val;
+    state.h.offsetYEdit.String = sprintf('%.0f', val);
+    fig.UserData = state;
+    if hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
+end
+
+function onOffsetYEdit(src, fig, ax)
+    state = fig.UserData;
+    val = str2double(src.String);
+    if isnan(val)
+        src.String = sprintf('%.0f', state.offsetY);
+        return
+    end
+    val = max(-200, min(200, round(val)));
+    state.offsetY = val;
+    state.h.offsetYSlider.Value = val;
+    state.h.offsetYEdit.String = sprintf('%.0f', val);
+    fig.UserData = state;
+    if hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
+end
+
+function onZoomSlider(src, fig, ax)
+    state = fig.UserData;
+    val = double(src.Value);
+    state.zoomFactor = val;
+    state.h.zoomEdit.String = sprintf('%.2f', val);
+    fig.UserData = state;
+    if hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
+end
+
+function onZoomEdit(src, fig, ax)
+    state = fig.UserData;
+    val = str2double(src.String);
+    if isnan(val) || val < 0.25 || val > 4
+        src.String = sprintf('%.2f', state.zoomFactor);
+        return
+    end
+    state.zoomFactor = val;
+    state.h.zoomSlider.Value = val;
+    fig.UserData = state;
+    if hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
+end
+
+function onResetPipeline(~, fig, ax)
+    state = fig.UserData;
+    state.rotationAngle = 0;
+    state.offsetX = 0;
+    state.offsetY = 0;
+    state.zoomFactor = 1;
+    state.gaussianSigma = 3;
+    state.noiseFilterType = 'none';
+    state.noiseFilterParam = 5;
+    state.h.rotationSlider.Value = 0;
+    state.h.rotationEdit.String = '0';
+    state.h.offsetXSlider.Value = 0;
+    state.h.offsetXEdit.String = '0';
+    state.h.offsetYSlider.Value = 0;
+    state.h.offsetYEdit.String = '0';
+    state.h.zoomSlider.Value = 1;
+    state.h.zoomEdit.String = '1.0';
+    state.h.gaussianSlider.Value = 3;
+    state.h.gaussianEdit.String = '3.0';
+    state.h.noiseFilterPopup.Value = 1;
+    state.h.blurSigmaText.Visible = 'off';
+    state.h.blurSigmaSlider.Visible = 'off';
+    state.h.blurSigmaEdit.Visible = 'off';
+    state.h.blurSigmaSlider.Value = 5;
+    state.h.blurSigmaEdit.String = '5';
+    state = clearBaseframe(state);
+    fig.UserData = state;
+    if hasValidMeta(fig)
+        k = getCurrentFrame(state);
+        showFrame(fig, ax, k);
+    end
+end
+
 function onContrastSlider(src, fig, ax)
     state = fig.UserData;
     c = double(src.Value);
@@ -1500,18 +1791,16 @@ function onImageClick(fig, ax)
         if ~hasValidMeta(fig)
             return
         end
-        cp = get(ax, 'CurrentPoint');
-        col = round(cp(1, 1));
-        row = round(cp(1, 2));
-        
         if isempty(state.him) || ~isvalid(state.him)
             return
         end
-        
         frameSize = size(state.him.CData);
-        if row < 1 || row > frameSize(1) || col < 1 || col > frameSize(2)
-            return
-        end
+        cp = get(ax, 'CurrentPoint');
+        [row, col] = displayToOriginal(cp(1, 1), cp(1, 2), state, frameSize);
+        row = round(row);
+        col = round(col);
+        row = max(1, min(frameSize(1), row));
+        col = max(1, min(frameSize(2), col));
         
         if state.referenceFullSize
             row_min = 1;
@@ -1547,18 +1836,16 @@ function onImageClick(fig, ax)
         if ~hasValidMeta(fig)
             return
         end
-        cp = get(ax, 'CurrentPoint');
-        col = round(cp(1, 1));
-        row = round(cp(1, 2));
-        
         if isempty(state.him) || ~isvalid(state.him)
             return
         end
-        
         frameSize = size(state.him.CData);
-        if row < 1 || row > frameSize(1) || col < 1 || col > frameSize(2)
-            return
-        end
+        cp = get(ax, 'CurrentPoint');
+        [row, col] = displayToOriginal(cp(1, 1), cp(1, 2), state, frameSize);
+        row = round(row);
+        col = round(col);
+        row = max(1, min(frameSize(1), row));
+        col = max(1, min(frameSize(2), col));
         
         cursorIdx = state.editingCursorIndex;
         if cursorIdx < 1 || cursorIdx > length(state.cursors)
@@ -1616,18 +1903,16 @@ function onImageClick(fig, ax)
     if ~hasValidMeta(fig)
         return
     end
-    cp = get(ax, 'CurrentPoint');
-    col = round(cp(1, 1));
-    row = round(cp(1, 2));
-    
     if isempty(state.him) || ~isvalid(state.him)
         return
     end
-    
     frameSize = size(state.him.CData);
-    if row < 1 || row > frameSize(1) || col < 1 || col > frameSize(2)
-        return
-    end
+    cp = get(ax, 'CurrentPoint');
+    [row, col] = displayToOriginal(cp(1, 1), cp(1, 2), state, frameSize);
+    row = round(row);
+    col = round(col);
+    row = max(1, min(frameSize(1), row));
+    col = max(1, min(frameSize(2), col));
     
     halfSize = 10;
     row_min = max(1, row - halfSize);
@@ -1673,6 +1958,11 @@ function drawCursors(fig, ax)
     end
     
     displayFrame = state.him.CData;
+    frameSize = size(displayFrame);
+    frameForIos = state.preGeometricFrame;
+    if isempty(frameForIos)
+        frameForIos = displayFrame;
+    end
     
     if ~isempty(state.cursors)
         for i = 1:length(state.cursors)
@@ -1702,13 +1992,18 @@ function drawCursors(fig, ax)
             col_min = cursor.rect(3);
             col_max = cursor.rect(4);
             
+            [x1, y1] = originalToDisplay(row_min - 0.5, col_min - 0.5, state, frameSize);
+            [x2, y2] = originalToDisplay(row_min - 0.5, col_max + 0.5, state, frameSize);
+            [x3, y3] = originalToDisplay(row_max + 0.5, col_max + 0.5, state, frameSize);
+            [x4, y4] = originalToDisplay(row_max + 0.5, col_min - 0.5, state, frameSize);
+            x = [x1, x2, x3, x4];
+            y = [y1, y2, y3, y4];
+            
             isSelected = (~isempty(state.selectedCursorIndex) && state.selectedCursorIndex == i);
             
             cursorColor = hex2rgb(cursor.color);
             
             if isSelected
-                x = [col_min, col_max, col_max, col_min] - 0.5;
-                y = [row_min, row_min, row_max, row_max] - 0.5;
                 if ~isempty(cursor.handle) && isvalid(cursor.handle) && isa(cursor.handle, 'matlab.graphics.primitive.Patch')
                     cursor.handle.XData = x;
                     cursor.handle.YData = y;
@@ -1719,25 +2014,25 @@ function drawCursors(fig, ax)
                     cursor.handle = patch(ax, x, y, 'r', 'FaceAlpha', 0.6, 'EdgeColor', 'r', 'LineWidth', 3, 'HitTest', 'off');
                 end
             else
-                x = [col_min, col_max, col_max, col_min, col_min] - 0.5;
-                y = [row_min, row_min, row_max, row_max, row_min] - 0.5;
+                xLine = [x1, x2, x3, x4, x1];
+                yLine = [y1, y2, y3, y4, y1];
                 if ~isempty(cursor.handle) && isvalid(cursor.handle) && isa(cursor.handle, 'matlab.graphics.primitive.Line')
-                    cursor.handle.XData = x;
-                    cursor.handle.YData = y;
+                    cursor.handle.XData = xLine;
+                    cursor.handle.YData = yLine;
                     cursor.handle.Color = cursorColor;
                 else
                     if ~isempty(cursor.handle) && isvalid(cursor.handle)
                         delete(cursor.handle);
                     end
-                    cursor.handle = line(ax, x, y, 'Color', cursorColor, 'LineWidth', 2, 'HitTest', 'off');
+                    cursor.handle = line(ax, xLine, yLine, 'Color', cursorColor, 'LineWidth', 2, 'HitTest', 'off');
                 end
             end
             
             if state.showIosValues
-                iosValue = computeCursorIos(state, cursor, displayFrame, state.iosMode, state.baseframeData, []);
+                iosValue = computeCursorIos(state, cursor, frameForIos, state.iosMode, state.baseframeData, []);
                 if ~isnan(iosValue) && isfinite(iosValue)
-                    textX = col_max + 2;
-                    textY = row_min;
+                    [textX, textY] = originalToDisplay(row_min, col_max, state, frameSize);
+                    textX = textX + 2;
                     if ~isempty(cursor.textHandle) && isvalid(cursor.textHandle)
                         cursor.textHandle.String = sprintf('%.4f', iosValue);
                         cursor.textHandle.Position = [textX, textY, 0];
@@ -1770,8 +2065,12 @@ function drawCursors(fig, ax)
         col_min = refCursor.rect(3);
         col_max = refCursor.rect(4);
         
-        x = [col_min, col_max, col_max, col_min, col_min] - 0.5;
-        y = [row_min, row_min, row_max, row_max, row_min] - 0.5;
+        [x1, y1] = originalToDisplay(row_min - 0.5, col_min - 0.5, state, frameSize);
+        [x2, y2] = originalToDisplay(row_min - 0.5, col_max + 0.5, state, frameSize);
+        [x3, y3] = originalToDisplay(row_max + 0.5, col_max + 0.5, state, frameSize);
+        [x4, y4] = originalToDisplay(row_max + 0.5, col_min - 0.5, state, frameSize);
+        x = [x1, x2, x3, x4, x1];
+        y = [y1, y2, y3, y4, y1];
         
         if ~isempty(refCursor.handle) && isvalid(refCursor.handle) && isa(refCursor.handle, 'matlab.graphics.primitive.Line')
             refCursor.handle.XData = x;
@@ -2365,6 +2664,10 @@ function updateChart(fig, ax, t)
     end
     
     displayFrame = state.him.CData;
+    frameForIos = state.preGeometricFrame;
+    if isempty(frameForIos)
+        frameForIos = displayFrame;
+    end
     chartAx = state.chartAx;
     
     numCursors = length(state.cursors);
@@ -2377,7 +2680,7 @@ function updateChart(fig, ax, t)
             cursor.visible = true;
         end
         if cursor.visible
-            iosValue = computeCursorIos(state, cursor, displayFrame, state.iosMode, state.baseframeData, []);
+            iosValue = computeCursorIos(state, cursor, frameForIos, state.iosMode, state.baseframeData, []);
             if ~isnan(iosValue) && isfinite(iosValue)
                 visibleCursors(end + 1) = i;
                 iosValues(end + 1) = iosValue;
