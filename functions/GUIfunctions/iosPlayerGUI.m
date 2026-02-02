@@ -12,6 +12,11 @@ function iosPlayerGUI(iosPath)
     if isempty(SettingsFilepath)
         SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
     end
+    assetsPath = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'assets');
+    playIcon = fullfile(assetsPath, 'play_btn.png');
+    pauseIcon = fullfile(assetsPath, 'pause_btn.png');
+    recordIcon = fullfile(assetsPath, 'record_btn.png');
+    stopIcon = fullfile(assetsPath, 'stop_btn.png');
     fig = figure('Name', 'IOS Player', 'NumberTitle', 'off', ...
         'Units', 'normalized', 'Position', [0.25 0.15 0.5 0.7], 'Tag', figTag);
     ax = axes(fig, 'Units', 'normalized', 'Position', [0.070 0.532 0.603 0.406]);
@@ -22,15 +27,15 @@ function iosPlayerGUI(iosPath)
     hTimeEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
         'Position', [0.024 0.442 0.120 0.040], 'String', '0:00.0');
     hNavStart = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.239 0.391 0.050 0.040], 'String', '|<<');
+        'Position', [0.239 0.391 0.050 0.040], 'String', createIconButtonHTML(fullfile(assetsPath, 'nav_start_btn.png')));
     hNavPrev = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.295 0.391 0.050 0.040], 'String', '<');
+        'Position', [0.295 0.391 0.050 0.040], 'String', createIconButtonHTML(fullfile(assetsPath, 'previous_button.png')));
     hNavNext = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.355 0.391 0.050 0.040], 'String', '>');
+        'Position', [0.355 0.391 0.050 0.040], 'String', createIconButtonHTML(fullfile(assetsPath, 'next_button.png')));
     hNavEnd = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.412 0.391 0.050 0.040], 'String', '>>|');
+        'Position', [0.412 0.391 0.050 0.040], 'String', createIconButtonHTML(fullfile(assetsPath, 'nav_end_btn.png')));
     hPlayBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.131 0.391 0.099 0.040], 'String', 'Play');
+        'Position', [0.131 0.391 0.099 0.040], 'String', createIconButtonHTML(playIcon));
     hSpeedPopup = uicontrol(fig, 'Style', 'popupmenu', 'Units', 'normalized', ...
         'Position', [0.477 0.391 0.080 0.040], 'String', {'0.5x','1x','2x','5x','10x','20x','50x','100x','200x','500x','1000x'}, 'Value', 2);
     hOpenBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
@@ -39,7 +44,7 @@ function iosPlayerGUI(iosPath)
         'Position', [0.135 0.952 0.540 0.040], 'String', 'No file opened', ...
         'HorizontalAlignment', 'left', 'FontSize', 8);
     hRecordBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.024 0.391 0.100 0.040], 'String', 'Record');
+        'Position', [0.024 0.391 0.100 0.040], 'String', createIconButtonHTML(recordIcon));
     hContrastText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
         'Position', [0.754 0.923 0.080 0.040], 'String', 'Contrast:', 'HorizontalAlignment', 'left');
     hContrastSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
@@ -164,7 +169,7 @@ function iosPlayerGUI(iosPath)
         'chartAx', chartAx, 'chartLines', [], 'chartData', struct('x', {}, 'y', {}, 'cursorIdx', {}), ...
         'chartSmoothingWindow', 1, 'chartRawData', struct('x', {}, 'y', {}), ...
         'isUpdating', false, 'lastChartUpdateTime', 0, 'isRecording', false, 'videoWriter', [], ...
-        'colormapScheme', 'gray');
+        'colormapScheme', 'gray', 'playIcon', playIcon, 'pauseIcon', pauseIcon, 'recordIcon', recordIcon, 'stopIcon', stopIcon);
     fig.UserData = state;
 
     hSlider.Callback = @(src,~) onSlider(src, fig, ax);
@@ -209,6 +214,7 @@ function iosPlayerGUI(iosPath)
 
     applyLoadedSettings(fig, ax);
     fig.CloseRequestFcn = @(src,~) closeIosPlayerWindow(src);
+    fig.WindowState = 'maximized';
 
     if ~isempty(iosPath) && exist(iosPath, 'file')
         openFile(fig, ax, iosPath);
@@ -224,6 +230,7 @@ function iosPlayerGUI(iosPath)
         end
         saveIosPlayerSettings(fig);
         delete(fig);
+        manageMainWindows('IosPlayerGUI');
     end
 
     function saveIosPlayerSettings(fig)
@@ -736,14 +743,14 @@ function openFile(fig, ax, fname)
         stop(state.playTimer);
         delete(state.playTimer);
         state.playTimer = [];
-        state.h.playBtn.String = 'Play';
+        state.h.playBtn.String = createIconButtonHTML(state.playIcon);
     end
     
     if state.isRecording && ~isempty(state.videoWriter) && isvalid(state.videoWriter)
         close(state.videoWriter);
         state.isRecording = false;
         state.videoWriter = [];
-        state.h.recordBtn.String = 'Record';
+        state.h.recordBtn.String = createIconButtonHTML(state.recordIcon);
     end
     
     if ~isempty(state.cursors)
@@ -905,7 +912,7 @@ function onPlayPause(src, fig, ax)
         stop(state.playTimer);
         delete(state.playTimer);
         state.playTimer = [];
-        src.String = 'Play';
+        src.String = createIconButtonHTML(state.playIcon);
         fig.UserData = state;
         return
     end
@@ -921,7 +928,7 @@ function onPlayPause(src, fig, ax)
     if dt <= 0
         dt = 0.05;
     end
-    src.String = 'Pause';
+    src.String = createIconButtonHTML(state.pauseIcon);
     drawnow
     state.playTimer = timer('ExecutionMode', 'singleShot', 'StartDelay', dt, ...
         'TimerFcn', @(~,~) playStep(fig, ax));
@@ -945,7 +952,7 @@ function playStep(fig, ax)
             stop(state.playTimer);
             delete(state.playTimer);
             state.playTimer = [];
-            state.h.playBtn.String = 'Play';
+            state.h.playBtn.String = createIconButtonHTML(state.playIcon);
             showFrame(fig, ax, t.N);
             fig.UserData = state;
             return
@@ -1334,7 +1341,7 @@ function onRecord(~, fig, ax)
     
     if state.isRecording
         state.isRecording = false;
-        state.h.recordBtn.String = 'Record';
+        state.h.recordBtn.String = createIconButtonHTML(state.recordIcon);
         fig.UserData = state;
         return
     end
@@ -1387,7 +1394,7 @@ function onRecord(~, fig, ax)
         
         state.isRecording = true;
         state.videoWriter = v;
-        state.h.recordBtn.String = 'Stop Recording';
+        state.h.recordBtn.String = createIconButtonHTML(state.stopIcon);
         fig.UserData = state;
         drawnow;
         
@@ -1413,7 +1420,7 @@ function onRecord(~, fig, ax)
         state = fig.UserData;
         state.isRecording = false;
         state.videoWriter = [];
-        state.h.recordBtn.String = 'Record';
+        state.h.recordBtn.String = createIconButtonHTML(state.recordIcon);
         fig.UserData = state;
         
         if idx == numFramesToRecord
@@ -1429,7 +1436,7 @@ function onRecord(~, fig, ax)
         state = fig.UserData;
         state.isRecording = false;
         state.videoWriter = [];
-        state.h.recordBtn.String = 'Record';
+        state.h.recordBtn.String = createIconButtonHTML(state.recordIcon);
         fig.UserData = state;
         errordlg(sprintf('Error during video recording:\n%s', ME.message), 'Recording Error');
         rethrow(ME);
@@ -2637,4 +2644,19 @@ function onIosRangeEdit(src, fig, ax, which)
     fig.UserData = state;
     k = getCurrentFrame(state);
     showFrame(fig, ax, k);
+end
+
+function htmlStr = createIconButtonHTML(imgPath, textStr, iconSize)
+    if nargin < 3
+        iconSize = 30;
+    end
+    if nargin < 2
+        textStr = '';
+    end
+    imgPathEscaped = strrep(imgPath, '\', '/');
+    if isempty(textStr)
+        htmlStr = sprintf('<html><img src="file:///%s" width="%d" height="%d"></html>', imgPathEscaped, iconSize, iconSize);
+    else
+        htmlStr = sprintf('<html><img src="file:///%s" width="%d" height="%d">&nbsp;%s</html>', imgPathEscaped, iconSize, iconSize, textStr);
+    end
 end
