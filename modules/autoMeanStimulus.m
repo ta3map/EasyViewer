@@ -32,13 +32,8 @@ function result = autoMeanStimulus(filePath, fileId, params)
         'MaxPeakWidth', params.MaxPeakWidth_s * timeUnitFactor, ...
         'SmoothingKernel_s', params.SmoothingKernel_s * timeUnitFactor); 
 
-    % Детекция пиков: выбираем функцию в зависимости от параметров
-    useOriginalData = isfield(params, 'UseOriginalData') && logical(params.UseOriginalData);
-    if useOriginalData && isfield(calcResult, 'originalEventsData') && ~isempty(calcResult.originalEventsData)
-        events = detectPeaksInOriginalData(calcResult, detParams);
-    else
-        events = detectPeaksInMeanData(calcResult, detParams);
-    end
+    % Детекция пиков в оригинальных данных
+    events = detectPeaksInOriginalData(calcResult, detParams);
     
         
     % Добавляем графики и таблицы
@@ -66,6 +61,6 @@ function result = autoMeanStimulus(filePath, fileId, params)
         'parameters', params, ...
         'calcResult', calcResult, ...
         'events', events, ...
-        'tableResultInsert', {{'events.first_onset_by_channel', 'events.median_first_onset', 'events.paired_ttest_pvalue_by_channel', 'events.more_responses_after_zero_by_channel'}});
+        'tableResultInsert', {{'events.first_onset_by_channel', 'events.median_first_onset', 'events.paired_ttest_pvalue_by_channel', 'events.has_response_mean', 'events.median_amplitude_before_zero', 'events.median_amplitude_after_zero'}});
 end
 

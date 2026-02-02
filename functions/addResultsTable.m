@@ -64,13 +64,13 @@ function addResultsTable(fig, events, calcResult)
     
     % Строка: Paired t-test (p-value / More after zero) по каналам
     ttestRow = {'Paired t-test (p-value / More after zero)'};
-    if isfield(events, 'paired_ttest_pvalue_by_channel') && isfield(events, 'more_responses_after_zero_by_channel') && numChannels > 0
+    if isfield(events, 'paired_ttest_pvalue_by_channel') && isfield(events, 'has_response_mean') && numChannels > 0
         for i = 1:numChannels
             chIdx = uniqueChannels(i);
             activeChIdx = find(calcResult.activeChannels == chIdx, 1);
             if ~isempty(activeChIdx) && activeChIdx <= length(events.paired_ttest_pvalue_by_channel)
                 pval = events.paired_ttest_pvalue_by_channel(activeChIdx);
-                moreAfter = events.more_responses_after_zero_by_channel(activeChIdx);
+                moreAfter = events.has_response_mean(activeChIdx);
                 if ~isnan(pval)
                     moreAfterStr = 'Yes';
                     if ~moreAfter

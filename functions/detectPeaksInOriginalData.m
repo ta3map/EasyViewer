@@ -220,6 +220,27 @@ function events = detectPeaksInOriginalData(calcResult, params)
         events.median_first_onset = NaN;
     end
     
+    % Вычисление медианной амплитуды до и после нуля
+    if ~isempty(events.peak_times) && ~isempty(events.peaks)
+        before_zero_mask = events.peak_times <= 0;
+        after_zero_mask = events.peak_times > 0;
+        
+        if any(before_zero_mask)
+            events.median_amplitude_before_zero = median(events.peaks(before_zero_mask));
+        else
+            events.median_amplitude_before_zero = NaN;
+        end
+        
+        if any(after_zero_mask)
+            events.median_amplitude_after_zero = median(events.peaks(after_zero_mask));
+        else
+            events.median_amplitude_after_zero = NaN;
+        end
+    else
+        events.median_amplitude_before_zero = NaN;
+        events.median_amplitude_after_zero = NaN;
+    end
+    
     % Расчет медианных slope и decay_slope по каналам (control и response)
     onset_slopes_control = NaN(size(activeChannels));
     onset_slopes_response = NaN(size(activeChannels));
@@ -285,7 +306,7 @@ function events = detectPeaksInOriginalData(calcResult, params)
     
     % Попарный t-тест: подсчет количеств до и после нуля по триалам для каждого канала
     paired_ttest_pvalue_by_channel = NaN(size(activeChannels));
-    more_responses_after_zero_by_channel = false(size(activeChannels));
+    has_response_mean = false(size(activeChannels));
     
     if ~isempty(events.peak_times) && isfield(events, 'eventIndices') && ~isempty(events.eventIndices)
         for chIdx = 1:length(activeChannels)
@@ -315,17 +336,17 @@ function events = detectPeaksInOriginalData(calcResult, params)
                 try
                     [~, pvalue] = ttest(count_before, count_after);
                     paired_ttest_pvalue_by_channel(chIdx) = pvalue;
-                    more_responses_after_zero_by_channel(chIdx) = mean(count_after) > mean(count_before);
+                    has_response_mean(chIdx) = mean(count_after) > mean(count_before);
                 catch
                     paired_ttest_pvalue_by_channel(chIdx) = NaN;
-                    more_responses_after_zero_by_channel(chIdx) = false;
+                    has_response_mean(chIdx) = false;
                 end
             end
         end
     end
     
     events.paired_ttest_pvalue_by_channel = paired_ttest_pvalue_by_channel;
-    events.more_responses_after_zero_by_channel = more_responses_after_zero_by_channel;
+    events.has_response_mean = has_response_mean;
     
     debugState('detectPeaksInOriginalData', 'Total events found: %d', events.numEvents);
     debugState('detectPeaksInOriginalData', 'Events before zero: %d', events.numEventsBeforeZero);

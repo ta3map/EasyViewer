@@ -2,92 +2,108 @@ function iosPlayerGUI(iosPath)
     if nargin < 1
         iosPath = '';
     end
+    figTag = 'iosPlayerGUI';
+    guiFig = findobj('Type', 'figure', 'Tag', figTag);
+    if ~isempty(guiFig)
+        figure(guiFig);
+        return
+    end
     fig = figure('Name', 'IOS Player', 'NumberTitle', 'off', ...
-        'Units', 'normalized', 'Position', [0.25 0.15 0.5 0.7]);
-    ax = axes(fig, 'Units', 'normalized', 'Position', [0.1 0.5 0.65 0.45]);
-    chartAx = axes(fig, 'Units', 'normalized', 'Position', [0.77 0.5 0.18 0.45], 'Visible', 'off');
+        'Units', 'normalized', 'Position', [0.25 0.15 0.5 0.7], 'Tag', figTag);
+    ax = axes(fig, 'Units', 'normalized', 'Position', [0.070 0.532 0.603 0.406]);
+    chartAx = axes(fig, 'Units', 'normalized', 'Position', [0.670 0.110 0.316 0.194], 'Visible', 'off');
     colormap(fig, gray);
     hSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
-        'Position', [0.1 0.38 0.5 0.04], 'Min', 1, 'Max', 2, 'Value', 1);
+        'Position', [0.152 0.442 0.525 0.040], 'Min', 1, 'Max', 2, 'Value', 1);
     hTimeEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
-        'Position', [0.1 0.32 0.12 0.04], 'String', '0:00.0');
+        'Position', [0.024 0.442 0.120 0.040], 'String', '0:00.0');
     hNavStart = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.24 0.32 0.05 0.04], 'String', '|<<');
+        'Position', [0.239 0.391 0.050 0.040], 'String', '|<<');
     hNavPrev = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.30 0.32 0.05 0.04], 'String', '<');
+        'Position', [0.295 0.391 0.050 0.040], 'String', '<');
     hNavNext = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.36 0.32 0.05 0.04], 'String', '>');
+        'Position', [0.355 0.391 0.050 0.040], 'String', '>');
     hNavEnd = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.42 0.32 0.05 0.04], 'String', '>>|');
+        'Position', [0.412 0.391 0.050 0.040], 'String', '>>|');
     hPlayBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.5 0.32 0.06 0.04], 'String', 'Play');
+        'Position', [0.131 0.391 0.099 0.040], 'String', 'Play');
     hSpeedPopup = uicontrol(fig, 'Style', 'popupmenu', 'Units', 'normalized', ...
-        'Position', [0.58 0.32 0.08 0.04], 'String', {'0.5x','1x','2x','10x','20x','50x','100x','200x','500x','1000x'}, 'Value', 2);
+        'Position', [0.477 0.391 0.080 0.040], 'String', {'0.5x','1x','2x','5x','10x','20x','50x','100x','200x','500x','1000x'}, 'Value', 2);
     hOpenBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.68 0.32 0.12 0.04], 'String', 'Open');
+        'Position', [0.011 0.952 0.120 0.040], 'String', 'Open');
     hRecordBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.80 0.32 0.10 0.04], 'String', 'Record');
+        'Position', [0.024 0.391 0.100 0.040], 'String', 'Record');
+    hContrastText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.754 0.923 0.080 0.040], 'String', 'Contrast:', 'HorizontalAlignment', 'left');
     hContrastSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
-        'Position', [0.1 0.26 0.2 0.03], 'Min', 0.2, 'Max', 2, 'Value', 1);
+        'Position', [0.754 0.898 0.158 0.040], 'Min', 0.2, 'Max', 2, 'Value', 1);
+    hContrastEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
+        'Position', [0.918 0.898 0.055 0.040], 'String', '1.0');
     hGaussianText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.32 0.26 0.08 0.03], 'String', 'Gaussian:', 'HorizontalAlignment', 'left');
+        'Position', [0.754 0.825 0.080 0.040], 'String', 'Gaussian:', 'HorizontalAlignment', 'left');
     hGaussianSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
-        'Position', [0.41 0.26 0.1 0.03], 'Min', 0, 'Max', 100, 'Value', 3);
+        'Position', [0.754 0.800 0.158 0.040], 'Min', 0, 'Max', 100, 'Value', 3);
     hGaussianEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
-        'Position', [0.52 0.26 0.05 0.03], 'String', '3.0');
+        'Position', [0.918 0.800 0.055 0.040], 'String', '3.0');
     hNoiseFilterText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.59 0.26 0.08 0.03], 'String', 'Noise filter:', 'HorizontalAlignment', 'left');
+        'Position', [0.754 0.722 0.080 0.040], 'String', 'Noise filter:', 'HorizontalAlignment', 'left');
     hNoiseFilterPopup = uicontrol(fig, 'Style', 'popupmenu', 'Units', 'normalized', ...
-        'Position', [0.68 0.26 0.12 0.03], 'String', {'None','Median','Wiener','Highpass'}, 'Value', 1);
+        'Position', [0.834 0.722 0.136 0.040], 'String', {'None','Median','Wiener','Highpass'}, 'Value', 1);
     hColormapText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.72 0.26 0.08 0.03], 'String', 'Colormap:', 'HorizontalAlignment', 'left');
+        'Position', [0.754 0.603 0.080 0.040], 'String', 'Colormap:', 'HorizontalAlignment', 'left');
     hColormapPopup = uicontrol(fig, 'Style', 'popupmenu', 'Units', 'normalized', ...
-        'Position', [0.81 0.26 0.15 0.03], 'String', {'gray','jet','hot','cool','parula','hsv','spring','summer','autumn','winter','bone','copper','pink','lines'}, 'Value', 1);
+        'Position', [0.834 0.600 0.139 0.040], 'String', {'gray','jet','hot','cool','parula','hsv','spring','summer','autumn','winter','bone','copper','pink','lines'}, 'Value', 1);
     hBlurSigmaText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.59 0.23 0.08 0.03], 'String', 'Kernel size:', 'HorizontalAlignment', 'left', 'Visible', 'off');
+        'Position', [0.754 0.686 0.080 0.040], 'String', 'Kernel size:', 'HorizontalAlignment', 'left', 'Visible', 'off');
     hBlurSigmaSlider = uicontrol(fig, 'Style', 'slider', 'Units', 'normalized', ...
-        'Position', [0.68 0.23 0.1 0.03], 'Min', 1, 'Max', 1000, 'Value', 5, 'Visible', 'off');
+        'Position', [0.754 0.668 0.158 0.040], 'Min', 1, 'Max', 1000, 'Value', 5, 'Visible', 'off');
     hBlurSigmaEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
-        'Position', [0.79 0.23 0.05 0.03], 'String', '5', 'Visible', 'off');
+        'Position', [0.918 0.668 0.055 0.040], 'String', '5', 'Visible', 'off');
     hIosCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
-        'Position', [0.1 0.22 0.04 0.03], 'String', 'IOS', 'Value', 0);
+        'Position', [0.030 0.294 0.050 0.040], 'String', 'IOS', 'Value', 0);
+    hBaseStartText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.331 0.283 0.070 0.040], 'String', 'Base start:', 'HorizontalAlignment', 'left', 'Visible', 'off');
     hBaseStartEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
-        'Position', [0.16 0.22 0.06 0.03], 'String', '1', 'Visible', 'off');
+        'Position', [0.331 0.261 0.055 0.040], 'String', '1', 'Visible', 'off');
+    hBaseEndText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.455 0.283 0.055 0.040], 'String', 'Base end:', 'HorizontalAlignment', 'left', 'Visible', 'off');
     hBaseEndEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
-        'Position', [0.24 0.22 0.06 0.03], 'String', '1', 'Visible', 'off');
+        'Position', [0.455 0.261 0.055 0.040], 'String', '1', 'Visible', 'off');
     hSetBaseBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.32 0.22 0.1 0.03], 'String', 'Set baseframe', 'Visible', 'off');
+        'Position', [0.518 0.265 0.100 0.040], 'String', 'Set baseframe', 'Visible', 'off');
     hGetTracesBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.44 0.22 0.1 0.03], 'String', 'Get Traces');
+        'Position', [0.905 0.010 0.090 0.040], 'String', 'Get Traces');
     hAddReferenceBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.56 0.22 0.08 0.03], 'String', 'Add Reference');
+        'Position', [0.480 0.188 0.105 0.040], 'String', 'Add Reference', 'Visible', 'off');
     hDeleteReferenceBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.65 0.22 0.08 0.03], 'String', 'Delete Reference');
+        'Position', [0.479 0.150 0.105 0.040], 'String', 'Delete Reference', 'Visible', 'off');
     hFloatingBaseCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
-        'Position', [0.1 0.19 0.12 0.03], 'String', 'Floating base', 'Value', 0, 'Visible', 'off');
+        'Position', [0.030 0.230 0.120 0.040], 'String', 'Floating base', 'Value', 0, 'Visible', 'off');
+    hBaseDelayText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.396 0.283 0.060 0.040], 'String', 'Base delay:', 'HorizontalAlignment', 'left', 'Visible', 'off');
     hBaseDelayEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
-        'Position', [0.24 0.19 0.06 0.03], 'String', '1.0', 'Visible', 'off');
+        'Position', [0.396 0.261 0.055 0.040], 'String', '1.0', 'Visible', 'off');
     hReferenceSizeText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.56 0.19 0.06 0.03], 'String', 'Ref Size:', 'HorizontalAlignment', 'left', 'Visible', 'off');
+        'Position', [0.348 0.165 0.080 0.040], 'String', 'Ref Size:', 'HorizontalAlignment', 'left', 'Visible', 'off');
     hReferenceSizeEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
-        'Position', [0.63 0.19 0.05 0.03], 'String', '10', 'Visible', 'off');
+        'Position', [0.395 0.165 0.055 0.040], 'String', '10', 'Visible', 'off');
     hReferenceFullSizeCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
-        'Position', [0.56 0.16 0.17 0.03], 'String', 'Full Image Reference', 'Value', 0, 'Visible', 'off');
+        'Position', [0.173 0.175 0.131 0.039], 'String', 'Full Image Reference', 'Value', 0, 'Visible', 'off');
     hAddCursorBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.62 0.14 0.12 0.03], 'String', 'Add Cursor');
+        'Position', [0.498 0.083 0.090 0.040], 'String', 'Add Cursor');
     hIosMinText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.75 0.07 0.06 0.03], 'String', 'IOS Min:', 'HorizontalAlignment', 'left');
+        'Position', [0.150 0.283 0.060 0.040], 'String', 'IOS Min:', 'HorizontalAlignment', 'left', 'Visible', 'off');
     hIosMinEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
-        'Position', [0.75 0.05 0.05 0.03], 'String', '');
+        'Position', [0.147 0.261 0.055 0.040], 'String', '', 'Visible', 'off');
     hIosMaxText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.87 0.07 0.06 0.03], 'String', 'IOS Max:', 'HorizontalAlignment', 'left');
+        'Position', [0.234 0.282 0.060 0.040], 'String', 'IOS Max:', 'HorizontalAlignment', 'left', 'Visible', 'off');
     hIosMaxEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
-        'Position', [0.87 0.05 0.05 0.03], 'String', '');
+        'Position', [0.234 0.262 0.055 0.040], 'String', '', 'Visible', 'off');
 
     hCursorsText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.1 0.16 0.2 0.03], 'String', 'Cursors:', 'HorizontalAlignment', 'left');
+        'Position', [0.029 0.106 0.080 0.040], 'String', 'Cursors:', 'HorizontalAlignment', 'left');
     hCursorsTable = uitable(fig, 'Units', 'normalized', ...
-        'Position', [0.1 0.05 0.5 0.11], ...
+        'Position', [0.030 0.010 0.369 0.113], ...
         'ColumnName', {'#', 'Row', 'Col', 'Size', 'Visible'}, ...
         'ColumnEditable', [false false false true true], ...
         'ColumnFormat', {'numeric', 'numeric', 'numeric', 'numeric', 'logical'}, ...
@@ -96,32 +112,33 @@ function iosPlayerGUI(iosPath)
         'CellSelectionCallback', @(src, event) onCursorsTableSelection(src, event, fig), ...
         'CellEditCallback', @(src, event) onCursorsTableEdit(src, event, fig, ax));
     hEditCursorBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.62 0.11 0.12 0.03], 'String', 'Edit Position');
+        'Position', [0.407 0.083 0.090 0.040], 'String', 'Edit Position');
     hDeleteCursorBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.62 0.08 0.12 0.03], 'String', 'Delete Selected');
+        'Position', [0.406 0.040 0.095 0.040], 'String', 'Delete Selected');
     hClearCursorsBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.62 0.05 0.12 0.03], 'String', 'Clear All');
+        'Position', [0.502 0.040 0.090 0.040], 'String', 'Clear All');
     hShowIosCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
-        'Position', [0.76 0.11 0.14 0.03], 'String', 'Show IOS values', 'Value', 0);
+        'Position', [0.760 0.517 0.120 0.040], 'String', 'Show IOS values', 'Value', 0);
     hClearChartBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.77 0.45 0.18 0.04], 'String', 'Clear Chart', 'Visible', 'off');
+        'Position', [0.809 0.010 0.090 0.040], 'String', 'Clear Chart', 'Visible', 'off');
     hChartSmoothingText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.77 0.41 0.08 0.03], 'String', 'Smoothing:', 'HorizontalAlignment', 'left', 'Visible', 'off');
+        'Position', [0.840 0.303 0.080 0.040], 'String', 'Smoothing:', 'HorizontalAlignment', 'left', 'Visible', 'off');
     hChartSmoothingEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
-        'Position', [0.86 0.41 0.09 0.03], 'String', '1', 'Visible', 'off');
+        'Position', [0.918 0.303 0.055 0.040], 'String', '1', 'Visible', 'off');
     hShowChartCheck = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
-        'Position', [0.77 0.37 0.2 0.03], 'String', 'Show Chart', 'Value', 1, 'Visible', 'off');
+        'Position', [0.710 0.010 0.095 0.040], 'String', 'Show Chart', 'Value', 1, 'Visible', 'off');
 
     h = struct('slider', hSlider, 'timeEdit', hTimeEdit, 'playBtn', hPlayBtn, ...
-        'speedPopup', hSpeedPopup, 'openBtn', hOpenBtn, 'recordBtn', hRecordBtn, 'contrastSlider', hContrastSlider, ...
+        'speedPopup', hSpeedPopup, 'openBtn', hOpenBtn, 'recordBtn', hRecordBtn, 'contrastText', hContrastText, 'contrastSlider', hContrastSlider, 'contrastEdit', hContrastEdit, ...
         'navStart', hNavStart, 'navPrev', hNavPrev, 'navNext', hNavNext, 'navEnd', hNavEnd, ...
-        'iosCheck', hIosCheck, 'baseStartEdit', hBaseStartEdit, 'baseEndEdit', hBaseEndEdit, ...
-        'setBaseBtn', hSetBaseBtn, 'gaussianText', hGaussianText, 'gaussianSlider', hGaussianSlider, 'gaussianEdit', hGaussianEdit, ...
+        'iosCheck', hIosCheck, 'baseStartText', hBaseStartText, 'baseStartEdit', hBaseStartEdit, ...
+        'baseEndText', hBaseEndText, 'baseEndEdit', hBaseEndEdit, 'setBaseBtn', hSetBaseBtn, ...
+        'gaussianText', hGaussianText, 'gaussianSlider', hGaussianSlider, 'gaussianEdit', hGaussianEdit, ...
         'colormapText', hColormapText, 'colormapPopup', hColormapPopup, ...
         'addCursorBtn', hAddCursorBtn, 'getTracesBtn', hGetTracesBtn, 'addReferenceBtn', hAddReferenceBtn, ...
         'deleteReferenceBtn', hDeleteReferenceBtn, 'referenceSizeEdit', hReferenceSizeEdit, 'referenceSizeText', hReferenceSizeText, ...
         'referenceFullSizeCheck', hReferenceFullSizeCheck, ...
-        'floatingBaseCheck', hFloatingBaseCheck, 'baseDelayEdit', hBaseDelayEdit, ...
+        'floatingBaseCheck', hFloatingBaseCheck, 'baseDelayText', hBaseDelayText, 'baseDelayEdit', hBaseDelayEdit, ...
         'noiseFilterText', hNoiseFilterText, 'noiseFilterPopup', hNoiseFilterPopup, ...
         'blurSigmaText', hBlurSigmaText, 'blurSigmaSlider', hBlurSigmaSlider, 'blurSigmaEdit', hBlurSigmaEdit, ...
         'cursorsText', hCursorsText, 'cursorsTable', hCursorsTable, 'editCursorBtn', hEditCursorBtn, ...
@@ -149,7 +166,8 @@ function iosPlayerGUI(iosPath)
     hSpeedPopup.Callback = @(src,~) onSpeedChange(src, fig, ax);
     hOpenBtn.Callback = @(src,~) onOpen(src, fig, ax);
     hRecordBtn.Callback = @(src,~) onRecord(src, fig, ax);
-    hContrastSlider.Callback = @(src,~) onContrast(src, fig, ax);
+    hContrastSlider.Callback = @(src,~) onContrastSlider(src, fig, ax);
+    hContrastEdit.Callback = @(src,~) onContrastEdit(src, fig, ax);
     hGaussianSlider.Callback = @(src,~) onGaussianSlider(src, fig, ax);
     hGaussianEdit.Callback = @(src,~) onGaussianEdit(src, fig, ax);
     hNavStart.Callback = @(src,~) onNav(src, fig, ax, 'start');
@@ -357,7 +375,6 @@ function baseframeData = computeFloatingBaseframe(fig, k)
     if meta.dt > 0
         k_base = max(1, k - frames_back);
     end
-    fprintf('computeFloatingBaseframe: k=%d, delay=%.2f, dt=%.6f, frames_back=%d, k_base=%d\n', k, delay, meta.dt, frames_back, k_base);
     [data, ~, ~] = readIOS2(state.iosPath, 'startframe', k_base, 'endframe', k_base, 'Format', 'Lin');
     if isempty(data)
         return
@@ -529,6 +546,7 @@ function openFile(fig, ax, fname)
     state.iosPath = fname;
     state.clim = [0 65535];
     state.h.contrastSlider.Value = 1;
+    state.h.contrastEdit.String = '1.0';
     state.h.gaussianSlider.Value = state.gaussianSigma;
     state.h.gaussianEdit.String = sprintf('%.2f', state.gaussianSigma);
     state = clearBaseframe(state);
@@ -541,6 +559,7 @@ function openFile(fig, ax, fname)
     state.baseDelay = 1.0;
     state.h.baseDelayEdit.String = sprintf('%.2f', state.baseDelay);
     state.h.baseDelayEdit.Visible = 'off';
+    state.h.baseDelayText.Visible = 'off';
     
     state.noiseFilterType = 'none';
     state.noiseFilterParam = 5;
@@ -567,6 +586,12 @@ function openFile(fig, ax, fname)
     state.h.referenceSizeText.Visible = visRefSize;
     state.h.referenceSizeEdit.Visible = visRefSize;
     state.h.referenceFullSizeCheck.Visible = visRefSize;
+    state.h.addReferenceBtn.Visible = visRefSize;
+    state.h.deleteReferenceBtn.Visible = visRefSize;
+    state.h.iosMinText.Visible = visRefSize;
+    state.h.iosMinEdit.Visible = visRefSize;
+    state.h.iosMaxText.Visible = visRefSize;
+    state.h.iosMaxEdit.Visible = visRefSize;
     state.climIosMin = [];
     state.climIosMax = [];
     state.h.iosMinEdit.String = '';
@@ -719,7 +744,7 @@ function onPlayPause(src, fig, ax)
         cur = 1;
         showFrame(fig, ax, cur);
     end
-    speeds = [0.5 1 2 10 20 50 100 200 500 1000];
+    speeds = [0.5 1 2 5 10 20 50 100 200 500 1000];
     speed = speeds(state.h.speedPopup.Value);
     dt = state.meta.dt / speed;
     if dt <= 0
@@ -727,7 +752,7 @@ function onPlayPause(src, fig, ax)
     end
     src.String = 'Pause';
     drawnow
-    state.playTimer = timer('ExecutionMode', 'fixedRate', 'Period', dt, ...
+    state.playTimer = timer('ExecutionMode', 'singleShot', 'StartDelay', dt, ...
         'TimerFcn', @(~,~) playStep(fig, ax));
     state.playTimer.UserData = struct('cur', cur, 'N', N);
     fig.UserData = state;
@@ -735,38 +760,52 @@ function onPlayPause(src, fig, ax)
 end
 
 function playStep(fig, ax)
-    state = fig.UserData;
-    t = state.playTimer.UserData;
-    speeds = [0.5 1 2 10 20 50 100 200 500 1000];
-    speed = speeds(state.h.speedPopup.Value);
-    stepSize = max(1, round(speed));
-    t.cur = t.cur + stepSize;
-    if t.cur > t.N
-        stop(state.playTimer);
-        delete(state.playTimer);
-        state.playTimer = [];
-        state.h.playBtn.String = 'Play';
-        showFrame(fig, ax, t.N);
+    try
+        state = fig.UserData;
+        if isempty(state.playTimer) || ~isvalid(state.playTimer)
+            return
+        end
+        t = state.playTimer.UserData;
+        speeds = [0.5 1 2 5 10 20 50 100 200 500 1000];
+        speed = speeds(state.h.speedPopup.Value);
+        stepSize = max(1, round(speed));
+        t.cur = t.cur + stepSize;
+        if t.cur > t.N
+            stop(state.playTimer);
+            delete(state.playTimer);
+            state.playTimer = [];
+            state.h.playBtn.String = 'Play';
+            showFrame(fig, ax, t.N);
+            fig.UserData = state;
+            return
+        end
+        state.playTimer.UserData = t;
         fig.UserData = state;
-        return
+        showFrame(fig, ax, t.cur);
+        drawnow;
+        dt = state.meta.dt / speed;
+        if dt <= 0
+            dt = 0.05;
+        end
+        stop(state.playTimer);
+        state.playTimer.StartDelay = dt;
+        start(state.playTimer);
+        fig.UserData = state;
+    catch
     end
-    state.playTimer.UserData = t;
-    fig.UserData = state;
-    showFrame(fig, ax, t.cur);
-    drawnow;
 end
 
 function onSpeedChange(src, fig, ax)
     state = fig.UserData;
     if ~isempty(state.playTimer) && isvalid(state.playTimer)
-        speeds = [0.5 1 2 10 20 50 100 200 500 1000];
+        speeds = [0.5 1 2 5 10 20 50 100 200 500 1000];
         speed = speeds(src.Value);
         dt = state.meta.dt / speed;
         if dt <= 0
             dt = 0.05;
         end
         stop(state.playTimer);
-        state.playTimer.Period = dt;
+        state.playTimer.StartDelay = dt;
         start(state.playTimer);
         fig.UserData = state;
     end
@@ -790,7 +829,10 @@ function onIosCheck(src, fig, ax)
         visDelay = 'off';
     end
     state.h.baseDelayEdit.Visible = visDelay;
+    state.h.baseDelayText.Visible = visDelay;
+    state.h.baseStartText.Visible = visBase;
     state.h.baseStartEdit.Visible = visBase;
+    state.h.baseEndText.Visible = visBase;
     state.h.baseEndEdit.Visible = visBase;
     state.h.setBaseBtn.Visible = visBase;
     if state.iosMode
@@ -801,6 +843,12 @@ function onIosCheck(src, fig, ax)
     state.h.referenceSizeText.Visible = visRefSize;
     state.h.referenceSizeEdit.Visible = visRefSize;
     state.h.referenceFullSizeCheck.Visible = visRefSize;
+    state.h.addReferenceBtn.Visible = vis;
+    state.h.deleteReferenceBtn.Visible = vis;
+    state.h.iosMinText.Visible = vis;
+    state.h.iosMinEdit.Visible = vis;
+    state.h.iosMaxText.Visible = vis;
+    state.h.iosMaxEdit.Visible = vis;
     fig.UserData = state;
     showHideChart(fig);
     k = getCurrentFrame(state);
@@ -820,9 +868,12 @@ function onFloatingBaseCheck(src, fig, ax)
         visBase = 'off';
         visDelay = 'off';
     end
+    state.h.baseStartText.Visible = visBase;
     state.h.baseStartEdit.Visible = visBase;
+    state.h.baseEndText.Visible = visBase;
     state.h.baseEndEdit.Visible = visBase;
     state.h.setBaseBtn.Visible = visBase;
+    state.h.baseDelayText.Visible = visDelay;
     state.h.baseDelayEdit.Visible = visDelay;
     if state.iosMode
         visRefSize = 'on';
@@ -832,6 +883,12 @@ function onFloatingBaseCheck(src, fig, ax)
     state.h.referenceSizeText.Visible = visRefSize;
     state.h.referenceSizeEdit.Visible = visRefSize;
     state.h.referenceFullSizeCheck.Visible = visRefSize;
+    state.h.addReferenceBtn.Visible = visRefSize;
+    state.h.deleteReferenceBtn.Visible = visRefSize;
+    state.h.iosMinText.Visible = visRefSize;
+    state.h.iosMinEdit.Visible = visRefSize;
+    state.h.iosMaxText.Visible = visRefSize;
+    state.h.iosMaxEdit.Visible = visRefSize;
     state = clearBaseframe(state);
     fig.UserData = state;
     if state.iosMode
@@ -1026,15 +1083,35 @@ function onNoiseFilterParamEdit(src, fig, ax)
     end
 end
 
-function onContrast(~, fig, ax)
+function onContrastSlider(src, fig, ax)
+    state = fig.UserData;
+    c = double(src.Value);
+    state.h.contrastEdit.String = sprintf('%.2f', c);
+    fig.UserData = state;
     if ~hasValidMeta(fig)
         return
     end
-    state = fig.UserData;
     if isempty(state.him) || ~isvalid(state.him)
         return
     end
-    c = double(state.h.contrastSlider.Value);
+    applyContrast(ax, getBaseRange(state), c);
+end
+
+function onContrastEdit(src, fig, ax)
+    state = fig.UserData;
+    c = str2double(src.String);
+    if isnan(c) || c < 0.2 || c > 2
+        src.String = sprintf('%.2f', state.h.contrastSlider.Value);
+        return
+    end
+    state.h.contrastSlider.Value = c;
+    fig.UserData = state;
+    if ~hasValidMeta(fig)
+        return
+    end
+    if isempty(state.him) || ~isvalid(state.him)
+        return
+    end
     applyContrast(ax, getBaseRange(state), c);
 end
 
@@ -1099,7 +1176,7 @@ function onRecord(~, fig, ax)
     
     v = [];
     try
-        speeds = [0.5 1 2 10 20 50 100 200 500 1000];
+        speeds = [0.5 1 2 5 10 20 50 100 200 500 1000];
         speed = speeds(state.h.speedPopup.Value);
         stepSize = max(1, round(speed));
         
@@ -1139,7 +1216,7 @@ function onRecord(~, fig, ax)
             showFrame(fig, ax, k);
             drawnow;
             
-            frame = getframe(fig);
+            frame = getframe(ax);
             writeVideo(v, frame);
         end
         
@@ -1606,9 +1683,21 @@ function onGetTraces(src, fig, ax)
                 visDelay = 'off';
             end
             state.h.baseDelayEdit.Visible = visDelay;
+            state.h.baseDelayText.Visible = visDelay;
+            state.h.baseStartText.Visible = visBase;
             state.h.baseStartEdit.Visible = visBase;
+            state.h.baseEndText.Visible = visBase;
             state.h.baseEndEdit.Visible = visBase;
             state.h.setBaseBtn.Visible = visBase;
+            state.h.referenceSizeText.Visible = 'on';
+            state.h.referenceSizeEdit.Visible = 'on';
+            state.h.referenceFullSizeCheck.Visible = 'on';
+            state.h.addReferenceBtn.Visible = 'on';
+            state.h.deleteReferenceBtn.Visible = 'on';
+            state.h.iosMinText.Visible = 'on';
+            state.h.iosMinEdit.Visible = 'on';
+            state.h.iosMaxText.Visible = 'on';
+            state.h.iosMaxEdit.Visible = 'on';
             fig.UserData = state;
         end
         
@@ -2216,7 +2305,6 @@ function updateChart(fig, ax, t)
         if hasValidLine
             xlabel(chartAx, 'Time (s)');
             ylabel(chartAx, 'IOS');
-            title(chartAx, sprintf('Current: %s', sec2timeStr(t)));
         end
     end
     

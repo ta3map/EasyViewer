@@ -319,7 +319,6 @@ function baseframeData = computeFloatingBaseframe(fig, k)
     else
         k_base = 1;
     end
-    fprintf('computeFloatingBaseframe: k=%d, delay=%.2f, dt=%.6f, frames_back=%d, k_base=%d\n', k, delay, meta.dt, frames_back, k_base);
     [data, ~, ~] = readIOS2(state.iosPath, 'startframe', k_base, 'endframe', k_base, 'Format', 'Lin');
     if isempty(data)
         return
