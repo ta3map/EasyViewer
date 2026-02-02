@@ -8,6 +8,10 @@ function iosPlayerGUI(iosPath)
         figure(guiFig);
         return
     end
+    global SettingsFilepath auto_open_last_file
+    if isempty(SettingsFilepath)
+        SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
+    end
     fig = figure('Name', 'IOS Player', 'NumberTitle', 'off', ...
         'Units', 'normalized', 'Position', [0.25 0.15 0.5 0.7], 'Tag', figTag);
     ax = axes(fig, 'Units', 'normalized', 'Position', [0.070 0.532 0.603 0.406]);
@@ -31,6 +35,9 @@ function iosPlayerGUI(iosPath)
         'Position', [0.477 0.391 0.080 0.040], 'String', {'0.5x','1x','2x','5x','10x','20x','50x','100x','200x','500x','1000x'}, 'Value', 2);
     hOpenBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
         'Position', [0.011 0.952 0.120 0.040], 'String', 'Open');
+    hFilePathText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.135 0.952 0.540 0.040], 'String', 'No file opened', ...
+        'HorizontalAlignment', 'left', 'FontSize', 8);
     hRecordBtn = uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
         'Position', [0.024 0.391 0.100 0.040], 'String', 'Record');
     hContrastText = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
@@ -129,7 +136,7 @@ function iosPlayerGUI(iosPath)
         'Position', [0.710 0.010 0.095 0.040], 'String', 'Show Chart', 'Value', 1, 'Visible', 'off');
 
     h = struct('slider', hSlider, 'timeEdit', hTimeEdit, 'playBtn', hPlayBtn, ...
-        'speedPopup', hSpeedPopup, 'openBtn', hOpenBtn, 'recordBtn', hRecordBtn, 'contrastText', hContrastText, 'contrastSlider', hContrastSlider, 'contrastEdit', hContrastEdit, ...
+        'speedPopup', hSpeedPopup, 'openBtn', hOpenBtn, 'filePathText', hFilePathText, 'recordBtn', hRecordBtn, 'contrastText', hContrastText, 'contrastSlider', hContrastSlider, 'contrastEdit', hContrastEdit, ...
         'navStart', hNavStart, 'navPrev', hNavPrev, 'navNext', hNavNext, 'navEnd', hNavEnd, ...
         'iosCheck', hIosCheck, 'baseStartText', hBaseStartText, 'baseStartEdit', hBaseStartEdit, ...
         'baseEndText', hBaseEndText, 'baseEndEdit', hBaseEndEdit, 'setBaseBtn', hSetBaseBtn, ...
@@ -200,8 +207,224 @@ function iosPlayerGUI(iosPath)
     hBlurSigmaSlider.Callback = @(src,~) onNoiseFilterParamSlider(src, fig, ax);
     hBlurSigmaEdit.Callback = @(src,~) onNoiseFilterParamEdit(src, fig, ax);
 
+    applyLoadedSettings(fig, ax);
+    fig.CloseRequestFcn = @(src,~) closeIosPlayerWindow(src);
+
     if ~isempty(iosPath) && exist(iosPath, 'file')
         openFile(fig, ax, iosPath);
+    else
+        autoOpenLastFile(fig, ax);
+    end
+
+    function closeIosPlayerWindow(fig)
+        state = fig.UserData;
+        if ~isempty(state.playTimer) && isvalid(state.playTimer)
+            stop(state.playTimer);
+            delete(state.playTimer);
+        end
+        saveIosPlayerSettings(fig);
+        delete(fig);
+    end
+
+    function saveIosPlayerSettings(fig)
+        if isempty(SettingsFilepath)
+            SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
+        end
+        state = fig.UserData;
+        s = struct();
+        s.currentFrame = state.h.slider.Value;
+        s.contrast = state.h.contrastSlider.Value;
+        s.clim = state.clim;
+        s.gaussianSigma = state.gaussianSigma;
+        s.iosMode = state.iosMode;
+        s.baseframeStart = state.baseframeStart;
+        s.baseframeEnd = state.baseframeEnd;
+        s.baseDelay = state.baseDelay;
+        s.floatingBaseMode = state.floatingBaseMode;
+        s.speedPopupValue = state.h.speedPopup.Value;
+        s.colormapScheme = state.colormapScheme;
+        s.noiseFilterType = state.noiseFilterType;
+        s.noiseFilterParam = state.noiseFilterParam;
+        s.referenceSize = state.referenceSize;
+        s.referenceFullSize = state.referenceFullSize;
+        s.showIosValues = state.showIosValues;
+        s.chartSmoothingWindow = state.chartSmoothingWindow;
+        s.showChart = state.h.showChartCheck.Value;
+        if ~isempty(state.climIosMin)
+            s.climIosMin = state.climIosMin;
+        end
+        if ~isempty(state.climIosMax)
+            s.climIosMax = state.climIosMax;
+        end
+        s.visFloatingBaseCheck = state.h.floatingBaseCheck.Visible;
+        s.visBaseStartText = state.h.baseStartText.Visible;
+        s.visBaseStartEdit = state.h.baseStartEdit.Visible;
+        s.visBaseEndText = state.h.baseEndText.Visible;
+        s.visBaseEndEdit = state.h.baseEndEdit.Visible;
+        s.visSetBaseBtn = state.h.setBaseBtn.Visible;
+        s.visBaseDelayText = state.h.baseDelayText.Visible;
+        s.visBaseDelayEdit = state.h.baseDelayEdit.Visible;
+        s.visBlurSigmaText = state.h.blurSigmaText.Visible;
+        s.visBlurSigmaSlider = state.h.blurSigmaSlider.Visible;
+        s.visBlurSigmaEdit = state.h.blurSigmaEdit.Visible;
+        s.visReferenceSizeText = state.h.referenceSizeText.Visible;
+        s.visReferenceSizeEdit = state.h.referenceSizeEdit.Visible;
+        s.visReferenceFullSizeCheck = state.h.referenceFullSizeCheck.Visible;
+        s.visAddReferenceBtn = state.h.addReferenceBtn.Visible;
+        s.visDeleteReferenceBtn = state.h.deleteReferenceBtn.Visible;
+        s.visIosMinText = state.h.iosMinText.Visible;
+        s.visIosMinEdit = state.h.iosMinEdit.Visible;
+        s.visIosMaxText = state.h.iosMaxText.Visible;
+        s.visIosMaxEdit = state.h.iosMaxEdit.Visible;
+        s.visClearChartBtn = state.h.clearChartBtn.Visible;
+        s.visChartSmoothingText = state.h.chartSmoothingText.Visible;
+        s.visChartSmoothingEdit = state.h.chartSmoothingEdit.Visible;
+        s.visShowChartCheck = state.h.showChartCheck.Visible;
+        s.visChartAx = state.chartAx.Visible;
+        if ~isempty(state.iosPath) && ischar(state.iosPath)
+            s.lastOpenedPath = state.iosPath;
+        end
+        iosplayer_settings = s;
+        save(SettingsFilepath, 'iosplayer_settings', '-append');
+    end
+
+    function applyLoadedSettings(fig, ax)
+        if ~exist(SettingsFilepath, 'file')
+            return
+        end
+        d = load(SettingsFilepath, 'iosplayer_settings');
+        if ~isfield(d, 'iosplayer_settings')
+            return
+        end
+        settings = d.iosplayer_settings;
+        state = fig.UserData;
+        nSpeed = numel(state.h.speedPopup.String);
+        nColormap = numel(state.h.colormapPopup.String);
+        nNoise = numel(state.h.noiseFilterPopup.String);
+        if isfield(settings, 'currentFrame')
+            v = state.h.slider.Min;
+            m = state.h.slider.Max;
+            state.h.slider.Value = max(v, min(m, round(settings.currentFrame)));
+        end
+        if isfield(settings, 'contrast')
+            c = max(0.2, min(2, double(settings.contrast)));
+            state.h.contrastSlider.Value = c;
+            state.h.contrastEdit.String = sprintf('%.2f', c);
+        end
+        if isfield(settings, 'clim') && numel(settings.clim) == 2
+            state.clim = settings.clim;
+        end
+        if isfield(settings, 'gaussianSigma')
+            sigma = max(0, min(100, double(settings.gaussianSigma)));
+            state.gaussianSigma = sigma;
+            state.h.gaussianSlider.Value = sigma;
+            state.h.gaussianEdit.String = sprintf('%.2f', sigma);
+        end
+        if isfield(settings, 'iosMode')
+            state.iosMode = logical(settings.iosMode);
+            state.h.iosCheck.Value = double(state.iosMode);
+        end
+        if isfield(settings, 'baseframeStart')
+            state.baseframeStart = settings.baseframeStart;
+            state.h.baseStartEdit.String = num2str(state.baseframeStart);
+        end
+        if isfield(settings, 'baseframeEnd')
+            state.baseframeEnd = settings.baseframeEnd;
+            state.h.baseEndEdit.String = num2str(state.baseframeEnd);
+        end
+        if isfield(settings, 'baseDelay')
+            state.baseDelay = settings.baseDelay;
+            state.h.baseDelayEdit.String = sprintf('%.2f', state.baseDelay);
+        end
+        if isfield(settings, 'floatingBaseMode')
+            state.floatingBaseMode = logical(settings.floatingBaseMode);
+            state.h.floatingBaseCheck.Value = double(state.floatingBaseMode);
+        end
+        if isfield(settings, 'speedPopupValue') && nSpeed >= 1
+            v = max(1, min(nSpeed, round(settings.speedPopupValue)));
+            state.h.speedPopup.Value = v;
+        end
+        if isfield(settings, 'colormapScheme') && ischar(settings.colormapScheme)
+            state.colormapScheme = settings.colormapScheme;
+            list = state.h.colormapPopup.String;
+            idx = find(strcmpi(list, settings.colormapScheme), 1);
+            if ~isempty(idx)
+                state.h.colormapPopup.Value = idx;
+            end
+            colormap(fig, state.colormapScheme);
+        end
+        if isfield(settings, 'noiseFilterType')
+            state.noiseFilterType = settings.noiseFilterType;
+            list = {'none','median','wiener','highpass'};
+            idx = find(strcmpi(list, settings.noiseFilterType), 1);
+            if ~isempty(idx) && idx <= nNoise
+                state.h.noiseFilterPopup.Value = idx;
+            end
+        end
+        if isfield(settings, 'noiseFilterParam')
+            p = max(1, min(1000, round(settings.noiseFilterParam)));
+            state.noiseFilterParam = p;
+            state.h.blurSigmaSlider.Value = p;
+            state.h.blurSigmaEdit.String = num2str(p);
+        end
+        if isfield(settings, 'referenceSize')
+            state.referenceSize = settings.referenceSize;
+            state.h.referenceSizeEdit.String = num2str(state.referenceSize);
+        end
+        if isfield(settings, 'referenceFullSize')
+            state.referenceFullSize = logical(settings.referenceFullSize);
+            state.h.referenceFullSizeCheck.Value = double(state.referenceFullSize);
+        end
+        if isfield(settings, 'showIosValues')
+            state.showIosValues = logical(settings.showIosValues);
+            state.h.showIosCheck.Value = double(state.showIosValues);
+        end
+        if isfield(settings, 'chartSmoothingWindow')
+            state.chartSmoothingWindow = max(1, settings.chartSmoothingWindow);
+            state.h.chartSmoothingEdit.String = num2str(state.chartSmoothingWindow);
+        end
+        if isfield(settings, 'showChart')
+            state.h.showChartCheck.Value = double(logical(settings.showChart));
+        end
+        if isfield(settings, 'climIosMin') && ~isempty(settings.climIosMin)
+            state.climIosMin = settings.climIosMin;
+            state.h.iosMinEdit.String = sprintf('%.6f', state.climIosMin);
+        end
+        if isfield(settings, 'climIosMax') && ~isempty(settings.climIosMax)
+            state.climIosMax = settings.climIosMax;
+            state.h.iosMaxEdit.String = sprintf('%.6f', state.climIosMax);
+        end
+        visPairs = {'visFloatingBaseCheck','floatingBaseCheck'; 'visBaseStartText','baseStartText'; 'visBaseStartEdit','baseStartEdit'; 'visBaseEndText','baseEndText'; 'visBaseEndEdit','baseEndEdit'; 'visSetBaseBtn','setBaseBtn'; 'visBaseDelayText','baseDelayText'; 'visBaseDelayEdit','baseDelayEdit'; 'visBlurSigmaText','blurSigmaText'; 'visBlurSigmaSlider','blurSigmaSlider'; 'visBlurSigmaEdit','blurSigmaEdit'; 'visReferenceSizeText','referenceSizeText'; 'visReferenceSizeEdit','referenceSizeEdit'; 'visReferenceFullSizeCheck','referenceFullSizeCheck'; 'visAddReferenceBtn','addReferenceBtn'; 'visDeleteReferenceBtn','deleteReferenceBtn'; 'visIosMinText','iosMinText'; 'visIosMinEdit','iosMinEdit'; 'visIosMaxText','iosMaxText'; 'visIosMaxEdit','iosMaxEdit'; 'visClearChartBtn','clearChartBtn'; 'visChartSmoothingText','chartSmoothingText'; 'visChartSmoothingEdit','chartSmoothingEdit'; 'visShowChartCheck','showChartCheck'; 'visChartAx','chartAx'};
+        for i = 1:size(visPairs, 1)
+            fn = visPairs{i, 1};
+            hName = visPairs{i, 2};
+            if isfield(settings, fn)
+                if strcmp(hName, 'chartAx')
+                    state.chartAx.Visible = settings.(fn);
+                else
+                    state.h.(hName).Visible = settings.(fn);
+                end
+            end
+        end
+        fig.UserData = state;
+    end
+
+    function autoOpenLastFile(fig, ax)
+        if isempty(auto_open_last_file) || ~auto_open_last_file
+            return
+        end
+        if isempty(SettingsFilepath) || ~exist(SettingsFilepath, 'file')
+            return
+        end
+        d = load(SettingsFilepath, 'iosplayer_settings');
+        if ~isfield(d, 'iosplayer_settings') || ~isfield(d.iosplayer_settings, 'lastOpenedPath')
+            return
+        end
+        lastPath = d.iosplayer_settings.lastOpenedPath;
+        if ~exist(lastPath, 'file')
+            return
+        end
+        openFile(fig, ax, lastPath);
     end
 end
 
@@ -544,68 +767,16 @@ function openFile(fig, ax, fname)
     meta = readIOS2(fname, 'metadataOnly', true);
     state.meta = meta;
     state.iosPath = fname;
-    state.clim = [0 65535];
-    state.h.contrastSlider.Value = 1;
-    state.h.contrastEdit.String = '1.0';
-    state.h.gaussianSlider.Value = state.gaussianSigma;
-    state.h.gaussianEdit.String = sprintf('%.2f', state.gaussianSigma);
+    state.h.filePathText.String = fname;
     state = clearBaseframe(state);
-    state.baseframeStart = 1;
-    n20 = calculateN20Frames(meta);
-    state.baseframeEnd = min(meta.totalFrames, 1 + n20);
-    state.h.baseStartEdit.String = num2str(state.baseframeStart);
-    state.h.baseEndEdit.String = num2str(state.baseframeEnd);
-    state.floatingBaseMode = false;
-    state.baseDelay = 1.0;
-    state.h.baseDelayEdit.String = sprintf('%.2f', state.baseDelay);
-    state.h.baseDelayEdit.Visible = 'off';
-    state.h.baseDelayText.Visible = 'off';
-    
-    state.noiseFilterType = 'none';
-    state.noiseFilterParam = 5;
-    state.h.noiseFilterPopup.Value = 1;
-    state.h.blurSigmaText.Visible = 'off';
-    state.h.blurSigmaSlider.Visible = 'off';
-    state.h.blurSigmaSlider.Value = 5;
-    state.h.blurSigmaEdit.Visible = 'off';
-    state.h.blurSigmaEdit.String = '5';
-    
     state.cursors = [];
     state.awaitingClick = false;
     state.referenceCursor = [];
     state.awaitingReferenceClick = false;
-    state.referenceSize = 10;
-    state.referenceFullSize = false;
-    state.h.referenceSizeEdit.String = '10';
-    state.h.referenceFullSizeCheck.Value = 0;
-    if state.iosMode
-        visRefSize = 'on';
-    else
-        visRefSize = 'off';
-    end
-    state.h.referenceSizeText.Visible = visRefSize;
-    state.h.referenceSizeEdit.Visible = visRefSize;
-    state.h.referenceFullSizeCheck.Visible = visRefSize;
-    state.h.addReferenceBtn.Visible = visRefSize;
-    state.h.deleteReferenceBtn.Visible = visRefSize;
-    state.h.iosMinText.Visible = visRefSize;
-    state.h.iosMinEdit.Visible = visRefSize;
-    state.h.iosMaxText.Visible = visRefSize;
-    state.h.iosMaxEdit.Visible = visRefSize;
-    state.climIosMin = [];
-    state.climIosMax = [];
-    state.h.iosMinEdit.String = '';
-    state.h.iosMaxEdit.String = '';
     state.editingCursorIndex = [];
     state.selectedCursorIndex = [];
     state.isUpdating = false;
     state.lastChartUpdateTime = 0;
-    
-    colormapScheme = state.colormapScheme;
-    if isempty(colormapScheme)
-        colormapScheme = 'gray';
-    end
-    colormap(fig, colormapScheme);
     
     fig.UserData = state;
     updateCursorsTable(fig);
@@ -1133,7 +1304,24 @@ function onColormapChange(src, fig, ax)
 end
 
 function onOpen(~, fig, ax)
-    [f, p] = uigetfile('*.ios', 'Select IOS file');
+    global SettingsFilepath
+    startPath = '';
+    if ~isempty(SettingsFilepath) && exist(SettingsFilepath, 'file')
+        d = load(SettingsFilepath, 'iosplayer_settings');
+        if isfield(d, 'iosplayer_settings') && isfield(d.iosplayer_settings, 'lastOpenedPath')
+            lastPath = d.iosplayer_settings.lastOpenedPath;
+            if exist(lastPath, 'file')
+                startPath = fileparts(lastPath);
+            elseif exist(lastPath, 'dir')
+                startPath = lastPath;
+            end
+        end
+    end
+    if isempty(startPath)
+        [f, p] = uigetfile('*.ios', 'Select IOS file');
+    else
+        [f, p] = uigetfile('*.ios', 'Select IOS file', startPath);
+    end
     if isequal(f, 0)
         return
     end

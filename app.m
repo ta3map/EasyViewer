@@ -2,8 +2,8 @@ function app()
 
     global EV_path EV_version EV_date EV_author EV_email EV_description
 
-    EV_version = '1.15.02';
-    EV_date = '26.01.2026';
+    EV_version = '1.15.03';
+    EV_date = '02.02.2026';
     EV_author = 'Azat Gainutdinov';
     EV_email = 'ta3map@gmail.com';
     EV_description = 'Visualization and analysis of electrophysiological data';
@@ -36,7 +36,7 @@ function app()
               'NumberTitle', 'off', ...
               'MenuBar', 'none', ...
               'ToolBar', 'none', ...
-              'Position', [100, 100, 400, 484], ...
+              'Position', [100, 100, 400, 544], ...
               'Resize', 'off', ...
               'Tag', 'EasyViewerApp', ...
               'CloseRequestFcn', @closeApp);
@@ -56,6 +56,14 @@ function app()
     % Create panel for buttons
     panel = uipanel('Parent', f, ...
                    'Position', [0.1, 0.1, 0.8, 0.8]);
+    
+    % Button to launch iosPlayerGUI
+    uicontrol('Parent', panel, ...
+             'Style', 'pushbutton', ...
+             'String', createButtonHTML(fullfile(assetsPath, 'signal_viewer_btn.png'), 'IOS Player'), ...
+             'Position', [40, 375, 240, 50], ...
+             'FontSize', 11, ...
+             'Callback', @launchIosPlayer);
     
     % Button to launch signalViewerGUI
     uicontrol('Parent', panel, ...
@@ -132,6 +140,12 @@ function app()
     % Callback для запуска File Manager
     function launchFileManager(~, ~)
         fileManagerGUI();
+        delete(f);
+    end
+    
+    % Callback для запуска IOS Player
+    function launchIosPlayer(~, ~)
+        iosPlayerGUI();
         delete(f);
     end
     
