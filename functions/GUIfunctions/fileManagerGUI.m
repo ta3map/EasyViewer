@@ -1606,47 +1606,12 @@ function fileManagerGUI()
                 continue
             end
             
-            try
-                metaData = load(metaPath, '-mat');
-            catch ME
-                warning('Re-run analysis: skipping result - failed to load .meta file: %s', ME.message);
-                continue
-            end
-            
-            params = struct();
-            if isfield(metaData, 'parameters')
-                params = metaData.parameters;
-            end
-            
-            jsonParams = struct();
-            try
-                global timeUnitFactor
-                if isempty(timeUnitFactor)
-                    timeUnitFactor = 1;
-                end
-                jsonParams = loadModuleParams(moduleName, timeUnitFactor);
-            catch ME
-                debugState('fileManagerGUI', 'Re-run analysis: failed to load JSON parameters for module %s: %s', moduleName, ME.message);
-            end
-            
-            if ~isempty(fieldnames(jsonParams))
-                jsonFieldNames = fieldnames(jsonParams);
-                for j = 1:numel(jsonFieldNames)
-                    fieldName = jsonFieldNames{j};
-                    if ~isfield(params, fieldName)
-                        params.(fieldName) = jsonParams.(fieldName);
-                        debugState('fileManagerGUI', 'Re-run analysis: added missing parameter "%s" from JSON for file_id=%d, module=%s', ...
-                            fieldName, fileId, moduleName);
-                    end
-                end
-            end
-            
             task = struct(...
                 'fileId', fileId, ...
+                'reportPath', reportPath, ...
                 'filePath', filePath, ...
                 'fileName', fileName, ...
                 'moduleName', moduleName, ...
-                'params', params, ...
                 'updateHistory', false);
             tasks = [tasks; task];
         end
@@ -1665,6 +1630,7 @@ function fileManagerGUI()
             moduleGroups(moduleName) = [moduleGroups(moduleName); i];
         end
         
+        replacementByModule = containers.Map();
         moduleNames = keys(moduleGroups);
         for i = 1:numel(moduleNames)
             moduleName = moduleNames{i};
@@ -1682,12 +1648,9 @@ function fileManagerGUI()
                 if strcmp(choice, 'Yes')
                     replacement = showParameterReplacementDialog(moduleName, jsonParams);
                     if ~isempty(replacement.paramName)
-                        for j = 1:numel(taskIndices)
-                            taskIdx = taskIndices(j);
-                            tasks(taskIdx).params.(replacement.paramName) = replacement.paramValue;
-                            debugState('fileManagerGUI', 'Re-run analysis: replaced parameter "%s" for task %d (module: %s)', ...
-                                replacement.paramName, taskIdx, moduleName);
-                        end
+                        replacementByModule(moduleName) = replacement;
+                        debugState('fileManagerGUI', 'Re-run analysis: will replace parameter "%s" for module %s', ...
+                            replacement.paramName, moduleName);
                     end
                 end
             end
@@ -1695,11 +1658,41 @@ function fileManagerGUI()
         
         stats = executeModuleTasks(tasks, ...
             'ProgressBarTitle', 'Re-running Analysis', ...
+            'ParamsResolverCallback', @(task) getParamsForRerunTask(task, replacementByModule), ...
             'ExtractMetadataCallback', @(result, fileId) extractAndSaveMetadata(result, fileId), ...
             'SaveMetaFileCallback', @(result, filePath) saveMetaFileFromResult(result, filePath), ...
             'UpdateTableCallback', @(fileId) updateAnalysisTable(fileId));
         
         fprintf('Re-run analysis completed: %d successful out of %d total\n', stats.success, stats.total);
+    end
+    
+    function params = getParamsForRerunTask(task, replacementByModule)
+        metaPath = replaceFileExt(task.reportPath, '.meta');
+        metaData = load(metaPath, '-mat');
+        params = struct();
+        if isfield(metaData, 'parameters')
+            params = metaData.parameters;
+        end
+        global timeUnitFactor
+        if isempty(timeUnitFactor)
+            timeUnitFactor = 1;
+        end
+        jsonParams = loadModuleParams(task.moduleName, timeUnitFactor);
+        if ~isempty(fieldnames(jsonParams))
+            jsonFieldNames = fieldnames(jsonParams);
+            for j = 1:numel(jsonFieldNames)
+                fieldName = jsonFieldNames{j};
+                if ~isfield(params, fieldName)
+                    params.(fieldName) = jsonParams.(fieldName);
+                end
+            end
+        end
+        if isKey(replacementByModule, task.moduleName)
+            replacement = replacementByModule(task.moduleName);
+            if ~isempty(replacement.paramName)
+                params.(replacement.paramName) = replacement.paramValue;
+            end
+        end
     end
     
     function metadataAnalysisCallback(~, ~)

@@ -18,6 +18,8 @@ function stats = executeModuleTasks(tasks, varargin)
     %           function result = callback(result, filePath)
     %       'UpdateTableCallback' - функция для обновления таблицы анализа
     %           function callback(fileId)
+    %       'ParamsResolverCallback' - функция для получения params по задаче (если не задано, используются task.params)
+    %           function params = callback(task)
     %
     % Выходные параметры:
     %   stats - структура со статистикой:
@@ -30,12 +32,14 @@ function stats = executeModuleTasks(tasks, varargin)
     addParameter(p, 'ExtractMetadataCallback', [], @(x) isempty(x) || isa(x, 'function_handle'));
     addParameter(p, 'SaveMetaFileCallback', [], @(x) isempty(x) || isa(x, 'function_handle'));
     addParameter(p, 'UpdateTableCallback', [], @(x) isempty(x) || isa(x, 'function_handle'));
+    addParameter(p, 'ParamsResolverCallback', [], @(x) isempty(x) || isa(x, 'function_handle'));
     parse(p, varargin{:});
     
     progressBarTitle = p.Results.ProgressBarTitle;
     extractMetadataCallback = p.Results.ExtractMetadataCallback;
     saveMetaFileCallback = p.Results.SaveMetaFileCallback;
     updateTableCallback = p.Results.UpdateTableCallback;
+    paramsResolverCallback = p.Results.ParamsResolverCallback;
     
     stats = struct('total', 0, 'success', 0, 'failed', 0);
     
@@ -85,6 +89,9 @@ function stats = executeModuleTasks(tasks, varargin)
                     updateAnalysisHistory(task.fileId, task.moduleName);
                 end
                 
+                if ~isempty(paramsResolverCallback)
+                    task.params = paramsResolverCallback(task);
+                end
                 result = callModule(task.moduleName, task.filePath, task.fileId, task.params);
                 
                 if ~isempty(result) && isstruct(result) && numel(result) == 1 && ~isempty(fieldnames(result))

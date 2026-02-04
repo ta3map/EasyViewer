@@ -129,6 +129,32 @@ function addResultsTable(fig, events, calcResult)
         ampJitterRow{end+1} = ampJitterStr;
     end
     summaryData(end+1, :) = ampJitterRow;
+    medianOnsetAfterRow = {'Median onset after zero'};
+    medianOnsetAfter = NaN;
+    if isfield(events, 'median_onset_after_zero')
+        medianOnsetAfter = events.median_onset_after_zero;
+    end
+    medianOnsetAfterStr = 'N/A';
+    if ~isnan(medianOnsetAfter)
+        medianOnsetAfterStr = sprintf('%.4f', medianOnsetAfter);
+    end
+    for i = 1:numChannels
+        medianOnsetAfterRow{end+1} = medianOnsetAfterStr;
+    end
+    summaryData(end+1, :) = medianOnsetAfterRow;
+    meanOnsetAfterRow = {'Mean onset after zero'};
+    meanOnsetAfter = NaN;
+    if isfield(events, 'mean_onset_after_zero')
+        meanOnsetAfter = events.mean_onset_after_zero;
+    end
+    meanOnsetAfterStr = 'N/A';
+    if ~isnan(meanOnsetAfter)
+        meanOnsetAfterStr = sprintf('%.4f', meanOnsetAfter);
+    end
+    for i = 1:numChannels
+        meanOnsetAfterRow{end+1} = meanOnsetAfterStr;
+    end
+    summaryData(end+1, :) = meanOnsetAfterRow;
     
     if events.numEvents > 0 && numChannels > 0
         % Статистика по каналам для событий до нуля

@@ -234,6 +234,14 @@ function events = detectPeaksInOriginalData(calcResult, params)
     else
         events.first_onset_jitter = NaN;
     end
+    onset_after_zero = events.onset_times(events.onset_times > 0 & ~isnan(events.onset_times));
+    if ~isempty(onset_after_zero)
+        events.median_onset_after_zero = median(onset_after_zero);
+        events.mean_onset_after_zero = mean(onset_after_zero);
+    else
+        events.median_onset_after_zero = NaN;
+        events.mean_onset_after_zero = NaN;
+    end
     
     % Вычисление медианной амплитуды до и после нуля
     if ~isempty(events.peak_times) && ~isempty(events.peaks)
