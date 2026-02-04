@@ -165,8 +165,10 @@ function events = detectPeaksInOriginalData(calcResult, params)
     % Расчет first_onset для каждого канала
     % Для каждого триала находим первый онсет, затем медиана этих значений по триалам
     first_onset_by_channel = NaN(size(activeChannels));
+    mean_first_onset_by_channel = NaN(size(activeChannels));
     first_onset_slope_by_channel = NaN(size(activeChannels));
     first_decay_slope_by_channel = NaN(size(activeChannels));
+    all_first_onsets = [];
     if ~isempty(events.peak_times)
         for chIdx = 1:length(activeChannels)
             channelIdx = activeChannels(chIdx);
@@ -193,9 +195,11 @@ function events = detectPeaksInOriginalData(calcResult, params)
                     end
                 end
                 
-                % Медиана первых онсетов по всем триалам
+                % Медиана и среднее первых онсетов по всем триалам
                 if ~isempty(first_onsets_per_trial)
                     first_onset_by_channel(chIdx) = median(first_onsets_per_trial);
+                    mean_first_onset_by_channel(chIdx) = mean(first_onsets_per_trial);
+                    all_first_onsets = [all_first_onsets, first_onsets_per_trial];
                     
                     first_slopes_valid = first_slopes_per_trial(~isnan(first_slopes_per_trial));
                     if ~isempty(first_slopes_valid)
@@ -219,6 +223,17 @@ function events = detectPeaksInOriginalData(calcResult, params)
     else
         events.median_first_onset = NaN;
     end
+    mean_response_onsets = mean_first_onset_by_channel(~isnan(mean_first_onset_by_channel));
+    if ~isempty(mean_response_onsets)
+        events.mean_first_onset = mean(mean_response_onsets);
+    else
+        events.mean_first_onset = NaN;
+    end
+    if numel(all_first_onsets) > 1
+        events.first_onset_jitter = std(all_first_onsets, 0);
+    else
+        events.first_onset_jitter = NaN;
+    end
     
     % Вычисление медианной амплитуды до и после нуля
     if ~isempty(events.peak_times) && ~isempty(events.peaks)
@@ -232,13 +247,21 @@ function events = detectPeaksInOriginalData(calcResult, params)
         end
         
         if any(after_zero_mask)
-            events.median_amplitude_after_zero = median(events.peaks(after_zero_mask));
+            peaks_after_zero = events.peaks(after_zero_mask);
+            events.median_amplitude_after_zero = median(peaks_after_zero);
+            if numel(peaks_after_zero) > 1
+                events.amplitude_jitter = std(peaks_after_zero, 0);
+            else
+                events.amplitude_jitter = NaN;
+            end
         else
             events.median_amplitude_after_zero = NaN;
+            events.amplitude_jitter = NaN;
         end
     else
         events.median_amplitude_before_zero = NaN;
         events.median_amplitude_after_zero = NaN;
+        events.amplitude_jitter = NaN;
     end
     
     % Расчет медианных slope и decay_slope по каналам (control и response)

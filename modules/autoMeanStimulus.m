@@ -19,6 +19,14 @@ function result = autoMeanStimulus(filePath, fileId, params)
 
     events = detectPeaksInOriginalData(calcResult, detParams);
 
+    timePoints = calcResult.timePoints;
+    stim_dt_min_max = 'N/A';
+    if numel(timePoints) >= 2
+        dt = diff(timePoints(:)) * timeUnitFactor;
+        stim_dt_min_max = sprintf('%.2f - %.2f', min(dt), max(dt));
+    end
+    calcResult.stim_dt_min_max = stim_dt_min_max;
+
     figPath = '';
     if buildFigure
         figPath = plotMeanStimulusFullResult(calcResult, plotParams, events, metadata, params);
@@ -32,6 +40,7 @@ function result = autoMeanStimulus(filePath, fileId, params)
         'parameters', params, ...
         'calcResult', calcResult, ...
         'events', events, ...
-        'tableResultInsert', {{'events.first_onset_by_channel', 'events.median_first_onset', 'events.paired_ttest_pvalue_by_channel', 'events.has_response_mean', 'events.median_amplitude_before_zero', 'events.median_amplitude_after_zero'}});
+        'stim_dt_min_max', stim_dt_min_max, ...
+        'tableResultInsert', {{'stim_dt_min_max', 'events.median_first_onset', 'events.mean_first_onset', 'events.first_onset_jitter', 'events.has_response_mean', 'events.median_amplitude_before_zero', 'events.median_amplitude_after_zero', 'events.amplitude_jitter'}});
 end
 

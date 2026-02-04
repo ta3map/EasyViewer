@@ -62,6 +62,17 @@ function addResultsTable(fig, events, calcResult)
     end
     summaryData(end+1, :) = totalRow;
     
+    % Строка: dt между стимулами (min - max), одна переменная в текстовом виде
+    stimDtRow = {'Stim dt (min - max)'};
+    stimDtStr = 'N/A';
+    if isfield(calcResult, 'stim_dt_min_max')
+        stimDtStr = calcResult.stim_dt_min_max;
+    end
+    for i = 1:numChannels
+        stimDtRow{end+1} = stimDtStr;
+    end
+    summaryData(end+1, :) = stimDtRow;
+    
     % Строка: Paired t-test (p-value / More after zero) по каналам
     ttestRow = {'Paired t-test (p-value / More after zero)'};
     if isfield(events, 'paired_ttest_pvalue_by_channel') && isfield(events, 'has_response_mean') && numChannels > 0
@@ -90,6 +101,34 @@ function addResultsTable(fig, events, calcResult)
         end
     end
     summaryData(end+1, :) = ttestRow;
+    
+    % Строка: джиттер первого онсета и амплитуды ответа (глобальные)
+    jitterRow = {'First onset jitter (std)'};
+    onsetJitter = NaN;
+    if isfield(events, 'first_onset_jitter')
+        onsetJitter = events.first_onset_jitter;
+    end
+    onsetJitterStr = 'N/A';
+    if ~isnan(onsetJitter)
+        onsetJitterStr = sprintf('%.4f', onsetJitter);
+    end
+    for i = 1:numChannels
+        jitterRow{end+1} = onsetJitterStr;
+    end
+    summaryData(end+1, :) = jitterRow;
+    ampJitterRow = {'Amplitude jitter (std)'};
+    ampJitter = NaN;
+    if isfield(events, 'amplitude_jitter')
+        ampJitter = events.amplitude_jitter;
+    end
+    ampJitterStr = 'N/A';
+    if ~isnan(ampJitter)
+        ampJitterStr = sprintf('%.4f', ampJitter);
+    end
+    for i = 1:numChannels
+        ampJitterRow{end+1} = ampJitterStr;
+    end
+    summaryData(end+1, :) = ampJitterRow;
     
     if events.numEvents > 0 && numChannels > 0
         % Статистика по каналам для событий до нуля
