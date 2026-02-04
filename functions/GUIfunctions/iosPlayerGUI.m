@@ -913,6 +913,9 @@ function openFile(fig, ax, fname)
     meta = readIOS2(fname, 'metadataOnly', true);
     state.meta = meta;
     state.iosPath = fname;
+    [~, t13, ~] = readIOS2(fname, 'startframe', 1, 'endframe', min(3, meta.totalFrames), 'Format', 'Lin');
+    t13 = [t13(:); NaN(max(0, 3 - numel(t13)), 1)];
+    fprintf('openFile: t(1)=%g, t(2)=%g, t(3)=%g\n', t13(1), t13(2), t13(3));
     state.h.filePathText.String = fname;
     state = clearBaseframe(state);
     state.cursors = [];

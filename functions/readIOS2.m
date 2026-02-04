@@ -112,6 +112,9 @@ function varargout = readIOS2(filename, varargin)
             ntrig_all = ntrig_all(valid);
             physIdx_all = physIdx_all(valid);
             acqLabel = unique(ntrig_all, 'stable')';
+            if ~isempty(t_all) && all(t_all == 0)
+                t_all = (1:length(t_all))';
+            end
             dt = 0;
             if length(t_all) >= 2
                 dt = mean(diff(t_all));
@@ -239,25 +242,18 @@ function varargout = readIOS2(filename, varargin)
 %                 continue
 %             end            
             
-            if trignum>max(acqList)
-                break
+            % preprocess
+            tmp = reshape(tmp, vidRes(2), vidRes(1), nbands);
+            frame = tmp(maskX, maskY, bandOfInterest);
+            if rsize ~= 1.0
+                frame = imresize(frame, [newvidres(2), newvidres(1)]);                    
             end
 
-            % decide if to return data
-            if (frametime>=tsMin) && (frametime <= tsMax) && ismember(trignum, acqList)
-                % preprocess
-                tmp = reshape(tmp, vidRes(2), vidRes(1), nbands);
-                frame = tmp(maskX, maskY, bandOfInterest);
-                if rsize ~= 1.0
-                    frame = imresize(frame, [newvidres(2), newvidres(1)]);                    
-                end
-
-                % store data
-                data(:,:,framesstored+1) = frame;
-                t(framesstored+1) = frametime;
-                ntrig(framesstored+1) = trignum;
-                framesstored = framesstored+1;  
-            end           
+            % store data (filtering temporarily disabled)
+            data(:,:,framesstored+1) = frame;
+            t(framesstored+1) = frametime;
+            ntrig(framesstored+1) = trignum;
+            framesstored = framesstored+1;           
             
             % shift for each frame
             if eachframe>1
@@ -271,7 +267,11 @@ function varargout = readIOS2(filename, varargin)
         end
 
         fclose(recfileID);
-        vidRes = newvidres;      
+        vidRes = newvidres;
+
+        if framesstored > 0 && all(t(1:framesstored) == 0)
+            t(1:framesstored) = startframe + (0:framesstored-1)' * eachframe;
+        end
         
     catch exception
         fclose(recfileID);
@@ -281,10 +281,9 @@ function varargout = readIOS2(filename, varargin)
 
     switch upper(outMode)
         case 'LIN'
-            data = permute(data(:,:,ntrig>0), [1,2,4,3]); % account for matlab image frames dimension
-            
-            varargout{2} = t(ntrig>0);
-            varargout{3} = ntrig(ntrig>0);
+            data = permute(data(:,:,1:framesstored), [1,2,4,3]); % account for matlab image frames dimension (filtering temporarily disabled)
+            varargout{2} = t(1:framesstored);
+            varargout{3} = ntrig(1:framesstored);
             varargout{1} = data;
             return;
         case 'MAT'
