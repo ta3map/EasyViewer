@@ -159,7 +159,7 @@ function fileManagerGUI()
 
     fileActionsMenu = uicontrol('Style', 'popupmenu', ...
         'Position', getElementPosition('fileActionsMenu'), ...
-        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field', 'Filter Files', 'Sort Files', 'Clear Filter'}, ...
+        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field', 'Filter Files', 'Sort Files', 'Clear Filter', 'Move to Project'}, ...
         'FontSize', 11, ...
         'Value', 1, ...
         'Callback', @handleFileAction, ...
@@ -524,6 +524,8 @@ function fileManagerGUI()
                 showSortDialog();
             case 7
                 clearFileFilter();
+            case 8
+                moveFilesToProject();
         end
     end
     
@@ -764,8 +766,10 @@ function fileManagerGUI()
             updateTable([]);
             return
         end
+        wb = waitbar(0, 'Loading files...', 'Name', 'File Manager');
         try
             files = fetchProjectFilesWithConn(conn, projectId);
+            waitbar(0.5, wb, 'Loading metadata...');
             state.files = files;
             state.selectedRow = resolveRowBySelectedId(files);
             if isempty(state.selectedRow)
@@ -773,7 +777,11 @@ function fileManagerGUI()
             end
             loadMetadataForProjectWithConn(conn, projectId);
             updateTable(files);
+            close(wb);
         catch ME
+            if ishandle(wb)
+                close(wb);
+            end
             warning('Failed to load project files: %s', ME.message);
             state.files = [];
             clearSelection();
@@ -1068,6 +1076,54 @@ function fileManagerGUI()
         autoBackupDatabase();
         unlinkFilesFromProject(selectedFileIds, state.currentProjectId);
         loadFilesForProject(state.currentProjectId);
+    end
+    
+    function moveFilesToProject(~, ~)
+        if isempty(state.currentProjectId) || ~isfield(state, 'selectedFileIds') || isempty(state.selectedFileIds) || isempty(state.files)
+            return
+        end
+        selectedFileIds = state.selectedFileIds;
+        otherIdx = find([state.projects.id] ~= state.currentProjectId);
+        otherProjects = state.projects(otherIdx);
+        listStrings = arrayfun(@(p) sprintf('%s (#%d)', p.name, p.id), otherProjects, 'UniformOutput', false);
+        listStrings{end + 1} = 'New project...';
+        [sel, ok] = listdlg('ListString', listStrings, 'SelectionMode', 'single', ...
+            'PromptString', 'Select target project:', 'Name', 'Move to Project', 'ListSize', [300, 200]);
+        if ~ok || isempty(sel)
+            return
+        end
+        idx = sel(1);
+        if idx == numel(listStrings)
+            answer = inputdlg({'Enter project name:'}, 'New Project', 1, {'New Project'});
+            if isempty(answer)
+                return
+            end
+            projectName = strtrim(answer{1});
+            if isempty(projectName)
+                msgbox('Project name cannot be empty', 'Error', 'error');
+                return
+            end
+            targetProjectId = insertProject(projectName);
+            if isempty(targetProjectId)
+                msgbox('Failed to create project', 'Error', 'error');
+                return
+            end
+            targetName = projectName;
+            loadProjectsFromDb();
+        else
+            targetProjectId = otherProjects(idx).id;
+            targetName = otherProjects(idx).name;
+        end
+        autoBackupDatabase();
+        for k = 1:numel(selectedFileIds)
+            fileIdx = find([state.files.id] == selectedFileIds(k), 1);
+            if ~isempty(fileIdx)
+                ensureFileInProject(state.files(fileIdx).path, targetProjectId);
+            end
+        end
+        unlinkFilesFromProject(selectedFileIds, state.currentProjectId);
+        loadFilesForProject(state.currentProjectId);
+        disp(sprintf('Moved %d file(s) to project "%s"', numel(selectedFileIds), targetName));
     end
     
     function openSelectedFile(varargin)
