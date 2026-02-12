@@ -159,7 +159,7 @@ function fileManagerGUI()
 
     fileActionsMenu = uicontrol('Style', 'popupmenu', ...
         'Position', getElementPosition('fileActionsMenu'), ...
-        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field', 'Rename Field', 'Filter Files', 'Sort Files', 'Clear Filter', 'Move to Project'}, ...
+        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field', 'Rename Field', 'Filter Files', 'Sort Files', 'Clear Filter', 'Move to Project', 'Import from Excel'}, ...
         'FontSize', 11, ...
         'Value', 1, ...
         'Callback', @handleFileAction, ...
@@ -528,6 +528,8 @@ function fileManagerGUI()
                 clearFileFilter();
             case 9
                 moveFilesToProject();
+            case 10
+                importMetadataFromExcel();
         end
     end
     
@@ -1188,6 +1190,198 @@ function fileManagerGUI()
         unlinkFilesFromProject(selectedFileIds, state.currentProjectId);
         loadFilesForProject(state.currentProjectId);
         disp(sprintf('Moved %d file(s) to project "%s"', numel(selectedFileIds), targetName));
+    end
+    
+    function importMetadataFromExcel()
+        if isempty(state.currentProjectId)
+            msgbox('No project selected', 'Error', 'error');
+            return
+        end
+        if isempty(state.files)
+            msgbox('Project has no files', 'Error', 'error');
+            return
+        end
+        startDir = fileparts(state.dbPath);
+        if isempty(startDir) || ~isfolder(startDir)
+            startDir = fileparts(defaultDbPath());
+        end
+        if isempty(startDir)
+            startDir = pwd;
+        end
+        [file, path] = uigetfile('*.xlsx', 'Select Excel file', startDir);
+        if isequal(file, 0)
+            return
+        end
+        excelPath = fullfile(path, file);
+        try
+            filesData = readcell(excelPath, 'Sheet', 1);
+        catch ME
+            msgbox(sprintf('Failed to read Excel file: %s', ME.message), 'Error', 'error');
+            return
+        end
+        if isempty(filesData) || size(filesData, 1) < 2
+            msgbox('No data found in the Excel file', 'Error', 'error');
+            return
+        end
+        headers = filesData(1, :);
+        dataRows = filesData(2:end, :);
+        fileIdColIdx = find(strcmp(headers, 'File ID'), 1);
+        if isempty(fileIdColIdx)
+            msgbox('Column File ID not found', 'Error', 'error');
+            return
+        end
+        projectFileIds = [state.files.id];
+        excelFileIds = [];
+        for i = 1:size(dataRows, 1)
+            v = dataRows{i, fileIdColIdx};
+            if isnumeric(v) && ~isempty(v)
+                excelFileIds(end+1) = v;
+            elseif (ischar(v) || isstring(v)) && ~isempty(v)
+                n = str2double(v);
+                if ~isnan(n)
+                    excelFileIds(end+1) = n;
+                end
+            end
+        end
+        matchingFileIds = intersect(projectFileIds, excelFileIds);
+        if isempty(matchingFileIds)
+            msgbox('No files from the current project found in the file', 'Error', 'error');
+            return
+        end
+        importableColNames = {};
+        importableColIdx = [];
+        for j = 1:numel(headers)
+            if j ~= fileIdColIdx
+                importableColNames{end+1} = headers{j};
+                importableColIdx(end+1) = j;
+            end
+        end
+        if isempty(importableColNames)
+            msgbox('No columns to import (only File ID found)', 'Error', 'error');
+            return
+        end
+        [selectedColIndices, ok] = showImportColumnsDialog(importableColNames);
+        if ~ok || isempty(selectedColIndices)
+            return
+        end
+        selectedColNames = importableColNames(selectedColIndices);
+        selectedDataColIdx = importableColIdx(selectedColIndices);
+        overlapping = selectedColNames(ismember(selectedColNames, state.metadataFields));
+        if ~isempty(overlapping)
+            msg = sprintf('The following fields already exist and will be overwritten with data from the file: %s. Continue?', strjoin(overlapping, ', '));
+            choice = questdlg(msg, 'Import from Excel', 'Continue', 'Cancel', 'Cancel');
+            if ~strcmp(choice, 'Continue')
+                return
+            end
+        end
+        for colK = 1:numel(selectedColNames)
+            fieldName = selectedColNames{colK};
+            colIdx = selectedDataColIdx(colK);
+            registerMetadataField(fieldName);
+            safeFieldName = makeSafeFieldName(fieldName);
+            fileIdsCol = [];
+            fieldValuesCol = cell(0, 1);
+            for i = 1:size(dataRows, 1)
+                fileId = dataRows{i, fileIdColIdx};
+                if isnumeric(fileId)
+                    fid = fileId;
+                elseif (ischar(fileId) || isstring(fileId)) && ~isempty(fileId)
+                    fid = str2double(fileId);
+                else
+                    continue
+                end
+                if ~ismember(fid, matchingFileIds)
+                    continue
+                end
+                fieldValue = dataRows{i, colIdx};
+                fieldValueStr = excelCellToStr(fieldValue);
+                fileIdsCol(end+1) = fid;
+                fieldValuesCol{end+1} = fieldValueStr;
+            end
+            if isempty(fileIdsCol)
+                continue
+            end
+            saveFileMetadataBatch(fileIdsCol, fieldName, fieldValuesCol);
+            for k = 1:numel(fileIdsCol)
+                fileIdStr = sprintf('f%d', fileIdsCol(k));
+                if ~isfield(state.metadataData, fileIdStr)
+                    state.metadataData.(fileIdStr) = struct();
+                end
+                state.metadataData.(fileIdStr).(safeFieldName) = fieldValuesCol{k};
+            end
+        end
+        updateTable(state.files);
+    end
+    
+    function s = excelCellToStr(fieldValue)
+        if isempty(fieldValue)
+            s = '';
+        elseif isnumeric(fieldValue)
+            s = num2str(fieldValue);
+        elseif islogical(fieldValue)
+            s = 'false';
+            if fieldValue
+                s = 'true';
+            end
+        elseif isdatetime(fieldValue)
+            s = datestr(fieldValue);
+        elseif isduration(fieldValue)
+            s = char(fieldValue);
+        else
+            s = char(fieldValue);
+        end
+    end
+    
+    function [selectedIndices, ok] = showImportColumnsDialog(columnNames)
+        selectedIndices = [];
+        ok = false;
+        numCols = numel(columnNames);
+        data = [columnNames', num2cell(false(numCols, 1))];
+        fig = figure('Position', [300, 300, 500, 400], ...
+            'Name', 'Import from Excel - Select columns', ...
+            'NumberTitle', 'off', ...
+            'MenuBar', 'none', ...
+            'Resize', 'on');
+        columnEditable = [false, true];
+        columnFormat = {'char', 'logical'};
+        fieldTable = uitable('Parent', fig, ...
+            'Position', [10, 50, 480, 310], ...
+            'Data', data, ...
+            'ColumnName', {'Column', 'Import'}, ...
+            'ColumnEditable', columnEditable, ...
+            'ColumnWidth', {350, 80}, ...
+            'ColumnFormat', columnFormat);
+        uicontrol('Parent', fig, 'Style', 'pushbutton', ...
+            'Position', [10, 10, 100, 30], ...
+            'String', 'Select All', ...
+            'Callback', @(src, evt) setImportColumnSelection(fieldTable, columnNames, true));
+        uicontrol('Parent', fig, 'Style', 'pushbutton', ...
+            'Position', [120, 10, 100, 30], ...
+            'String', 'Deselect All', ...
+            'Callback', @(src, evt) setImportColumnSelection(fieldTable, columnNames, false));
+        uicontrol('Parent', fig, 'Style', 'pushbutton', ...
+            'Position', [370, 10, 60, 30], ...
+            'String', 'OK', ...
+            'Callback', @(src, evt) uiresume(fig));
+        uicontrol('Parent', fig, 'Style', 'pushbutton', ...
+            'Position', [440, 10, 60, 30], ...
+            'String', 'Cancel', ...
+            'Callback', @(src, evt) close(fig));
+        uiwait(fig);
+        if ishandle(fig)
+            tblData = fieldTable.Data;
+            selectedIndices = find(cellfun(@(x) islogical(x) && x, tblData(:, 2)));
+            ok = true;
+            close(fig);
+        end
+    end
+    
+    function setImportColumnSelection(fieldTable, columnNames, select)
+        data = fieldTable.Data;
+        for k = 1:numel(columnNames)
+            data{k, 2} = select;
+        end
+        fieldTable.Data = data;
     end
     
     function openSelectedFile(varargin)
