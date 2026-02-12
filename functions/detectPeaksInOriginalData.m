@@ -379,6 +379,74 @@ function events = detectPeaksInOriginalData(calcResult, params)
     events.paired_ttest_pvalue_by_channel = paired_ttest_pvalue_by_channel;
     events.has_response_mean = has_response_mean;
     
+    % Детекция по усреднённой кривой: первый онсет > 0 и соответствующий пик
+    events.av_trace_onset_ms = NaN;
+    events.av_trace_peak_ms = NaN;
+    events.av_trace_peak_amplitude = NaN;
+    events.av_trace_halfpeak_ms = NaN;
+    events.has_response_av_trace = false;
+    if isfield(calcResult, 'meanData') && ~isempty(calcResult.meanData)
+        meanData = calcResult.meanData;
+        all_onset = [];
+        all_peak_t = [];
+        all_peak_amp = [];
+        all_width = [];
+        for chIdx = 1:size(meanData, 2)
+            channelData = meanData(:, chIdx);
+            if strcmp(Polarity, 'negative')
+                Trace_out = -channelData;
+            else
+                Trace_out = channelData;
+            end
+            Trace_out(isnan(Trace_out)) = nanmean(Trace_out);
+            Trace_out = np_flatten(Trace_out);
+            findpeaks1_params.signal = Trace_out;
+            findpeaks1_params.time = timeAxis;
+            findpeaks1_params.timeUnitFactor = timeUnitFactor;
+            findpeaks1_params.max_peak_onset_dist = 0.03*timeUnitFactor;
+            findpeaks1_params.use_change_point_as_onset = false;
+            findpeaks1_params.check_overlap = true;
+            findpeaks1_params.MinPeakHeight = MinPeakProminence;
+            findpeaks1_params.MinPeakDistance = MinPeakDistance;
+            findpeaks1_params.WidthReference = 'halfheight';
+            fp1 = findpeaks1(findpeaks1_params);
+            if isempty(fp1.peaks)
+                continue;
+            end
+            wide_peaks_mask = fp1.widths > max_peak_width;
+            fp1.peaks(wide_peaks_mask) = [];
+            fp1.peak_times(wide_peaks_mask) = [];
+            fp1.widths(wide_peaks_mask) = [];
+            fp1.onset_times(wide_peaks_mask) = [];
+            if isempty(fp1.peaks)
+                continue;
+            end
+            pos_mask = fp1.onset_times > 0 & ~isnan(fp1.onset_times);
+            if ~any(pos_mask)
+                continue;
+            end
+            onsets = fp1.onset_times(pos_mask);
+            peak_t = fp1.peak_times(pos_mask);
+            peaks = fp1.peaks(pos_mask);
+            widths = fp1.widths(pos_mask);
+            if strcmp(Polarity, 'negative')
+                peaks = -peaks;
+            end
+            all_onset = [all_onset; onsets(:)];
+            all_peak_t = [all_peak_t; peak_t(:)];
+            all_peak_amp = [all_peak_amp; peaks(:)];
+            all_width = [all_width; widths(:)];
+        end
+        if ~isempty(all_onset)
+            [first_onset, idx] = min(all_onset);
+            events.av_trace_onset_ms = first_onset;
+            events.av_trace_peak_ms = all_peak_t(idx);
+            events.av_trace_peak_amplitude = all_peak_amp(idx);
+            events.av_trace_halfpeak_ms = all_peak_t(idx) - all_width(idx)/2;
+            events.has_response_av_trace = true;
+        end
+    end
+    
     debugState('detectPeaksInOriginalData', 'Total events found: %d', events.numEvents);
     debugState('detectPeaksInOriginalData', 'Events before zero: %d', events.numEventsBeforeZero);
     debugState('detectPeaksInOriginalData', 'Events after zero: %d', events.numEventsAfterZero);

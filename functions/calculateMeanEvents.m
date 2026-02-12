@@ -49,10 +49,22 @@ params.shiftCoeff = shiftCoeff;
 params.titlename = local_evfilename;
 params.show_spikes = show_spikes;
 params.ch_inxs = ch_inxs;
+if isfield(opts, 'Channel') && ~isempty(opts.Channel)
+    ch_sel = round(opts.Channel);
+    params.ch_inxs = ch_sel;
+    params.lfp = params.lfp(:, ch_sel);
+    params.channelSettings = channelSettings(ch_sel, :);
+    params.ch_inxs = 1;
+    params.ch_labels = hd.recChNames(ch_sel);
+    params.csd_active = csd_avaliable(ch_sel);
+    params.mean_group_ch = 1;
+    params.channel_index_original = ch_sel;
+else
+    params.csd_active = csd_avaliable(ch_inxs);
+end
 params.show_CSD = show_CSD;
 params.csd_smooth_coef = csd_smooth_coef;
 params.csd_contrast_coef = csd_contrast_coef;
-params.csd_active = csd_avaliable(ch_inxs);
 params.timeUnitFactor = timeUnitFactor;
 params.lfpVar = lfpVar;
 params.mean_group_ch = mean_group_ch;
@@ -114,7 +126,11 @@ if params.remove_artifact
     end
 end
 
-if sum(filter_avaliable) > 0
+if isfield(params, 'channel_index_original') && size(params.lfp, 2) == 1
+    if filter_avaliable(params.channel_index_original)
+        params.lfp = applyFilter(params.lfp, filterSettings, newFs);
+    end
+elseif sum(filter_avaliable) > 0
     params.lfp(:, filter_avaliable) = applyFilter(params.lfp(:, filter_avaliable), filterSettings, newFs);
 end
 
@@ -143,7 +159,16 @@ t_profile = params.t_profile;
 timeUnitFactor = params.timeUnitFactor;
 lfpVar = params.lfpVar;
 
-ch_labels = hd.recChNames(:);
+if isfield(params, 'ch_labels')
+    ch_labels = params.ch_labels;
+else
+    ch_labels = hd.recChNames(:);
+end
+if isfield(params, 'channel_index_original')
+    ch_inxs_for_spks = params.channel_index_original;
+else
+    ch_inxs_for_spks = ch_inxs;
+end
 activeChannels = find([channelSettings{:, 2}]);
 scalingCoefficients = [channelSettings{:, 3}];
 colors_in = channelSettings(:, 4)';
@@ -231,7 +256,7 @@ if show_spikes && ~isempty(spks) && ~show_CSD
             edges = time_interval(1):binsize:time_interval(2);
             ch_hists = [];
             for ch_idx = 1:numel(ch_inxs)
-                ch_inx = ch_inxs(ch_idx);
+                ch_inx = ch_inxs_for_spks(ch_idx);
                 ii = double(spks(ch_inx).ampl) <= (-lfpVar(ch_inx) * prg);
                 spks_in(ch_inx).tStamp = spks(ch_inx).tStamp(ii);
                 spks_in(ch_inx).ampl = spks(ch_inx).ampl(ii);

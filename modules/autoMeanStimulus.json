@@ -17,7 +17,8 @@
     "UseOriginalData": true,
     "MinPeakDistance_s": 0.05,
     "MaxPeakWidth_s": 0.1,
-    "SmoothingKernel_s": 0.001
+    "SmoothingKernel_s": 0.001,
+    "Channel": 1
   },
   "output": {
     "figureFormat": "png",

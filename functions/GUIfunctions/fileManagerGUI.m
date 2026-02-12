@@ -159,7 +159,7 @@ function fileManagerGUI()
 
     fileActionsMenu = uicontrol('Style', 'popupmenu', ...
         'Position', getElementPosition('fileActionsMenu'), ...
-        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field', 'Filter Files', 'Sort Files', 'Clear Filter', 'Move to Project'}, ...
+        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field', 'Rename Field', 'Filter Files', 'Sort Files', 'Clear Filter', 'Move to Project'}, ...
         'FontSize', 11, ...
         'Value', 1, ...
         'Callback', @handleFileAction, ...
@@ -519,12 +519,14 @@ function fileManagerGUI()
             case 4
                 deleteMetadataField();
             case 5
-                showFileFilterDialog();
+                renameMetadataField();
             case 6
-                showSortDialog();
+                showFileFilterDialog();
             case 7
-                clearFileFilter();
+                showSortDialog();
             case 8
+                clearFileFilter();
+            case 9
                 moveFilesToProject();
         end
     end
@@ -947,6 +949,68 @@ function fileManagerGUI()
         
         deleteQuery = sprintf('DELETE FROM file_metadata WHERE field_name = ''%s''', escapeSql(fieldName));
         sqlExec(deleteQuery);
+        
+        state.selectedColumn = [];
+        updateTable(state.files);
+    end
+    
+    function renameMetadataField(~, ~)
+        if isempty(state.metadataFields)
+            msgbox('No metadata fields to rename', 'Error', 'error');
+            return
+        end
+        
+        [fieldIdx, ok] = listdlg('ListString', state.metadataFields, ...
+            'SelectionMode', 'single', ...
+            'PromptString', 'Select field to rename:', ...
+            'Name', 'Rename Metadata Field', ...
+            'ListSize', [300, 200]);
+        
+        if ~ok || isempty(fieldIdx)
+            return
+        end
+        
+        fieldName = state.metadataFields{fieldIdx};
+        answer = inputdlg({'Enter new field name:'}, 'Rename Metadata Field', 1, {fieldName});
+        if isempty(answer)
+            return
+        end
+        
+        newName = strtrim(answer{1});
+        if isempty(newName)
+            msgbox('Field name cannot be empty', 'Error', 'error');
+            return
+        end
+        if strcmp(newName, fieldName)
+            return
+        end
+        if any(strcmp(state.metadataFields, newName))
+            msgbox('Field already exists', 'Error', 'error');
+            return
+        end
+        
+        autoBackupDatabase();
+        
+        state.metadataFields{fieldIdx} = newName;
+        safeOld = makeSafeFieldName(fieldName);
+        safeNew = makeSafeFieldName(newName);
+        if isfield(state.fieldNameMap, safeOld)
+            state.fieldNameMap = rmfield(state.fieldNameMap, safeOld);
+        end
+        state.fieldNameMap.(safeNew) = newName;
+        
+        fileKeys = fieldnames(state.metadataData);
+        for i = 1:numel(fileKeys)
+            key = fileKeys{i};
+            if isfield(state.metadataData.(key), safeOld)
+                state.metadataData.(key).(safeNew) = state.metadataData.(key).(safeOld);
+                state.metadataData.(key) = rmfield(state.metadataData.(key), safeOld);
+            end
+        end
+        
+        updateQuery = sprintf('UPDATE file_metadata SET field_name = ''%s'' WHERE field_name = ''%s''', ...
+            escapeSql(newName), escapeSql(fieldName));
+        sqlExec(updateQuery);
         
         state.selectedColumn = [];
         updateTable(state.files);
