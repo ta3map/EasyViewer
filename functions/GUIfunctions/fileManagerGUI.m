@@ -3352,7 +3352,7 @@ function fileManagerGUI()
         end
     end
     
-    function result = showFieldSelectionDialogForExport(allFields)
+    function result = showFieldSelectionDialogForExport(allFields, fullTable)
         result = struct('fields', {}, 'displayNames', {}, 'formats', containers.Map());
         
         fig = figure('Position', [300, 300, 600, 400], ...
@@ -3364,7 +3364,7 @@ function fileManagerGUI()
         numFields = numel(allFields);
         formatColumn = cell(numFields, 1);
         for i = 1:numFields
-            formatColumn{i} = 'Number';
+            formatColumn{i} = inferColumnFormat(fullTable.(allFields{i}));
         end
         
         data = [allFields', num2cell(true(numFields, 1)), formatColumn];
@@ -3573,7 +3573,7 @@ function fileManagerGUI()
             close(wb);
             
             allFields = fullTable.Properties.VariableNames;
-            selectionResult = showFieldSelectionDialogForExport(allFields);
+            selectionResult = showFieldSelectionDialogForExport(allFields, fullTable);
             
             if isempty(selectionResult) || isempty(selectionResult.fields)
                 return
