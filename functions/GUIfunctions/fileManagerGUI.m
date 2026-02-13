@@ -159,7 +159,7 @@ function fileManagerGUI()
 
     fileActionsMenu = uicontrol('Style', 'popupmenu', ...
         'Position', getElementPosition('fileActionsMenu'), ...
-        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field', 'Rename Field', 'Filter Files', 'Sort Files', 'Clear Filter', 'Move to Project', 'Import from Excel'}, ...
+        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field', 'Rename Field', 'Filter Files', 'Sort Files', 'Clear Filter', 'Move to Project', 'Copy to Project', 'Import from Excel'}, ...
         'FontSize', 11, ...
         'Value', 1, ...
         'Callback', @handleFileAction, ...
@@ -527,8 +527,10 @@ function fileManagerGUI()
             case 8
                 clearFileFilter();
             case 9
-                moveFilesToProject();
+                moveFilesToProject([], [], false);
             case 10
+                moveFilesToProject([], [], true);
+            case 11
                 importMetadataFromExcel();
         end
     end
@@ -1144,7 +1146,10 @@ function fileManagerGUI()
         loadFilesForProject(state.currentProjectId);
     end
     
-    function moveFilesToProject(~, ~)
+    function moveFilesToProject(~, ~, isCopy)
+        if nargin < 3
+            isCopy = false;
+        end
         if isempty(state.currentProjectId) || ~isfield(state, 'selectedFileIds') || isempty(state.selectedFileIds) || isempty(state.files)
             return
         end
@@ -1153,8 +1158,9 @@ function fileManagerGUI()
         otherProjects = state.projects(otherIdx);
         listStrings = arrayfun(@(p) sprintf('%s (#%d)', p.name, p.id), otherProjects, 'UniformOutput', false);
         listStrings{end + 1} = 'New project...';
+        dlgNames = {'Move to Project', 'Copy to Project'};
         [sel, ok] = listdlg('ListString', listStrings, 'SelectionMode', 'single', ...
-            'PromptString', 'Select target project:', 'Name', 'Move to Project', 'ListSize', [300, 200]);
+            'PromptString', 'Select target project:', 'Name', dlgNames{1 + isCopy}, 'ListSize', [300, 200]);
         if ~ok || isempty(sel)
             return
         end
@@ -1187,9 +1193,12 @@ function fileManagerGUI()
                 ensureFileInProject(state.files(fileIdx).path, targetProjectId);
             end
         end
-        unlinkFilesFromProject(selectedFileIds, state.currentProjectId);
-        loadFilesForProject(state.currentProjectId);
-        disp(sprintf('Moved %d file(s) to project "%s"', numel(selectedFileIds), targetName));
+        if ~isCopy
+            unlinkFilesFromProject(selectedFileIds, state.currentProjectId);
+            loadFilesForProject(state.currentProjectId);
+        end
+        msgs = {'Moved %d file(s) to project "%s"', 'Copied %d file(s) to project "%s"'};
+        disp(sprintf(msgs{1 + isCopy}, numel(selectedFileIds), targetName));
     end
     
     function importMetadataFromExcel()
@@ -3355,7 +3364,7 @@ function fileManagerGUI()
         numFields = numel(allFields);
         formatColumn = cell(numFields, 1);
         for i = 1:numFields
-            formatColumn{i} = 'Text';
+            formatColumn{i} = 'Number';
         end
         
         data = [allFields', num2cell(true(numFields, 1)), formatColumn];
@@ -3584,7 +3593,7 @@ function fileManagerGUI()
             
             for fieldIdx = 1:numSelectedFields
                 fieldName = selectedFields{fieldIdx};
-                formatType = 'text';
+                formatType = 'number';
                 if formats.isKey(fieldName)
                     formatType = formats(fieldName);
                 end
@@ -3951,11 +3960,11 @@ function fileManagerGUI()
             data = filesData(2:end, :);
             
             pathColIdx = find(strcmp(headers, 'Path'), 1);
-            nameColIdx = find(strcmp(headers, 'File Name'), 1);
+            fileIdColIdx = find(strcmp(headers, 'File ID'), 1);
             
-            if isempty(pathColIdx) || isempty(nameColIdx)
+            if isempty(pathColIdx)
                 close(wb);
-                msgbox('Required columns not found: Path, File Name', 'Error', 'error');
+                msgbox('Required column not found: Path', 'Error', 'error');
                 return
             end
             
@@ -3999,13 +4008,16 @@ function fileManagerGUI()
                 record = sqlFetch(sprintf('SELECT id FROM files WHERE file_path = ''%s'' LIMIT 1', escapeSql(filePath)));
                 if ~isempty(record)
                     newFileId = record{1};
-                    oldFileId = data{i, 1};
+                    oldFileId = [];
+                    if ~isempty(fileIdColIdx)
+                        oldFileId = data{i, fileIdColIdx};
+                    end
                     if ~isempty(oldFileId) && isnumeric(oldFileId)
                         fileIdMap(oldFileId) = newFileId;
                     end
                     
                     for j = 1:numel(headers)
-                        if j == pathColIdx || j == nameColIdx || strcmp(headers{j}, 'File ID')
+                        if j == pathColIdx || strcmp(headers{j}, 'File ID')
                             continue
                         end
                         fieldName = headers{j};
