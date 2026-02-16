@@ -30,7 +30,7 @@ function signalViewerGUI(editMode)
     global lfpVar windowSize
     global timeCenterPopup
     global event_title_string evfilename eventDeleteEdit StimuliTitle
-    global art_rem_window_ms
+    global art_rem_settings
     global stimShowFlag 
     global lines_and_styles
     global auto_open_last_file

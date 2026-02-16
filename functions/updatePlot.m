@@ -5,7 +5,7 @@ function updatePlot()
     global data time_in show_CSD filterSettings filter_avaliable csd_smooth_coef
     global csd_contrast_coef csd_avaliable lfpVar
     global csd_image csd_t_range csd_ch_range offsets
-    global art_rem_window_ms stimShowFlag lines_and_styles
+    global art_rem_settings stimShowFlag lines_and_styles
     global selectedCenter sweep_info sweep_inx % для работы со свипами
     global baseline_subtract_available % каналы с вычитанием базовой линии
     global plot_updating loading_text_handle % флаг обновления и handle текста
@@ -63,9 +63,9 @@ function updatePlot()
         cond3 = stims >= plot_time_interval(1) & stims < plot_time_interval(2); 
         stims_x = stims(cond3)*timeUnitFactor;
         % Убираем артефакт из LFP
-        win_r = round(art_rem_window_ms * (Fs/1000));
-        debugState('updatePlot', 'Stim artifact removal: Fs=%dHz, window=%.3f ms (~%d samples)', Fs, art_rem_window_ms, win_r);
-        data = removeStimArtifact(data, stims(cond3), time_in, win_r);
+        win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
+        debugState('updatePlot', 'Stim artifact removal: Fs=%dHz, window=%.3f ms (~%d samples)', Fs, art_rem_settings.artifact_window_ms, win_r);
+        data = removeStimArtifact(data, stims(cond3), time_in, win_r, art_rem_settings.interp_method);
     
     else
         cond3 = [];
@@ -219,7 +219,7 @@ function updatePlot()
         if not(isempty(stims)) && stimShowFlag
             stims_in = stims(cond3);
             stim_inxs = ClosestIndex(stims_in, time_in); % Индекс стимулов
-            win_r = art_rem_window_ms;
+            win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
             for i = 1:length(stim_inxs) 
                 start_inx = stim_inxs(i) - win_r;
                 start_inx(start_inx<1) = 1;

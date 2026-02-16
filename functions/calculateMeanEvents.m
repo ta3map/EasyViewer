@@ -15,7 +15,7 @@ global std_coef show_spikes binsize show_CSD
 global csd_avaliable filter_avaliable filterSettings
 global channelTable csd_smooth_coef csd_contrast_coef
 global lfpVar mean_group_ch
-global art_rem_window_ms stims
+global art_rem_settings stims
 global t_mean_profile wb matFileName evfilename
 
 if strcmp(sourceType, 'stimuli')
@@ -84,11 +84,11 @@ if isfield(opts, 'removeArtifact')
     if isfield(opts, 'artifactWindow_ms')
         artifact_window_ms = opts.artifactWindow_ms;
     else
-        artifact_window_ms = art_rem_window_ms;
+        artifact_window_ms = art_rem_settings.artifact_window_ms;
     end
 else
-    params.remove_artifact = strcmp(sourceType, 'stimuli') && art_rem_window_ms > 0;
-    artifact_window_ms = art_rem_window_ms;
+    params.remove_artifact = strcmp(sourceType, 'stimuli') && art_rem_settings.artifact_window_ms > 0;
+    artifact_window_ms = art_rem_settings.artifact_window_ms;
 end
 if isfield(opts, 'artifactWindow_ms')
     artifact_window_ms = opts.artifactWindow_ms;
@@ -111,7 +111,7 @@ params.showWaitbar = false;
 
 if params.remove_artifact
     win_r = round(artifact_window_ms * (Fs/1000));
-    params.lfp = removeStimArtifact(params.lfp, stims, time, win_r);
+    params.lfp = removeStimArtifact(params.lfp, stims, time, win_r, art_rem_settings.interp_method);
     if params.show_spikes
         stim_inxs = ClosestIndex(stims, time);
         for ch = 1:size(spks, 1)

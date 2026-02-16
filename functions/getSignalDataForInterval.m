@@ -13,6 +13,7 @@ function [channel_data, time_vector] = getSignalDataForInterval(lfp, time, chann
     %     .smoothing_method     - метод сглаживания ('moving' или 'median')
     %     .remove_artifact      - удалять артефакты стимуляции (true/false)
     %     .artifact_window_ms   - окно удаления артефакта в мс
+    %     .artifact_interp_method - метод интерполяции ('linear', 'spline', ...)
     %     .stims                - массив времен стимулов
     %     .Fs                   - частота дискретизации
     %     .mean_group_ch        - массив индексов каналов для вычитания среднего (опционально)
@@ -41,6 +42,9 @@ function [channel_data, time_vector] = getSignalDataForInterval(lfp, time, chann
     end
     if ~isfield(params, 'artifact_window_ms')
         params.artifact_window_ms = 0;
+    end
+    if ~isfield(params, 'artifact_interp_method')
+        params.artifact_interp_method = 'linear';
     end
     if ~isfield(params, 'stims')
         params.stims = [];
@@ -77,7 +81,7 @@ function [channel_data, time_vector] = getSignalDataForInterval(lfp, time, chann
     % Удаление артефакта стимуляции если нужно
     if params.remove_artifact && ~isempty(params.stims) && ~isempty(params.Fs)
         Fs_fascor = params.Fs / 1000;
-        channel_data = removeStimArtifact(channel_data, params.stims, time_vector, params.artifact_window_ms * Fs_fascor * 0.5);
+        channel_data = removeStimArtifact(channel_data, params.stims, time_vector, params.artifact_window_ms * Fs_fascor * 0.5, params.artifact_interp_method);
     end
     
     % Сглаживание если включено

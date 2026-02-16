@@ -25,7 +25,7 @@ function signalAnalysisGUI(editMode)
     global newFs Fs timeUnitFactor selectedUnit
     global filterSettings filter_avaliable mean_group_ch
     global selectedCenter events stims sweep_info event_inx stim_inx sweep_inx events_exist stims_exist
-    global stimShowFlag art_rem_window_ms
+    global stimShowFlag art_rem_settings
     global SettingsFilepath channelSettings
     global original_xlim original_ylim
     global channel_data time_in
@@ -156,13 +156,13 @@ end
     % Инициализация флага показа стимулов
     stimShowFlag = true;
     
-    % Инициализация размера окна удаления артефакта (в мс)
-    if isempty(art_rem_window_ms)
+    % Инициализация настроек удаления артефакта
+    if isempty(art_rem_settings) || ~isfield(art_rem_settings, 'artifact_window_ms')
         try
             d = load(SettingsFilepath);
-            art_rem_window_ms = d.art_rem_window_ms;
+            art_rem_settings = d.art_rem_settings;
         catch
-            art_rem_window_ms = 0;
+            art_rem_settings = struct('artifact_window_ms', 0, 'interp_method', 'linear');
         end
     end
 
@@ -1938,7 +1938,7 @@ updateCursorEditFields();
         % Вычисляем оптимальные границы амплитуды
         % Удаляем артефакты для всех каналов
         Fs_fascor = Fs/1000;
-        y_data = removeStimArtifact(y_data, 0, x_data, art_rem_window_ms*Fs_fascor*0.5);
+        y_data = removeStimArtifact(y_data, 0, x_data, art_rem_settings.artifact_window_ms*Fs_fascor*0.5, art_rem_settings.interp_method);
         y_min = min(y_data);
         y_max = max(y_data);
         y_range = y_max - y_min;
@@ -2911,7 +2911,7 @@ updateCursorEditFields();
             % Убираем артефакт стимуляции если есть стимулы
             if not(isempty(stims)) && stimShowFlag
                 Fs_fascor = Fs/1000;
-                channel_data = removeStimArtifact(channel_data, stims, time_in, art_rem_window_ms*Fs_fascor*0.5);
+                channel_data = removeStimArtifact(channel_data, stims, time_in, art_rem_settings.artifact_window_ms*Fs_fascor*0.5, art_rem_settings.interp_method);
             end
         
             raw_channel_data = channel_data;

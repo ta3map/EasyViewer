@@ -5,11 +5,10 @@ function result = autoSlopeMeasurement(filePath, fileId, params)
     global zav_calling timeUnitFactor
     % timeUnitFactor используется только для сохранения результатов, не для расчетов
     global lfp time Fs stims stims_exist
-    global art_rem_window_ms mean_group_ch
+    global art_rem_settings mean_group_ch
     
-    % Инициализация глобальных переменных если не заданы
-    if ~exist('art_rem_window_ms', 'var') || isempty(art_rem_window_ms)
-        art_rem_window_ms = 0;
+    if isempty(art_rem_settings) || ~isfield(art_rem_settings, 'artifact_window_ms')
+        art_rem_settings = struct('artifact_window_ms', 0, 'interp_method', 'linear');
     end
     if ~exist('mean_group_ch', 'var')
         mean_group_ch = [];
@@ -54,6 +53,11 @@ function result = autoSlopeMeasurement(filePath, fileId, params)
     smoothing_method = params.SmoothingMethod;
     remove_artifact = params.RemoveArtifact;
     artifact_window_ms = params.ArtifactWindow_ms;
+    if isfield(params, 'ArtifactInterpMethod')
+        artifact_interp_method = params.ArtifactInterpMethod;
+    else
+        artifact_interp_method = art_rem_settings.interp_method;
+    end
     
     % Проверка корректности канала
     if channel_idx > size(lfp, 2)
@@ -68,6 +72,7 @@ function result = autoSlopeMeasurement(filePath, fileId, params)
     data_params.smoothing_method = smoothing_method;
     data_params.remove_artifact = remove_artifact;
     data_params.artifact_window_ms = artifact_window_ms;
+    data_params.artifact_interp_method = artifact_interp_method;
     data_params.stims = stims;
     data_params.Fs = Fs;
     data_params.mean_group_ch = mean_group_ch;

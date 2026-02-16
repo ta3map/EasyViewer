@@ -6,7 +6,7 @@ function settingsEditor()
     global matFilePath newFs shiftCoeff time_back time_forward stim_offset
     global updateTableFunc updateLocalCoefsFunc updatePlotFunc saveChannelSettingsFunc
     global EV_version numChannels Fs timeUnitFactor selectedUnit updatePlotFunc
-    global art_rem_window_ms SettingsFilepath
+    global art_rem_settings SettingsFilepath
     
     % Проверяем, не открыто ли уже окно
     existingFig = findobj('Tag', 'SettingsEditor');
@@ -53,26 +53,21 @@ function settingsEditor()
         stim_offset = currentSettings.stim_offset;
     end
     
-    % Инициализация art_rem_window_ms из глобальных настроек
+    % Инициализация art_rem_settings из глобальных настроек
     if isempty(SettingsFilepath)
         SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
     end
     
-    if isempty(art_rem_window_ms) && exist(SettingsFilepath, 'file')
+    if isempty(art_rem_settings) || ~isfield(art_rem_settings, 'artifact_window_ms')
         try
             d = load(SettingsFilepath);
-            if isfield(d, 'art_rem_window_ms')
-                art_rem_window_ms = d.art_rem_window_ms;
-            else
-                art_rem_window_ms = 0;
-            end
+            art_rem_settings = d.art_rem_settings;
         catch
-            art_rem_window_ms = 0;
+            art_rem_settings = struct('artifact_window_ms', 0, 'interp_method', 'linear');
         end
     end
-    
-    if isempty(art_rem_window_ms)
-        art_rem_window_ms = 0;
+    if ~isfield(art_rem_settings, 'interp_method')
+        art_rem_settings.interp_method = 'linear';
     end
     
     % Создаем главное окно с уникальным тегом и запретом масштабирования
@@ -246,31 +241,40 @@ function settingsEditor()
               'ForegroundColor', [0.5, 0.5, 0.5]);
     
     % === ARTIFACT REMOVAL SETTINGS ===
-    % Checkbox for enabling/disabling artifact removal
     chkArtifactRemoval = uicontrol('Parent', fig, 'Style', 'checkbox', ...
                                    'String', 'Enable Artifact Removal', ...
                                    'Position', [25, 330, 200, 25], ...
-                                   'Value', art_rem_window_ms ~= 0, ...
+                                   'Value', art_rem_settings.artifact_window_ms ~= 0, ...
                                    'Callback', @toggleArtifactRemoval, ...
                                    'FontWeight', 'bold');
     
-    % Artifact removal window size
     uicontrol('Parent', fig, 'Style', 'text', ...
               'String', 'Window size (ms):', ...
               'Position', [25, 290, 120, 20], ...
               'HorizontalAlignment', 'left');
     
     artWindowEdit = uicontrol('Parent', fig, 'Style', 'edit', ...
-                              'String', num2str(art_rem_window_ms), ...
+                              'String', num2str(art_rem_settings.artifact_window_ms), ...
                               'Position', [150, 290, 80, 25], ...
                               'HorizontalAlignment', 'center', ...
-                              'Enable', bool2str(art_rem_window_ms ~= 0), ...
+                              'Enable', bool2str(art_rem_settings.artifact_window_ms ~= 0), ...
                               'Callback', @setArtRemWindow);
+    
+    interp_list = {'linear', 'spline', 'pchip', 'smooth', 'median'};
+    [~, interp_idx] = ismember(art_rem_settings.interp_method, interp_list);
+    if interp_idx == 0
+        interp_idx = 1;
+    end
+    uicontrol('Parent', fig, 'Style', 'text', 'String', 'Interpolation:', ...
+              'Position', [25, 255, 100, 20], 'HorizontalAlignment', 'left');
+    popupArtInterp = uicontrol('Parent', fig, 'Style', 'popupmenu', ...
+                              'String', interp_list, 'Value', interp_idx, ...
+                              'Position', [150, 255, 120, 25]);
     
     % Разделительная линия
     uicontrol('Parent', fig, 'Style', 'text', ...
               'String', '────────────────────────────────────────────────────────', ...
-              'Position', [25, 260, 450, 15], ...
+              'Position', [25, 228, 450, 15], ...
               'HorizontalAlignment', 'left', ...
               'ForegroundColor', [0.5, 0.5, 0.5]);
     
@@ -420,20 +424,19 @@ function settingsEditor()
             time_forward_val = str2double(get(timeForwardEdit, 'String')) / timeUnitFactor; % Конвертируем из текущих единиц в секунды
             stim_offset_val = str2double(get(stimOffsetEdit, 'String')) / timeUnitFactor; % Конвертируем из текущих единиц в секунды
             
-            % Получаем значение art_rem_window_ms
             if get(chkArtifactRemoval, 'Value')
-                art_rem_window_ms_val = str2double(get(artWindowEdit, 'String')); % Уже в миллисекундах
+                art_window_val = str2double(get(artWindowEdit, 'String'));
             else
-                art_rem_window_ms_val = 0;
+                art_window_val = 0;
             end
+            art_rem_settings = struct('artifact_window_ms', art_window_val, ...
+                'interp_method', interp_list{get(popupArtInterp, 'Value')});
             
-            % Применяем к глобальным переменным (уже объявлены в основной функции)
             newFs = newFs_val;
             shiftCoeff = shiftCoeff_val;
             time_back = time_back_val;
             time_forward = time_forward_val;
             stim_offset = stim_offset_val;
-            art_rem_window_ms = art_rem_window_ms_val;
             
             % Применяем сдвиг времен стимулов
             applyStimulusOffset();
@@ -442,17 +445,15 @@ function settingsEditor()
             save(groupSettingsPath, ...
                 'newFs', 'shiftCoeff', 'time_back', 'time_forward', 'stim_offset', 'EV_version');
             
-            % Сохраняем art_rem_window_ms в глобальные настройки
             try
                 if exist(SettingsFilepath, 'file')
-                    save(SettingsFilepath, 'art_rem_window_ms', '-append');
+                    save(SettingsFilepath, 'art_rem_settings', '-append');
                 else
-                    % Если файл не существует, создаем его с базовыми настройками
                     initializeDefaultSettings();
-                    save(SettingsFilepath, 'art_rem_window_ms', '-append');
+                    save(SettingsFilepath, 'art_rem_settings', '-append');
                 end
             catch ME
-                warning('Error saving art_rem_window_ms to global settings: %s', ME.message);
+                warning('Error saving art_rem_settings to global settings: %s', ME.message);
             end
             
             % Обновляем UI элементы в основном окне для синхронизации с новыми настройками
@@ -531,10 +532,8 @@ function settingsEditor()
             % numChannels и Fs уже объявлены в основной функции
             [newFs_def, shiftCoeff_def, time_back_def, time_forward_def, stim_offset_def] = setDefaultGroupSettings(numChannels, Fs);
             
-            % Сбрасываем art_rem_window_ms к значению по умолчанию
-            art_rem_window_ms_def = 0;
+            art_rem_settings = struct('artifact_window_ms', 0, 'interp_method', 'linear');
             
-            % Обновляем поля в редакторе
             set(newFsEdit, 'String', num2str(newFs_def));
             set(shiftCoeffEdit, 'String', num2str(shiftCoeff_def));
             set(timeBackEdit, 'String', num2str(time_back_def * timeUnitFactor));
@@ -543,14 +542,13 @@ function settingsEditor()
             set(chkArtifactRemoval, 'Value', false);
             set(artWindowEdit, 'String', '0');
             set(artWindowEdit, 'Enable', 'off');
+            set(popupArtInterp, 'Value', 1);
             
-            % Обновляем глобальные переменные
             newFs = newFs_def;
             shiftCoeff = shiftCoeff_def;
             time_back = time_back_def;
             time_forward = time_forward_def;
             stim_offset = stim_offset_def;
-            art_rem_window_ms = art_rem_window_ms_def;
             
             % Применяем сдвиг времен стимулов
             applyStimulusOffset();
@@ -582,17 +580,15 @@ function settingsEditor()
                 end
             end
             
-            % Сохраняем art_rem_window_ms в глобальные настройки
             try
                 if exist(SettingsFilepath, 'file')
-                    save(SettingsFilepath, 'art_rem_window_ms', '-append');
+                    save(SettingsFilepath, 'art_rem_settings', '-append');
                 else
-                    % Если файл не существует, создаем его с базовыми настройками
                     initializeDefaultSettings();
-                    save(SettingsFilepath, 'art_rem_window_ms', '-append');
+                    save(SettingsFilepath, 'art_rem_settings', '-append');
                 end
             catch ME
-                warning('Error saving art_rem_window_ms to global settings: %s', ME.message);
+                warning('Error saving art_rem_settings to global settings: %s', ME.message);
             end
             
             % Обновляем основной интерфейс
@@ -672,8 +668,7 @@ function settingsEditor()
     end
     
     function setArtRemWindow(hObject, ~)
-        % Устанавливает размер окна удаления артефактов
-        art_rem_window_ms = str2double(hObject.String); % Уже в миллисекундах
+        art_rem_settings.artifact_window_ms = str2double(hObject.String);
     end
     
     function changeTimeUnit(src, ~)
@@ -692,7 +687,7 @@ function settingsEditor()
         set(timeBackEdit, 'String', num2str(time_back * timeUnitFactor));
         set(timeForwardEdit, 'String', num2str(time_forward * timeUnitFactor));
         set(stimOffsetEdit, 'String', num2str(stim_offset * timeUnitFactor));
-        set(artWindowEdit, 'String', num2str(art_rem_window_ms)); % Остается в миллисекундах
+        set(artWindowEdit, 'String', num2str(art_rem_settings.artifact_window_ms));
         
         % Обновляем подписи
         timeBackText = findobj(fig, 'String', 'Before (');

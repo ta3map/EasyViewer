@@ -1,4 +1,4 @@
-function [baselineData, postStimData, fullTrialData, timeAxis] = extractTrialData(lfp, time, Fs, N, stims, xLimits, timeUnitFactor, removeBaseline, removeArtifact, artifactWindow_ms, startTrial, endTrial, removeEdgeTrials)
+function [baselineData, postStimData, fullTrialData, timeAxis] = extractTrialData(lfp, time, Fs, N, stims, xLimits, timeUnitFactor, removeBaseline, removeArtifact, artifactWindow_ms, startTrial, endTrial, removeEdgeTrials, artifactInterpMethod)
     % Извлекает данные по триалам вокруг стимулов с разделением на baseline и post-stimulus
     % 
     % Входные параметры:
@@ -32,10 +32,15 @@ function [baselineData, postStimData, fullTrialData, timeAxis] = extractTrialDat
     windowEnd_relative = xLimitsSeconds(2);   % конец окна относительно стимула (положительное)
     meanWindow = windowEnd_relative - windowStart_relative; % полная ширина окна
     
+    if nargin < 14
+        artifactInterpMethod = 'linear';
+    elseif isempty(artifactInterpMethod)
+        artifactInterpMethod = 'linear';
+    end
     % Удаление артефакта стимула до нарезки
     if removeArtifact && artifactWindow_ms > 0
         win_r = round(artifactWindow_ms * (Fs/1000));
-        lfp = removeStimArtifact(lfp, stims, time, win_r);
+        lfp = removeStimArtifact(lfp, stims, time, win_r, artifactInterpMethod);
     end
     
     numStims = length(stims);

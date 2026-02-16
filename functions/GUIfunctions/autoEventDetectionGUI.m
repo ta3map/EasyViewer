@@ -732,7 +732,7 @@ end
 
 function [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected] = autoEventDetection(params)
     global Fs time newFs lfp wb ch_inxs csd_avaliable filterSettings filter_avaliable mean_group_ch 
-    global stims_exist stims time art_rem_window_ms
+    global stims_exist stims time art_rem_settings
     
     data_in = lfp;
     fprintf('Please wait...\n');
@@ -774,9 +774,9 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
 
     % Убираем артефакт стимула если включено
     waitbar(0.2, wb, 'Removing stimulus artifacts...');
-    if stims_exist && ~isempty(stims) && ~isempty(art_rem_window_ms) && art_rem_window_ms > 0
-        win_r = round(art_rem_window_ms * (Fs/1000));
-        data_in = removeStimArtifact(data_in, stims, time, win_r);
+    if stims_exist && ~isempty(stims) && art_rem_settings.artifact_window_ms > 0
+        win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
+        data_in = removeStimArtifact(data_in, stims, time, win_r, art_rem_settings.interp_method);
     end
     
     % Вычитаем среднее из запрошенных

@@ -5,7 +5,7 @@ function loadGlobalSettings()
     % Глобальные переменные для настроек
     global lastOpenedFiles figure_position add_event_settings
     global timeUnitFactor selectedUnit autodetection_settings
-    global art_rem_window_ms lines_and_styles side_panel_visible
+    global art_rem_settings lines_and_styles side_panel_visible
     global auto_open_last_file SettingsFilepath import_settings
     
     % Путь к файлу настроек
@@ -22,7 +22,7 @@ function loadGlobalSettings()
             figure_position = base_figure_position;
             timeUnitFactor = 1;
             selectedUnit = 's';
-            art_rem_window_ms = 0;
+            art_rem_settings = struct('artifact_window_ms', 0, 'interp_method', 'linear');
             add_event_settings = [];
             autodetection_settings = [];
             import_settings = struct();
@@ -37,7 +37,7 @@ function loadGlobalSettings()
                 'figure_position', ...
                 'timeUnitFactor', ...
                 'selectedUnit', ...
-                'art_rem_window_ms', ...
+                'art_rem_settings', ...
                 'add_event_settings', ...
                 'autodetection_settings', ...
                 'import_settings', ...
@@ -104,11 +104,11 @@ function loadGlobalSettings()
                 import_settings = struct();
             end
             
-            % Загружаем размер окна очистки артефакта
-            if isfield(d, 'art_rem_window_ms')
-                art_rem_window_ms = d.art_rem_window_ms;
+            % Загружаем настройки удаления артефакта стимула
+            if isfield(d, 'art_rem_settings')
+                art_rem_settings = d.art_rem_settings;
             else
-                art_rem_window_ms = 0;
+                art_rem_settings = struct('artifact_window_ms', 0, 'interp_method', 'linear');
             end
             
             % Загружаем настройки стиля линий
@@ -157,7 +157,7 @@ function loadGlobalSettings()
         % Остальные настройки по умолчанию
         autodetection_settings = [];
         import_settings = struct();
-        art_rem_window_ms = 0;
+        art_rem_settings = struct('artifact_window_ms', 0, 'interp_method', 'linear');
         side_panel_visible = true;
         auto_open_last_file = true;
         lines_and_styles = struct();

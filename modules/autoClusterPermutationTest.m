@@ -1,6 +1,6 @@
 function result = autoClusterPermutationTest(filePath, fileId, params)
     global zav_calling timeUnitFactor
-    global stims lfp time Fs N
+    global stims lfp time Fs N art_rem_settings
     
     metadata = zav_calling(filePath);
     if isempty(metadata)
@@ -19,9 +19,13 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
         lfpToUse = lfp(:, round(params.Channel));
     end
     
+    interpMethod = 'linear';
+    if ~isempty(art_rem_settings) && isfield(art_rem_settings, 'interp_method')
+        interpMethod = art_rem_settings.interp_method;
+    end
     [~, ~, fullTrialData, timeAxis] = extractTrialData(...
         lfpToUse, time, Fs, N, stims, xLimits, timeUnitFactor, ...
-        removeBaseline, removeArtifact, artifactWindow_ms, [], [], false);
+        removeBaseline, removeArtifact, artifactWindow_ms, [], [], false, interpMethod);
     
     global hd channelTable
     channelSettings = get(channelTable, 'Data');

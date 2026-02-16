@@ -22,7 +22,7 @@ global lfpVar
 global mean_group_ch
 global app_path evfilename offsets
 global calculation_result
-global art_rem_window_ms
+global art_rem_settings
 global stims
 global t_mean_profile
 global wb
@@ -108,11 +108,11 @@ if isfield(opts, 'removeArtifact')
     if isfield(opts, 'artifactWindow_ms')
         artifact_window_ms = opts.artifactWindow_ms;
     else
-        artifact_window_ms = art_rem_window_ms;
+        artifact_window_ms = art_rem_settings.artifact_window_ms;
     end
 else
-    params.remove_artifact = strcmp(sourceType, 'stimuli') && art_rem_window_ms > 0;
-    artifact_window_ms = art_rem_window_ms;
+    params.remove_artifact = strcmp(sourceType, 'stimuli') && art_rem_settings.artifact_window_ms > 0;
+    artifact_window_ms = art_rem_settings.artifact_window_ms;
 end
 if isfield(opts, 'autoScale')
     params.autoScale = logical(opts.autoScale);
@@ -147,7 +147,7 @@ end
 if params.remove_artifact
     win_r = round(artifact_window_ms * (Fs/1000));
     debugState('calculateAndPlotMeanEvents', 'Stim artifact removal: Fs=%dHz, window=%.3f ms (~%d samples)', Fs, artifact_window_ms, win_r);
-    params.lfp = removeStimArtifact(params.lfp, stims, time, win_r);
+    params.lfp = removeStimArtifact(params.lfp, stims, time, win_r, art_rem_settings.interp_method);
     
     if params.show_spikes
         stim_inxs = ClosestIndex(stims, time); % Индекс стимулов

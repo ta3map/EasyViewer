@@ -6,7 +6,7 @@ function [signal_data, time_data] = getSignalDataForResult(metadata)
     global newFs Fs timeUnitFactor selectedUnit
     global filterSettings filter_avaliable mean_group_ch
     global selectedCenter events stims sweep_info event_inx stim_inx sweep_inx events_exist stims_exist
-    global stimShowFlag art_rem_window_ms
+    global stimShowFlag art_rem_settings
     
     try
         % fprintf('DEBUG: getSignalDataForResult - начало обработки\n');
@@ -57,7 +57,7 @@ function [signal_data, time_data] = getSignalDataForResult(metadata)
             fprintf('  - Время стимула (абс.): %.3f\n', local_stim);
             fprintf('  - Диапазон времени (абс.): [%.3f, %.3f]\n', time_data(1), time_data(end));
             fprintf('  - Fs_fascor: %.3f\n', Fs_fascor);
-            fprintf('  - art_rem_window_ms: %.3f\n', art_rem_window_ms);
+            fprintf('  - artifact_window_ms: %.3f\n', art_rem_settings.artifact_window_ms);
             
             % Нормализуем время стимула относительно текущего временного окна
             local_stim_rel = local_stim - time_data(1);
@@ -72,7 +72,7 @@ function [signal_data, time_data] = getSignalDataForResult(metadata)
                 signal_data = signal_data';
             end
             
-            signal_data = removeStimArtifact(signal_data, local_stim_rel, time_data_rel, art_rem_window_ms*Fs_fascor*0.5);
+            signal_data = removeStimArtifact(signal_data, local_stim_rel, time_data_rel, art_rem_settings.artifact_window_ms*Fs_fascor*0.5, art_rem_settings.interp_method);
             % fprintf('DEBUG: Артефакт стимула удален\n');
             
             % Возвращаем в строку для совместимости с остальным кодом

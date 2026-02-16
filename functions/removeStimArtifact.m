@@ -4,7 +4,7 @@ function data_out = removeStimArtifact(data_in, stims, time, win_r, method)
 % stims - время стимулов (массив)
 % time - временная ось
 % win_r - половина окна удаления (в индексах)
-% method - метод интерполяции: 'spline' (по умолчанию), 'median', 'pchip', 'linear', 'smooth'
+% method - метод интерполяции: 'linear' (по умолчанию), 'spline', 'median', 'pchip', 'smooth'
 
     % % fprintf('DEBUG: removeStimArtifact - входные параметры:\n');
     % fprintf('  - Размер data_in: %s\n', mat2str(size(data_in)));
@@ -19,7 +19,7 @@ end
 
 % Метод интерполяции по умолчанию
 if nargin < 5 || isempty(method)
-    method = 'spline';
+    method = 'linear';
 end
 
 % Убеждаемся, что stims - массив
