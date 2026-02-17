@@ -159,7 +159,7 @@ function fileManagerGUI()
 
     fileActionsMenu = uicontrol('Style', 'popupmenu', ...
         'Position', getElementPosition('fileActionsMenu'), ...
-        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field', 'Rename Field', 'Filter Files', 'Sort Files', 'Clear Filter', 'Move to Project', 'Copy to Project', 'Import from Excel'}, ...
+        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field', 'Rename Field', 'Filter Files', 'Sort Files', 'Clear Filter', 'Move to Project', 'Copy to Project', 'Import from Excel', 'Find file in database'}, ...
         'FontSize', 11, ...
         'Value', 1, ...
         'Callback', @handleFileAction, ...
@@ -532,6 +532,8 @@ function fileManagerGUI()
                 moveFilesToProject([], [], true);
             case 11
                 importMetadataFromExcel();
+            case 12
+                showFindFileInfoDialog();
         end
     end
     
@@ -1494,12 +1496,12 @@ function fileManagerGUI()
                 if exist(jsonPath, 'file')
                     params = editModuleParamsGUI(moduleAction);
                     if isempty(fieldnames(params))
-                        params = struct();
+                        return
                     end
                 end
             catch ME
                 debugState('fileManagerGUI', 'Failed to open parameter editor: %s', ME.message);
-                params = struct();
+                return
             end
             
             for idx = 1:numel(filesToProcess)
@@ -3997,13 +3999,6 @@ function fileManagerGUI()
                     continue
                 end
                 filePath = char(filePath);
-                
-                if ~exist(filePath, 'file')
-                    debugState('fileManagerGUI', 'importProjectFromExcel: file not found, skipping: %s', filePath);
-                    skippedCount = skippedCount + 1;
-                    continue
-                end
-                
                 ensureFileInProject(filePath, newProjectId);
                 record = sqlFetch(sprintf('SELECT id FROM files WHERE file_path = ''%s'' LIMIT 1', escapeSql(filePath)));
                 if ~isempty(record)
@@ -4254,6 +4249,98 @@ function fileManagerGUI()
             close(dialogFig);
         end
         
+        uiwait(dialogFig);
+    end
+    
+    function showFindFileInfoDialog()
+        if isempty(state.dbPath) || ~isfile(state.dbPath)
+            msgbox('No database selected or database file not found.', 'Error', 'error');
+            return
+        end
+        dialogWidth = 560;
+        dialogHeight = 420;
+        screenSize = get(0, 'ScreenSize');
+        dialogX = (screenSize(3) - dialogWidth) / 2;
+        dialogY = (screenSize(4) - dialogHeight) / 2;
+        dialogFig = figure('Position', [dialogX, dialogY, dialogWidth, dialogHeight], ...
+            'Name', 'Find file in database', ...
+            'NumberTitle', 'off', ...
+            'MenuBar', 'none', ...
+            'Resize', 'on', ...
+            'WindowStyle', 'modal');
+        margin = 15;
+        buttonHeight = 28;
+        buttonWidth = 80;
+        labelHeight = 20;
+        editHeight = 24;
+        spacing = 10;
+        yPos = dialogHeight - margin - labelHeight;
+        uicontrol('Parent', dialogFig, 'Style', 'text', ...
+            'Position', [margin, yPos, 50, labelHeight], ...
+            'String', 'Path:', ...
+            'HorizontalAlignment', 'left', ...
+            'FontSize', 11);
+        pathEdit = uicontrol('Parent', dialogFig, 'Style', 'edit', ...
+            'Position', [margin + 55, yPos - 2, dialogWidth - 2*margin - 55 - buttonWidth - spacing - buttonWidth, editHeight], ...
+            'String', '', ...
+            'FontSize', 10, ...
+            'HorizontalAlignment', 'left');
+        searchBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+            'Position', [dialogWidth - margin - 2*buttonWidth - spacing, yPos, buttonWidth, buttonHeight], ...
+            'String', 'Search', ...
+            'FontSize', 11, ...
+            'Callback', @searchCallback);
+        closeBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+            'Position', [dialogWidth - margin - buttonWidth, yPos, buttonWidth, buttonHeight], ...
+            'String', 'Close', ...
+            'FontSize', 11, ...
+            'Callback', @(src, evt) close(dialogFig));
+        tableTop = yPos - labelHeight - margin - 10;
+        infoTable = uitable('Parent', dialogFig, ...
+            'Position', [margin, margin, dialogWidth - 2*margin, tableTop - margin], ...
+            'ColumnName', {'Attribute', 'Value'}, ...
+            'ColumnEditable', [false, false], ...
+            'ColumnWidth', {140, dialogWidth - 2*margin - 160}, ...
+            'Data', {'Enter path and click Search', ''});
+        function searchCallback(~, ~)
+            pathStr = strtrim(get(pathEdit, 'String'));
+            if isempty(pathStr)
+                infoTable.Data = {'Enter path and click Search', ''};
+                return
+            end
+            escaped = escapeSql(pathStr);
+            fileQuery = sprintf('SELECT id, file_path, file_name, created_at FROM files WHERE file_path = ''%s'' LIMIT 1', escaped);
+            fileRows = sqlFetch(fileQuery);
+            if isempty(fileRows)
+                infoTable.Data = {'Not found', ''};
+                return
+            end
+            fileId = fileRows{1, 1};
+            rows = {'File ID', fileId; 'File path', fileRows{1, 2}; 'File name', fileRows{1, 3}; 'Created', fileRows{1, 4}};
+            metaQuery = sprintf('SELECT field_name, field_value FROM file_metadata WHERE file_id = %d', fileId);
+            metaRows = sqlFetch(metaQuery);
+            for i = 1:size(metaRows, 1)
+                rows(end+1, 1:2) = {metaRows{i, 1}, metaRows{i, 2}};
+            end
+            projQuery = sprintf(['SELECT p.name, g.name FROM project_files pf ' ...
+                'JOIN projects p ON p.id = pf.project_id LEFT JOIN groups g ON g.id = pf.group_id WHERE pf.file_id = %d'], fileId);
+            projRows = sqlFetch(projQuery);
+            for i = 1:size(projRows, 1)
+                grp = projRows{i, 2};
+                if isempty(grp)
+                    grp = '';
+                else
+                    grp = [' (', grp, ')'];
+                end
+                rows(end+1, 1:2) = {'Project', [projRows{i, 1}, grp]};
+            end
+            arQuery = sprintf('SELECT module_name, report_path FROM analysis_results WHERE file_id = %d', fileId);
+            arRows = sqlFetch(arQuery);
+            for i = 1:size(arRows, 1)
+                rows(end+1, 1:2) = {'Analysis', [arRows{i, 1}, ' — ', arRows{i, 2}]};
+            end
+            infoTable.Data = rows;
+        end
         uiwait(dialogFig);
     end
     

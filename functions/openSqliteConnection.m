@@ -29,6 +29,9 @@ function conn = openSqliteConnection(dbPath)
         dbUrl = ['jdbc:sqlite:' strrep(dbPath, '\', '/')];
         props = java.util.Properties();
         conn = driverInstance.connect(dbUrl, props);
+        stmt = conn.createStatement();
+        stmt.execute('PRAGMA foreign_keys = ON');
+        closeJdbcResource(stmt);
     catch ME
         warning('SQLite connection error: %s', ME.message);
         conn = [];
