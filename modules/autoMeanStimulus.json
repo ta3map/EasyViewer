@@ -12,7 +12,7 @@
     "SubtractMean": false
   },
   "detection": {
-    "Polarity": "negative",
+    "Polarity": "positive",
     "MinPeakProminence": 10,
     "UseOriginalData": true,
     "MinPeakDistance_s": 0.05,

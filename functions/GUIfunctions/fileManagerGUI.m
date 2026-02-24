@@ -378,7 +378,7 @@ function fileManagerGUI()
         end
     end
     
-    function loadProjectsFromDb()
+    function loadProjectsFromDb(projectIdToSelect)
         if isempty(state.dbPath) || ~isfile(state.dbPath)
             set(dbPathDisplay, 'String', 'No database selected');
             projectSelect.String = {'No projects'};
@@ -405,13 +405,20 @@ function fileManagerGUI()
         state.projects = projects;
         names = arrayfun(@(p) sprintf('%s (#%d)', p.name, p.id), projects, 'UniformOutput', false);
         projectSelect.String = names;
-        savedId = readStoredProjectId();
         defaultIdx = 1;
-        if ~isempty(savedId)
-            match = find([projects.id] == savedId, 1);
+        if nargin > 0 && ~isempty(projectIdToSelect)
+            match = find([projects.id] == projectIdToSelect, 1);
             if ~isempty(match)
                 defaultIdx = match;
-                state.currentProjectId = savedId;
+            end
+        else
+            savedId = readStoredProjectId();
+            if ~isempty(savedId)
+                match = find([projects.id] == savedId, 1);
+                if ~isempty(match)
+                    defaultIdx = match;
+                    state.currentProjectId = savedId;
+                end
             end
         end
         projectSelect.Value = defaultIdx;
@@ -574,12 +581,7 @@ function fileManagerGUI()
             return
         end
         clearSelection();
-        loadProjectsFromDb();
-        match = find([state.projects.id] == newProjectId, 1);
-        if ~isempty(match)
-            projectSelect.Value = match;
-            selectProjectByIndex(match);
-        end
+        loadProjectsFromDb(newProjectId);
     end
     
     function deleteProject(~, ~)
@@ -604,10 +606,12 @@ function fileManagerGUI()
         autoBackupDatabase();
         
         try
-            deleteQuery = sprintf('DELETE FROM projects WHERE id = %d', state.currentProjectId);
-            sqlExec(deleteQuery);
+            projectId = state.currentProjectId;
+            sqlExec(sprintf('DELETE FROM project_files WHERE project_id = %d', projectId));
+            sqlExec(sprintf('DELETE FROM groups WHERE project_id = %d', projectId));
+            sqlExec(sprintf('DELETE FROM projects WHERE id = %d', projectId));
             
-            debugState('fileManagerGUI', 'deleteProject: deleted project id=%d, name=%s', state.currentProjectId, projectName);
+            debugState('fileManagerGUI', 'deleteProject: deleted project id=%d, name=%s', projectId, projectName);
             
             clearSelection();
             loadProjectsFromDb();
@@ -2892,17 +2896,7 @@ function fileManagerGUI()
         end
         enableState = count > 0;
         
-        % Проверяем расширение для кнопки Open (только если выбрана одна строка)
-        openBtnEnabled = false;
-        if count == 1 && isfield(state, 'selectedRow') && ~isempty(state.selectedRow) && isfield(state, 'files') && ~isempty(state.files)
-            rowIdx = state.selectedRow;
-            if rowIdx >= 1 && rowIdx <= numel(state.files)
-                filePath = state.files(rowIdx).path;
-                [~, ~, ext] = fileparts(filePath);
-                supportedExtensions = {'.mat', '.ev', '.abf'};
-                openBtnEnabled = any(strcmpi(ext, supportedExtensions));
-            end
-        end
+        openBtnEnabled = (count == 1 && isfield(state, 'selectedRow') && ~isempty(state.selectedRow) && isfield(state, 'files') && ~isempty(state.files) && state.selectedRow >= 1 && state.selectedRow <= numel(state.files));
         
         if exist('openFileFolderBtn', 'var') && ishandle(openFileFolderBtn)
             set(openFileFolderBtn, 'Enable', onOff(enableState));
@@ -4768,7 +4762,8 @@ function metadata = launchFile(filePath)
                 return
             end
         otherwise
-            debugState('fileManagerGUI', 'Unknown extension: %s', ext);
+            winopen(filePath);
+            return
     end
     debugState('fileManagerGUI', 'File loaded.');
 
