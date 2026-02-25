@@ -159,7 +159,7 @@ function fileManagerGUI()
 
     fileActionsMenu = uicontrol('Style', 'popupmenu', ...
         'Position', getElementPosition('fileActionsMenu'), ...
-        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field', 'Rename Field', 'Filter Files', 'Sort Files', 'Clear Filter', 'Move to Project', 'Copy to Project', 'Import from Excel', 'Find file in database'}, ...
+        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field', 'Rename Field', 'Filter Files', 'Sort Files', 'Clear Filter', 'Move to Project', 'Copy to Project', 'Import from Excel', 'Find file in database', 'Update database from meta-files'}, ...
         'FontSize', 11, ...
         'Value', 1, ...
         'Callback', @handleFileAction, ...
@@ -541,6 +541,8 @@ function fileManagerGUI()
                 importMetadataFromExcel();
             case 12
                 showFindFileInfoDialog();
+            case 13
+                createAnalysisFromMetaFiles();
         end
     end
     
@@ -2095,6 +2097,104 @@ function fileManagerGUI()
         end
     end
     
+    function createAnalysisFromMetaFiles()
+        selectedFiles = getSelectedFilesFromTable(fileTable);
+        if isempty(selectedFiles)
+            msgbox('No files selected', 'Info', 'help');
+            return
+        end
+        if isempty(state.dbPath) || ~isfile(state.dbPath)
+            promptCreateDatabase();
+            if isempty(state.dbPath) || ~isfile(state.dbPath)
+                return
+            end
+        end
+        if isempty(state.currentProjectId)
+            msgbox('No project selected', 'Error', 'error');
+            return
+        end
+        nFiles = numel(selectedFiles);
+        wb = waitbar(0, 'Initializing...', 'Name', 'Update database from meta-files');
+        for f = 1:nFiles
+            waitbar((f - 1) / nFiles, wb, sprintf('File %d/%d...', f, nFiles));
+            file = selectedFiles(f);
+            [folder, baseName, ~] = fileparts(file.path);
+            d = dir(fullfile(folder, '*.meta'));
+            for k = 1:numel(d)
+                [~, metaBase, ~] = fileparts(d(k).name);
+                if ~strcmp(metaBase, baseName) && ~startsWith(metaBase, [baseName '_'])
+                    continue
+                end
+                metaPath = fullfile(d(k).folder, d(k).name);
+                try
+                    result = load(metaPath, '-mat');
+                catch ME
+                    warning('createAnalysisFromMetaFiles: failed to load %s: %s', metaPath, ME.message);
+                    continue
+                end
+                if isfield(result, 'file_id') && ~isempty(result.file_id) && result.file_id ~= file.id
+                    fileId2 = result.file_id;
+                    nameRow = sqlFetch(sprintf('SELECT file_name FROM files WHERE id = %d', fileId2));
+                    if isempty(nameRow)
+                        continue
+                    end
+                    name2 = nameRow{1, 1};
+                    if iscell(name2)
+                        name2 = name2{1};
+                    end
+                    currentFileName = file.name;
+                    if ~strcmp(name2, currentFileName)
+                        continue
+                    end
+                    fprintf('Update database from meta-files: duplicate found (file_name="%s"), file_id_2=%d -> file_id_1=%d\n', currentFileName, fileId2, file.id);
+                    metaRows = sqlFetch(sprintf('SELECT field_name, field_value FROM file_metadata WHERE file_id = %d', fileId2));
+                    for m = 1:size(metaRows, 1)
+                        fieldName = metaRows{m, 1};
+                        fieldValue = metaRows{m, 2};
+                        registerMetadataField(fieldName);
+                        saveFileMetadataBatch(file.id, fieldName, {fieldValue});
+                        safeFieldName = makeSafeFieldName(fieldName);
+                        fileId1Str = sprintf('f%d', file.id);
+                        if ~isfield(state.metadataData, fileId1Str)
+                            state.metadataData.(fileId1Str) = struct();
+                        end
+                        state.metadataData.(fileId1Str).(safeFieldName) = char(fieldValue);
+                    end
+                    if size(metaRows, 1) > 0
+                        fprintf('  -> copied %d metadata field(s) to file_id %d (current source)\n', size(metaRows, 1), file.id);
+                    end
+                end
+                if ~isfield(result, 'report_path') || isempty(result.report_path)
+                    continue
+                end
+                [~, reportName, reportExt] = fileparts(result.report_path);
+                reportFileName = [reportName, reportExt];
+                reportPathInFolder = fullfile(folder, reportFileName);
+                if ~exist(reportPathInFolder, 'file')
+                    continue
+                end
+                result.report_path = reportPathInFolder;
+                logAnalysisResult(file.id, result);
+                if isfield(result, 'tableResultInsert') && ~isempty(result.tableResultInsert)
+                    extractedMetadata = extractFieldsFromResult(result, result.tableResultInsert);
+                    if ~isempty(fieldnames(extractedMetadata))
+                        saveExtractedMetadata(file.id, extractedMetadata);
+                    end
+                end
+                try
+                    save(metaPath, '-struct', 'result', '-mat');
+                catch ME
+                    warning('createAnalysisFromMetaFiles: failed to save %s: %s', metaPath, ME.message);
+                end
+            end
+        end
+        if ishandle(wb)
+            close(wb);
+        end
+        updateTable(state.files);
+        updateAnalysisTable([selectedFiles.id]);
+    end
+    
     function handleTableModificationSelection(src, ~)
         selectionIdx = src.Value;
         if selectionIdx == 1
@@ -2328,8 +2428,6 @@ function fileManagerGUI()
             saveExtractedMetadata(fileId, extractedMetadata);
             updateTable(state.files);
         end
-        
-        result = rmfield(result, 'tableResultInsert');
     end
     
     function saveExtractedMetadata(fileId, metadata)
