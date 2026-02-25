@@ -1,6 +1,6 @@
 function setupSignalFilteringGUI()
     % Глобальные переменные
-    global newFs data time chosen_time_interval time_back lfp m_coef
+    global newFs data time chosen_time_interval time_back lfp_file m_coef
     global ch_inxs channelNames filter_avaliable numChannels matFilePath local_settings
     global filterSettings
     global high_line_enable low_line_enable
@@ -147,8 +147,10 @@ function setupSignalFilteringGUI()
             plot_time_interval = chosen_time_interval;
             plot_time_interval(1) = plot_time_interval(1) - time_back;
 
-            cond = time >= plot_time_interval(1) & time < plot_time_interval(2);
-            local_lfp = lfp(cond, :);% все каналы данного участка времени
+            row_start = find(time >= plot_time_interval(1), 1, 'first');
+            row_end = find(time < plot_time_interval(2), 1, 'last');
+            cond = row_start:row_end;
+            local_lfp = lfp_file.lfp(cond, :);% все каналы данного участка времени
             data = local_lfp(:, ch_inxs).*m_coef;
 
             filtered_data = applyFilter(data(:, selectedChannels), local_settings, newFs);        

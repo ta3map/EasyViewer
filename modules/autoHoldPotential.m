@@ -1,5 +1,5 @@
 function result = autoHoldPotential(filePath, fileId, params)
-    global zav_calling lfp
+    global zav_calling lfp_file
     
     metadata = zav_calling(filePath);
     if isempty(metadata)
@@ -9,10 +9,10 @@ function result = autoHoldPotential(filePath, fileId, params)
 
     channelIdx = round(params.Channel);
 
-    holdPotentialValue = median(lfp(:, channelIdx));
+    holdPotentialValue = median(lfp_file.lfp(:, channelIdx));
     
-    q25 = prctile(lfp(:, channelIdx), 25);
-    q75 = prctile(lfp(:, channelIdx), 75);
+    q25 = prctile(lfp_file.lfp(:, channelIdx), 25);
+    q75 = prctile(lfp_file.lfp(:, channelIdx), 75);
     holdPotentialIqr = q75 - q25;
     
     result = struct( ...

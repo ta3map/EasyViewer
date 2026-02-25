@@ -1,13 +1,13 @@
 function varargout = struct2vars(data)
 % STRUCT2VARS - Распаковка структуры в отдельные переменные
 % Использование:
-%   [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
-%   [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back, events] = struct2vars(data);
+%   [lfp_file, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
+%   [lfp_file, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back, events] = struct2vars(data);
 % 
 % Примечание: В MATLAB данные не копируются, используются ссылки (copy-on-write).
 % Дополнительная память минимальна - только метаданные структуры.
     
-    field_order = {'lfp', 'spks', 'hd', 'zavp', 'lfpVar', 'chnlGrp', 'time', 'stims', 'sweep_info', 'time_forward', 'time_back', ...
+    field_order = {'lfp_file', 'spks', 'hd', 'zavp', 'lfpVar', 'chnlGrp', 'time', 'stims', 'sweep_info', 'time_forward', 'time_back', ...
                    'events', 'event_comments', 'event_amplitudes', 'event_channels', 'event_widths', 'event_prominences', 'event_metadata'};
     
     varargout = cell(1, nargout);

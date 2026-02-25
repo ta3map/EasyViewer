@@ -7,9 +7,9 @@ function result = splitChannels(filePath, fileId, params)
         return
     end
 
-    global lfp spks hd zavp chnlGrp lfpVar stims stims_exist
+    global lfp_file spks hd zavp chnlGrp lfpVar stims stims_exist
     
-    lfp_orig = lfp;
+    lfp_orig = lfp_file.lfp;
     spks_orig = spks;
     hd_orig = hd;
     zavp_orig = zavp;
@@ -90,7 +90,7 @@ function result = splitChannels(filePath, fileId, params)
         
         outputPath = fullfile(channelFolder, [baseName, '_ch', num2str(chIdx), '.mat']);
         
-        lfp = lfp_ch;
+        lfp_file = struct('lfp', lfp_ch);
         spks = spks_ch;
         hd = hd_ch;
         zavp = zavp_ch;
@@ -100,7 +100,7 @@ function result = splitChannels(filePath, fileId, params)
         saveZavFile(outputPath);
     end
     
-    lfp = lfp_orig;
+    lfp_file = struct('lfp', lfp_orig);
     spks = spks_orig;
     hd = hd_orig;
     zavp = zavp_orig;

@@ -4,7 +4,7 @@ function result = autoSlopeMeasurement(filePath, fileId, params)
     
     global zav_calling timeUnitFactor
     % timeUnitFactor используется только для сохранения результатов, не для расчетов
-    global lfp time Fs stims stims_exist
+    global lfp_file time Fs stims stims_exist
     global art_rem_settings mean_group_ch
     
     if isempty(art_rem_settings) || ~isfield(art_rem_settings, 'artifact_window_ms')
@@ -60,7 +60,7 @@ function result = autoSlopeMeasurement(filePath, fileId, params)
     end
     
     % Проверка корректности канала
-    if channel_idx > size(lfp, 2)
+    if channel_idx > size(lfp_file.lfp, 2)
         debugState('autoSlopeMeasurement', '⚠️ Channel %d out of range, using channel 1', channel_idx);
         channel_idx = 1;
     end
@@ -105,7 +105,7 @@ function result = autoSlopeMeasurement(filePath, fileId, params)
             
             % Получаем данные для расчетов (расширенный интервал)
             % Используем параметры обработки, включая сглаживание
-            [calc_channel_data, calc_time_vector] = getSignalDataForInterval(lfp, time, channel_idx, calc_interval, data_params);
+            [calc_channel_data, calc_time_vector] = getSignalDataForInterval(lfp_file.lfp, time, channel_idx, calc_interval, data_params);
             
             if isempty(calc_channel_data) || isempty(calc_time_vector)
                 debugState('autoSlopeMeasurement', '⚠️ No calculation data for stimulus %d, skipping', i);

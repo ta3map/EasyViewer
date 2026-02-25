@@ -11,7 +11,7 @@ function data = load_zav_file(filepath, varargin)
 %
 % Выходные параметры:
 %   data - структура с полями:
-%       lfp - матрица LFP данных
+%       lfp_file - matfile объект (v7.3) или struct с полем .lfp (матрица LFP)
 %       spks - данные спайков
 %       hd - заголовок записи
 %       zavp - параметры ZAV
@@ -32,10 +32,10 @@ function data = load_zav_file(filepath, varargin)
 %
 % Пример использования:
 %   data = load_zav_file('data.mat');
-%   [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
+%   [lfp_file, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
 %   
 %   data = load_zav_file('data.mat', 'load_events', true);
-%   [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back, events] = struct2vars(data);
+%   [lfp_file, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back, events] = struct2vars(data);
 
 % Парсинг входных параметров
 p = inputParser;
@@ -67,21 +67,44 @@ fprintf('Loading file: %s\n', filename);
 hWaitBar = waitbar(0, 'Initializing...', 'Name', 'Loading file');
 
 % Проверяем, является ли файл Heka форматом
-if detectHekaFormat(filepath)
+is_heka = detectHekaFormat(filepath);
+is_v73 = false;
+
+if is_heka
     waitbar(0.1, hWaitBar, 'Heka format detected, converting to ZAV...');
     fprintf('Heka format detected, converting to ZAV...\n');
-    [lfp, spks, hd, zavp, lfpVar, chnlGrp] = hekaToZav(filepath);
-    % Создаем структуру d для совместимости с остальным кодом
-    d.lfp = lfp;
-    d.spks = spks;
-    d.hd = hd;
-    d.zavp = zavp;
-    d.lfpVar = lfpVar;
-    d.chnlGrp = chnlGrp;
+    [heka_lfp, spks_h, hd_h, zavp_h, lfpVar_h, chnlGrp_h] = hekaToZav(filepath);
+    d = struct('spks', spks_h, 'hd', hd_h, 'zavp', zavp_h, 'lfpVar', lfpVar_h, 'chnlGrp', chnlGrp_h);
+    lfp_dims = size(heka_lfp);
 else
     waitbar(0.1, hWaitBar, 'Loading data in ZAV format...');
     fprintf('Loading data in ZAV format...\n');
-    d = load(filepath); % Загружаем данные в структуру как обычно
+    
+    % Пробуем matfile для ленивого чтения lfp (только v7.3)
+    try
+        mf = matfile(filepath);
+        lfp_info = whos(mf, 'lfp');
+        mf.lfp(1, 1);
+        is_v73 = true;
+        lfp_dims = lfp_info.size;
+        fprintf('v7.3 format detected, lazy LFP access enabled\n');
+        
+        % Загружаем всё кроме lfp через matfile
+        all_info = whos(mf);
+        vars_to_load = setdiff({all_info.name}, {'lfp'});
+        d = struct();
+        for vi = 1:length(vars_to_load)
+            d.(vars_to_load{vi}) = mf.(vars_to_load{vi});
+        end
+    catch
+        % Не v7.3 — загружаем всё целиком
+        d = load(filepath);
+        if isfield(d, 'lfp')
+            lfp_dims = size(d.lfp);
+        else
+            error('Field lfp is required for loading ZAV file');
+        end
+    end
 end
 
 % Извлечение основных переменных с проверкой наличия полей
@@ -90,12 +113,6 @@ if isfield(d, 'spks')
 else
     spks = [];
     fprintf('Field spks not found, using empty array\n');
-end
-
-if isfield(d, 'lfp')
-    lfp = d.lfp;
-else
-    error('Field lfp is required for loading ZAV file');
 end
 
 if isfield(d, 'hd')
@@ -148,24 +165,52 @@ else
     fprintf('Original sampling rate: not determined\n');
 end
 
-% Получение размеров исходной матрицы
-[m, n, p] = size(lfp);
+% Получение размеров исходной матрицы lfp (без загрузки в память)
+m = lfp_dims(1);
+n = lfp_dims(2);
+p = 1;
+if length(lfp_dims) >= 3
+    p = lfp_dims(3);
+end
 
-% Обработка свипов
+% Обработка свипов и создание lfp_file
 if p > 1 % случай со свипами
     waitbar(0.3, hWaitBar, sprintf('Processing %d sweeps...', p));
     fprintf('Sweeps detected (count: %d)\n', p);
+    
+    % Для свипов необходимо загрузить lfp в память
+    if is_heka
+        lfp = heka_lfp;
+        clear heka_lfp;
+    elseif is_v73
+        lfp = mf.lfp;
+    else
+        lfp = d.lfp;
+    end
     [lfp, spks, stims, lfpVar, sweep_info] = sweepProcessData(p, spks, n, m, lfp, Fs, zavp, lfpVar, hWaitBar);
+    lfp_file = struct('lfp', lfp);
+    N = size(lfp, 1);
+    clear lfp;
     stims_exist = ~isempty(stims);
     
-    % Сохраняем информацию о свипах
-    sweep_inx = 1; % по умолчанию показываем первый свип
-    
+    sweep_inx = 1;
     fprintf('Duration of one sweep: %.3f s\n', m/Fs);
     waitbar(0.7, hWaitBar, 'Sweeps processed, finalizing...');
 else
     waitbar(0.5, hWaitBar, 'Processing regular data...');
     fprintf('Regular data without sweeps\n');
+    
+    % Создаём lfp_file: matfile для v7.3, struct для остального
+    if is_v73
+        lfp_file = mf;
+    elseif is_heka
+        lfp_file = struct('lfp', heka_lfp);
+        clear heka_lfp;
+    else
+        lfp_file = struct('lfp', d.lfp);
+    end
+    N = m;
+    
     if isfield(zavp, 'realStim') 
         stims = zavp.realStim(:).r(:) * zavp.siS;  
         stims_exist = ~isempty(stims);
@@ -177,16 +222,16 @@ else
         stims_exist = false;
     end
     
-    % Для данных без свипов создаем пустую структуру sweep_info
     sweep_info = struct();
     sweep_info.is_sweep_data = false;
     sweep_inx = 1;
 end
 
+clear d;
+
 % Создание временной оси
 waitbar(0.8, hWaitBar, 'Creating time axis...');
-N = size(lfp, 1);
-time = (0:N-1) / Fs; % в секундах
+time = (0:N-1) / Fs;
 fprintf('Total recording duration: %.3f s\n', time(end));
 
 % Установка time_back и time_forward на основе флага auto_set_time_windows
@@ -264,7 +309,7 @@ fprintf('\n');
 
 % Вывод итоговой информации
 fprintf('\n=== SUMMARY ===\n');
-fprintf('LFP data size: %dx%dx%d\n', size(lfp));
+fprintf('LFP samples: %d, channels: %d\n', N, n);
 fprintf('Spike data size: %dx%dx%d\n', size(spks));
 fprintf('Time window: forward=%.3f s, back=%.3f s\n', time_forward, time_back);
 fprintf('Stimuli: %s\n', ternary(stims_exist, 'yes', 'no'));
@@ -280,7 +325,7 @@ end
 
 % Собираем все данные в структуру
 data = struct();
-data.lfp = lfp;
+data.lfp_file = lfp_file;
 data.spks = spks;
 data.hd = hd;
 data.zavp = zavp;

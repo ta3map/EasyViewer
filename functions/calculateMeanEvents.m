@@ -8,7 +8,7 @@ end
 
 global Fs N time ch_inxs
 global shiftCoeff
-global lfp hd spks
+global lfp_file hd spks
 global matFilePath timeUnitFactor
 global events newFs time_back time_forward
 global std_coef show_spikes binsize show_CSD
@@ -39,7 +39,7 @@ params.sourceType = sourceType;
 params.hd = hd;
 params.channelSettings = channelSettings;
 params.Fs = Fs;
-params.lfp = lfp;
+params.lfp = lfp_file.lfp;
 params.N = N;
 params.time = time;
 params.binsize = binsize;

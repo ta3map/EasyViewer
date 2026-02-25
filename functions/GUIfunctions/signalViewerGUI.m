@@ -5,7 +5,7 @@ function signalViewerGUI(editMode)
    
     global Fs N time chosen_time_interval ch_inxs m_coef
     global shiftCoeff eventTable
-    global lfp hd spks multiax chnlGrp
+    global lfp_file hd spks multiax chnlGrp
     
     global matFilePath matFileName channelSettingsFilePath
     global timeUnitFactor selectedUnit
@@ -1941,7 +1941,9 @@ function signalViewerGUI(editMode)
         
         
         % Save the variables to the specified file
-        save(filepath, 'spks', 'lfp', 'hd', 'zavp', 'chnlGrp', 'lfpVar');
+        lfp = lfp_file.lfp;
+        save(filepath, 'spks', 'lfp', 'hd', 'zavp', 'chnlGrp', 'lfpVar', '-v7.3');
+        clear lfp;
         
         % Сохраняем настройки каналов
         saveChannelSettings()
@@ -2009,9 +2011,9 @@ function signalViewerGUI(editMode)
         data = load_zav_file(filepath, ...
             'auto_set_time_windows', autoSetTimeWindowsFromSweeps, ...
             'auto_set_fs', autoSetNewFsFromFs);
-        [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
+        [lfp_file, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
 
-        N = size(lfp, 1);
+        N = length(time);
         Fs = zavp.dwnSmplFrq;
         
         % Устанавливаем флаги
@@ -2088,7 +2090,7 @@ function signalViewerGUI(editMode)
    end
 
     function resetToNoFileState()
-        lfp = []; spks = []; hd = []; zavp = []; lfpVar = []; chnlGrp = []; time = []; stims = [];
+        lfp_file = []; spks = []; hd = []; zavp = []; lfpVar = []; chnlGrp = []; time = []; stims = [];
         sweep_info = struct('is_sweep_data', false, 'sweep_count', 0, 'sweep_times', []);
         time_forward = []; time_back = []; matFilePath = ''; matFileName = ''; stims_exist = false;
         N = []; Fs = []; newFs = []; sweep_inx = 1; selectedCenter = 'time'; stim_inx = 1;

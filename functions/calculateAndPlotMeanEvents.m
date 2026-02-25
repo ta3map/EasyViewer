@@ -9,7 +9,7 @@ fprintf('Please wait...\n');
 % Инициализация переменных
 global Fs N time ch_inxs  
 global shiftCoeff
-global lfp hd spks
+global lfp_file hd spks
 global matFilePath
 global timeUnitFactor 
 global events 
@@ -84,7 +84,7 @@ end
 params.hd = hd;
 params.channelSettings = channelSettings;
 params.Fs = Fs;
-params.lfp = lfp;
+params.lfp = lfp_file.lfp;
 params.N = N;
 params.time = time;
 params.binsize = binsize;

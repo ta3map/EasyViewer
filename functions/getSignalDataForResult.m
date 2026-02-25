@@ -2,7 +2,7 @@ function [signal_data, time_data] = getSignalDataForResult(metadata)
     % Получает данные сигнала для конкретного результата
     
     % Глобальные переменные для доступа к данным
-    global lfp time time_back hd
+    global lfp_file time time_back hd
     global newFs Fs timeUnitFactor selectedUnit
     global filterSettings filter_avaliable mean_group_ch
     global selectedCenter events stims sweep_info event_inx stim_inx sweep_inx events_exist stims_exist
@@ -22,8 +22,10 @@ function [signal_data, time_data] = getSignalDataForResult(metadata)
         
         % fprintf('DEBUG: Расширенный интервал: [%.3f, %.3f]\n', plot_time_interval(1), plot_time_interval(2));
         
-        cond = time >= plot_time_interval(1) & time < plot_time_interval(2);
-        local_lfp = lfp(cond, :);
+        row_start = find(time >= plot_time_interval(1), 1, 'first');
+        row_end = find(time < plot_time_interval(2), 1, 'last');
+        cond = row_start:row_end;
+        local_lfp = lfp_file.lfp(cond, :);
         
         % fprintf('DEBUG: Размер local_lfp: %s\n', mat2str(size(local_lfp)));
         

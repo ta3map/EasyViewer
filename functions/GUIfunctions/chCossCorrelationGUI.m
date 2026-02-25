@@ -1,6 +1,6 @@
 function chCossCorrelationGUI()
     % Global variables
-    global lfp time channelNames events Fs
+    global lfp_file time channelNames events Fs
 
     % Tag for GUI figure
     figTag = 'chCrossCorrelationGUI';
@@ -140,8 +140,8 @@ function chCossCorrelationGUI()
         end
 
         % Compute the sum of the selected channels
-        sumSignal1 = nansum(lfp(:, selectedChannels1), 2);
-        sumSignal2 = nansum(lfp(:, selectedChannels2), 2);
+        sumSignal1 = nansum(lfp_file.lfp(:, selectedChannels1), 2);
+        sumSignal2 = nansum(lfp_file.lfp(:, selectedChannels2), 2);
         
         % Invert signals if checkboxes are enabled
         if get(invertCheckbox1, 'Value')
@@ -181,9 +181,9 @@ function chCossCorrelationGUI()
                 eventTime = events(i);
                 eventIdx = round(eventTime * Fs);
                 windowStart = max(eventIdx - round(eventWindow * Fs / 2), 1);
-                windowEnd = min(windowStart + round(eventWindow * Fs) - 1, size(lfp, 1));
+                windowEnd = min(windowStart + round(eventWindow * Fs) - 1, size(lfp_file.lfp, 1));
                 
-                if windowEnd <= size(lfp, 1) && windowStart < windowEnd
+                if windowEnd <= size(lfp_file.lfp, 1) && windowStart < windowEnd
                     eventSegments1 = [eventSegments1; sumSignal1(windowStart:windowEnd)];
                     eventSegments2 = [eventSegments2; sumSignal2(windowStart:windowEnd)];
                 end

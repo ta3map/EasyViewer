@@ -1,5 +1,5 @@
 function [event_x, amplitude, channel, width, prominence, metadata] = addExtraEvent()
-    global add_event_settings lfp time timeUnitFactor filter_avaliable filterSettings newFs ch_inxs
+    global add_event_settings lfp_file time timeUnitFactor filter_avaliable filterSettings newFs ch_inxs
     global csd_image csd_t_range csd_ch_range offsets show_CSD
     
     disp('adding new event ...')
@@ -40,7 +40,7 @@ function [event_x, amplitude, channel, width, prominence, metadata] = addExtraEv
     ch_inx = add_event_settings.channel;
     
     % Проверка границ массива каналов
-    [~, numChannels] = size(lfp);
+    numChannels = size(lfp_file.lfp, 2);
     if ch_inx > numChannels || ch_inx < 1
         warning('Channel index %d exceeds available channels (1-%d). Using channel 1 instead.', ch_inx, numChannels);
         ch_inx = 1;
@@ -54,8 +54,10 @@ function [event_x, amplitude, channel, width, prominence, metadata] = addExtraEv
         time_interval = [event_x - range_half, event_x + range_half];% глобальный формат времени в секундах
 
         % Выборка данных в заданном временном интервале
-        cond = time >= time_interval(1) & time < time_interval(2);
-        data = lfp(cond, ch_inx);
+        row_start = find(time >= time_interval(1), 1, 'first');
+        row_end = find(time < time_interval(2), 1, 'last');
+        cond = row_start:row_end;
+        data = lfp_file.lfp(cond, ch_inx);
         time_in = time(cond);
         
         % Фильтруем если попросили

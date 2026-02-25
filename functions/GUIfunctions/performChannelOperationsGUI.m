@@ -1,7 +1,7 @@
 function performChannelOperationsGUI()
     % Global variables
     global channelTable ch_labels_l colors_in_l widths_in_l matFileName matFilePath
-    global lfp ch_inxs pca_params spks filterSettings
+    global lfp_file ch_inxs pca_params spks filterSettings
     global csd_avaliable filter_avaliable channelNames mean_group_ch channelSettings m_coef
     global pca_flag hd zav_saving chnlGrp lfpVar numChannels channelEnabled scalingCoefficients colorsIn lineCoefficients
 
@@ -60,8 +60,8 @@ function performChannelOperationsGUI()
         selectedOperation = operations{get(operationMenu, 'Value')};
 
         % Extract data for selected channels
-        dataA = lfp(:, selectedChannelsA);
-        dataB = lfp(:, selectedChannelsB);
+        dataA = lfp_file.lfp(:, selectedChannelsA);
+        dataB = lfp_file.lfp(:, selectedChannelsB);
 
         % Sum channels if selected
         if isSumA
@@ -127,9 +127,9 @@ function performChannelOperationsGUI()
         end
 
         % Update results
-        lfp = resultDataMat;
+        lfp_file = struct('lfp', resultDataMat);
         channelNames = resultChannelNames;
-        numChannels = size(lfp, 2); % Number of channels equals number of sources
+        numChannels = size(lfp_file.lfp, 2); % Number of channels equals number of sources
         ch_inxs = 1:numChannels;
                 
         % Clear MUA data
@@ -140,11 +140,11 @@ function performChannelOperationsGUI()
 
         chnlGrp = {};
         % Расчет вариации LFP по каналам.
-        [m, n, p] = size(lfp);  % получение размеров исходной матрицы        
+        [m, n, p] = size(lfp_file.lfp);  % получение размеров исходной матрицы        
         if p > 1 % случай со свипами
-            lfpVar = squeeze(var(lfp));        
+            lfpVar = squeeze(var(lfp_file.lfp));        
         else
-            lfpVar = var(reshape(lfp, [], numChannels));
+            lfpVar = var(reshape(lfp_file.lfp, [], numChannels));
         end
                    
         % Form properties table   

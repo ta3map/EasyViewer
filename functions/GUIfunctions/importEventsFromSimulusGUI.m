@@ -1,6 +1,6 @@
 function importEventsFromSimulusGUI()
     % Global variables
-    global events stims time lfp channelNames ch_inxs
+    global events stims time lfp_file channelNames ch_inxs
     global event_amplitudes event_channels event_widths event_prominences event_metadata
 
     % Идентификатор (tag) для GUI фигуры
@@ -64,7 +64,7 @@ function importEventsFromSimulusGUI()
             end
 
             stimClusterInxs = ClosestIndex(stimCluster, time);
-            clusterData = mean(lfp(stimClusterInxs, selectedChannels), 2);
+            clusterData = mean(lfp_file.lfp(stimClusterInxs, selectedChannels), 2);
             
             if ampCriterion == 1
                 % Select maximum amplitude

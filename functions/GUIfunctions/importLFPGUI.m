@@ -1,6 +1,6 @@
 function importLFPGUI()
     % Global variables
-    global lastOpenedFiles lfp time N time_forward time_back chosen_time_interval
+    global lastOpenedFiles lfp_file time N time_forward time_back chosen_time_interval
     global shiftCoeff newFs selectedCenter stim_inx show_spikes show_CSD channelNames
     global numChannels lfpVar matFileName matFilePath Fs
     global call_updateTable
@@ -272,7 +272,7 @@ function importLFPGUI()
         mode = get(importMode, 'Value');
         if mode == 1 % Replace all
             if ~isempty(new_lfp)
-                lfp = new_lfp;
+                lfp_file = struct('lfp', new_lfp);
             end
             if ~isempty(new_lfpVar)
                 lfpVar = new_lfpVar;
@@ -304,19 +304,21 @@ function importLFPGUI()
             if append_start_index < 1
                 % Shift existing data to the right
                 shift_amount = abs(append_start_index) + 1;
-                if ~isempty(lfp)
-                    lfp = [nan(shift_amount, size(lfp, 2)); lfp];
+                if ~isempty(lfp_file) && ~isempty(lfp_file.lfp)
+                    lfp_data = lfp_file.lfp;
+                    lfp_file = struct('lfp', [nan(shift_amount, size(lfp_data, 2)); lfp_data]);
                 end
                 append_start_index = 1;
             end
             if ~isempty(new_lfp)
                 % Определяем размеры существующего lfp
-                if isempty(lfp)
+                if isempty(lfp_file) || isempty(lfp_file.lfp)
                     numExistingChannels = 0;
                     numExistingSamples = 0;
                 else
-                    numExistingChannels = size(lfp, 2);
-                    numExistingSamples = size(lfp, 1);
+                    lfp_file = struct('lfp', lfp_file.lfp);
+                    numExistingChannels = size(lfp_file.lfp, 2);
+                    numExistingSamples = size(lfp_file.lfp, 1);
                 end
                 
                 % Вычисляем необходимый размер
@@ -327,19 +329,19 @@ function importLFPGUI()
                 if requiredRows > numExistingSamples || requiredCols > numExistingChannels
                     newRows = max(requiredRows, numExistingSamples);
                     newCols = max(requiredCols, numExistingChannels);
-                    if isempty(lfp)
-                        lfp = nan(newRows, newCols);
+                    if isempty(lfp_file) || isempty(lfp_file.lfp)
+                        lfp_file = struct('lfp', nan(newRows, newCols));
                     else
                         expandedLfp = nan(newRows, newCols);
-                        expandedLfp(1:numExistingSamples, 1:numExistingChannels) = lfp;
-                        lfp = expandedLfp;
+                        expandedLfp(1:numExistingSamples, 1:numExistingChannels) = lfp_file.lfp;
+                        lfp_file = struct('lfp', expandedLfp);
                     end
                 end
                 
                 % Добавляем новые данные
                 rowRange = append_start_index:append_start_index + size(new_lfp, 1) - 1;
                 colRange = (numExistingChannels + 1):(numExistingChannels + length(currentSelectedChannels));
-                lfp(rowRange, colRange) = new_lfp;
+                lfp_file.lfp(rowRange, colRange) = new_lfp;
             end
             if ~isempty(new_lfpVar)
                 lfpVar = [lfpVar; new_lfpVar];
@@ -352,8 +354,9 @@ function importLFPGUI()
             if ~isempty(channelNames) && ~isempty(currentAvailableChannels) && ~isempty(currentSelectedChannels)
                 channelNames = [np_flatten(channelNames)'; np_flatten(currentAvailableChannels(currentSelectedChannels))'];
             end
-            if ~isempty(lfp)
-                lfp(lfp == 0) = nan;
+            if ~isempty(lfp_file) && ~isempty(lfp_file.lfp)
+                lfp_file = struct('lfp', lfp_file.lfp);
+                lfp_file.lfp(lfp_file.lfp == 0) = nan;
             end
 
             if append_start_time < 0
@@ -487,7 +490,7 @@ function importLFPGUI()
             numChannels = length(channelNames);
         else
             % Если channelNames пуст, используем количество столбцов в lfp
-            numChannels = size(lfp, 2);
+            numChannels = size(lfp_file.lfp, 2);
             if numChannels > 0
                 hd.recChNames = cell(numChannels, 1);
                 for i = 1:numChannels
@@ -498,8 +501,8 @@ function importLFPGUI()
         end
         
         % Убеждаемся, что numChannels соответствует размеру lfp
-        if size(lfp, 2) ~= numChannels
-            numChannels = size(lfp, 2);
+        if size(lfp_file.lfp, 2) ~= numChannels
+            numChannels = size(lfp_file.lfp, 2);
             if numChannels > 0 && (isempty(channelNames) || length(channelNames) ~= numChannels)
                 hd.recChNames = cell(numChannels, 1);
                 for i = 1:numChannels
@@ -514,7 +517,7 @@ function importLFPGUI()
         end
 
         % Update time and other settings
-        N = size(lfp, 1);
+        N = size(lfp_file.lfp, 1);
         time = (0:N-1) / Fs;
 
         time_forward = 0.6;

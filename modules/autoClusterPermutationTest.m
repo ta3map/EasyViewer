@@ -1,6 +1,6 @@
 function result = autoClusterPermutationTest(filePath, fileId, params)
     global zav_calling timeUnitFactor
-    global stims lfp time Fs N art_rem_settings
+    global stims lfp_file time Fs N art_rem_settings
     
     metadata = zav_calling(filePath);
     if isempty(metadata)
@@ -14,9 +14,9 @@ function result = autoClusterPermutationTest(filePath, fileId, params)
     removeArtifact = params.removeArtifact;
     artifactWindow_ms = params.artifactWindow_ms;
     
-    lfpToUse = lfp;
+    lfpToUse = lfp_file.lfp;
     if isfield(params, 'Channel') && ~isempty(params.Channel)
-        lfpToUse = lfp(:, round(params.Channel));
+        lfpToUse = lfp_file.lfp(:, round(params.Channel));
     end
     
     interpMethod = 'linear';

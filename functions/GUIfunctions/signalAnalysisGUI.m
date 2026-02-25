@@ -21,7 +21,7 @@ function signalAnalysisGUI(editMode)
     
     % Глобальные переменные для доступа к данным
     global EV_path EV_version EV_date
-    global lfp time chosen_time_interval time_back time_forward hd
+    global lfp_file time chosen_time_interval time_back time_forward hd
     global newFs Fs timeUnitFactor selectedUnit
     global filterSettings filter_avaliable mean_group_ch
     global selectedCenter events stims sweep_info event_inx stim_inx sweep_inx events_exist stims_exist
@@ -1929,9 +1929,14 @@ updateCursorEditFields();
             plot_time_interval(1) = plot_time_interval(1) - time_back;
             plot_time_interval(2) = chosen_time_interval(1) + time_forward;
             
-            cond = time >= plot_time_interval(1) & time < plot_time_interval(2);
+            row_start = find(time >= plot_time_interval(1), 1, 'first');
+            row_end = find(time < plot_time_interval(2), 1, 'last');
+            cond = [];
+            if ~isempty(row_start) && ~isempty(row_end) && row_start <= row_end
+                cond = row_start:row_end;
+            end
             selected_channel = slope_measurement_settings.channel;
-            y_data = lfp(cond, selected_channel);
+            y_data = lfp_file.lfp(cond, selected_channel);
             x_data = time(cond)-rel_shift;
         end
         
@@ -2891,13 +2896,18 @@ updateCursorEditFields();
                 store_raw_data = false;
             end
             
-            cond = time >= data_interval(1) & time < data_interval(2);
+            row_start = find(time >= data_interval(1), 1, 'first');
+            row_end = find(time < data_interval(2), 1, 'last');
+            cond = [];
+            if ~isempty(row_start) && ~isempty(row_end) && row_start <= row_end
+                cond = row_start:row_end;
+            end
             if ~any(cond)
                 channel_data = [];
                 time_in = [];
                 return;
             end
-            local_lfp = lfp(cond, :);
+            local_lfp = lfp_file.lfp(cond, :);
             
             % Вычитание средних каналов если нужно
             if ~isempty(mean_group_ch) && any(mean_group_ch)
@@ -3355,11 +3365,11 @@ updateCursorEditFields();
             data = load_zav_file(filepath, ...
                 'auto_set_time_windows', false, ...
                 'auto_set_fs', true);
-            [lfp, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
+            [lfp_file, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
             
             % Получаем размеры для совместимости
-            [m, n, p] = size(lfp);
-            N = size(lfp, 1);
+            [m, n, p] = size(lfp_file.lfp);
+            N = length(time);
             Fs = zavp.dwnSmplFrq;
             
             % Устанавливаем флаги
@@ -3473,7 +3483,7 @@ updateCursorEditFields();
             updatePlotAndCalculation();
             
             debugState('openFile', '✓ File successfully loaded: %s', matFileName);
-            debugState('openFile', '  Data size: %dx%dx%d', size(lfp));
+            debugState('openFile', '  Data size: %dx%dx%d', size(lfp_file.lfp));
             debugState('openFile', '  Sampling rate: %.1f Hz', Fs);
             debugState('openFile', '  Duration: %.3f s', time(end));
             
@@ -3497,7 +3507,7 @@ updateCursorEditFields();
     end
 
     function resetToNoFileState()
-        lfp = []; spks = []; hd = []; zavp = []; lfpVar = []; chnlGrp = []; time = []; stims = [];
+        lfp_file = []; spks = []; hd = []; zavp = []; lfpVar = []; chnlGrp = []; time = []; stims = [];
         sweep_info = struct('is_sweep_data', false, 'sweep_count', 0, 'sweep_times', []);
         time_forward = []; time_back = []; matFilePath = ''; matFileName = ''; stims_exist = false;
         N = []; Fs = []; newFs = []; sweep_inx = 1; selectedCenter = 'time'; stim_inx = 1;

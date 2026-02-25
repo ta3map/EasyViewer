@@ -1,6 +1,6 @@
 function ZScoreGUI()
     % Инициализация глобальных переменных
-    global lfp ch_inxs lfpVar spks Fs events time evfilename std_coef
+    global lfp_file ch_inxs lfpVar spks Fs events time evfilename std_coef
     global matFilePath app_path channelNames
     
     persistent dataToSave
@@ -60,8 +60,8 @@ function ZScoreGUI()
         params.events = events;
         params.meanWindow = 2; % Пример: окно среднего в секундах
         params.Fs = Fs;
-        params.lfp = lfp;
-        params.N = size(lfp, 1);
+        params.lfp = lfp_file.lfp;
+        params.N = size(lfp_file.lfp, 1);
         params.time = time;
         params.binsize = 0.01; % Пример: размер бина в секундах
         params.spks = spks;

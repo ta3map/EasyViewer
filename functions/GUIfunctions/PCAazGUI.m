@@ -1,6 +1,6 @@
 function PCAazGUI()
 global channelTable ch_labels_l colors_in_l widths_in_l matFileName matFilePath
-global lfp ch_inxs pca_params spks filterSettings
+global lfp_file ch_inxs pca_params spks filterSettings
 global csd_avaliable filter_avaliable channelNames mean_group_ch channelSettings m_coef
 global pca_flag hd zav_saving chnlGrp lfpVar numChannels channelEnabled scalingCoefficients colorsIn lineCoefficients
 
@@ -77,7 +77,7 @@ end
             chosen_inx = cellfun(@(x) isequal(x, 1), settings(:, 2));
             
             % Call PCA function
-            [coeff, score, ~, ~, explained] = pca(lfp(:, chosen_inx));
+            [coeff, score, ~, ~, explained] = pca(lfp_file.lfp(:, chosen_inx));
 
             % Select the required number of components
             pca_params.coeff = coeff(:, 1:r);
@@ -95,7 +95,7 @@ end
             matFilePath = fullfile(fileparts(matFilePath), matFileName);
 
             % Replace lfp with sources
-            lfp = pca_params.score;
+            lfp_file = struct('lfp', pca_params.score);
             
             % Set new channel names
             channelNames = cell(r, 1); % Preallocate cell array for efficiency
@@ -110,7 +110,7 @@ end
             hd.recChNames = channelNames;            
             
             chnlGrp = {};
-            lfpVar = std(lfp)';
+            lfpVar = std(lfp_file.lfp)';
         
             % Form properties table              
             numChannels = r; % Number of channels equals number of sources

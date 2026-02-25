@@ -1,6 +1,6 @@
 function result = autoDetectStimuli(filePath, fileId, params)
     global zav_calling timeUnitFactor stims saveChannelSettingsFunc
-    global lfp time Fs channelTable updatePlot
+    global lfp_file time Fs channelTable updatePlot
     
     metadata = zav_calling(filePath);
     if isempty(metadata)
@@ -35,7 +35,7 @@ function result = autoDetectStimuli(filePath, fileId, params)
     selectedChannels = selectedChannels(:);
     
     % Детекция событий
-    events_detected = detectPeaksInSignal(lfp, time, Fs, timeUnitFactor, selectedChannels, params);
+    events_detected = detectPeaksInSignal(lfp_file.lfp, time, Fs, timeUnitFactor, selectedChannels, params);
     
     % Обновление глобальной переменной stims
     stims = events_detected(:);

@@ -1,6 +1,6 @@
 function updatePlot()
     % disp('Plot is updated')
-    global chosen_time_interval time_back cond time lfp mean_group_ch ch_inxs m_coef Fs newFs timeUnitFactor multiax
+    global chosen_time_interval time_back cond time lfp_file mean_group_ch ch_inxs m_coef Fs newFs timeUnitFactor multiax
     global ch_labels_l shiftCoeff widths_in_l colors_in_l show_spikes spks std_coef selectedUnit matFilePath stims events timeSlider
     global data time_in show_CSD filterSettings filter_avaliable csd_smooth_coef
     global csd_contrast_coef csd_avaliable lfpVar
@@ -53,8 +53,10 @@ function updatePlot()
     plot_time_interval = chosen_time_interval;
     plot_time_interval(1) = plot_time_interval(1) - time_back;
 
-    cond = time >= plot_time_interval(1) & time < plot_time_interval(2);
-    local_lfp = lfp(cond, :);% все каналы данного участка времени
+    row_start = find(time >= plot_time_interval(1), 1, 'first');
+    row_end   = find(time < plot_time_interval(2), 1, 'last');
+    cond = row_start:row_end;
+    local_lfp = lfp_file.lfp(cond, :);
     local_lfp(:, mean_group_ch) = local_lfp(:, mean_group_ch) - mean(local_lfp(:, mean_group_ch), 2); % вычитание выбранных средних каналов
     data = local_lfp(:, ch_inxs).*m_coef;
     time_in = time(cond);

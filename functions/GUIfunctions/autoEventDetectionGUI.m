@@ -731,10 +731,10 @@ function saveSettings()
 end
 
 function [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected] = autoEventDetection(params)
-    global Fs time newFs lfp wb ch_inxs csd_avaliable filterSettings filter_avaliable mean_group_ch 
+    global Fs time newFs lfp_file wb ch_inxs csd_avaliable filterSettings filter_avaliable mean_group_ch 
     global stims_exist stims time art_rem_settings
     
-    data_in = lfp;
+    data_in = lfp_file.lfp;
     fprintf('Please wait...\n');
     
     % Инициализация waitbar если не существует

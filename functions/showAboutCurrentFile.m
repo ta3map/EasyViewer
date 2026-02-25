@@ -1,7 +1,7 @@
 function showAboutCurrentFile()
     % SHOWABOUTCURRENTFILE Отображает окно с информацией о текущем открытом файле
     
-    global matFilePath matFileName Fs N lfp hd zavp data_loaded
+    global matFilePath matFileName Fs N lfp_file hd zavp data_loaded
     
     existingFig = findobj('Tag', 'AboutCurrentFile');
     if ~isempty(existingFig)
@@ -45,18 +45,12 @@ function showAboutCurrentFile()
         end
         
         if ~isempty(N)
-            infoText{end+1} = sprintf('Number of channels: %d', N);
-        elseif ~isempty(lfp)
-            infoText{end+1} = sprintf('Number of channels: %d', size(lfp, 1));
+            infoText{end+1} = sprintf('Number of samples: %d', N);
         end
         
-        if ~isempty(lfp)
-            lfpSize = size(lfp);
-            if length(lfpSize) == 2
-                infoText{end+1} = sprintf('Data dimensions: %d x %d (channels x time points)', lfpSize(1), lfpSize(2));
-            elseif length(lfpSize) == 3
-                infoText{end+1} = sprintf('Data dimensions: %d x %d x %d (channels x time points x sweeps)', lfpSize(1), lfpSize(2), lfpSize(3));
-            end
+        if ~isempty(hd) && isfield(hd, 'recChNames')
+            infoText{end+1} = sprintf('Number of channels: %d', length(hd.recChNames));
+            infoText{end+1} = sprintf('Data dimensions: %d x %d (samples x channels)', N, length(hd.recChNames));
         end
         
         if ~isempty(zavp) && isfield(zavp, 'dwnSmplFrq')

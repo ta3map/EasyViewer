@@ -2,7 +2,7 @@ function [mean_data, mean_time] = calculateMeanSignal()
     % Вычисляет средний сигнал из всех добавленных результатов
     
     % Глобальные переменные для доступа к данным
-    global lfp time time_back hd
+    global lfp_file time time_back hd
     global newFs Fs timeUnitFactor selectedUnit
     global filterSettings filter_avaliable mean_group_ch
     global selectedCenter events stims sweep_info event_inx stim_inx sweep_inx events_exist stims_exist
