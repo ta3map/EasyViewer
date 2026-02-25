@@ -21,29 +21,19 @@ function [lfp, spks, stims, lfpVar, sweep_info] = sweepProcessData(p, spks, n, m
         spks_new = [];
     end
     
-    % Формируем lfp_new, «распрямляя» по свипам
-    lfp_new = zeros(m * p, n);
-    index = 1;
-    for i = 1:p
-        for j = 1:m
-            lfp_new(index, :) = lfp(j, :, i);
-            index = index + 1;
-        end
-        
-        if sps_exist
-            spks_time_shift_ms = (m / Fs) * 1000;
+    % Формируем lfp_new, «распрямляя» по свипам (vectorized)
+    % permute: [time, channels, sweeps] -> [time, sweeps, channels]
+    % reshape: [time*sweeps, channels] — свипы идут подряд
+    lfp_new = reshape(permute(lfp, [1, 3, 2]), [], n);
+
+    if sps_exist
+        spks_time_shift_ms = (m / Fs) * 1000;
+        for i = 2:p
             for ch = 1:n
-                spks_new(ch).tStamp = [
-                    spks_new(ch).tStamp; 
-                    spks(ch, i).tStamp + spks_time_shift_ms * (i - 1)
-                ];
-                spks_new(ch).ampl   = [spks_new(ch).ampl;  spks(ch, i).ampl];
-                spks_new(ch).shape  = [spks_new(ch).shape; spks(ch, i).shape];
+                spks_new(ch).tStamp = [spks_new(ch).tStamp; spks(ch, i).tStamp + spks_time_shift_ms * (i - 1)];
+                spks_new(ch).ampl   = [spks_new(ch).ampl;   spks(ch, i).ampl];
+                spks_new(ch).shape  = [spks_new(ch).shape;  spks(ch, i).shape];
             end
-        end
-        current_message = sprintf('Processing sweep %d of %d', i, p);
-        if ~isempty(hWaitBar) && isvalid(hWaitBar)
-            waitbar(i/p, hWaitBar, current_message);
         end
     end
     

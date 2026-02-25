@@ -34,44 +34,34 @@ function [lfp, spks, hd, zavp, lfpVar, chnlGrp] = hekaToZav(filepath)
             end
         end
         
-        % Load data from Trace variables
-        data = [];
+        % Determine dimensions and preallocate lfp
+        n_sweeps = max(ThirdValue);
+        n_channels = max(FourthValue);
+        firstTrace = aa{FilesOfInterest(1)};
+        n_points = size(eval([firstTrace, '(:,2)']), 1);
+        lfp = zeros(n_points, n_channels, n_sweeps, 'single');
+        
+        % Calculate sampling frequency from first trace
+        Freq = round(1/median(diff(eval([firstTrace, '(:,1)']))));
+        
+        % Read Trace variables directly into lfp with scaling
         for listOfTraces = 1:numel(FilesOfInterest)
             bz = aa{FilesOfInterest(listOfTraces)};
             h1 = strfind(bz, '_');
             SweepNumber = str2num(bz(h1(3)+1:h1(4)-1));
             ChannelNumber = str2num(bz(h1(4)+1:end));
-            data(:, ChannelNumber, SweepNumber) = eval([bz, '(:,2)']);
+            d = eval([bz, '(:,2)']);
+            
+            med = abs(median(d));
+            if med > 1e-3 && med < 1e-1
+                d = 1e3 * d;
+            elseif med < 1e-7
+                d = 1e12 * d;
+            end
+            lfp(:, ChannelNumber, SweepNumber) = single(d);
         end
-        
-        % Calculate sampling frequency
-        Freq = round(1/median(diff(eval([bz, '(:,1)']))));
-        
-        % Get data dimensions
-        n_channels = size(data, 2);
-        n_sweeps = size(data, 3);
-        n_points = size(data, 1);
         
         disp(['Found ' num2str(n_channels) ' channels, ' num2str(n_sweeps) ' sweeps, ' num2str(n_points) ' points per sweep']);
-        
-        % Store sweeps separately in format [time_points, channels, sweeps]
-        lfp = zeros(n_points, n_channels, n_sweeps);
-        
-        % Data processing with scaling
-        for CH = 1:n_channels
-            for sweep = 1:n_sweeps
-                d = data(:, CH, sweep);
-                
-                % Data scaling (as in PreprocessingEC)
-                if abs(median(d)) > 1e-3 && abs(median(d)) < 1e-1
-                    lfp(:, CH, sweep) = 1e3 * d;
-                elseif abs(median(d)) < 1e-7
-                    lfp(:, CH, sweep) = 1e12 * d;
-                else
-                    lfp(:, CH, sweep) = d;
-                end
-            end
-        end
         
         % Create events for each sweep in format compatible with sweepProcessData
         zavp.realStim = struct('r', cell(1, n_sweeps));
