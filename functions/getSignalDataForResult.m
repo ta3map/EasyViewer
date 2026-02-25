@@ -6,7 +6,7 @@ function [signal_data, time_data] = getSignalDataForResult(metadata)
     global newFs Fs timeUnitFactor selectedUnit
     global filterSettings filter_avaliable mean_group_ch
     global selectedCenter events stims sweep_info event_inx stim_inx sweep_inx events_exist stims_exist
-    global stimShowFlag art_rem_settings
+    global visualSettings art_rem_settings
     
     try
         % fprintf('DEBUG: getSignalDataForResult - начало обработки\n');
@@ -49,7 +49,7 @@ function [signal_data, time_data] = getSignalDataForResult(metadata)
         end
 
         % Убираем артефакт стимуляции если есть стимулы
-        if not(isempty(stims)) && stimShowFlag
+        if not(isempty(stims)) && visualSettings.stim_show
             % Используем локальный стимул для каждого результата
             Fs_fascor = Fs/1000;
             local_stim = stims(metadata.stim_inx);

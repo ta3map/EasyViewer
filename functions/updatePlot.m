@@ -1,11 +1,12 @@
 function updatePlot()
     % disp('Plot is updated')
     global chosen_time_interval time_back cond time lfp_file mean_group_ch ch_inxs m_coef Fs newFs timeUnitFactor multiax
-    global ch_labels_l shiftCoeff widths_in_l colors_in_l show_spikes spks std_coef selectedUnit matFilePath stims events timeSlider
-    global data time_in show_CSD filterSettings filter_avaliable csd_smooth_coef
+    global ch_labels_l shiftCoeff widths_in_l colors_in_l spks std_coef selectedUnit matFilePath stims events timeSlider
+    global data time_in filterSettings filter_avaliable csd_smooth_coef
     global csd_contrast_coef csd_avaliable lfpVar
     global csd_image csd_t_range csd_ch_range offsets
-    global art_rem_settings stimShowFlag lines_and_styles
+    global art_rem_settings lines_and_styles
+    global visualSettings
     global selectedCenter sweep_info sweep_inx % для работы со свипами
     global baseline_subtract_available % каналы с вычитанием базовой линии
     global plot_updating loading_text_handle % флаг обновления и handle текста
@@ -61,7 +62,7 @@ function updatePlot()
     data = local_lfp(:, ch_inxs).*m_coef;
     time_in = time(cond);
     
-    if not(isempty(stims)) && stimShowFlag
+    if not(isempty(stims)) && visualSettings.stim_show
         cond3 = stims >= plot_time_interval(1) & stims < plot_time_interval(2); 
         stims_x = stims(cond3)*timeUnitFactor;
         % Убираем артефакт из LFP
@@ -131,7 +132,11 @@ function updatePlot()
     hold on;
     %yyaxis left
     
-    if show_CSD
+    if visualSettings.auto_shift
+        shiftCoeff = max(std(data_res)) * 2;
+    end
+    
+    if visualSettings.show_CSD
         
         offsets = zeros(1, numChannels);
         % Plot each column with specified parameters
@@ -151,12 +156,18 @@ function updatePlot()
         csdPlotting(csd_image, csd_t_range, csd_ch_range, csd_contrast_coef);
     end
     
-    % Сначала вызываем multiplot и получаем необходимые данные
-    offsets = multiplot(time_in_transformed, data_res, ...
-        'ChannelLabels', ch_labels_l, ...
-        'shiftCoeff',shiftCoeff, ...
-        'linewidth', widths_in_l, ...
-        'color', colors_in_l);
+    if visualSettings.auto_shift
+        [offsets, shiftCoeff] = multiplot(time_in_transformed, data_res, ...
+            'ChannelLabels', ch_labels_l, ...
+            'linewidth', widths_in_l, ...
+            'color', colors_in_l);
+    else
+        [offsets, shiftCoeff] = multiplot(time_in_transformed, data_res, ...
+            'ChannelLabels', ch_labels_l, ...
+            'shiftCoeff', shiftCoeff, ...
+            'linewidth', widths_in_l, ...
+            'color', colors_in_l);
+    end
     
     y_pixel_size = 750;             % Размер по Y в пикселях
     y_tick_min_pixel_size = 25;     % Минимальный размер тиков по Y в пикселях
@@ -193,7 +204,7 @@ function updatePlot()
     %yticklabels(allLabels); % Обновляем метки: каналы, максимумы и минимумы (без текста)
 
     % show spikes
-    if show_spikes && not(isempty(spks))
+    if visualSettings.show_spikes && not(isempty(spks))
         prg = std_coef;        
             
         c = 0;
@@ -218,7 +229,7 @@ function updatePlot()
         x_coord = x_coord(cond4);
         y_coord = y_coord(cond4);
         
-        if not(isempty(stims)) && stimShowFlag
+        if not(isempty(stims)) && visualSettings.stim_show
             stims_in = stims(cond3);
             stim_inxs = ClosestIndex(stims_in, time_in); % Индекс стимулов
             win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
@@ -275,7 +286,15 @@ function updatePlot()
     % Применение новых меток тиков к текущему графику
     set(multiax, 'XTickLabel', newLabels);
     
-    Ylims = [min(chRangesOffsets)-shiftCoeff*0.2, max(chRangesOffsets)+shiftCoeff*0.2];
+    if visualSettings.show_full_signal
+        data_with_offsets = data_res + offsets;
+        yMin = min(data_with_offsets(:));
+        yMax = max(data_with_offsets(:));
+        margin = (yMax - yMin) * 0.05;
+        Ylims = [yMin - margin, yMax + margin];
+    else
+        Ylims = [min(chRangesOffsets)-shiftCoeff*0.2, max(chRangesOffsets)+shiftCoeff*0.2];
+    end
     ylim(Ylims)
     hold off;
 

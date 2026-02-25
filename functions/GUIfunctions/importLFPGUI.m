@@ -1,7 +1,8 @@
 function importLFPGUI()
     % Global variables
     global lastOpenedFiles lfp_file time N time_forward time_back chosen_time_interval
-    global shiftCoeff newFs selectedCenter stim_inx show_spikes show_CSD channelNames
+    global shiftCoeff newFs selectedCenter stim_inx channelNames
+    global visualSettings
     global numChannels lfpVar matFileName matFilePath Fs
     global call_updateTable
     global call_setStandardChannelSettings
@@ -527,8 +528,8 @@ function importLFPGUI()
         newFs = 1000;
         selectedCenter = 'time';
         stim_inx = 1;
-        show_spikes = false;
-        show_CSD = false;
+        visualSettings.show_spikes = false;
+        visualSettings.show_CSD = false;
 
         % Update file path with selected channels
         [folder, matFileName, ext] = fileparts(currentFilepath);

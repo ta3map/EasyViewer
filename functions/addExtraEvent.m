@@ -1,6 +1,7 @@
 function [event_x, amplitude, channel, width, prominence, metadata] = addExtraEvent()
     global add_event_settings lfp_file time timeUnitFactor filter_avaliable filterSettings newFs ch_inxs
-    global csd_image csd_t_range csd_ch_range offsets show_CSD
+    global csd_image csd_t_range csd_ch_range offsets
+    global visualSettings
     
     disp('adding new event ...')
     
@@ -68,7 +69,7 @@ function [event_x, amplitude, channel, width, prominence, metadata] = addExtraEv
         
         % Определяем по CSD если надо
         if isfield(add_event_settings, 'signal_type')
-            if strcmp(add_event_settings.signal_type, 'CSD') && show_CSD
+            if strcmp(add_event_settings.signal_type, 'CSD') && visualSettings.show_CSD
                 disp('using CSD for detection')
                 
                 dataLength = size(csd_image, 1); % Количество элементов в наборе данных

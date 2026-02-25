@@ -25,7 +25,7 @@ function signalAnalysisGUI(editMode)
     global newFs Fs timeUnitFactor selectedUnit
     global filterSettings filter_avaliable mean_group_ch
     global selectedCenter events stims sweep_info event_inx stim_inx sweep_inx events_exist stims_exist
-    global stimShowFlag art_rem_settings
+    global visualSettings art_rem_settings
     global SettingsFilepath channelSettings
     global original_xlim original_ylim
     global channel_data time_in
@@ -35,7 +35,7 @@ function signalAnalysisGUI(editMode)
     
     % Глобальные переменные настроек (загружены в app.m)
     global figure_position lastOpenedFiles add_event_settings
-    global autodetection_settings lines_and_styles side_panel_visible
+    global autodetection_settings lines_and_styles
     global auto_open_last_file updatePlotFunc
     
     % Глобальные настройки уже загружены в app.m
@@ -154,7 +154,7 @@ end
     global hTimeWindowText hTimeBackEdit hTimeForwardEdit
     
     % Инициализация флага показа стимулов
-    stimShowFlag = true;
+    visualSettings.stim_show = true;
     
     % Инициализация настроек удаления артефакта
     if isempty(art_rem_settings) || ~isfield(art_rem_settings, 'artifact_window_ms')
@@ -2919,7 +2919,7 @@ updateCursorEditFields();
             time_in = time(cond);
             
             % Убираем артефакт стимуляции если есть стимулы
-            if not(isempty(stims)) && stimShowFlag
+            if not(isempty(stims)) && visualSettings.stim_show
                 Fs_fascor = Fs/1000;
                 channel_data = removeStimArtifact(channel_data, stims, time_in, art_rem_settings.artifact_window_ms*Fs_fascor*0.5, art_rem_settings.interp_method);
             end

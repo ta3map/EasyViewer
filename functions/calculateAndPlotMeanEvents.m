@@ -15,7 +15,8 @@ global timeUnitFactor
 global events 
 global newFs
 global time_back time_forward
-global std_coef show_spikes binsize show_CSD % спайки/CSD
+global std_coef binsize % спайки/CSD
+global visualSettings
 global csd_avaliable filter_avaliable filterSettings
 global channelTable csd_smooth_coef csd_contrast_coef
 global lfpVar 
@@ -92,9 +93,9 @@ params.spk_threshold = std_coef;
 params.spks = spks;
 params.shiftCoeff = shiftCoeff;
 params.titlename = local_evfilename;
-params.show_spikes = show_spikes;
+params.show_spikes = visualSettings.show_spikes;
 params.ch_inxs = ch_inxs; % Индексы активированных каналов
-params.show_CSD = show_CSD;
+params.show_CSD = visualSettings.show_CSD;
 params.csd_smooth_coef = csd_smooth_coef;
 params.csd_contrast_coef = csd_contrast_coef;
 params.csd_active = csd_avaliable(ch_inxs);

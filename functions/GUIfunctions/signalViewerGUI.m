@@ -18,7 +18,7 @@ function signalViewerGUI(editMode)
     global zavp newFs selectedCenter
     global time_back time_forward
     global figure_position timeForwardEdit
-    global std_coef show_spikes binsize show_CSD % спайки/CSD
+    global std_coef binsize % спайки/CSD
     global ch_labels_l colors_in_l  widths_in_l
     global add_event_settings
     global timeSlider menu_visible filterSettings
@@ -31,10 +31,9 @@ function signalViewerGUI(editMode)
     global timeCenterPopup
     global event_title_string evfilename eventDeleteEdit StimuliTitle
     global art_rem_settings
-    global stimShowFlag 
     global lines_and_styles
     global auto_open_last_file
-    global side_panel_visible
+    global visualSettings
     global keyboardpressed previousKey
     global plot_updating loading_text_handle % флаг обновления графика и handle текста
     global ica_flag pca_flag
@@ -168,7 +167,7 @@ function signalViewerGUI(editMode)
     
     matFileName = '';
     
-    stimShowFlag = true;
+    visualSettings.stim_show = true;
     
     
     csd_smooth_coef = 5;
@@ -187,8 +186,8 @@ function signalViewerGUI(editMode)
     help_menu_visible = false;
     
     binsize = 0.001;%s
-    show_spikes = false;
-    show_CSD = false;
+    visualSettings.show_spikes = false;
+    visualSettings.show_CSD = false;
     std_coef = 0;
     time_back = 0.6;
     time_forward = 0.6;
@@ -285,11 +284,11 @@ function signalViewerGUI(editMode)
     sidePanel = uipanel('Parent', f, 'Position', getElementPosition('side_panel'), 'Tag', 'side_panel');
     
     % Используем значение из глобальных настроек (загружено через loadGlobalSettings)
-    if isempty(side_panel_visible)
-        side_panel_visible = true; % fallback на случай если настройки не загрузились
+    if isempty(visualSettings.side_panel_visible)
+        visualSettings.side_panel_visible = true; % fallback на случай если настройки не загрузились
     end
     
-    if side_panel_visible
+    if visualSettings.side_panel_visible
         set(sidePanel, 'Visible', 'on');
     else
         set(sidePanel, 'Visible', 'off');
@@ -302,7 +301,7 @@ function signalViewerGUI(editMode)
         'Tag', 'side_panel_toggle_btn');
     
     % Устанавливаем начальный текст кнопки
-    if side_panel_visible
+    if visualSettings.side_panel_visible
         set(sidePanelToggleBtn, 'String', '×');
     else
         set(sidePanelToggleBtn, 'String', '□');
@@ -502,6 +501,10 @@ function signalViewerGUI(editMode)
         '', ...
         'Hide stimulus', ...
         '', ...
+        'Hide full signal', ...
+        '', ...
+        'Manual channel shift', ...
+        '', ...
         'Lines and styles', ...
         '', ...
         'CSD displaying', ...
@@ -655,17 +658,32 @@ function signalViewerGUI(editMode)
     meanEventsWindowEdit = uicontrol('Parent', sidePanel, 'Style', 'edit', 'String', '1', 'Position', getElementPosition('mean_events_window_edit'), 'visible', 'off', 'Tag', 'mean_events_window_edit'); % Окно ввода временного окна (скрыл)
     
     % Применяем полное состояние боковой панели после создания всех элементов
-    if ~side_panel_visible
+    if ~visualSettings.side_panel_visible
         set(multiax,'Position', multiax_position_b);
     end
     
     % Обновляем текст в меню View в соответствии с состоянием
-    if side_panel_visible
+    if visualSettings.side_panel_visible
         view_functions{3} = 'Hide Channel Settings';
     else
         view_functions{3} = 'View Channel Settings';
     end
+    if visualSettings.show_full_signal
+        view_functions{7} = 'Hide full signal';
+    else
+        view_functions{7} = 'Show full signal';
+    end
+    if visualSettings.auto_shift
+        view_functions{9} = 'Manual channel shift';
+    else
+        view_functions{9} = 'Auto channel shift';
+    end
     set(view_menu, 'String', view_functions);
+    
+    if visualSettings.auto_shift
+        set(shiftCoefText, 'Visible', 'off');
+        set(shiftCoeffEdit, 'Visible', 'off');
+    end
     
     % отключаем все элементы управления кроме начальных
     set(OptBtn, 'Enable', 'off');
@@ -1147,21 +1165,23 @@ function signalViewerGUI(editMode)
                 % закрыть все окна кроме основного
                 % Убрано - теперь это делает главное окно app.m
             case view_functions{3}
-                % показывать или скрывать боковую панель
                 showHideSidePanel();
             case view_functions{5}
                 showHideStimulus()
             case view_functions{7}
+                toggleFullSignal()
+            case view_functions{9}
+                toggleAutoShift()
+            case view_functions{11}
                 lineStyleGUI()
-            case view_functions{9}%'CSD ...'
-                % вызов функции для CSD ...
+            case view_functions{13}%'CSD ...'
                 CSDSettingsGUI();
                 updateTable();
-            case view_functions{11}%'Built-in Zoom'
+            case view_functions{15}%'Built-in Zoom'
                 activateBuiltInZoom();
-            case view_functions{13}%'Built-in Pan'
+            case view_functions{17}%'Built-in Pan'
                 activateBuiltInPan();
-            case view_functions{15}%'Data Cursor'
+            case view_functions{19}%'Data Cursor'
                 activateDataCursor();
             case ''
             dont_close_menu = true;
@@ -1213,7 +1233,7 @@ function signalViewerGUI(editMode)
     
     function showHideSidePanel()
         
-        if side_panel_visible
+        if visualSettings.side_panel_visible
             debugState('showHideSidePanel', 'Hiding Side Panel')
             set(sidePanel, 'Visible', 'off');
             set(multiax,'Position', multiax_position_b);
@@ -1228,11 +1248,11 @@ function signalViewerGUI(editMode)
         view_functions{3} = str_out;
         set(view_menu, 'String', view_functions);
             
-        side_panel_visible = ~side_panel_visible;
+        visualSettings.side_panel_visible = ~visualSettings.side_panel_visible;
         
         % Обновляем текст кнопки переключения
         if exist('sidePanelToggleBtn', 'var') && isvalid(sidePanelToggleBtn)
-            if side_panel_visible
+            if visualSettings.side_panel_visible
                 set(sidePanelToggleBtn, 'String', '×');
             else
                 set(sidePanelToggleBtn, 'String', '□');
@@ -1240,7 +1260,7 @@ function signalViewerGUI(editMode)
         end
         
         % Сохраняем состояние в общие настройки
-        save(SettingsFilepath, 'side_panel_visible', '-append');
+        save(SettingsFilepath, 'visualSettings', '-append');
     end
     
     function toggleSidePanelCallback(~, ~)
@@ -1249,7 +1269,7 @@ function signalViewerGUI(editMode)
 
     function showHideStimulus()
         
-        if stimShowFlag
+        if visualSettings.stim_show
             debugState('showHideStimulus', 'Hiding Stimulus')
             str_out = 'Show stimulus';
         else
@@ -1259,8 +1279,44 @@ function signalViewerGUI(editMode)
         
         view_functions{5} = str_out;
         set(view_menu, 'String', view_functions);
-        stimShowFlag = ~stimShowFlag;
+        visualSettings.stim_show = ~visualSettings.stim_show;
         
+        updatePlot()
+    end
+
+    function toggleFullSignal()
+        visualSettings.show_full_signal = ~visualSettings.show_full_signal;
+        
+        if visualSettings.show_full_signal
+            str_out = 'Hide full signal';
+        else
+            str_out = 'Show full signal';
+        end
+        
+        view_functions{7} = str_out;
+        set(view_menu, 'String', view_functions);
+        
+        save(SettingsFilepath, 'visualSettings', '-append');
+        updatePlot()
+    end
+
+    function toggleAutoShift()
+        visualSettings.auto_shift = ~visualSettings.auto_shift;
+        
+        if visualSettings.auto_shift
+            str_out = 'Manual channel shift';
+            set(shiftCoefText, 'Visible', 'off');
+            set(shiftCoeffEdit, 'Visible', 'off');
+        else
+            str_out = 'Auto channel shift';
+            set(shiftCoefText, 'Visible', 'on');
+            set(shiftCoeffEdit, 'Visible', 'on');
+        end
+        
+        view_functions{9} = str_out;
+        set(view_menu, 'String', view_functions);
+        
+        save(SettingsFilepath, 'visualSettings', '-append');
         updatePlot()
     end
 
@@ -1297,7 +1353,7 @@ function signalViewerGUI(editMode)
     end
 
     function showSidePanel()
-        if ~side_panel_visible
+        if ~visualSettings.side_panel_visible
             debugState('showSidePanel', 'Showing Side Panel')
             set(sidePanel, 'Visible', 'on');            
             set(multiax,'Position', multiax_position_a);
@@ -1306,7 +1362,7 @@ function signalViewerGUI(editMode)
             view_functions{3} = str_out;
             set(view_menu, 'String', view_functions);
 
-            side_panel_visible = true;
+            visualSettings.side_panel_visible = true;
             
             % Обновляем текст кнопки переключения
             if exist('sidePanelToggleBtn', 'var') && isvalid(sidePanelToggleBtn)
@@ -1418,7 +1474,7 @@ function signalViewerGUI(editMode)
     function resizeComponents(~, ~)
         try
             % Применяем текущее состояние боковой панели без изменения настройки
-            if side_panel_visible
+            if visualSettings.side_panel_visible
                 set(sidePanel, 'Visible', 'on');
                 set(multiax,'Position', multiax_position_a);
             else
@@ -1538,14 +1594,14 @@ function signalViewerGUI(editMode)
     end
 
     function ShowSpikesButtonCallback(~, ~)
-        show_spikes = not(show_spikes);
-        set(showSpikesButton, 'Value', show_spikes);
+        visualSettings.show_spikes = ~visualSettings.show_spikes;
+        set(showSpikesButton, 'Value', visualSettings.show_spikes);
         updatePlot(); % Обновление графика
     end
 
     function ShowCSDButtonCallback(~, ~)
-        show_CSD = not(show_CSD);
-        set(showCSDbutton, 'Value', show_CSD);
+        visualSettings.show_CSD = ~visualSettings.show_CSD;
+        set(showCSDbutton, 'Value', visualSettings.show_CSD);
         updatePlot(); % Обновление графика
     end
 
@@ -2071,8 +2127,8 @@ function signalViewerGUI(editMode)
                 chosen_time_interval = [0, windowSize];
         end
         
-        show_spikes = false;
-        show_CSD = false;
+        visualSettings.show_spikes = false;
+        visualSettings.show_CSD = false;
         channelNames = hd.recChNames;
         numChannels = length(channelNames);
         
@@ -2169,8 +2225,8 @@ function signalViewerGUI(editMode)
         set(viewBtn, 'Enable', 'on');
         set(analysisBtn, 'Enable', 'on');
         
-        set(showSpikesButton, 'Value', show_spikes);
-        set(showCSDbutton, 'Value', show_CSD);
+        set(showSpikesButton, 'Value', visualSettings.show_spikes);
+        set(showCSDbutton, 'Value', visualSettings.show_CSD);
         
         % Установка правильного значения в выпадающем списке в зависимости от selectedCenter
         switch selectedCenter

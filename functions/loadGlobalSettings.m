@@ -5,8 +5,9 @@ function loadGlobalSettings()
     % Глобальные переменные для настроек
     global lastOpenedFiles figure_position add_event_settings
     global timeUnitFactor selectedUnit autodetection_settings
-    global art_rem_settings lines_and_styles side_panel_visible
+    global art_rem_settings lines_and_styles
     global auto_open_last_file SettingsFilepath import_settings
+    global visualSettings
     
     % Путь к файлу настроек
     SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
@@ -27,8 +28,10 @@ function loadGlobalSettings()
             autodetection_settings = [];
             import_settings = struct();
             lines_and_styles = [];
-            side_panel_visible = true;
             auto_open_last_file = true;
+            visualSettings = struct('show_full_signal', true, 'auto_shift', true, ...
+                'side_panel_visible', true, 'stim_show', true, ...
+                'show_spikes', false, 'show_CSD', false);
             cursor_positions = struct();
             
             % Сохраняем файл настроек
@@ -42,8 +45,8 @@ function loadGlobalSettings()
                 'autodetection_settings', ...
                 'import_settings', ...
                 'lines_and_styles', ...
-                'side_panel_visible', ...
                 'auto_open_last_file', ...
+                'visualSettings', ...
                 'cursor_positions');
             
             disp('Default settings file created successfully');
@@ -118,11 +121,19 @@ function loadGlobalSettings()
                 lines_and_styles = struct();
             end
             
-            % Загружаем настройки видимости боковой панели
-            if isfield(d, 'side_panel_visible')
-                side_panel_visible = d.side_panel_visible;
+            % Загружаем визуальные настройки
+            defaultVisualSettings = struct('show_full_signal', true, 'auto_shift', true, ...
+                'side_panel_visible', true, 'stim_show', true, ...
+                'show_spikes', false, 'show_CSD', false);
+            if isfield(d, 'visualSettings')
+                visualSettings = d.visualSettings;
+                for fn = fieldnames(defaultVisualSettings)'
+                    if ~isfield(visualSettings, fn{1})
+                        visualSettings.(fn{1}) = defaultVisualSettings.(fn{1});
+                    end
+                end
             else
-                side_panel_visible = true; % fallback для старых настроек
+                visualSettings = defaultVisualSettings;
             end
             
             % Загружаем настройку автоматического открытия последнего файла
@@ -158,8 +169,10 @@ function loadGlobalSettings()
         autodetection_settings = [];
         import_settings = struct();
         art_rem_settings = struct('artifact_window_ms', 0, 'interp_method', 'linear');
-        side_panel_visible = true;
         auto_open_last_file = true;
         lines_and_styles = struct();
+        visualSettings = struct('show_full_signal', true, 'auto_shift', true, ...
+            'side_panel_visible', true, 'stim_show', true, ...
+            'show_spikes', false, 'show_CSD', false);
     end
 end

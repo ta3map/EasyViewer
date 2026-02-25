@@ -1,4 +1,4 @@
-function offsets = multiplot(varargin)
+function [offsets, shiftCoeff] = multiplot(varargin)
 
 % Multiple lines on a single graph
 %

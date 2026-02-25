@@ -11,7 +11,8 @@ global shiftCoeff
 global lfp_file hd spks
 global matFilePath timeUnitFactor
 global events newFs time_back time_forward
-global std_coef show_spikes binsize show_CSD
+global std_coef binsize
+global visualSettings
 global csd_avaliable filter_avaliable filterSettings
 global channelTable csd_smooth_coef csd_contrast_coef
 global lfpVar mean_group_ch
@@ -47,7 +48,7 @@ params.spk_threshold = std_coef;
 params.spks = spks;
 params.shiftCoeff = shiftCoeff;
 params.titlename = local_evfilename;
-params.show_spikes = show_spikes;
+params.show_spikes = visualSettings.show_spikes;
 params.ch_inxs = ch_inxs;
 if isfield(opts, 'Channel') && ~isempty(opts.Channel)
     ch_sel = round(opts.Channel);
@@ -62,7 +63,7 @@ if isfield(opts, 'Channel') && ~isempty(opts.Channel)
 else
     params.csd_active = csd_avaliable(ch_inxs);
 end
-params.show_CSD = show_CSD;
+params.show_CSD = visualSettings.show_CSD;
 params.csd_smooth_coef = csd_smooth_coef;
 params.csd_contrast_coef = csd_contrast_coef;
 params.timeUnitFactor = timeUnitFactor;
