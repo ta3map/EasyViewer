@@ -137,7 +137,7 @@ function loadEventsFromFile(filepath, options)
             event_metadata = [loadedData.manlDet.metadata]';
         else
             % Создаем default metadata для старых файлов
-            event_metadata = repmat(struct('source', 'loaded'), length(events), 1);
+            event_metadata = createDefaultEventMetadata('loaded', length(events));
             disp('Old format detected: metadata not available');
         end
         

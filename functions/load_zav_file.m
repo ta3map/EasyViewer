@@ -414,7 +414,7 @@ if exist(event_file, 'file')
             if isfield(loadedData.manlDet, 'metadata')
                 event_metadata = [loadedData.manlDet.metadata]';
             else
-                event_metadata = repmat(struct('source', 'loaded'), length(events), 1);
+                event_metadata = createDefaultEventMetadata('loaded', length(events));
             end
         else
             events = [];

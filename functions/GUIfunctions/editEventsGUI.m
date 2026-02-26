@@ -43,10 +43,12 @@ function editEventsGUI()
     eventTable = uitable('Parent', hFig, ...
                         'Position', [20, 240, 860, 310], ...
                         'Data', buildEventData(), ...
-                        'ColumnName', {['Time (' selectedUnit ')'], 'Comment', 'Amplitude', 'Channel', 'Width', 'Prominence', 'Selected'}, ...
-                        'ColumnFormat', {'char', 'char', 'char', 'numeric', 'char', 'char', 'logical'}, ...
-                        'ColumnEditable', [true true true true true true true], ...
-                        'ColumnWidth', {120, 150, 100, 80, 100, 100, 80});
+                        'ColumnName', {'N', ['Time (' selectedUnit ')'], 'Comment', 'Amplitude', 'Channel', 'Width', 'Prominence', 'Selected'}, ...
+                        'ColumnFormat', {'numeric', 'char', 'char', 'char', 'numeric', 'char', 'char', 'logical'}, ...
+                        'ColumnEditable', [false true true true true true true false], ...
+                        'ColumnWidth', {40, 120, 140, 90, 70, 90, 90, 60}, ...
+                        'RowName', {}, ...
+                        'CellSelectionCallback', @onCellSelection);
 
     % Selection control buttons
     selectAllButton = uicontrol('Style', 'pushbutton', 'Position', [20, 200, 120, 30], ...
@@ -113,7 +115,8 @@ function editEventsGUI()
               'String', 'Close', 'Callback', @closeWindow);
 
     % Track selection state for toggle button and original data
-    allSelected = true;
+    selected_rows = [];
+    allSelected = false;
     originalEvents = events;
     originalComments = event_comments;
     originalAmplitudes = event_amplitudes;
@@ -125,15 +128,16 @@ function editEventsGUI()
 
     function data = buildEventData()
         numEvents = length(events);
-        data = cell(numEvents, 7);
+        data = cell(numEvents, 8);
         for idx = 1:numEvents
-            data{idx, 1} = formatValue(events(idx) * timeUnitFactor);
-            data{idx, 2} = getComment(idx);
-            data{idx, 3} = formatValue(getAmplitude(idx));
-            data{idx, 4} = getChannel(idx);
-            data{idx, 5} = formatValue(getWidth(idx));
-            data{idx, 6} = formatValue(getProminence(idx));
-            data{idx, 7} = true;
+            data{idx, 1} = idx;
+            data{idx, 2} = formatValue(events(idx) * timeUnitFactor);
+            data{idx, 3} = getComment(idx);
+            data{idx, 4} = formatValue(getAmplitude(idx));
+            data{idx, 5} = getChannel(idx);
+            data{idx, 6} = formatValue(getWidth(idx));
+            data{idx, 7} = formatValue(getProminence(idx));
+            data{idx, 8} = false;
         end
     end
 
@@ -183,53 +187,75 @@ function editEventsGUI()
 
     function updateTableWithEvents()
         set(eventTable, 'Data', buildEventData());
-        if isempty(events)
-            set(selectAllButton, 'String', 'Select All');
-            allSelected = false;
-        else
-            set(selectAllButton, 'String', 'Deselect All');
-            allSelected = true;
-        end
+        selected_rows = [];
+        allSelected = false;
+        set(selectAllButton, 'String', 'Select All');
     end
 
     function toggleSelectAll(~, ~)
         tableData = get(eventTable, 'Data');
+        if isempty(tableData)
+            return;
+        end
         if allSelected
-            tableData(:, 7) = {false};
+            selected_rows = [];
+            tableData(:, 8) = {false};
             set(selectAllButton, 'String', 'Select All');
             allSelected = false;
         else
-            tableData(:, 7) = {true};
+            selected_rows = (1:size(tableData, 1));
+            tableData(:, 8) = {true};
             set(selectAllButton, 'String', 'Deselect All');
             allSelected = true;
         end
         set(eventTable, 'Data', tableData);
     end
 
-    function deleteSelected(~, ~)
+    function onCellSelection(~, eventData)
+        if isempty(eventData.Indices)
+            return;
+        end
+        selected_rows = unique(eventData.Indices(:, 1))';
         tableData = get(eventTable, 'Data');
-        selectedMask = [tableData{:, 7}];
-        selectedIndices = find(selectedMask);
-        
-        if isempty(selectedIndices)
+        tableData(:, 8) = {false};
+        for i = selected_rows
+            tableData{i, 8} = true;
+        end
+        set(eventTable, 'Data', tableData);
+        allSelected = (numel(selected_rows) == size(tableData, 1));
+        if allSelected
+            set(selectAllButton, 'String', 'Deselect All');
+        else
+            set(selectAllButton, 'String', 'Select All');
+        end
+    end
+
+    function deleteSelected(~, ~)
+        if isempty(selected_rows)
             fprintf('No events selected for deletion.\n');
             return;
         end
         
-        answer = questdlg(sprintf('Delete %d selected events?', length(selectedIndices)), ...
+        answer = questdlg(sprintf('Delete %d selected events?', length(selected_rows)), ...
                          'Confirm Deletion', 'Yes', 'No', 'No');
         if strcmp(answer, 'Yes')
-            tableData(selectedIndices, :) = [];
-            set(eventTable, 'Data', tableData);
-            
-            if size(tableData, 1) == 0
-                set(selectAllButton, 'String', 'Select All');
-                allSelected = false;
+            tableData = get(eventTable, 'Data');
+            tableData(selected_rows, :) = [];
+            for i = 1:size(tableData, 1)
+                tableData{i, 1} = i;
             end
+            selected_rows = [];
+            allSelected = false;
+            set(selectAllButton, 'String', 'Select All');
+            set(eventTable, 'Data', tableData);
         end
     end
 
     function performShift(~, ~)
+        if isempty(selected_rows)
+            return;
+        end
+        
         shiftStr = get(shiftEdit, 'String');
         shiftAmount = str2double(shiftStr);
         
@@ -241,16 +267,13 @@ function editEventsGUI()
         currentShiftValue = shiftAmount;
         
         tableData = get(eventTable, 'Data');
-        selectedMask = [tableData{:, 7}];
-        selectedIndices = find(selectedMask);
-        
-        for i = selectedIndices
-            currentTime = toNumericValue(tableData{i, 1});
+        for i = selected_rows(:)'
+            currentTime = toNumericValue(tableData{i, 2});
             newTime = currentTime + deltaShift;
             if newTime < 0
                 newTime = 0;
             end
-            tableData{i, 1} = formatValue(newTime);
+            tableData{i, 2} = formatValue(newTime);
         end
         
         set(eventTable, 'Data', tableData);
@@ -270,7 +293,7 @@ function editEventsGUI()
             events_exist = false;
         else
             numEvents = size(tableData, 1);
-            numericTimes = cellfun(@toNumericValue, tableData(:, 1));
+            numericTimes = cellfun(@toNumericValue, tableData(:, 2));
             newEventTimes = numericTimes / timeUnitFactor;
             
             if any(newEventTimes < 0)
@@ -286,15 +309,15 @@ function editEventsGUI()
             newChannels = ones(numEvents, 1);
             newWidths = NaN(numEvents, 1);
             newProminences = NaN(numEvents, 1);
-            newMetadata = repmat(struct('source', 'manual_edit'), numEvents, 1);
+            newMetadata = createDefaultEventMetadata('manual_edit', numEvents);
             
             for i = 1:numEvents
                 origIdx = sortIdx(i);
-                newComments{i} = tableData{origIdx, 2};
-                newAmplitudes(i) = toNumericValue(tableData{origIdx, 3});
-                newChannels(i) = toNumericValue(tableData{origIdx, 4});
-                newWidths(i) = toNumericValue(tableData{origIdx, 5});
-                newProminences(i) = toNumericValue(tableData{origIdx, 6});
+                newComments{i} = tableData{origIdx, 3};
+                newAmplitudes(i) = toNumericValue(tableData{origIdx, 4});
+                newChannels(i) = toNumericValue(tableData{origIdx, 5});
+                newWidths(i) = toNumericValue(tableData{origIdx, 6});
+                newProminences(i) = toNumericValue(tableData{origIdx, 7});
             end
             
             event_comments = newComments;
@@ -338,9 +361,6 @@ function editEventsGUI()
         updateTableWithEvents();
         set(shiftEdit, 'String', '0');
         currentShiftValue = 0;
-        
-        set(selectAllButton, 'String', 'Deselect All');
-        allSelected = true;
     end
 
     function closeWindow(~, ~)
@@ -392,11 +412,9 @@ function editEventsGUI()
         newW = toNumericValue(answer{5});
         newP = toNumericValue(answer{6});
         
-        tableData(end + 1, :) = {formatValue(newTime), newComment, formatValue(newAmp), newCh, formatValue(newW), formatValue(newP), true};
+        newRowNum = size(tableData, 1) + 1;
+        tableData(newRowNum, :) = {newRowNum, formatValue(newTime), newComment, formatValue(newAmp), newCh, formatValue(newW), formatValue(newP), false};
         set(eventTable, 'Data', tableData);
-        
-        set(selectAllButton, 'String', 'Deselect All');
-        allSelected = true;
     end
 
     function importEvents(~, ~)
@@ -468,7 +486,7 @@ function editEventsGUI()
             newChannels = ones(numNewEvents, 1);
             newWidths = NaN(numNewEvents, 1);
             newProminences = NaN(numNewEvents, 1);
-            newMetadata = repmat(struct('source', 'imported'), numNewEvents, 1);
+            newMetadata = createDefaultEventMetadata('imported', numNewEvents);
             
             if isfield(loadedData, 'event_comments') && length(loadedData.event_comments) == numNewEvents
                 newComments = loadedData.event_comments(:);
@@ -547,14 +565,14 @@ function editEventsGUI()
                 currentProminences = [];
                 currentMetadata = [];
             else
-                numericTimes = cellfun(@toNumericValue, tableData(:, 1));
+                numericTimes = cellfun(@toNumericValue, tableData(:, 2));
                 currentTimes = numericTimes / timeUnitFactor;
-                currentComments = tableData(:, 2);
-                currentAmplitudes = cellfun(@toNumericValue, tableData(:, 3));
-                currentChannels = cellfun(@toNumericValue, tableData(:, 4));
-                currentWidths = cellfun(@toNumericValue, tableData(:, 5));
-                currentProminences = cellfun(@toNumericValue, tableData(:, 6));
-                currentMetadata = repmat(struct('source', 'manual_edit'), size(tableData, 1), 1);
+                currentComments = tableData(:, 3);
+                currentAmplitudes = cellfun(@toNumericValue, tableData(:, 4));
+                currentChannels = cellfun(@toNumericValue, tableData(:, 5));
+                currentWidths = cellfun(@toNumericValue, tableData(:, 6));
+                currentProminences = cellfun(@toNumericValue, tableData(:, 7));
+                currentMetadata = createDefaultEventMetadata('manual_edit', size(tableData, 1));
             end
             
             allTimes = [currentTimes(:); newEventTimes(:)];
@@ -664,7 +682,7 @@ function editEventsGUI()
             return;
         end
         
-        numericTimes = cellfun(@toNumericValue, tableData(:, 1));
+        numericTimes = cellfun(@toNumericValue, tableData(:, 2));
         eventTimes = numericTimes / timeUnitFactor;
         
         if isempty(eventTimes)
@@ -673,12 +691,12 @@ function editEventsGUI()
         end
         
         numEvents = length(eventTimes);
-        eventComments = tableData(:, 2);
-        eventAmplitudes = cellfun(@toNumericValue, tableData(:, 3));
-        eventChannels = cellfun(@toNumericValue, tableData(:, 4));
-        eventWidths = cellfun(@toNumericValue, tableData(:, 5));
-        eventProminences = cellfun(@toNumericValue, tableData(:, 6));
-        eventMetadata = repmat(struct('source', 'exported'), numEvents, 1);
+        eventComments = tableData(:, 3);
+        eventAmplitudes = cellfun(@toNumericValue, tableData(:, 4));
+        eventChannels = cellfun(@toNumericValue, tableData(:, 5));
+        eventWidths = cellfun(@toNumericValue, tableData(:, 6));
+        eventProminences = cellfun(@toNumericValue, tableData(:, 7));
+        eventMetadata = createDefaultEventMetadata('exported', numEvents);
         
         modeIndex = get(exportModePopup, 'Value');
         modeOptions = get(exportModePopup, 'String');

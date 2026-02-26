@@ -143,7 +143,7 @@ function saveEventsToFile(events, time, matFilePath, varargin)
                 manlDet(i).metadata = params.event_metadata(i);
             end
         else
-            manlDet(i).metadata = struct('source', 'unknown');
+            manlDet(i).metadata = createDefaultEventMetadata('unknown', 1);
         end
         
         % Старые поля для совместимости

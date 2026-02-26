@@ -162,15 +162,10 @@ function [event_x, amplitude, channel, width, prominence, metadata] = addExtraEv
     % Извлекаем канал
     channel = add_event_settings.channel;
     
-    % Создаем метаданные
-    metadata = struct(...
-        'source', 'manual', ...
-        'method', add_event_settings.mode, ...
-        'data_type', '', ...  % Будет заполнено ниже
-        'polarity', add_event_settings.polarity, ...
-        'prominence', prominence, ...
-        'detection_params', struct() ...
-    );
+    metadata = createDefaultEventMetadata('manual', 1);
+    metadata.method = add_event_settings.mode;
+    metadata.polarity = add_event_settings.polarity;
+    metadata.prominence = prominence;
     
     % Добавляем параметры peak_detection в метаданные если используется этот режим
     if strcmp(add_event_settings.mode, 'peak_detection')

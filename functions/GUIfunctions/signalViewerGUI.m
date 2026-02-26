@@ -197,6 +197,7 @@ function signalViewerGUI(editMode)
     
     events = [];
     event_inx = 1;
+    selected_event_rows = [];
     event_comments = {};
     
     % Новые массивы метаданных событий для расширенной функциональности
@@ -1901,31 +1902,26 @@ function signalViewerGUI(editMode)
     end
     
     function eventTableSelectionChanged(~, event)
-        % Обработчик выбора строки в таблице событий
         if isempty(event.Indices) || isempty(events)
             return;
         end
         
-        selected_row = event.Indices(1);
-        if selected_row > 0 && selected_row <= length(events)
-            % Переключаемся в режим событий
-            selectedCenter = 'event';
-            event_inx = selected_row;
-            
-            % Обновляем выпадающий список режима
-            set(timeCenterPopup, 'Value', 3);
-            
-            % Обновляем временной интервал для выбранного события
-            windowSize = time_forward;
-            chosen_time_interval(1) = events(event_inx);
-            chosen_time_interval(2) = events(event_inx) + windowSize;
-            
-            % Обновляем поле с номером события
-            set(eventDeleteEdit, 'String', num2str(event_inx));
-            
-            % Обновляем график
-            updatePlot();
-        end
+        selected_event_rows = unique(event.Indices(:, 1))';
+        selected_event_rows = selected_event_rows(selected_event_rows > 0 & selected_event_rows <= length(events));
+
+        selected_row = selected_event_rows(1);
+        selectedCenter = 'event';
+        event_inx = selected_row;
+
+        set(timeCenterPopup, 'Value', 3);
+
+        windowSize = time_forward;
+        chosen_time_interval(1) = events(event_inx);
+        chosen_time_interval(2) = events(event_inx) + windowSize;
+
+        set(eventDeleteEdit, 'String', num2str(event_inx));
+
+        updatePlot();
     end
     
     % Внутренние функции для обработки событий GUI
@@ -2737,47 +2733,45 @@ end
     end
     
     function deleteEvent(~, ~)
-        eventIndex = str2double(get(eventDeleteEdit, 'String'));
-        if isnan(eventIndex) || eventIndex <= 0 || eventIndex > size(events, 1)
+        % Определяем индексы для удаления: выделенные строки или значение из поля ввода
+        if ~isempty(selected_event_rows)
+            idxs = selected_event_rows;
+        else
+            idxs = str2double(get(eventDeleteEdit, 'String'));
+        end
+        
+        idxs = idxs(~isnan(idxs) & idxs > 0 & idxs <= length(events));
+        if isempty(idxs)
             showErrorDialog('Invalid event index.');
             return;
         end
-        % Удаление события и всех связанных метаданных
-        events(eventIndex) = [];
-        event_comments(eventIndex) = [];
+
+        events(idxs) = [];
+        event_comments(idxs) = [];
         
-        % Удаляем метаданные если они существуют
-        if ~isempty(event_amplitudes) && eventIndex <= length(event_amplitudes)
-            event_amplitudes(eventIndex) = [];
-        end
-        if ~isempty(event_channels) && eventIndex <= size(event_channels, 1)
-            event_channels(eventIndex, :) = [];
-        end
-        if ~isempty(event_widths) && eventIndex <= length(event_widths)
-            event_widths(eventIndex) = [];
-        end
-        if ~isempty(event_prominences) && eventIndex <= length(event_prominences)
-            event_prominences(eventIndex) = [];
-        end
-        if ~isempty(event_metadata) && eventIndex <= length(event_metadata)
-            event_metadata(eventIndex) = [];
-        end
+        if ~isempty(event_amplitudes), event_amplitudes(idxs) = []; end
+        if ~isempty(event_channels), event_channels(idxs, :) = []; end
+        if ~isempty(event_widths), event_widths(idxs) = []; end
+        if ~isempty(event_prominences), event_prominences(idxs) = []; end
+        if ~isempty(event_metadata), event_metadata(idxs) = []; end
         
-        UpdateEventTable();% update event table
+        selected_event_rows = [];
+        
+        UpdateEventTable();
         if isempty(events)
             events_exist = false;
         end
         
-        if event_inx>numel(events)
-            event_inx = numel(events);
+        if event_inx > numel(events)
+            event_inx = max(numel(events), 1);
         end
         
         if events_exist
             chosen_time_interval(1) = events(event_inx);
-            chosen_time_interval(2) = events(event_inx)+windowSize;
+            chosen_time_interval(2) = events(event_inx) + windowSize;
         end
         
-        updatePlot()
+        updatePlot();
     end
 
     function eventEdited(~, ~)
@@ -2808,7 +2802,7 @@ function loadEvents(~, ~)
             initialDir = fileparts(lastOpenedFiles{end});
         end
 
-        [file, path] = uigetfile({'*.ev'; '*.mean'}, 'Load Events', initialDir);
+        [file, path] = uigetfile({'*.ev;*.mean;*.xlsx;*.xls', 'Events / Excel files (*.ev, *.mean, *.xlsx, *.xls)'}, 'Load Events', initialDir);
         if isequal(file, 0)
             debugState('loadEvents', 'File selection canceled.');
             return;
@@ -2823,6 +2817,13 @@ function loadEvents(~, ~)
         outside_calling_filepath = [];% очищаем наружний путь
     end
     
+    % Обработка Excel-файлов
+    [~, ~, fileExt] = fileparts(filepath);
+    if ismember(lower(fileExt), {'.xlsx', '.xls'})
+        loadEventsFromExcel(filepath, file);
+        return;
+    end
+
     loadedData = load(filepath, '-mat'); % Загружаем данные в структуру
     % Если не был загружен mat файл, инициируем поиск
     if isfield(loadedData, 'viewer_data')
@@ -2895,7 +2896,7 @@ function loadEvents(~, ~)
             event_metadata = [loadedData.manlDet.metadata]';
         else
             % Создаем default metadata для старых файлов
-            event_metadata = repmat(struct('source', 'loaded'), length(events), 1);
+            event_metadata = createDefaultEventMetadata('loaded', length(events));
             debugState('loadEvents', 'Old format detected: metadata not available');
         end
         
@@ -2914,7 +2915,39 @@ function loadEvents(~, ~)
     end
 end
 
+    function loadEventsFromExcel(filepath, file)
+        T = readtable(filepath);
+        colNames = T.Properties.VariableNames;
 
+        [colIdx, ok] = listdlg('ListString', colNames, ...
+            'SelectionMode', 'single', ...
+            'PromptString', 'Выберите колонку с временами событий (в секундах):', ...
+            'ListSize', [300, 200]);
+        if ~ok
+            return;
+        end
+
+        eventTimes = T{:, colIdx};
+        eventTimes = eventTimes(~isnan(eventTimes));
+        n = numel(eventTimes);
+
+        events = eventTimes(:);
+        event_comments = repmat({'...'}, n, 1);
+        event_amplitudes = NaN(n, 1);
+        event_channels = ones(n, 1);
+        event_widths = NaN(n, 1);
+        event_prominences = NaN(n, 1);
+        event_metadata = createDefaultEventMetadata('excel', n);
+
+        event_title_string = file;
+        UpdateEventTable();
+        events_exist = true;
+        event_inx = 1;
+        timeForwardEditCallback(timeForwardEdit);
+
+        set(timeCenterPopup, 'Value', 3);
+        changeTimeCenter(timeCenterPopup);
+    end
 
     function saveEvents(~, ~)
         choice = questdlg('Select file format:', 'Save Events', ...

@@ -498,7 +498,7 @@ function editStimulusTimesGUI()
         
         if isToFile
             event_comments_stim = repmat({'Stimulus'}, numel(stimTimes), 1);
-            event_metadata_stim = repmat(struct('source', 'stimulus_export'), numel(stimTimes), 1);
+            event_metadata_stim = createDefaultEventMetadata('stimulus_export', numel(stimTimes));
             
             saveEventsToFile(stimTimes, time, matFilePath, ...
                 'event_comments', event_comments_stim, ...
@@ -517,7 +517,7 @@ function editStimulusTimesGUI()
                 event_channels = ones(numel(events), 1);
                 event_widths = NaN(numel(events), 1);
                 event_prominences = NaN(numel(events), 1);
-                event_metadata = repmat(struct('source', 'stimulus_export'), numel(events), 1);
+                event_metadata = createDefaultEventMetadata('stimulus_export', numel(events));
                 events_exist = true;
             else
                 if isempty(events)
@@ -527,7 +527,7 @@ function editStimulusTimesGUI()
                     event_channels = ones(numel(events), 1);
                     event_widths = NaN(numel(events), 1);
                     event_prominences = NaN(numel(events), 1);
-                    event_metadata = repmat(struct('source', 'stimulus_export'), numel(events), 1);
+                    event_metadata = createDefaultEventMetadata('stimulus_export', numel(events));
                 else
                     existingEvents = events(:);
                     existingComments = event_comments;
@@ -563,7 +563,7 @@ function editStimulusTimesGUI()
                     allProminences = [existingProminences; newProminences];
                     event_prominences = allProminences(sortIdx(uniqueIdx));
                     
-                    newMetadata = repmat(struct('source', 'stimulus_export'), numel(stimTimes), 1);
+                    newMetadata = createDefaultEventMetadata('stimulus_export', numel(stimTimes));
                     allMetadata = [existingMetadata; newMetadata];
                     event_metadata = allMetadata(sortIdx(uniqueIdx));
                 end
