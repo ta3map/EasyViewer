@@ -1291,7 +1291,10 @@ function fileManagerGUI()
                 return
             end
         end
-        for colK = 1:numel(selectedColNames)
+        nCols = numel(selectedColNames);
+        wb = waitbar(0, 'Importing...', 'Name', 'Import from Excel');
+        for colK = 1:nCols
+            waitbar((colK - 1) / nCols, wb, sprintf('Importing field %d/%d...', colK, nCols));
             fieldName = selectedColNames{colK};
             colIdx = selectedDataColIdx(colK);
             registerMetadataField(fieldName);
@@ -1316,6 +1319,7 @@ function fileManagerGUI()
                 fieldValuesCol{end+1} = fieldValueStr;
             end
             if isempty(fileIdsCol)
+                waitbar(colK / nCols, wb);
                 continue
             end
             saveFileMetadataBatch(fileIdsCol, fieldName, fieldValuesCol);
@@ -1326,12 +1330,14 @@ function fileManagerGUI()
                 end
                 state.metadataData.(fileIdStr).(safeFieldName) = fieldValuesCol{k};
             end
+            waitbar(colK / nCols, wb);
         end
+        close(wb);
         updateTable(state.files);
     end
     
     function s = excelCellToStr(fieldValue)
-        if isempty(fieldValue)
+        if isempty(fieldValue) || any(ismissing(fieldValue))
             s = '';
         elseif isnumeric(fieldValue)
             s = num2str(fieldValue);
