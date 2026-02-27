@@ -223,18 +223,23 @@ colors_in_selected = colors_in(ch_inxs);
         scatter(rangesTimeLabels(group_index), chRangesOffsets(group_index), [], 'Marker', '_', 'MarkerEdgeColor', color{:})
     end
 
-% Вычисляем и применяем пределы Y с учетом смещения к медиане
+% Вычисляем и применяем пределы Y
 ax = findobj(mean_f, 'Type', 'axes', '-not', 'Tag', 'legend');
 if ~isempty(ax)
     ax = ax(1);
-    if isfield(calculation_result, 'baseline_medians')
-        % Учитываем смещение данных и обозначений
+    if visualSettings.show_full_signal
+        pl_meanData = calculation_result.meanData(:, ch_inxs) .* calculation_result.scalingCoefficients(ch_inxs);
+        data_with_offsets = pl_meanData + offsets;
+        yMin = min(data_with_offsets(:));
+        yMax = max(data_with_offsets(:));
+        margin = (yMax - yMin) * 0.05;
+        Ylims = [yMin - margin, yMax + margin];
+    elseif isfield(calculation_result, 'baseline_medians')
         baseline_medians = calculation_result.baseline_medians;
         minOffset = min(offsets);
         maxOffset = max(offsets);
         minBaseline = min(baseline_medians);
         maxBaseline = max(baseline_medians);
-        % Учитываем смещенные обозначения и позиции медиан каналов
         Ylims = [min([chRangesOffsets(:); minOffset + minBaseline]) - shiftCoeff*0.2, ...
                  max([chRangesOffsets(:); maxOffset + maxBaseline]) + shiftCoeff*0.2];
     else
