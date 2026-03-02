@@ -177,6 +177,12 @@ catch
 end
 
 [mean_f, calculation_result] = plotMeanEvents(params);
+numEvents = numel(params.timePoints);
+if strcmp(sourceType, 'stimuli')
+    mean_f.Name = [figureName, ': ', local_evfilename, ' (', num2str(numEvents), ' stimuli)'];
+else
+    mean_f.Name = [figureName, ': ', local_evfilename, ' (', num2str(numEvents), ' events)'];
+end
 if ~isempty(params.customXLimits)
     Xlims = params.customXLimits;
 else

@@ -1129,13 +1129,14 @@ function signalViewerGUI(editMode)
     function saveMainAxisAs()
         
         [mat_file_folder, figure_name, ~] = fileparts(matFilePath);
+        defaultName = evfilename;
         
         [file, path, filterindex] = uiputfile(...
             {'*.pdf', 'PDF files (*.pdf)';...
              '*.eps', 'EPS files (*.eps)';...
              '*.png', 'PNG files (*.png)';...
              '*.*', 'All Files (*.*)'},...
-             'Save file name', [mat_file_folder '/' figure_name]);
+             'Save file name', fullfile(mat_file_folder, defaultName));
         if isequal(file,0) || isequal(path,0)
            debugState('saveMainAxisAs', 'User pressed cancel');
         else
@@ -2057,6 +2058,7 @@ function signalViewerGUI(editMode)
          % Сохранение пути к загруженному .mat файлу
         matFilePath = filepath;        
         [~, matFileName, ~] = fileparts(matFilePath);
+        evfilename = matFileName;
         debugState('loadMatFile', '%s', matFileName);       
         
         % Используем универсальную функцию загрузки
