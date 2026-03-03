@@ -159,7 +159,7 @@ function fileManagerGUI()
 
     fileActionsMenu = uicontrol('Style', 'popupmenu', ...
         'Position', getElementPosition('fileActionsMenu'), ...
-        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field', 'Rename Field', 'Filter Files', 'Sort Files', 'Clear Filter', 'Move to Project', 'Copy to Project', 'Import from Excel', 'Find file in database', 'Update database from meta-files'}, ...
+        'String', {'File Actions', 'Add Files', 'Add Field', 'Delete Field', 'Rename Field', 'Filter Files', 'Sort Files', 'Clear Filter', 'Move to Project', 'Copy to Project', 'Import from Excel', 'Find file in database', 'Update database from meta-files', 'Auto-fill'}, ...
         'FontSize', 11, ...
         'Value', 1, ...
         'Callback', @handleFileAction, ...
@@ -543,6 +543,8 @@ function fileManagerGUI()
                 showFindFileInfoDialog();
             case 13
                 createAnalysisFromMetaFiles();
+            case 14
+                showAutoFillDialog();
         end
     end
     
@@ -1399,6 +1401,83 @@ function fileManagerGUI()
         end
     end
     
+    function showAutoFillDialog()
+        if isempty(state.currentProjectId)
+            msgbox('No project selected', 'Error', 'error');
+            return
+        end
+        if ~isfield(state, 'selectedFileIds') || isempty(state.selectedFileIds)
+            msgbox('No files selected', 'Info', 'help');
+            return
+        end
+        if isempty(state.metadataFields)
+            msgbox('No metadata fields', 'Info', 'help');
+            return
+        end
+
+        dlgFig = figure('Position', [400, 400, 350, 150], ...
+            'Name', 'Auto-fill', ...
+            'NumberTitle', 'off', ...
+            'MenuBar', 'none', ...
+            'ToolBar', 'none', ...
+            'Resize', 'off');
+
+        uicontrol('Parent', dlgFig, 'Style', 'text', ...
+            'Position', [10, 110, 60, 20], ...
+            'String', 'Field:', ...
+            'HorizontalAlignment', 'left');
+
+        fieldPopup = uicontrol('Parent', dlgFig, 'Style', 'popupmenu', ...
+            'Position', [80, 110, 250, 25], ...
+            'String', state.metadataFields);
+
+        uicontrol('Parent', dlgFig, 'Style', 'text', ...
+            'Position', [10, 70, 60, 20], ...
+            'String', 'Value:', ...
+            'HorizontalAlignment', 'left');
+
+        valueEdit = uicontrol('Parent', dlgFig, 'Style', 'edit', ...
+            'Position', [80, 70, 250, 25], ...
+            'String', '');
+
+        uicontrol('Parent', dlgFig, 'Style', 'pushbutton', ...
+            'Position', [170, 15, 80, 30], ...
+            'String', 'OK', ...
+            'Callback', @(~,~) uiresume(dlgFig));
+
+        uicontrol('Parent', dlgFig, 'Style', 'pushbutton', ...
+            'Position', [260, 15, 80, 30], ...
+            'String', 'Cancel', ...
+            'Callback', @(~,~) close(dlgFig));
+
+        uiwait(dlgFig);
+
+        if ~ishandle(dlgFig)
+            return
+        end
+
+        fieldName = state.metadataFields{fieldPopup.Value};
+        value = strtrim(get(valueEdit, 'String'));
+        close(dlgFig);
+
+        safeFieldName = makeSafeFieldName(fieldName);
+        autoBackupDatabase();
+        fileIds = state.selectedFileIds;
+        for k = 1:numel(fileIds)
+            fid = fileIds(k);
+            fileIdStr = sprintf('f%d', fid);
+            if ~isfield(state.metadataData, fileIdStr)
+                state.metadataData.(fileIdStr) = struct();
+            end
+            state.metadataData.(fileIdStr).(safeFieldName) = value;
+            if ~isfield(state.fieldNameMap, safeFieldName)
+                state.fieldNameMap.(safeFieldName) = fieldName;
+            end
+            saveFileMetadata(fid, fieldName, value);
+        end
+        updateTable(state.files);
+    end
+
     function setImportColumnSelection(fieldTable, columnNames, select)
         data = fieldTable.Data;
         for k = 1:numel(columnNames)
