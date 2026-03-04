@@ -40,7 +40,7 @@ function autoEventDetectionGUI()
     global hMinPeakProminence hDetectionType hChPos hChNeg hMaxPeakWidth
     global hMinPeakDistance hPeakDetectionMode
     global hSourceType selectedCenter timeCenterPopup windowSize chosen_time_interval
-    global hSearchAroundStimuli hSearchWindow hSubtractBaseline hApplySmoothing hSmoothingSpan stims_exist stims
+    global hSearchAroundStimuli hSearchWindow hSubtractBaseline hSubtractBaselineHeight hBaselineWindowText hBaselineWindow hApplySmoothing hSmoothingSpan stims_exist stims
     global hUseTimeRange hStartTime hEndTime time
     
     % Переменные для хранения результатов детекции в области видимости GUI
@@ -95,6 +95,11 @@ function autoEventDetectionGUI()
     % Поле ввода размера окна сглаживания (в миллисекундах) - рядом с чекбоксом
     hSmoothingSpan_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('smoothingSpanText'), 'String', 'Window (ms):', 'Tag', 'smoothingSpanText');
     hSmoothingSpan = uicontrol(detectionFig, 'Style', 'edit', 'Position', getElementPosition('smoothingSpan'), 'String', '10', 'Tag', 'smoothingSpan');
+
+    % Чекбокс вычитания базовой линии для режима Height и поле окна (время) — под End (ms)
+    hSubtractBaselineHeight = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', getElementPosition('subtractBaselineHeight'), 'String', 'Subtract baseline (Height)', 'Value', 0, 'Callback', @changeDetectionType, 'Tag', 'subtractBaselineHeight', 'Visible', 'on');
+    hBaselineWindowText = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('baselineWindowText'), 'String', ['Window (' selectedUnit '):'], 'Tag', 'baselineWindowText', 'Visible', 'off');
+    hBaselineWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', getElementPosition('baselineWindow'), 'String', num2str(0.5*timeUnitFactor), 'Tag', 'baselineWindow', 'Visible', 'off');
 
     % Окошко для ввода MinPeakDistance
     hMinPeakDistance_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('minPeakDistanceText'), 'String', ['Minimal Time Between Peaks (' selectedUnit '):'], 'Tag', 'minPeakDistanceText');
@@ -206,6 +211,13 @@ function autoEventDetectionGUI()
         if isfield(settings, 'SmoothingSpan')
             set(hSmoothingSpan, 'String', num2str(settings.SmoothingSpan));
         end
+        if isfield(settings, 'SubtractBaselineHeight')
+            set(hSubtractBaselineHeight, 'Value', settings.SubtractBaselineHeight);
+        end
+        if isfield(settings, 'BaselineWindow')
+            set(hBaselineWindow, 'String', num2str(settings.BaselineWindow*timeUnitFactor));
+        end
+        set(hBaselineWindowText, 'String', ['Window (' selectedUnit '):']);
         
         % Инициализация параметров временного диапазона из настроек
         if isfield(settings, 'UseTimeRange')
@@ -226,6 +238,24 @@ function autoEventDetectionGUI()
         else
             set(hSmoothingSpan_text, 'visible', 'off')
             set(hSmoothingSpan, 'visible', 'off')
+        end
+        % Видимость полей базовой линии для Height
+        PeakDetectionMode = get(hPeakDetectionMode, 'String');
+        PeakDetectionMode = PeakDetectionMode{get(hPeakDetectionMode, 'Value')};
+        if strcmp(PeakDetectionMode, 'Height')
+            set(hSubtractBaselineHeight, 'visible', 'on');
+            baselineHeight_enabled = get(hSubtractBaselineHeight, 'Value');
+            if baselineHeight_enabled
+                set(hBaselineWindowText, 'visible', 'on');
+                set(hBaselineWindow, 'visible', 'on');
+            else
+                set(hBaselineWindowText, 'visible', 'off');
+                set(hBaselineWindow, 'visible', 'off');
+            end
+        else
+            set(hSubtractBaselineHeight, 'visible', 'off');
+            set(hBaselineWindowText, 'visible', 'off');
+            set(hBaselineWindow, 'visible', 'off');
         end
         
         % Обновляем видимость полей временного диапазона после загрузки настроек
@@ -323,8 +353,23 @@ function autoEventDetectionGUI()
         switch PeakDetectionMode
             case 'Height'
                 set(hMinPeakProminence_text, 'String', 'Minimal Peak Height:');
+                set(hSubtractBaselineHeight, 'visible', 'on');
             case 'Prominence'
                 set(hMinPeakProminence_text, 'String', 'Minimal Peak Prominence:');
+                set(hSubtractBaselineHeight, 'visible', 'off');
+                set(hSubtractBaselineHeight, 'Value', 0);
+                set(hBaselineWindowText, 'visible', 'off');
+                set(hBaselineWindow, 'visible', 'off');
+        end
+        
+        % Видимость поля окна базовой линии для Height
+        baselineHeight_enabled = strcmp(PeakDetectionMode, 'Height') && get(hSubtractBaselineHeight, 'Value');
+        if baselineHeight_enabled
+            set(hBaselineWindowText, 'visible', 'on');
+            set(hBaselineWindow, 'visible', 'on');
+        else
+            set(hBaselineWindowText, 'visible', 'off');
+            set(hBaselineWindow, 'visible', 'off');
         end
         
         % Управление видимостью элементов временного диапазона
@@ -403,6 +448,8 @@ function autoEventDetectionGUI()
         params.SearchAroundStimuli = get(hSearchAroundStimuli, 'Value');
         params.SearchWindow = str2double(get(hSearchWindow, 'String')) / timeUnitFactor;
         params.SubtractBaseline = get(hSubtractBaseline, 'Value');
+        params.SubtractBaselineHeight = get(hSubtractBaselineHeight, 'Value');
+        params.BaselineWindow = str2double(get(hBaselineWindow, 'String')) / timeUnitFactor;
         params.ApplySmoothing = get(hApplySmoothing, 'Value');
         params.SmoothingSpan = str2double(get(hSmoothingSpan, 'String')); % в миллисекундах
         params.UseTimeRange = get(hUseTimeRange, 'Value');
@@ -466,6 +513,8 @@ function autoEventDetectionGUI()
         params.UseTimeRange = get(hUseTimeRange, 'Value');
         params.StartTime = str2double(get(hStartTime, 'String')) / timeUnitFactor;
         params.EndTime = str2double(get(hEndTime, 'String')) / timeUnitFactor;
+        params.SubtractBaselineHeight = get(hSubtractBaselineHeight, 'Value');
+        params.BaselineWindow = str2double(get(hBaselineWindow, 'String')) / timeUnitFactor;
         
         [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected] = autoEventDetection(params);
         
@@ -705,9 +754,9 @@ function saveSettings()
     global hMinPeakProminence hDetectionType hChPos hChNeg hMaxPeakWidth
     global hMinPeakDistance hPeakDetectionMode
     global autodetection_settings SettingsFilepath
-    global hSourceType timeUnitFactor hSearchAroundStimuli hSearchWindow hSubtractBaseline hApplySmoothing hSmoothingSpan
+    global hSourceType timeUnitFactor hSearchAroundStimuli hSearchWindow hSubtractBaseline hSubtractBaselineHeight hBaselineWindow hApplySmoothing hSmoothingSpan
     global hUseTimeRange hStartTime hEndTime
-    
+
     settings.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
     settings.PeakDetectionModeIndex = get(hPeakDetectionMode, 'Value');
     settings.DetectionTypeIndex = get(hDetectionType, 'Value');
@@ -719,6 +768,8 @@ function saveSettings()
     settings.SearchAroundStimuli = get(hSearchAroundStimuli, 'Value');
     settings.SearchWindow = str2double(get(hSearchWindow, 'String')) / timeUnitFactor;
     settings.SubtractBaseline = get(hSubtractBaseline, 'Value');
+    settings.SubtractBaselineHeight = get(hSubtractBaselineHeight, 'Value');
+    settings.BaselineWindow = str2double(get(hBaselineWindow, 'String')) / timeUnitFactor;
     settings.ApplySmoothing = get(hApplySmoothing, 'Value');
     settings.SmoothingSpan = str2double(get(hSmoothingSpan, 'String'));
     settings.UseTimeRange = get(hUseTimeRange, 'Value');
@@ -757,6 +808,15 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     detect = params.detect;
     
     max_peak_width = params.max_peak_width;
+    
+    SubtractBaselineHeight = false;
+    BaselineWindow = 0.5;
+    if isfield(params, 'SubtractBaselineHeight')
+        SubtractBaselineHeight = params.SubtractBaselineHeight;
+    end
+    if isfield(params, 'BaselineWindow')
+        BaselineWindow = params.BaselineWindow;
+    end
     
     raw_frq = Fs;
     lfp_frq = round(newFs);
@@ -798,26 +858,49 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
         case 'two channels difference'
 
             NegTrace = resample1(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
-            PosTrace = resample1(double(data_in(:, ChPos)), lfp_frq , raw_frq)';           
+            PosTrace = resample1(double(data_in(:, ChPos)), lfp_frq , raw_frq)';
             Reversion = PosTrace - NegTrace;
-%             Reversion = medfilt1(Reversion, smooth_coef);
-%             baseline = medfilt1(Reversion, 1000);
-            baseline = medfilt1(Reversion, 1000);
-            Filtered_Reversion = Reversion;
-            Filtered_Reversion(Filtered_Reversion<baseline) = baseline(Filtered_Reversion<baseline);
-            Trace_out = Filtered_Reversion - baseline;
+            if strcmp(PeakDetectionMode, 'Height') && SubtractBaselineHeight && BaselineWindow > 0
+                N = round(BaselineWindow * lfp_frq);
+                N = max(3, N);
+                if mod(N, 2) == 0
+                    N = N + 1;
+                end
+                baseline = medfilt1(Reversion, N);
+                Filtered_Reversion = Reversion;
+                Filtered_Reversion(Filtered_Reversion < baseline) = baseline(Filtered_Reversion < baseline);
+                Trace_out = Filtered_Reversion - baseline;
+            else
+                Trace_out = Reversion;
+            end
         case 'two channels multiplied'
             NegTrace = resample1(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
             PosTrace = resample1(double(data_in(:, ChPos)), lfp_frq , raw_frq)';              
             Trace_out = -(NegTrace.*PosTrace);        
         case 'one channel negative'
             NegTrace = resample1(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
-%             Trace_out = -medfilt1(NegTrace, smooth_coef);
             Trace_out = -NegTrace;
+            if strcmp(PeakDetectionMode, 'Height') && SubtractBaselineHeight && BaselineWindow > 0
+                N = round(BaselineWindow * lfp_frq);
+                N = max(3, N);
+                if mod(N, 2) == 0
+                    N = N + 1;
+                end
+                baseline = medfilt1(Trace_out, N);
+                Trace_out = Trace_out - baseline;
+            end
         case 'one channel positive'
-            PosTrace = resample1(double(data_in(:, ChPos)), lfp_frq , raw_frq)'; 
-%             Trace_out = medfilt1(PosTrace, smooth_coef);
+            PosTrace = resample1(double(data_in(:, ChPos)), lfp_frq , raw_frq)';
             Trace_out = PosTrace;
+            if strcmp(PeakDetectionMode, 'Height') && SubtractBaselineHeight && BaselineWindow > 0
+                N = round(BaselineWindow * lfp_frq);
+                N = max(3, N);
+                if mod(N, 2) == 0
+                    N = N + 1;
+                end
+                baseline = medfilt1(Trace_out, N);
+                Trace_out = Trace_out - baseline;
+            end
     end
     Trace_out(isnan(Trace_out)) = nanmean(Trace_out);
     Trace_out = Trace_out - mean(Trace_out);
