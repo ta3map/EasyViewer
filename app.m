@@ -116,37 +116,31 @@ function app()
     % Callback для запуска Signal Viewer
     function launchSignalViewer(~, ~)
         signalViewerGUI();
-        delete(f);
     end
     
     % Callback для запуска Signal Analysis
     function launchSignalAnalysis(~, ~)
         signalAnalysisGUI();
-        delete(f);
     end
     
     % Callback для запуска Results Gallery
     function launchResultsGallery(~, ~)
         resultsGalleryGUI();
-        delete(f);
     end
     
     % Callback для запуска Plot From Table
     function launchPlotFromTable(~, ~)
         plotFromTableGUI();
-        delete(f);
     end
     
     % Callback для запуска File Manager
     function launchFileManager(~, ~)
         fileManagerGUI();
-        delete(f);
     end
     
     % Callback для запуска IOS Player
     function launchIosPlayer(~, ~)
         iosPlayerGUI();
-        delete(f);
     end
     
     % Function to handle main window closing

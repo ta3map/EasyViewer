@@ -9,7 +9,6 @@ function path = readStoredDbPath()
             end
         end
     catch
-        path = '';
     end
 end
 

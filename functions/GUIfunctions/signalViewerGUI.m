@@ -1,4 +1,4 @@
-function signalViewerGUI(editMode)
+function signalViewerGUI(filePath)
     % Все global объявления должны быть в самом начале функции
     % EV_version и EV_date теперь определены в app.m как глобальные переменные
     global EV_path EV_version EV_date
@@ -66,9 +66,8 @@ function signalViewerGUI(editMode)
  
     debugState('signalViewerGUI', 'Signal Viewer Started')
 
-    % Проверяем режим редактирования
     if nargin < 1
-        editMode = 'normal';
+        filePath = [];
     end
     
     % Загружаем глобальные настройки (включая инициализацию по умолчанию)
@@ -210,7 +209,25 @@ function signalViewerGUI(editMode)
     min_scale_coef = 0.8;
     base_figure_position = [20 60 1280 650]*min_scale_coef;
 
-    
+    figTag = 'SignalViewerGUI';
+    delete(findobj('Type', 'figure', 'Tag', 'SignalAnalysisGUI'));
+    guiFig = findobj('Type', 'figure', 'Tag', figTag);
+    if ~isempty(guiFig)
+        if ~isempty(filePath)
+            [~, ~, ext] = fileparts(filePath);
+            switch lower(ext)
+                case '.ev'
+                    outside_calling_filepath = filePath;
+                    event_calling();
+                case {'.mat', '.abf'}
+                    zav_calling(filePath);
+                    table_calling();
+            end
+        end
+        figure(guiFig);
+        return
+    end
+
     % добавляем возможность вызвать функцию извне
     zav_calling = @loadMatFile;
     zav_saving = @saveMatFile;
@@ -246,21 +263,6 @@ function signalViewerGUI(editMode)
         save(SettingsFilepath, 'lastOpenedFiles', 'add_event_settings', '-append');
     end
 
-    % Идентификатор (tag) для GUI фигуры
-    figTag = 'SignalViewerGUI';
-    
-    % Закрываем окно анализа при запуске просмотра
-    delete(findobj('Type', 'figure', 'Tag', 'SignalAnalysisGUI'));
-    
-    % Поиск открытой фигуры с заданным идентификатором
-    guiFig = findobj('Type', 'figure', 'Tag', figTag);
-    
-    if ~isempty(guiFig)
-        % Делаем существующее окно текущим (активным)
-        figure(guiFig);
-        return
-    end
-    
     % Создание таймера
     timer('TimerFcn', @resetParametersCallback, 'StartDelay', 1, 'ExecutionMode', 'singleShot');
     
@@ -470,6 +472,8 @@ function signalViewerGUI(editMode)
     
     % Список действий
     file_functions = {'Open ZAV(.mat) file', ...
+        '', ...
+        'Recent files', ...
         '', ...
         'Open event (.ev) file',...
         '', ...
@@ -954,20 +958,8 @@ function signalViewerGUI(editMode)
             % Игнорируем ошибки сохранения при закрытии
         end
         
-        % Если был режим редактирования - обновляем координаты
-        if strcmp(editMode, 'edit')
-            try
-                update_coords(coordsFile, f);
-            catch ME
-                warning('Error updating coordinates: %s', ME.message);
-            end
-        end
-        
         % Закрываем все зависимые окна
         closeChildWindows();
-        
-        % Закрытие всех фигур
-        clear global
         
         % Удаляем окно
         delete(src);
@@ -1079,22 +1071,20 @@ function signalViewerGUI(editMode)
         dont_close_menu = false;
         switch selectedOption
             case file_functions{1}
-                % загрузка файла
                 OpenZavLfpFile([], []);
             case file_functions{3}
-                % загрузка события
-                loadEvents([], []);
+                showRecentFilesDialog();
             case file_functions{5}
-                saveMatFile(matFilePath);
+                loadEvents([], []);
             case file_functions{7}
-                % открытие менеджера файлов
-                fileManagerBtnClb([], []);
+                saveMatFile(matFilePath);
             case file_functions{9}
-                openFigureWithFileDialog();
+                fileManagerBtnClb([], []);
             case file_functions{11}
-                showImportFormatDialog();
+                openFigureWithFileDialog();
             case file_functions{13}
-                % save figure snapshot
+                showImportFormatDialog();
+            case file_functions{15}
                 saveMainAxisAs();
             case ''
                 dont_close_menu = true;
@@ -1105,6 +1095,65 @@ function signalViewerGUI(editMode)
         end
     end
 
+
+    function showRecentFilesDialog()
+        selectedRow = [];
+        
+        tableData_rf = cell(0, 2);
+        reversed = unique(lastOpenedFiles(end:-1:1), 'stable');
+        for i = 1:numel(reversed)
+            [~, fname, fext] = fileparts(reversed{i});
+            tableData_rf{i, 1} = [fname, fext];
+            tableData_rf{i, 2} = reversed{i};
+        end
+        
+        dlgWidth = 600;
+        dlgHeight = 400;
+        screenSize = get(0, 'ScreenSize');
+        dlgPos = [(screenSize(3) - dlgWidth) / 2, (screenSize(4) - dlgHeight) / 2, dlgWidth, dlgHeight];
+        
+        dlg = figure('Name', 'Recent files', 'NumberTitle', 'off', ...
+            'MenuBar', 'none', 'ToolBar', 'none', ...
+            'WindowStyle', 'modal', 'Resize', 'off', ...
+            'Position', dlgPos);
+        
+        recentTable = uitable('Parent', dlg, ...
+            'Data', tableData_rf, ...
+            'ColumnName', {'File name', 'Path'}, ...
+            'RowName', {}, ...
+            'ColumnEditable', [false false], ...
+            'ColumnWidth', {180, 380}, ...
+            'Position', [10, 50, 580, 340], ...
+            'CellSelectionCallback', @onCellSelection);
+        
+        btnOpenLoc = uicontrol('Parent', dlg, 'Style', 'pushbutton', ...
+            'String', 'Open File Location', 'Position', [10, 10, 140, 30], ...
+            'Enable', 'off', 'Callback', @onOpenLocation);
+        
+        btnOpen = uicontrol('Parent', dlg, 'Style', 'pushbutton', ...
+            'String', 'Open', 'Position', [490, 10, 100, 30], ...
+            'Enable', 'off', 'Callback', @onOpen);
+        
+        function onCellSelection(~, evt)
+            if ~isempty(evt.Indices)
+                selectedRow = evt.Indices(1, 1);
+                set(btnOpen, 'Enable', 'on');
+                set(btnOpenLoc, 'Enable', 'on');
+            end
+        end
+        
+        function onOpen(~, ~)
+            filePath_rf = recentTable.Data{selectedRow, 2};
+            close(dlg);
+            loadMatFile(filePath_rf);
+        end
+        
+        function onOpenLocation(~, ~)
+            filePath_rf = recentTable.Data{selectedRow, 2};
+            folder = fileparts(filePath_rf);
+            winopen(folder);
+        end
+    end
 
     function importEventsFromSimulus()
         if not(isempty(stims))
@@ -2980,8 +3029,20 @@ end
     set(eventTable, 'CellEditCallback', @updateEventTable);
     set(channelTable, 'CellEditCallback', @updateChannelSelection);
     
-    % Пытаемся автоматически открыть последний файл при запуске
-    autoOpenLastFile();
+    if ~isempty(filePath)
+        [~, ~, ext] = fileparts(filePath);
+        switch lower(ext)
+            case '.ev'
+                outside_calling_filepath = filePath;
+                loadEvents();
+            case {'.mat', '.abf'}
+                loadMatFile(filePath);
+                UpdateEventTable();
+        end
+    else
+        resetToNoFileState();
+        autoOpenLastFile();
+    end
     
     function autoOpenLastFile()
         % Автоматически открывает последний открытый файл при запуске GUI
@@ -3049,11 +3110,6 @@ end
             % Dialog box to inform the user that the latest version is already installed
             debugState('updateAndRunInstaller', 'The latest version is already installed.');
         end
-    end
-
-    % Режим редактирования координат
-    if strcmp(editMode, 'edit')
-        inspect(f);
     end
 
 end

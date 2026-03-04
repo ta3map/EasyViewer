@@ -4900,68 +4900,17 @@ function saveFileMetadata(fileId, fieldName, fieldValue)
     sqlExec(query);
 end
 
-function metadata = launchFile(filePath)
-    metadata = [];
+function launchFile(filePath)
     if ~exist(filePath, 'file')
         debugState('fileManagerGUI', 'File not found: %s', filePath);
         return
     end
     [~, ~, ext] = fileparts(filePath);
-    global event_calling
-    global zav_calling wb table_calling events event_inx event_title_string
-    global lastOpenedFiles SettingsFilepath
-    
-    if ~exist('lastOpenedFiles', 'var') || isempty(lastOpenedFiles)
-        lastOpenedFiles = {};
-    end
-    
-
-    
-    debugState('fileManagerGUI', 'Please wait...');
-    global event_amplitudes event_channels event_widths event_prominences event_metadata event_comments events_exist
-    events = [];
-    event_amplitudes = [];
-    event_channels = [];
-    event_widths = [];
-    event_prominences = [];
-    event_metadata = [];
-    event_comments = {};
-    event_title_string = 'Events';
-    event_inx = 1;
-    events_exist = false;
-    
     switch lower(ext)
-        case '.ev'
-            metadata = event_calling();
-        case {'.mat', '.abf'}
-            metadata = zav_calling(filePath);
-            table_calling();
-            if isempty(metadata)
-                debugState('fileManagerGUI', 'File load failed.');
-                try
-                    close(wb);
-                catch
-                end
-                return
-            end
+        case {'.ev', '.mat', '.abf'}
+            signalViewerGUI(filePath);
         otherwise
             winopen(filePath);
-            return
-    end
-    debugState('fileManagerGUI', 'File loaded.');
-
-
-    lastOpenedFiles{end + 1} = filePath;
-    
-    try
-        save(SettingsFilepath, 'lastOpenedFiles', '-append');
-    catch ME
-        warning('Failed to save last opened file path: %s', ME.message);
-    end
-
-    try
-        close(wb);
-    catch
     end
 end
 
