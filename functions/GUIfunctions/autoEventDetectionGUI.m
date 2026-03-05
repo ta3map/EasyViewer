@@ -37,8 +37,8 @@ function autoEventDetectionGUI()
     end
     
     global events event_comments hd events_detected matFilePath evfilename eventDeleteEdit
-    global hMinPeakProminence hDetectionType hChPos hChNeg hMaxPeakWidth
-    global hMinPeakDistance hPeakDetectionMode
+    global hMinPeakProminence hDetectionType hMainChannel hSubtractChannelCheck hSubtractChannel hMaxPeakWidth
+    global hMinPeakDistance
     global hSourceType selectedCenter timeCenterPopup windowSize chosen_time_interval
     global hSearchAroundStimuli hSearchWindow hSubtractBaseline hSubtractBaselineHeight hBaselineWindowText hBaselineWindow hApplySmoothing hSmoothingSpan stims_exist stims
     global hUseTimeRange hStartTime hEndTime time
@@ -71,21 +71,18 @@ function autoEventDetectionGUI()
     uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('sourceText'), 'String', 'Source:', 'Tag', 'sourceText');
     hSourceType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('sourceType'), 'String', {'LFP', 'CSD'}, 'Callback', @changeDetectionType, 'Tag', 'sourceType');
 
-    % Окно выбора типа детекции (1 или 2 канала)
-    uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('detectionTypeText'), 'String', 'Detection Type:', 'Tag', 'detectionTypeText');
-    hDetectionType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('detectionType'), 'String', {'two channels difference', 'two channels multiplied', 'one channel positive', 'one channel negative'}, 'Callback', @changeDetectionType, 'Tag', 'detectionType');
+    % Режим: Positive / Negative
+    uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('detectionTypeText'), 'String', 'Mode:', 'Tag', 'detectionTypeText');
+    hDetectionType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('detectionType'), 'String', {'Positive', 'Negative'}, 'Callback', @changeDetectionType, 'Tag', 'detectionType');
 
-    % Выбор режима детекции (Height или Prominence)
-    uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('peakDetectionModeText'), 'String', 'Peak Detection Mode:', 'Tag', 'peakDetectionModeText');
-    hPeakDetectionMode = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('peakDetectionMode'), 'String', {'Height', 'Prominence'}, 'Callback', @changeDetectionType, 'Tag', 'peakDetectionMode');
-
-    % Окно выбора ChPos и ChNeg из списка каналов
-    hChPos_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('chPosText'), 'String', 'Positive Channel:', 'Tag', 'chPosText');
-    hChPos = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('chPos'), 'String', hd.recChNames, 'Callback', @changeDetectionType, 'Tag', 'chPos');
-    hChNeg_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('chNegText'), 'String', 'Negative Channel:', 'Tag', 'chNegText');
-    hChNeg = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('chNeg'), 'String', hd.recChNames, 'Callback', @changeDetectionType, 'Tag', 'chNeg');
+    % Основной канал и опция вычитания другого канала
+    uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('chPosText'), 'String', 'Channel:', 'Tag', 'chPosText');
+    hMainChannel = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('chPos'), 'String', hd.recChNames, 'Callback', @changeDetectionType, 'Tag', 'chPos');
+    hSubtractChannelCheck = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', getElementPosition('subtractChannelCheckbox'), 'String', 'Subtract another channel', 'Value', 0, 'Callback', @changeDetectionType, 'Tag', 'subtractChannelCheckbox');
+    hChNeg_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('chNegText'), 'String', 'Channel to subtract:', 'Tag', 'chNegText', 'Visible', 'off');
+    hSubtractChannel = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('chNeg'), 'String', hd.recChNames, 'Callback', @changeDetectionType, 'Tag', 'chNeg', 'Visible', 'off');
     
-    % Окошко для ввода минимального значения (Height или Prominence)
+    % Окошко для ввода минимальной высоты пика
     hMinPeakProminence_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('minPeakProminenceText'), 'String', 'Minimal Peak Height:', 'Tag', 'minPeakProminenceText');
     hMinPeakProminence = uicontrol(detectionFig, 'Style', 'edit', 'Position', getElementPosition('minPeakProminence'), 'String', '50', 'Tag', 'minPeakProminence');
 
@@ -137,25 +134,34 @@ function autoEventDetectionGUI()
         'Position', getElementPosition('plotPanel'), ...
         'Tag', 'plotPanel');
     
-    % Инициализация значений из настроек, если они существуют
+    % Инициализация значений из настроек (только новый формат; при отсутствии — стандарт)
+    nCh = numel(hd.recChNames);
+    validMode = ~isempty(settings) && isfield(settings, 'PolarityIndex') && isfield(settings, 'MainChannel') && ...
+        isfield(settings, 'SubtractChannelEnabled') && isfield(settings, 'SubtractChannel');
+    if validMode
+        pi = round(settings.PolarityIndex);
+        mc = round(settings.MainChannel);
+        sc = round(settings.SubtractChannel);
+        if (pi >= 1 && pi <= 2) && (mc >= 1 && mc <= nCh) && (sc >= 1 && sc <= nCh)
+            set(hDetectionType, 'Value', pi);
+            set(hMainChannel, 'Value', mc);
+            set(hSubtractChannelCheck, 'Value', settings.SubtractChannelEnabled);
+            set(hSubtractChannel, 'Value', sc);
+        else
+            validMode = false;
+        end
+    end
+    if ~validMode
+        set(hDetectionType, 'Value', 1);
+        set(hMainChannel, 'Value', 1);
+        set(hSubtractChannelCheck, 'Value', 0);
+        set(hSubtractChannel, 'Value', 1);
+    end
+
     if ~isempty(settings)
-        
-                safeSetPopupValue(hChPos, settings.ChPos, numel(hd.recChNames), 'Positive Channel');
-        safeSetPopupValue(hChNeg, settings.ChNeg, numel(hd.recChNames), 'Negative Channel');
-        
         safeSetPopupValue(hSourceType, settings.SourceTypeIndex, ...
                           numel(get(hSourceType,'String')), 'SourceType');
 
-        safeSetPopupValue(hDetectionType, settings.DetectionTypeIndex, ...
-                          numel(get(hDetectionType,'String')), 'DetectionType');
-        
-        if isfield(settings, 'PeakDetectionModeIndex')
-            safeSetPopupValue(hPeakDetectionMode, settings.PeakDetectionModeIndex, ...
-                              numel(get(hPeakDetectionMode,'String')), 'PeakDetectionMode');
-        else
-            set(hPeakDetectionMode, 'Value', 1); % По умолчанию Height
-        end
-                      
         set(hMinPeakProminence, 'String', num2str(settings.MinPeakProminence));
 
         set(hMinPeakDistance, 'String', num2str(settings.MinPeakDistance*timeUnitFactor));
@@ -239,21 +245,13 @@ function autoEventDetectionGUI()
             set(hSmoothingSpan_text, 'visible', 'off')
             set(hSmoothingSpan, 'visible', 'off')
         end
-        % Видимость полей базовой линии для Height
-        PeakDetectionMode = get(hPeakDetectionMode, 'String');
-        PeakDetectionMode = PeakDetectionMode{get(hPeakDetectionMode, 'Value')};
-        if strcmp(PeakDetectionMode, 'Height')
-            set(hSubtractBaselineHeight, 'visible', 'on');
-            baselineHeight_enabled = get(hSubtractBaselineHeight, 'Value');
-            if baselineHeight_enabled
-                set(hBaselineWindowText, 'visible', 'on');
-                set(hBaselineWindow, 'visible', 'on');
-            else
-                set(hBaselineWindowText, 'visible', 'off');
-                set(hBaselineWindow, 'visible', 'off');
-            end
+        % Видимость полей базовой линии
+        set(hSubtractBaselineHeight, 'visible', 'on');
+        baselineHeight_enabled = get(hSubtractBaselineHeight, 'Value');
+        if baselineHeight_enabled
+            set(hBaselineWindowText, 'visible', 'on');
+            set(hBaselineWindow, 'visible', 'on');
         else
-            set(hSubtractBaselineHeight, 'visible', 'off');
             set(hBaselineWindowText, 'visible', 'off');
             set(hBaselineWindow, 'visible', 'off');
         end
@@ -273,6 +271,9 @@ function autoEventDetectionGUI()
         end
     end
     
+    % Кнопка сброса настроек (слева от Check Detection)
+    uicontrol(detectionFig, 'Style', 'pushbutton', 'String', 'Reset settings',...
+        'Position', getElementPosition('resetSettingsBtn'), 'Callback', @resetSettingsCallback, 'Tag', 'resetSettingsBtn');
     % Кнопка 'Check Detection'
     uicontrol(detectionFig, 'Style', 'pushbutton', 'String', 'Check Detection',...
         'Position', getElementPosition('checkDetectionBtn'), 'Callback', @checkDetectionCallback, 'Tag', 'checkDetectionBtn');
@@ -320,50 +321,66 @@ function autoEventDetectionGUI()
         changeDetectionType();
     end
 
+    function [detectionType, chPos, chNeg] = uiToDetectionParams()
+        polarityIdx = get(hDetectionType, 'Value');
+        mainCh = get(hMainChannel, 'Value');
+        subtractOn = get(hSubtractChannelCheck, 'Value');
+        subtractCh = get(hSubtractChannel, 'Value');
+        nCh = numel(hd.recChNames);
+        mainCh = min(max(mainCh, 1), nCh);
+        subtractCh = min(max(subtractCh, 1), nCh);
+        if polarityIdx == 1
+            if ~subtractOn
+                detectionType = 'one channel positive';
+                chPos = mainCh;
+                chNeg = 1;
+            else
+                detectionType = 'two channels difference';
+                chPos = mainCh;
+                chNeg = subtractCh;
+            end
+        else
+            if ~subtractOn
+                detectionType = 'one channel negative';
+                chPos = 1;
+                chNeg = mainCh;
+            else
+                detectionType = 'two channels difference';
+                chPos = subtractCh;
+                chNeg = mainCh;
+            end
+        end
+    end
+
+    function resetSettingsCallback(~, ~)
+        set(hDetectionType, 'Value', 1);
+        set(hMainChannel, 'Value', 1);
+        set(hSubtractChannelCheck, 'Value', 0);
+        set(hSubtractChannel, 'Value', 1);
+        set(hSourceType, 'Value', 1);
+        set(hMinPeakProminence, 'String', '50');
+        set(hApplySmoothing, 'Value', 0);
+        set(hSmoothingSpan, 'String', '10');
+        set(hSubtractBaselineHeight, 'Value', 0);
+        set(hBaselineWindow, 'String', num2str(0.5*timeUnitFactor));
+        set(hMinPeakDistance, 'String', num2str(3*timeUnitFactor));
+        set(hMaxPeakWidth, 'String', num2str(0.05*timeUnitFactor));
+        set(hUseTimeRange, 'Value', 0);
+        set(hStartTime, 'String', num2str(time(1)*timeUnitFactor));
+        set(hEndTime, 'String', num2str(time(end)*timeUnitFactor));
+        set(hSearchAroundStimuli, 'Value', 0);
+        set(hSearchWindow, 'String', num2str(0.5*timeUnitFactor));
+        set(hSubtractBaseline, 'Value', 0);
+        changeDetectionType();
+    end
+
     function changeDetectionType(~,~)
-        
-        DetectionTypes = get(hDetectionType, 'String');
-        DetectionType = DetectionTypes{get(hDetectionType, 'Value')};
-        switch DetectionType
-            case 'two channels difference'
-                set(hChPos_text, 'visible', 'on')
-                set(hChPos, 'visible', 'on')
-                set(hChNeg_text, 'visible', 'on')
-                set(hChNeg, 'visible', 'on')
-            case 'two channels multiplied'
-                set(hChPos_text, 'visible', 'on')
-                set(hChPos, 'visible', 'on')
-                set(hChNeg_text, 'visible', 'on')
-                set(hChNeg, 'visible', 'on')
-            case 'one channel negative'
-                set(hChPos_text, 'visible', 'off')
-                set(hChPos, 'visible', 'off')
-                set(hChNeg_text, 'visible', 'on')
-                set(hChNeg, 'visible', 'on')
-            case 'one channel positive'
-                set(hChPos_text, 'visible', 'on')
-                set(hChPos, 'visible', 'on')
-                set(hChNeg_text, 'visible', 'off')
-                set(hChNeg, 'visible', 'off')
-        end
-        
-        % Обновление подписи поля ввода в зависимости от режима детекции
-        PeakDetectionModes = get(hPeakDetectionMode, 'String');
-        PeakDetectionMode = PeakDetectionModes{get(hPeakDetectionMode, 'Value')};
-        switch PeakDetectionMode
-            case 'Height'
-                set(hMinPeakProminence_text, 'String', 'Minimal Peak Height:');
-                set(hSubtractBaselineHeight, 'visible', 'on');
-            case 'Prominence'
-                set(hMinPeakProminence_text, 'String', 'Minimal Peak Prominence:');
-                set(hSubtractBaselineHeight, 'visible', 'off');
-                set(hSubtractBaselineHeight, 'Value', 0);
-                set(hBaselineWindowText, 'visible', 'off');
-                set(hBaselineWindow, 'visible', 'off');
-        end
-        
-        % Видимость поля окна базовой линии для Height
-        baselineHeight_enabled = strcmp(PeakDetectionMode, 'Height') && get(hSubtractBaselineHeight, 'Value');
+        subtractOn = get(hSubtractChannelCheck, 'Value');
+        set(hChNeg_text, 'Visible', subtractOn);
+        set(hSubtractChannel, 'Visible', subtractOn);
+
+        % Видимость поля окна базовой линии
+        baselineHeight_enabled = get(hSubtractBaselineHeight, 'Value');
         if baselineHeight_enabled
             set(hBaselineWindowText, 'visible', 'on');
             set(hBaselineWindow, 'visible', 'on');
@@ -433,14 +450,9 @@ function autoEventDetectionGUI()
     function previewData()
         % Предварительная прорисовка
         % Сбор значений параметров и упаковка их в структуру
+        [params.DetectionType, params.ChPos, params.ChNeg] = uiToDetectionParams();
         params.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
-        PeakDetectionModes = get(hPeakDetectionMode, 'String');
-        params.PeakDetectionMode = PeakDetectionModes{get(hPeakDetectionMode, 'Value')};
-        params.ChPos = get(hChPos, 'Value');
-        params.ChNeg = get(hChNeg, 'Value');
         params.MinPeakDistance = str2double(get(hMinPeakDistance, 'String')) / timeUnitFactor;
-        DetectionTypes = get(hDetectionType, 'String');
-        params.DetectionType = DetectionTypes{get(hDetectionType, 'Value')};
         SourceTypes = get(hSourceType, 'String');
         params.SourceType = SourceTypes{get(hSourceType, 'Value')};
         params.detect = false;
@@ -496,14 +508,9 @@ function autoEventDetectionGUI()
         drawnow;
         
         % Сбор значений параметров и упаковка их в структуру
+        [params.DetectionType, params.ChPos, params.ChNeg] = uiToDetectionParams();
         params.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
-        PeakDetectionModes = get(hPeakDetectionMode, 'String');
-        params.PeakDetectionMode = PeakDetectionModes{get(hPeakDetectionMode, 'Value')};
-        params.ChPos = get(hChPos, 'Value');
-        params.ChNeg = get(hChNeg, 'Value');
         params.MinPeakDistance = str2double(get(hMinPeakDistance, 'String')) / timeUnitFactor;
-        DetectionTypes = get(hDetectionType, 'String');
-        params.DetectionType = DetectionTypes{get(hDetectionType, 'Value')};
         SourceTypes = get(hSourceType, 'String');
         params.SourceType = SourceTypes{get(hSourceType, 'Value')};
         params.detect = true;
@@ -515,6 +522,9 @@ function autoEventDetectionGUI()
         params.EndTime = str2double(get(hEndTime, 'String')) / timeUnitFactor;
         params.SubtractBaselineHeight = get(hSubtractBaselineHeight, 'Value');
         params.BaselineWindow = str2double(get(hBaselineWindow, 'String')) / timeUnitFactor;
+        params.SubtractBaseline = get(hSubtractBaseline, 'Value');
+        params.ApplySmoothing = get(hApplySmoothing, 'Value');
+        params.SmoothingSpan = str2double(get(hSmoothingSpan, 'String'));
         
         [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected] = autoEventDetection(params);
         
@@ -528,12 +538,7 @@ function autoEventDetectionGUI()
     end
 
     function outlier = plotRequest(events_detected, Trace_out, time_res, params, prominences_detected)
-        
-        PeakDetectionMode = 'Height';
-        if isfield(params, 'PeakDetectionMode')
-            PeakDetectionMode = params.PeakDetectionMode;
-        end
-                
+
         outlier = quantile(Trace_out, [0.999]);
         std3 = 3*nanstd(Trace_out);
         
@@ -590,18 +595,8 @@ function autoEventDetectionGUI()
         ax2 = nexttile(t);
         hold(ax2, 'on');
         
-        % Выбираем данные для гистограммы в зависимости от режима
-        if strcmp(PeakDetectionMode, 'Prominence') && params.detect && ~isempty(prominences_detected)
-            % Для режима Prominence показываем распределение prominence
-            hist_data = prominences_detected;
-            hist_label = 'Prominence';
-            outlier = quantile(hist_data, [0.999]);
-            std3 = 3*nanstd(hist_data);
-        else
-            % Для режима Height показываем распределение Trace_out
-            hist_data = Trace_out;
-            hist_label = 'Height';
-        end
+        hist_data = Trace_out;
+        hist_label = 'Height';
         
         % Автоматическое определение количества бинов для улучшения визуализации
         h = histogram(ax2, hist_data, 50,'Normalization','probability');
@@ -751,17 +746,17 @@ function autoEventDetectionGUI()
 end
 
 function saveSettings()
-    global hMinPeakProminence hDetectionType hChPos hChNeg hMaxPeakWidth
-    global hMinPeakDistance hPeakDetectionMode
+    global hMinPeakProminence hDetectionType hMainChannel hSubtractChannelCheck hSubtractChannel hMaxPeakWidth
+    global hMinPeakDistance
     global autodetection_settings SettingsFilepath
     global hSourceType timeUnitFactor hSearchAroundStimuli hSearchWindow hSubtractBaseline hSubtractBaselineHeight hBaselineWindow hApplySmoothing hSmoothingSpan
     global hUseTimeRange hStartTime hEndTime
 
     settings.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
-    settings.PeakDetectionModeIndex = get(hPeakDetectionMode, 'Value');
-    settings.DetectionTypeIndex = get(hDetectionType, 'Value');
-    settings.ChPos = get(hChPos, 'Value');
-    settings.ChNeg = get(hChNeg, 'Value');
+    settings.PolarityIndex = get(hDetectionType, 'Value');
+    settings.MainChannel = get(hMainChannel, 'Value');
+    settings.SubtractChannelEnabled = get(hSubtractChannelCheck, 'Value');
+    settings.SubtractChannel = get(hSubtractChannel, 'Value');
     settings.MinPeakDistance = str2double(get(hMinPeakDistance, 'String')) / timeUnitFactor;
     settings.SourceTypeIndex = get(hSourceType, 'Value');
     settings.MaxPeakWidth = str2double(get(hMaxPeakWidth, 'String')) / timeUnitFactor;
@@ -796,10 +791,6 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     % Распаковка параметров из структуры
     DetectionType = params.DetectionType;
     MinPeakProminence = params.MinPeakProminence;
-    PeakDetectionMode = 'Height'; % По умолчанию
-    if isfield(params, 'PeakDetectionMode')
-        PeakDetectionMode = params.PeakDetectionMode;
-    end
     ChPos = params.ChPos;
     ChNeg = params.ChNeg;
     MinPeakDistance = params.MinPeakDistance;
@@ -860,7 +851,7 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
             NegTrace = resample1(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
             PosTrace = resample1(double(data_in(:, ChPos)), lfp_frq , raw_frq)';
             Reversion = PosTrace - NegTrace;
-            if strcmp(PeakDetectionMode, 'Height') && SubtractBaselineHeight && BaselineWindow > 0
+            if SubtractBaselineHeight && BaselineWindow > 0
                 N = round(BaselineWindow * lfp_frq);
                 N = max(3, N);
                 if mod(N, 2) == 0
@@ -880,7 +871,7 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
         case 'one channel negative'
             NegTrace = resample1(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
             Trace_out = -NegTrace;
-            if strcmp(PeakDetectionMode, 'Height') && SubtractBaselineHeight && BaselineWindow > 0
+            if SubtractBaselineHeight && BaselineWindow > 0
                 N = round(BaselineWindow * lfp_frq);
                 N = max(3, N);
                 if mod(N, 2) == 0
@@ -892,7 +883,7 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
         case 'one channel positive'
             PosTrace = resample1(double(data_in(:, ChPos)), lfp_frq , raw_frq)';
             Trace_out = PosTrace;
-            if strcmp(PeakDetectionMode, 'Height') && SubtractBaselineHeight && BaselineWindow > 0
+            if SubtractBaselineHeight && BaselineWindow > 0
                 N = round(BaselineWindow * lfp_frq);
                 N = max(3, N);
                 if mod(N, 2) == 0
@@ -1056,12 +1047,7 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
                 end
                 
                 % Детекция в окне
-                findpeaks_params = {'MinPeakDistance', MinPeakDistance, 'WidthReference', 'halfheight'};
-                if strcmp(PeakDetectionMode, 'Height')
-                    findpeaks_params = [findpeaks_params, {'MinPeakHeight', MinPeakProminence}];
-                else
-                    findpeaks_params = [findpeaks_params, {'MinPeakProminence', MinPeakProminence}];
-                end
+                findpeaks_params = {'MinPeakDistance', MinPeakDistance, 'WidthReference', 'halfheight', 'MinPeakHeight', MinPeakProminence};
                 [peaks_window, peak_times_window, widths_window, prominences_window] = ...
                     findpeaks(Trace_out_window, time_res_window, findpeaks_params{:});
                 
@@ -1150,12 +1136,7 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
                 error('Trace_out is empty - no data available for detection');
             end
             
-            findpeaks_params = {'MinPeakDistance', MinPeakDistance, 'WidthReference', 'halfheight'};
-            if strcmp(PeakDetectionMode, 'Height')
-                findpeaks_params = [findpeaks_params, {'MinPeakHeight', MinPeakProminence}];
-            else
-                findpeaks_params = [findpeaks_params, {'MinPeakProminence', MinPeakProminence}];
-            end
+            findpeaks_params = {'MinPeakDistance', MinPeakDistance, 'WidthReference', 'halfheight', 'MinPeakHeight', MinPeakProminence};
             [peaks,peak_times,widths,prominences] = findpeaks(Trace_out, time_res, findpeaks_params{:});
             
             fprintf('=== DEBUG: After findpeaks ===\n');
