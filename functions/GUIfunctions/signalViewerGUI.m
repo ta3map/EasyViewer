@@ -331,9 +331,11 @@ function signalViewerGUI(filePath)
                            'ColumnFormat', {'char', 'logical', 'numeric', 'char', 'numeric', 'logical', 'logical', 'logical', 'logical'}, ...
                            'ColumnEditable', [false true true true true true true true true], ...
                            'Position', getElementPosition('channel_table'), 'Tag', 'channel_table');
-    % Toggle кнопки для свойств каналов
+    % Toggle кнопки для свойств каналов (порядок как в таблице: ch, Averaging, CSD, Filter, Baseline)
     toggleAllChannelsBtn = uicontrol('Parent', sidePanel, 'Style', 'togglebutton', 'String', '(De)select ch', 'Position', getElementPosition('toggle_all_channels_btn'), 'Callback', @(src,evt)toggleChannelProperty(src, evt, 2), 'Tag', 'toggle_all_channels_btn');
+    toggleAveragingBtn = uicontrol('Parent', sidePanel, 'Style', 'togglebutton', 'String', '(De)select Averaging', 'Position', getElementPosition('toggle_averaging_btn'), 'Callback', @(src,evt)toggleChannelProperty(src, evt, 6), 'Tag', 'toggle_averaging_btn');
     toggleCSDBtn = uicontrol('Parent', sidePanel, 'Style', 'togglebutton', 'String', '(De)select CSD', 'Position', getElementPosition('toggle_csd_btn'), 'Callback', @(src,evt)toggleChannelProperty(src, evt, 7), 'Tag', 'toggle_csd_btn');
+    toggleFilterBtn = uicontrol('Parent', sidePanel, 'Style', 'togglebutton', 'String', '(De)select Filter', 'Position', getElementPosition('toggle_filter_btn'), 'Callback', @(src,evt)toggleChannelProperty(src, evt, 8), 'Tag', 'toggle_filter_btn');
     toggleBaselineBtn = uicontrol('Parent', sidePanel, 'Style', 'togglebutton', 'String', '(De)select Baseline', 'Position', getElementPosition('toggle_baseline_btn'), 'Callback', @(src,evt)toggleChannelProperty(src, evt, 9), 'Tag', 'toggle_baseline_btn');
     
     % Кнопка Edit Stimulus times
@@ -2317,7 +2319,7 @@ function signalViewerGUI(filePath)
 
     function toggleChannelProperty(~, ~, columnIndex)
         % Общая функция для toggle кнопок свойств каналов
-        % columnIndex - номер колонки в таблице (2=Enabled, 7=CSD, 9=Baseline)
+        % columnIndex: 2=Enabled, 6=Averaging, 7=CSD, 8=Filter, 9=Baseline
         updatedData = get(channelTable, 'Data');
         currentValues = [updatedData{:, columnIndex}];
         
@@ -2335,8 +2337,12 @@ function signalViewerGUI(filePath)
         switch columnIndex
             case 2
                 channelEnabled(:) = newState;
+            case 6
+                mean_group_ch(:) = newState;
             case 7
                 csd_avaliable(:) = newState;
+            case 8
+                filter_avaliable(:) = newState;
             case 9
                 baseline_subtract_available(:) = newState;
         end
