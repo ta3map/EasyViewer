@@ -193,13 +193,12 @@ function setupSignalFilteringGUI()
         local_settings.freqLow = str2double(hFreqLow.String);
         local_settings.freqHigh = str2double(hFreqHigh.String);
         local_settings.order = str2double(hOrder.String);
-        local_settings.channelsToFilter = find(cell2mat(hTable.Data(:, 2)));
         % обновляем глобальную переменную для фильтрации
-        
         filterSettings = local_settings;
         filter_avaliable = false(numChannels, 1);
         filter_avaliable(ch_inxs(cell2mat(hTable.Data(:, 2)))) = true;
         filter_avaliable = np_flatten(filter_avaliable);
+        filterSettings.channelsToFilter = filter_avaliable;
         [path, name, ~] = fileparts(matFilePath);
         channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
         save(channelSettingsFilePath, 'filter_avaliable', 'filterSettings', '-append');

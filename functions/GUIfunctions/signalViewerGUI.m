@@ -458,6 +458,8 @@ function signalViewerGUI(filePath)
         '', ...
         'Compare average data', ...
         '', ...
+        'Snapshot all frames', ...
+        '', ...
         'Plot from Table'};
     
     % Создание выпадающего списка
@@ -1033,6 +1035,18 @@ function signalViewerGUI(filePath)
             case analysis_functions{15}
                 dataComparerGUI();
             case analysis_functions{17}
+                set(opt_menu, 'Visible', 'off');
+                menu_visible = false;
+                set(file_menu, 'Visible', 'off');
+                file_menu_visible = false;
+                set(view_menu, 'Visible', 'off');
+                view_menu_visible = false;
+                set(analysis_menu, 'Visible', 'off');
+                analysis_menu_visible = false;
+                set(help_menu, 'Visible', 'off');
+                help_menu_visible = false;
+                snapshotAllFrames(f, @updatePlot, @shiftTime, timeForwardEdit);
+            case analysis_functions{19}
                 plotFromTableGUI();
             case ''
                 dont_close_menu = true;
@@ -1931,6 +1945,7 @@ function signalViewerGUI(filePath)
         csd_avaliable = [updatedData{:, 7}];% каналы которые показывают CSD
         filter_avaliable  = [updatedData{:, 8}];%каналы к которым применяется фильтрация
         baseline_subtract_available = [updatedData{:, 9}];% каналы с вычитанием базовой линии
+        filterSettings.channelsToFilter = np_flatten(filter_avaliable);
 
         updateLocalCoefs()% локальные аналоги для текущего учаска времени
 
@@ -2343,6 +2358,7 @@ function signalViewerGUI(filePath)
                 csd_avaliable(:) = newState;
             case 8
                 filter_avaliable(:) = newState;
+                filterSettings.channelsToFilter = filter_avaliable;
             case 9
                 baseline_subtract_available(:) = newState;
         end
@@ -2416,13 +2432,16 @@ function loadSettingsFile()
 
         if isfield(loadedSettings, 'filterSettings') && ~(isempty(loadedSettings.filterSettings))
             filterSettings = loadedSettings.filterSettings;
-        else % если настройки старые                
+        else % если настройки старые
             filterSettings.filterType = 'highpass';
             filterSettings.freqLow = 10;
             filterSettings.freqHigh = 50;
             filterSettings.order = 4;
             filterSettings.channelsToFilter = false(numChannels, 1); % Ни один канал не участвует в фильтрации
             debugState('loadSettingsFile', 'settings were without filterSettings');
+        end
+        if ~islogical(filterSettings.channelsToFilter) || numel(filterSettings.channelsToFilter) ~= numel(filter_avaliable)
+            filterSettings.channelsToFilter = np_flatten(filter_avaliable);
         end       
 
         if isfield(loadedSettings, 'newFs')

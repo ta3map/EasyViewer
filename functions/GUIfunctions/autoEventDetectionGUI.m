@@ -816,7 +816,7 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     waitbar(0.1, wb, 'Applying filters...');
     try
         if sum(filter_avaliable)>0
-            ch_to_filter = filterSettings.channelsToFilter;
+            ch_to_filter = find(filter_avaliable);
             data_in(:, ch_to_filter) = applyFilter(data_in(:, ch_to_filter), filterSettings, newFs);        
         end
     catch ME
