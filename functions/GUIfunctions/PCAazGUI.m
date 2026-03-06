@@ -129,6 +129,8 @@ end
             filterSettings.freqHigh = 50;
             filterSettings.order = 4;
             filterSettings.channelsToFilter = false(numChannels, 1); % No channel involved in filtering
+            filterSettings.smoothSpan = 0;
+            filterSettings.smoothMethod = 'moving';
             
             tableData = [channelNames, num2cell(channelEnabled)', num2cell(scalingCoefficients)', colorsIn, num2cell(lineCoefficients)', num2cell(mean_group_ch)', num2cell(csd_avaliable)', num2cell(filter_avaliable)'];
             

@@ -271,6 +271,7 @@ end
 
 % Инициализация переменных событий
 events = [];
+event_indices = [];
 event_comments = {};
 event_amplitudes = [];
 event_channels = [];
@@ -282,7 +283,7 @@ event_metadata = [];
 if load_events
     waitbar(0.85, hWaitBar, 'Loading events...');
     fprintf('Loading events...\n');
-    [events, event_comments, event_amplitudes, event_channels, event_widths, event_prominences, event_metadata] = load_events_from_file(filepath, time);
+    [events, event_comments, event_amplitudes, event_channels, event_widths, event_prominences, event_metadata, event_indices] = load_events_from_file(filepath, time);
     if ~isempty(events)
         fprintf('Events loaded: %d\n', length(events));
     end
@@ -337,6 +338,7 @@ data.sweep_info = sweep_info;
 data.time_forward = time_forward;
 data.time_back = time_back;
 data.events = events;
+data.event_indices = event_indices;
 data.event_comments = event_comments;
 data.event_amplitudes = event_amplitudes;
 data.event_channels = event_channels;
@@ -357,7 +359,7 @@ else
 end
 end
 
-function [events, event_comments, event_amplitudes, event_channels, event_widths, event_prominences, event_metadata] = load_events_from_file(filepath, time)
+function [events, event_comments, event_amplitudes, event_channels, event_widths, event_prominences, event_metadata, event_indices] = load_events_from_file(filepath, time)
 % Загрузка событий из файла
 [path, name, ~] = fileparts(filepath);
 event_file = fullfile(path, [name '_events.ev']);
@@ -366,7 +368,8 @@ if exist(event_file, 'file')
     try
         loadedData = load(event_file, '-mat');
         if isfield(loadedData, 'manlDet')
-            events = time(round([loadedData.manlDet.t]))';
+            event_indices = round([loadedData.manlDet.t])';
+            events = time(event_indices)';
             
             if ~isfield(loadedData, 'event_comments')
                 event_comments = repmat({'...'}, numel(events), 1);
@@ -418,6 +421,7 @@ if exist(event_file, 'file')
             end
         else
             events = [];
+            event_indices = [];
             event_comments = {};
             event_amplitudes = [];
             event_channels = [];
@@ -428,6 +432,7 @@ if exist(event_file, 'file')
     catch ME
         warning('Error loading events: %s', ME.message);
         events = [];
+        event_indices = [];
         event_comments = {};
         event_amplitudes = [];
         event_channels = [];
@@ -437,6 +442,7 @@ if exist(event_file, 'file')
     end
 else
     events = [];
+    event_indices = [];
     event_comments = {};
     event_amplitudes = [];
     event_channels = [];
@@ -478,12 +484,20 @@ if exist(settings_file, 'file')
         
         if isfield(loadedSettings, 'filterSettings') && ~(isempty(loadedSettings.filterSettings))
             filterSettings = loadedSettings.filterSettings;
+            if ~isfield(filterSettings, 'smoothSpan')
+                filterSettings.smoothSpan = 0;
+            end
+            if ~isfield(filterSettings, 'smoothMethod')
+                filterSettings.smoothMethod = 'moving';
+            end
         else
             filterSettings.filterType = 'highpass';
             filterSettings.freqLow = 10;
             filterSettings.freqHigh = 50;
             filterSettings.order = 4;
             filterSettings.channelsToFilter = false(length(defaultChannelNames), 1);
+            filterSettings.smoothSpan = 0;
+            filterSettings.smoothMethod = 'moving';
         end
     catch ME
         warning('Error loading channel settings: %s', ME.message);
@@ -510,4 +524,6 @@ filterSettings.freqLow = 10;
 filterSettings.freqHigh = 50;
 filterSettings.order = 4;
 filterSettings.channelsToFilter = false(length(defaultChannelNames), 1);
+filterSettings.smoothSpan = 0;
+filterSettings.smoothMethod = 'moving';
 end 

@@ -9,7 +9,7 @@ function loadEventsFromFile(filepath, options)
     %     .skip_callbacks - если true, не вызывает callback функции
     
     % Глобальные переменные для данных
-    global events event_inx events_exist event_comments
+    global events event_inx events_exist event_comments event_indices
     global event_amplitudes event_channels event_widths event_prominences event_metadata
     global event_title_string
     global time matFilePath
@@ -81,7 +81,8 @@ function loadEventsFromFile(filepath, options)
     
     % Обработка данных событий
     if isfield(loadedData, 'manlDet')
-        events = time(round([loadedData.manlDet.t]))'; % Обновляем таблицу событий
+        event_indices = round([loadedData.manlDet.t])';
+        events = time(event_indices)';
         
         % Загрузка комментариев
         if ~isfield(loadedData, 'event_comments') % если комментариев не было
@@ -177,6 +178,7 @@ function loadEventsFromFile(filepath, options)
         
         fprintf('✓ Events loaded: %d events from %s\n', length(events), file);
     else
+        event_indices = [];
         fprintf('No events found in the file.\n');
     end
 end

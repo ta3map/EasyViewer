@@ -10,7 +10,7 @@ function signalViewerGUI(filePath)
     global matFilePath matFileName channelSettingsFilePath
     global timeUnitFactor selectedUnit
     global initialDir
-    global events event_inx events_exist event_comments
+    global events event_inx events_exist event_comments event_indices
     global event_amplitudes event_channels event_widths event_prominences event_metadata
     global stims stim_inx stims_exist
     global lastOpenedFiles
@@ -195,6 +195,7 @@ function signalViewerGUI(filePath)
     stim_inx = 1;
     
     events = [];
+    event_indices = [];
     event_inx = 1;
     selected_event_rows = [];
     event_comments = {};
@@ -2009,6 +2010,7 @@ function signalViewerGUI(filePath)
         
         % Очистка таблицы событий ДО загрузки файла
         events = [];
+        event_indices = [];
         event_amplitudes = [];
         event_channels = [];
         event_widths = [];
@@ -2213,6 +2215,8 @@ function signalViewerGUI(filePath)
         lfp_file = []; spks = []; hd = []; zavp = []; lfpVar = []; chnlGrp = []; time = []; stims = [];
         sweep_info = struct('is_sweep_data', false, 'sweep_count', 0, 'sweep_times', []);
         time_forward = []; time_back = []; matFilePath = ''; matFileName = ''; stims_exist = false;
+        events = []; event_indices = []; event_comments = {}; event_amplitudes = []; event_channels = [];
+        event_widths = []; event_prominences = []; event_metadata = [];
         N = []; Fs = []; newFs = []; sweep_inx = 1; selectedCenter = 'time'; stim_inx = 1;
         chosen_time_interval = [0, 0];
         set(StimuliTitle, 'String', 'Stimuli');
@@ -2432,12 +2436,20 @@ function loadSettingsFile()
 
         if isfield(loadedSettings, 'filterSettings') && ~(isempty(loadedSettings.filterSettings))
             filterSettings = loadedSettings.filterSettings;
+            if ~isfield(filterSettings, 'smoothSpan')
+                filterSettings.smoothSpan = 0;
+            end
+            if ~isfield(filterSettings, 'smoothMethod')
+                filterSettings.smoothMethod = 'moving';
+            end
         else % если настройки старые
             filterSettings.filterType = 'highpass';
             filterSettings.freqLow = 10;
             filterSettings.freqHigh = 50;
             filterSettings.order = 4;
             filterSettings.channelsToFilter = false(numChannels, 1); % Ни один канал не участвует в фильтрации
+            filterSettings.smoothSpan = 0;
+            filterSettings.smoothMethod = 'moving';
             debugState('loadSettingsFile', 'settings were without filterSettings');
         end
         if ~islogical(filterSettings.channelsToFilter) || numel(filterSettings.channelsToFilter) ~= numel(filter_avaliable)
@@ -2581,6 +2593,8 @@ end
             filterSettings.freqHigh = 50;
             filterSettings.order = 4;
             filterSettings.channelsToFilter = false(numChannels, 1);% Ни один канал не участвует в фильтрации
+            filterSettings.smoothSpan = 0;
+            filterSettings.smoothMethod = 'moving';
     end
 
     function resetRecordSettings()
@@ -2663,6 +2677,8 @@ end
     function addEvent(~, ~)
         [event_x, amplitude, channel, width, prominence, metadata] = addExtraEvent();% alvays in seconds!
         events = [events; event_x];
+        [~, idx] = min(abs(time - event_x));
+        event_indices = [event_indices; idx];
         event_comments{numel(events), 1} = '...';
         
         % Добавляем метаданные
@@ -2684,6 +2700,7 @@ end
         switch choice
             case 'Yes'
                 events = [];
+                event_indices = [];
                 event_comments = {};
                 event_amplitudes = [];
                 event_channels = [];
@@ -2867,6 +2884,18 @@ end
         updatePlot()
     end
 
+    function applyEventsLoadedState()
+        selectedCenter = 'event';
+        set(timeCenterPopup, 'Value', 3);
+        chosen_time_interval(1) = events(event_inx);
+        chosen_time_interval(2) = events(event_inx) + time_forward;
+        cb = get(timeSlider, 'Callback');
+        set(timeSlider, 'Callback', []);
+        updateSliderMaxValue();
+        set(timeSlider, 'Value', events(1));
+        set(timeSlider, 'Callback', cb);
+        updatePlot();
+    end
 
 % Функция загрузки событий
 function loadEvents(~, ~)
@@ -2917,7 +2946,8 @@ function loadEvents(~, ~)
 
     
     if isfield(loadedData, 'manlDet')
-        events = time(round([loadedData.manlDet.t]))'; % Обновляем таблицу событий
+        event_indices = round([loadedData.manlDet.t])';
+        events = time(event_indices)';
         
         if ~isfield(loadedData, 'event_comments') % если комментариев не было
             event_comments = repmat({'...'}, numel(events), 1); % Инициализация комментариев
@@ -2980,12 +3010,7 @@ function loadEvents(~, ~)
         UpdateEventTable();
         events_exist = true;
         event_inx = 1;
-        timeForwardEditCallback(timeForwardEdit);
-        
-        set(timeCenterPopup, 'Value', 3);
-        changeTimeCenter(timeCenterPopup);
-        
-%         updatePlot(); Уже обновили график когда вызывали timeForwardEditCallback
+        applyEventsLoadedState();
     else
         debugState('loadEvents', 'No events found in the file.');
     end
@@ -3008,6 +3033,8 @@ end
         n = numel(eventTimes);
 
         events = eventTimes(:);
+        [~, event_indices] = min(abs(time(:) - eventTimes(:)'), [], 1);
+        event_indices = event_indices(:);
         event_comments = repmat({'...'}, n, 1);
         event_amplitudes = NaN(n, 1);
         event_channels = ones(n, 1);
@@ -3019,10 +3046,7 @@ end
         UpdateEventTable();
         events_exist = true;
         event_inx = 1;
-        timeForwardEditCallback(timeForwardEdit);
-
-        set(timeCenterPopup, 'Value', 3);
-        changeTimeCenter(timeCenterPopup);
+        applyEventsLoadedState();
     end
 
     function saveEvents(~, ~)
@@ -3036,6 +3060,7 @@ end
         saveExcel = strcmp(choice, 'Excel (.xlsx)');
         
         saveEventsToFile(events, time, matFilePath, ...
+            'event_indices', event_indices, ...
             'event_comments', event_comments, ...
             'event_amplitudes', event_amplitudes, ...
             'event_channels', event_channels, ...

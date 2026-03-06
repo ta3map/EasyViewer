@@ -161,6 +161,8 @@ end
             filterSettings.freqHigh = 50;
             filterSettings.order = 4;
             filterSettings.channelsToFilter = false(numChannels, 1);% Ни один канал не участвует в фильтрации
+            filterSettings.smoothSpan = 0;
+            filterSettings.smoothMethod = 'moving';
             
             
             tableData = [np_flatten(channelNames); ...

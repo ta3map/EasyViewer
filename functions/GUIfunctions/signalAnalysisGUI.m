@@ -3668,12 +3668,20 @@ updateCursorEditFields();
 
             if isfield(loadedSettings, 'filterSettings') && ~(isempty(loadedSettings.filterSettings))
                 filterSettings = loadedSettings.filterSettings;
-            else % если настройки старые                
+                if ~isfield(filterSettings, 'smoothSpan')
+                    filterSettings.smoothSpan = 0;
+                end
+                if ~isfield(filterSettings, 'smoothMethod')
+                    filterSettings.smoothMethod = 'moving';
+                end
+            else % если настройки старые
                 filterSettings.filterType = 'highpass';
                 filterSettings.freqLow = 10;
                 filterSettings.freqHigh = 50;
                 filterSettings.order = 4;
                 filterSettings.channelsToFilter = false(length(channelNames), 1);
+                filterSettings.smoothSpan = 0;
+                filterSettings.smoothMethod = 'moving';
                 debugState('loadSettingsFile', 'settings were without filterSettings')
             end       
 
@@ -3729,7 +3737,9 @@ updateCursorEditFields();
             filterSettings.freqHigh = 50;
             filterSettings.order = 4;
             filterSettings.channelsToFilter = false(numChannels, 1);
-            
+            filterSettings.smoothSpan = 0;
+            filterSettings.smoothMethod = 'moving';
+
             debugState('setDefaultChannelSettings', 'Default channel settings applied')
         end
     end

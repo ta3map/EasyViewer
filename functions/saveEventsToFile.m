@@ -42,6 +42,7 @@ function saveEventsToFile(events, time, matFilePath, varargin)
     addParameter(p, 'add_event_settings', [], @(x) isstruct(x) || isempty(x));
     addParameter(p, 'EV_version', [], @(x) ischar(x) || isstring(x) || isempty(x));
     addParameter(p, 'saveExcel', false, @islogical);
+    addParameter(p, 'event_indices', [], @isnumeric);
     
     parse(p, varargin{:});
     params = p.Results;
@@ -92,13 +93,22 @@ function saveEventsToFile(events, time, matFilePath, varargin)
     manlDet(numel(events)) = struct('t', [], 'ch', [], 'subT', [], 'subCh', [], 'sw', [], ...
                                    'amplitude', [], 'channels', [], 'width', [], 'prominence', [], 'metadata', []);
     
-    % Заполнение manlDet
     numEvents = numel(events);
+    useProvidedIndices = ~isempty(params.event_indices) && length(params.event_indices) == numEvents;
+    if useProvidedIndices
+        idxAll = params.event_indices(:);
+    else
+        [~, idxAll] = min(abs(time(:) - events(:)'), [], 1);
+        idxAll = idxAll(:);
+    end
+    
+    % Заполнение manlDet
+    waitbarStep = max(1, floor(numEvents / 10));
     for i = 1:numEvents
-        progress = 0.2 + 0.6 * (i / numEvents);
-        waitbar(progress, wb, sprintf('Processing event %d of %d...', i, numEvents));
-        [~, idx] = min(abs(time - events(i)));
-        manlDet(i).t = idx;
+        if ~useProvidedIndices && mod(i, waitbarStep) == 0
+            waitbar(0.2 + 0.6 * (i / numEvents), wb, sprintf('Processing events... %d/%d', i, numEvents));
+        end
+        manlDet(i).t = idxAll(i);
         
         % Обработка каналов
         if ~isempty(params.event_channels) && i <= size(params.event_channels, 1)

@@ -56,7 +56,24 @@ function setupSignalFilteringGUI()
     uicontrol('Style', 'text', 'Position', [320, 480, 110, 15], 'String', 'Filter Order:', 'HorizontalAlignment', 'left');
     hOrder = uicontrol('Style', 'edit', 'Position', [320, 455, 50, 25], 'String', filterSettings.order);  % Значение по умолчанию 4
 
-    
+    smoothSpanVal = 0;
+    if isfield(filterSettings, 'smoothSpan')
+        smoothSpanVal = filterSettings.smoothSpan;
+    end
+    smoothMethodVal = 'moving';
+    if isfield(filterSettings, 'smoothMethod')
+        smoothMethodVal = filterSettings.smoothMethod;
+    end
+    uicontrol('Style', 'text', 'Position', [320, 430, 140, 15], 'String', 'Smooth (samples):', 'HorizontalAlignment', 'left');
+    hSmoothSpan = uicontrol('Style', 'edit', 'Position', [320, 405, 50, 25], 'String', num2str(smoothSpanVal));
+    smoothMethods = {'moving', 'median'};
+    smoothMethodIdx = find(strcmp(smoothMethodVal, smoothMethods), 1);
+    if isempty(smoothMethodIdx)
+        smoothMethodIdx = 1;
+    end
+    uicontrol('Style', 'text', 'Position', [320, 380, 80, 15], 'String', 'Method:', 'HorizontalAlignment', 'left');
+    hSmoothMethod = uicontrol('Style', 'popup', 'String', smoothMethods, 'Position', [320, 355, 80, 25], 'Value', smoothMethodIdx);
+
     % Ось для отображения графика
     ax = axes('Parent', fig, 'Position', [.1 .1 .8 .35]);
     xlabel('Frequency (Hz)');
@@ -67,16 +84,16 @@ function setupSignalFilteringGUI()
     
     
     % Кнопка для нажатия всех каналов
-    uicontrol('Style', 'pushbutton', 'String', 'Select ALL', 'Position', [320, 400, 110, 25], 'Callback', @selectAll);
+    uicontrol('Style', 'pushbutton', 'String', 'Select ALL', 'Position', [320, 340, 110, 25], 'Callback', @selectAll);
     % Кнопка для отжатия всех каналов
-    uicontrol('Style', 'pushbutton', 'String', 'Deselect ALL', 'Position', [320, 370, 110, 25], 'Callback', @deselectAll);
+    uicontrol('Style', 'pushbutton', 'String', 'Deselect ALL', 'Position', [320, 310, 110, 25], 'Callback', @deselectAll);
     
     % Кнопка для проверки фильтрации
-    checkfiltbtn = uicontrol('Style', 'pushbutton', 'String', 'Check Filtration', 'Position', [320, 320, 110, 25], 'Enable', 'on', 'Callback', {@checkFiltration, ax});
+    checkfiltbtn = uicontrol('Style', 'pushbutton', 'String', 'Check Filtration', 'Position', [320, 260, 110, 25], 'Enable', 'on', 'Callback', {@checkFiltration, ax});
     % Кнопка применения настроек
-    uicontrol('Style', 'pushbutton', 'String', 'Apply', 'Position', [320, 290, 70, 25], 'Enable', 'on', 'Callback', @applySettings);
+    uicontrol('Style', 'pushbutton', 'String', 'Apply', 'Position', [320, 230, 70, 25], 'Enable', 'on', 'Callback', @applySettings);
     % Кнопка отмены
-    uicontrol('Style', 'pushbutton', 'String', 'Cancel', 'Position', [320, 260, 70, 25], 'Enable', 'on', 'Callback', @cancelSettings);
+    uicontrol('Style', 'pushbutton', 'String', 'Cancel', 'Position', [320, 200, 70, 25], 'Enable', 'on', 'Callback', @cancelSettings);
     
     % вызов callback для адекватности отображения окон
     filterTypeCallback(hFilterType)
@@ -141,6 +158,8 @@ function setupSignalFilteringGUI()
             local_settings.freqLow = str2double(hFreqLow.String);
             local_settings.freqHigh = str2double(hFreqHigh.String);
             local_settings.order = str2double(hOrder.String);
+            local_settings.smoothSpan = round(str2double(hSmoothSpan.String));
+            local_settings.smoothMethod = hSmoothMethod.String{hSmoothMethod.Value};
             local_settings.channelsToFilter = find(cell2mat(hTable.Data(:, 2)));
             
             % Выборка данных в заданном временном интервале
@@ -193,6 +212,8 @@ function setupSignalFilteringGUI()
         local_settings.freqLow = str2double(hFreqLow.String);
         local_settings.freqHigh = str2double(hFreqHigh.String);
         local_settings.order = str2double(hOrder.String);
+        local_settings.smoothSpan = round(str2double(hSmoothSpan.String));
+        local_settings.smoothMethod = hSmoothMethod.String{hSmoothMethod.Value};
         % обновляем глобальную переменную для фильтрации
         filterSettings = local_settings;
         filter_avaliable = false(numChannels, 1);

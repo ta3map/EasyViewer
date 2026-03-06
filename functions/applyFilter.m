@@ -5,6 +5,8 @@
         %    filterSettings.filterType - тип фильтра ('lowpass', 'highpass', 'bandpass')
         %    filterSettings.freqLow - нижняя граница частоты (для 'bandpass' и 'highpass')
         %    filterSettings.freqHigh - верхняя граница частоты (для 'bandpass' и 'lowpass')
+        %    filterSettings.smoothSpan - окно сглаживания в отсчётах (0 = без сглаживания)
+        %    filterSettings.smoothMethod - метод сглаживания ('moving' или 'median')
         % Fs - частота дискретизации сигнала
 
         % Инициализация выходных данных
@@ -36,12 +38,18 @@
             % Удаление отраженных частей, возвращая сигнал к исходной длине
             filteredData(:, ch) = filteredReflectedSignal(reflectionLength+1:end-reflectionLength);
         end
-    
-        % старый метод без отражения
-%         for ch = 1:size(data, 2)
-%             % Используйте filtfilt для фильтрации без фазового сдвига
-%             filteredData(:, ch) = filtfilt(b, a, double(data(:, ch)));
-%         end
 
-        % Возвращение отфильтрованных данных
+        span = 0;
+        if isfield(filterSettings, 'smoothSpan')
+            span = filterSettings.smoothSpan;
+        end
+        if span >= 5
+            method = 'moving';
+            if isfield(filterSettings, 'smoothMethod')
+                method = filterSettings.smoothMethod;
+            end
+            for ch = 1:size(data, 2)
+                filteredData(:, ch) = smooth1(filteredData(:, ch), span, method);
+            end
+        end
     end

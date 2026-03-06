@@ -126,6 +126,8 @@ function createIndividualSettingsFromGroup(numChannels, matFilePath)
     filterSettings.freqHigh = 50;
     filterSettings.order = 4;
     filterSettings.channelsToFilter = false(1, numChannels);
+    filterSettings.smoothSpan = 0;
+    filterSettings.smoothMethod = 'moving';
     
     % Инициализируем переменные для стимулов (если они есть)
     if ~isempty(stims)

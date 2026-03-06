@@ -3,7 +3,7 @@ function editEventsGUI()
     % Allows user to shift, edit, and delete events with all their properties
     
     % Global variables
-    global events timeUnitFactor selectedUnit
+    global events event_indices timeUnitFactor selectedUnit
     global time matFilePath lastOpenedFiles SettingsFilepath
     global matFileName EV_version autodetection_settings add_event_settings
     global event_comments event_amplitudes event_channels event_widths
@@ -118,6 +118,11 @@ function editEventsGUI()
     selected_rows = [];
     allSelected = false;
     originalEvents = events;
+    originalEventIndices = event_indices;
+    if isempty(originalEventIndices) || length(originalEventIndices) ~= length(events)
+        [~, originalEventIndices] = min(abs(time(:) - events(:)'), [], 1);
+        originalEventIndices = originalEventIndices(:);
+    end
     originalComments = event_comments;
     originalAmplitudes = event_amplitudes;
     originalChannels = event_channels;
@@ -284,6 +289,7 @@ function editEventsGUI()
         
         if isempty(tableData)
             events = [];
+            event_indices = [];
             event_comments = {};
             event_amplitudes = [];
             event_channels = [];
@@ -326,6 +332,8 @@ function editEventsGUI()
             event_widths = newWidths;
             event_prominences = newProminences;
             event_metadata = newMetadata;
+            [~, event_indices] = min(abs(time(:) - events(:)'), [], 1);
+            event_indices = event_indices(:);
             events_exist = true;
         end
         
@@ -351,6 +359,7 @@ function editEventsGUI()
 
     function resetChanges(~, ~)
         events = originalEvents;
+        event_indices = originalEventIndices;
         event_comments = originalComments;
         event_amplitudes = originalAmplitudes;
         event_channels = originalChannels;
@@ -706,7 +715,10 @@ function editEventsGUI()
         isReplace = contains(selectedMode, 'replace');
         
         if isToFile
+            [~, eventIndicesForExport] = min(abs(time(:) - eventTimes(:)'), [], 1);
+            eventIndicesForExport = eventIndicesForExport(:);
             saveEventsToFile(eventTimes, time, matFilePath, ...
+                'event_indices', eventIndicesForExport, ...
                 'event_comments', eventComments, ...
                 'event_amplitudes', eventAmplitudes, ...
                 'event_channels', eventChannels, ...
@@ -729,6 +741,8 @@ function editEventsGUI()
                 event_widths = eventWidths(sortIdx);
                 event_prominences = eventProminences(sortIdx);
                 event_metadata = eventMetadata(sortIdx);
+                [~, event_indices] = min(abs(time(:) - events(:)'), [], 1);
+                event_indices = event_indices(:);
                 events_exist = true;
             else
                 if isempty(events)
@@ -777,6 +791,8 @@ function editEventsGUI()
                     allMetadata = [existingMetadata(:); eventMetadata(:)];
                     event_metadata = allMetadata(sortIdx(uniqueIdx));
                 end
+                [~, event_indices] = min(abs(time(:) - events(:)'), [], 1);
+                event_indices = event_indices(:);
                 events_exist = true;
             end
             
