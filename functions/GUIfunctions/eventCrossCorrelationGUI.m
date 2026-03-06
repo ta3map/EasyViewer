@@ -31,8 +31,12 @@ function eventCrossCorrelationGUI()
     set(ax3, 'visible', 'off')
     set(ax4, 'visible', 'off')
 
-    % Система позиций для элементов
-    ypos = linspace(450, 150, 8);
+    % Текст под графиками: число событий A и B после фильтрации (если была)
+    eventsCountText = uicontrol(hFig, 'Style', 'text', 'Position', [385, 80, 550, 22], ...
+        'String', '', 'HorizontalAlignment', 'left', 'FontSize', 9);
+
+    % Система позиций для элементов (под блоками A/B — кнопка Swap, затем Normalize и ниже)
+    ypos = [460, 381, 295, 246, 197, 149, 100, 52];
     
     % Create UI elements
     uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(1), 150, 20], ...
@@ -41,6 +45,8 @@ function eventCrossCorrelationGUI()
               'String', 'Load Event A', 'Callback', @(~,~) loadEventFile(1));
     eventA_filename_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(1)-20, 260, 20], ...
               'String', '', 'HorizontalAlignment', 'left');
+    eventA_range_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(1)-40, 260, 18], ...
+              'String', '', 'HorizontalAlignment', 'left', 'FontSize', 9);
 
     uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(2), 150, 20], ...
               'String', 'Select Event File B:');
@@ -48,6 +54,11 @@ function eventCrossCorrelationGUI()
               'String', 'Load Event B', 'Callback', @(~,~) loadEventFile(2));
     eventB_filename_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(2)-20, 260, 20], ...
               'String', '', 'HorizontalAlignment', 'left');
+    eventB_range_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(2)-40, 260, 18], ...
+              'String', '', 'HorizontalAlignment', 'left', 'FontSize', 9);
+
+    uicontrol(hFig, 'Style', 'pushbutton', 'Position', [10, ypos(2)-62, 280, 20], ...
+              'String', 'Swap A and B', 'Callback', @swapEventsAB);
 
     normalizeCheckbox = uicontrol(hFig, 'Style', 'checkbox', 'Position', [10, ypos(3), 150, 20], ...
                                   'String', 'Normalize');
@@ -61,6 +72,17 @@ function eventCrossCorrelationGUI()
               'String', ['Bin Size (' selectedUnit '):']);
     binSizeEdit = uicontrol(hFig, 'Style', 'edit', 'Position', [160, ypos(5), 130, 20], ...
                             'String', num2str(0.01*timeUnitFactor));
+
+    useTimeRangeCheckbox = uicontrol(hFig, 'Style', 'checkbox', 'Position', [10, ypos(6), 110, 20], ...
+        'String', ['Time range (' selectedUnit ')'], 'Value', 0, 'Callback', @timeRangeCallback);
+    timeStartLabel = uicontrol(hFig, 'Style', 'text', 'Position', [125, ypos(6), 30, 20], ...
+        'String', 'Start:', 'Visible', 'off');
+    timeStartEdit = uicontrol(hFig, 'Style', 'edit', 'Position', [158, ypos(6), 55, 20], ...
+        'String', '', 'Visible', 'off');
+    timeEndLabel = uicontrol(hFig, 'Style', 'text', 'Position', [218, ypos(6), 28, 20], ...
+        'String', 'End:', 'Visible', 'off');
+    timeEndEdit = uicontrol(hFig, 'Style', 'edit', 'Position', [248, ypos(6), 55, 20], ...
+        'String', '', 'Visible', 'off');
 
     analyzeButton = uicontrol(hFig, 'Style', 'pushbutton', 'Position', [10, ypos(7), 280, 30], ...
                               'String', 'Analyze', 'Callback', @analyzeData);
@@ -83,6 +105,43 @@ function eventCrossCorrelationGUI()
         if isfield(eventcorrelation_settings, 'BinSize')
             set(binSizeEdit, 'String', num2str(eventcorrelation_settings.BinSize*timeUnitFactor));
         end
+        if isfield(eventcorrelation_settings, 'UseTimeRange')
+            set(useTimeRangeCheckbox, 'Value', eventcorrelation_settings.UseTimeRange);
+        end
+        if isfield(eventcorrelation_settings, 'TimeStart')
+            set(timeStartEdit, 'String', num2str(eventcorrelation_settings.TimeStart*timeUnitFactor));
+        end
+        if isfield(eventcorrelation_settings, 'TimeEnd')
+            set(timeEndEdit, 'String', num2str(eventcorrelation_settings.TimeEnd*timeUnitFactor));
+        end
+    end
+    timeRangeCallback();
+
+    function timeRangeCallback(~, ~)
+        isChecked = get(useTimeRangeCheckbox, 'Value');
+        set(timeStartLabel, 'Visible', onOff(isChecked));
+        set(timeStartEdit, 'Visible', onOff(isChecked));
+        set(timeEndLabel, 'Visible', onOff(isChecked));
+        set(timeEndEdit, 'Visible', onOff(isChecked));
+        if isChecked && isempty(get(timeStartEdit, 'String')) && ~isempty(eventA_filepath) && ~isempty(eventB_filepath) && ~isempty(events1) && ~isempty(events2)
+            tMin = min(min(events1), min(events2)) * timeUnitFactor;
+            tMax = max(max(events1), max(events2)) * timeUnitFactor;
+            set(timeStartEdit, 'String', num2str(tMin));
+            set(timeEndEdit, 'String', num2str(tMax));
+        end
+    end
+
+    function v = onOff(x)
+        if x, v = 'on'; else, v = 'off'; end
+    end
+
+    function swapEventsAB(~, ~)
+        tmp = events1; events1 = events2; events2 = tmp;
+        tmp = eventA_filepath; eventA_filepath = eventB_filepath; eventB_filepath = tmp;
+        [~, nA, ~] = fileparts(eventA_filepath); set(eventA_filename_text, 'String', nA);
+        [~, nB, ~] = fileparts(eventB_filepath); set(eventB_filename_text, 'String', nB);
+        updateRangeText(1);
+        updateRangeText(2);
     end
 
     function loadEventFile(eventNum)
@@ -107,10 +166,30 @@ function eventCrossCorrelationGUI()
                 events1 = time(indices)'; % Update events1
                 eventA_filepath = filepath; % Сохраняем путь к файлу
                 set(eventA_filename_text, 'String', filename_only); % Показываем имя файла
+                updateRangeText(1);
             else
                 events2 = time(indices)'; % Update events2
                 eventB_filepath = filepath; % Сохраняем путь к файлу
                 set(eventB_filename_text, 'String', filename_only); % Показываем имя файла
+                updateRangeText(2);
+            end
+        end
+    end
+
+    function updateRangeText(eventNum)
+        if eventNum == 1
+            if isempty(events1)
+                set(eventA_range_text, 'String', 'A: —');
+            else
+                set(eventA_range_text, 'String', sprintf('A: [%.2f, %.2f] %s, n=%d', ...
+                    min(events1)*timeUnitFactor, max(events1)*timeUnitFactor, selectedUnit, length(events1)));
+            end
+        else
+            if isempty(events2)
+                set(eventB_range_text, 'String', 'B: —');
+            else
+                set(eventB_range_text, 'String', sprintf('B: [%.2f, %.2f] %s, n=%d', ...
+                    min(events2)*timeUnitFactor, max(events2)*timeUnitFactor, selectedUnit, length(events2)));
             end
         end
     end
@@ -154,12 +233,30 @@ function eventCrossCorrelationGUI()
             return;
         end
 
+        ev1 = events1;
+        ev2 = events2;
+        useTimeRange = get(useTimeRangeCheckbox, 'Value');
+        if useTimeRange
+            tStart = str2double(get(timeStartEdit, 'String')) / timeUnitFactor;
+            tEnd = str2double(get(timeEndEdit, 'String')) / timeUnitFactor;
+            if tStart >= tEnd
+                errordlg('Time start must be less than time end.', 'Error');
+                return;
+            end
+            ev1 = events1(events1 >= tStart & events1 <= tEnd);
+            ev2 = events2(events2 >= tStart & events2 <= tEnd);
+            if isempty(ev1) || isempty(ev2)
+                errordlg('No events in the selected time range for one or both event sets.', 'Error');
+                return;
+            end
+        end
+
         % Compute histograms of events with common edges
-        minTime = min([min(events1), min(events2)]);
-        maxTime = max([max(events1), max(events2)]);
+        minTime = min([min(ev1), min(ev2)]);
+        maxTime = max([max(ev1), max(ev2)]);
         edges = minTime:binSize:maxTime;
-        eventHist1 = histcounts(events1, edges, 'Normalization', 'count');
-        eventHist2 = histcounts(events2, edges, 'Normalization', 'count');
+        eventHist1 = histcounts(ev1, edges, 'Normalization', 'count');
+        eventHist2 = histcounts(ev2, edges, 'Normalization', 'count');
 
         % Compute cross-correlation
         if normalize
@@ -178,7 +275,8 @@ function eventCrossCorrelationGUI()
         % Конвертируем в единицы отображения
         Xlims = Xlims_seconds * timeUnitFactor;
         lagTimes_scaled = lagTimes * timeUnitFactor;
-        xAxisLabel = ['Time, ' selectedUnit];
+        % Ноль оси = события B (время A относительно B)
+        xAxisLabel = ['Time B (' selectedUnit ')'];
 
         % Trim the cross-correlation result to the specified window size
         validIndices = abs(lagTimes) <= windowSize / 2;
@@ -198,13 +296,12 @@ function eventCrossCorrelationGUI()
         grid on;
         hold off;
         
-        % Вычисляем относительное время событий (events1 относительно ближайших events2)
+        % Вычисляем относительное время событий (ev1 относительно ближайших ev2)
         rel_times = [];
-        for i = 1:length(events1)
-            event_time = events1(i);
-            % Находим ближайшее событие из events2
-            [~, closest_idx] = min(abs(events2 - event_time));
-            closest_event2 = events2(closest_idx);
+        for i = 1:length(ev1)
+            event_time = ev1(i);
+            [~, closest_idx] = min(abs(ev2 - event_time));
+            closest_event2 = ev2(closest_idx);
             rel_time = event_time - closest_event2;
             rel_times = [rel_times; rel_time];
         end
@@ -224,7 +321,7 @@ function eventCrossCorrelationGUI()
         y_jitter = 0.5 + 0.15 * (rand(size(rel_times_scaled)) - 0.5);
         scatter(rel_times_scaled, y_jitter, 20, 'k', '.', 'MarkerFaceAlpha', 0.6);
         
-        xlabel(['Relative time from Event B, ' xAxisLabel]);
+        xlabel(xAxisLabel);
         ylabel('Events');
         title(sprintf('Event A timing relative to Event B (n=%d)', length(rel_times)));
         xlim(Xlims);
@@ -241,7 +338,7 @@ function eventCrossCorrelationGUI()
         edges_hist = Xlims(1):binSize_scaled:Xlims(2);
         histogram(rel_times_scaled, edges_hist, 'Normalization', 'probability', 'FaceColor', [0.3 0.6 0.9], 'EdgeColor', 'k');
         
-        xlabel(['Relative time from Event B, ' xAxisLabel]);
+        xlabel(xAxisLabel);
         ylabel('Probability');
         title('Distribution of relative event times');
         xlim(Xlims);
@@ -252,6 +349,11 @@ function eventCrossCorrelationGUI()
         eventcorrelation_settings.Normalize = get(normalizeCheckbox, 'Value');
         eventcorrelation_settings.WindowSize = windowSize; % уже в секундах
         eventcorrelation_settings.BinSize = binSize; % уже в секундах
+        eventcorrelation_settings.UseTimeRange = useTimeRange;
+        if useTimeRange
+            eventcorrelation_settings.TimeStart = tStart;
+            eventcorrelation_settings.TimeEnd = tEnd;
+        end
         
         save(SettingsFilepath, 'eventcorrelation_settings', '-append');
         
@@ -266,14 +368,21 @@ function eventCrossCorrelationGUI()
         correlation_result.timeUnitFactor = timeUnitFactor;
         correlation_result.selectedUnit = selectedUnit;
         correlation_result.Xlims = Xlims;
-        correlation_result.numEventsA = length(events1);
-        correlation_result.numEventsB = length(events2);
+        correlation_result.numEventsA = length(ev1);
+        correlation_result.numEventsB = length(ev2);
         
-        % Сохраняем метаданные о событиях
+        % Сохраняем метаданные о событиях (отфильтрованные при Use time range)
         correlation_result.eventA_filepath = eventA_filepath;
         correlation_result.eventB_filepath = eventB_filepath;
-        correlation_result.eventA_timestamps = events1;
-        correlation_result.eventB_timestamps = events2;
+        correlation_result.eventA_timestamps = ev1;
+        correlation_result.eventB_timestamps = ev2;
+        
+        % Текст под графиками: сколько событий A и B пошло в анализ
+        if useTimeRange
+            set(eventsCountText, 'String', sprintf('After time filter: Events A: %d, Events B: %d', length(ev1), length(ev2)));
+        else
+            set(eventsCountText, 'String', sprintf('Events A: %d, Events B: %d', length(ev1), length(ev2)));
+        end
         
         % Создаем кнопки сохранения после анализа
         createSaveButtons();
@@ -298,7 +407,7 @@ function eventCrossCorrelationGUI()
         end
         
         % Кнопка для сохранения результата
-        save_btn_coords = [10, ypos(7)-40, 280, 30];
+        save_btn_coords = [10, ypos(7)-45, 280, 30];
         savebutton = uicontrol('Parent', hFig, 'Style', 'pushbutton', 'String', 'Save Result', 'Visible', 'on', 'Position', save_btn_coords, 'Callback', @SaveResultClb);
         btnIcon(savebutton, fullfile(getAssetsPath(), 'data-storage.png'), false);
         

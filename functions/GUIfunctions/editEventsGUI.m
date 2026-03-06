@@ -43,10 +43,10 @@ function editEventsGUI()
     eventTable = uitable('Parent', hFig, ...
                         'Position', [20, 240, 860, 310], ...
                         'Data', buildEventData(), ...
-                        'ColumnName', {'N', ['Time (' selectedUnit ')'], 'Comment', 'Amplitude', 'Channel', 'Width', 'Prominence', 'Selected'}, ...
-                        'ColumnFormat', {'numeric', 'char', 'char', 'char', 'numeric', 'char', 'char', 'logical'}, ...
-                        'ColumnEditable', [false true true true true true true false], ...
-                        'ColumnWidth', {40, 120, 140, 90, 70, 90, 90, 60}, ...
+                        'ColumnName', {'N', ['Time (' selectedUnit ')'], 'Comment', 'Amplitude', 'Channel', 'Width', 'Prominence'}, ...
+                        'ColumnFormat', {'numeric', 'char', 'char', 'char', 'numeric', 'char', 'char'}, ...
+                        'ColumnEditable', [false true true true true true true], ...
+                        'ColumnWidth', {40, 120, 140, 90, 70, 90, 90}, ...
                         'RowName', {}, ...
                         'CellSelectionCallback', @onCellSelection);
 
@@ -133,7 +133,7 @@ function editEventsGUI()
 
     function data = buildEventData()
         numEvents = length(events);
-        data = cell(numEvents, 8);
+        data = cell(numEvents, 7);
         for idx = 1:numEvents
             data{idx, 1} = idx;
             data{idx, 2} = formatValue(events(idx) * timeUnitFactor);
@@ -142,7 +142,6 @@ function editEventsGUI()
             data{idx, 5} = getChannel(idx);
             data{idx, 6} = formatValue(getWidth(idx));
             data{idx, 7} = formatValue(getProminence(idx));
-            data{idx, 8} = false;
         end
     end
 
@@ -204,16 +203,13 @@ function editEventsGUI()
         end
         if allSelected
             selected_rows = [];
-            tableData(:, 8) = {false};
             set(selectAllButton, 'String', 'Select All');
             allSelected = false;
         else
             selected_rows = (1:size(tableData, 1));
-            tableData(:, 8) = {true};
             set(selectAllButton, 'String', 'Deselect All');
             allSelected = true;
         end
-        set(eventTable, 'Data', tableData);
     end
 
     function onCellSelection(~, eventData)
@@ -222,11 +218,6 @@ function editEventsGUI()
         end
         selected_rows = unique(eventData.Indices(:, 1))';
         tableData = get(eventTable, 'Data');
-        tableData(:, 8) = {false};
-        for i = selected_rows
-            tableData{i, 8} = true;
-        end
-        set(eventTable, 'Data', tableData);
         allSelected = (numel(selected_rows) == size(tableData, 1));
         if allSelected
             set(selectAllButton, 'String', 'Deselect All');
@@ -422,7 +413,7 @@ function editEventsGUI()
         newP = toNumericValue(answer{6});
         
         newRowNum = size(tableData, 1) + 1;
-        tableData(newRowNum, :) = {newRowNum, formatValue(newTime), newComment, formatValue(newAmp), newCh, formatValue(newW), formatValue(newP), false};
+        tableData(newRowNum, :) = {newRowNum, formatValue(newTime), newComment, formatValue(newAmp), newCh, formatValue(newW), formatValue(newP)};
         set(eventTable, 'Data', tableData);
     end
 
