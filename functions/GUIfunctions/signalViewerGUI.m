@@ -523,7 +523,9 @@ function signalViewerGUI(filePath)
         '', ...
         'Built-in Pan', ...
         '', ...
-        'Data Cursor'};
+        'Data Cursor', ...
+        '', ...
+        'Full channel trace'};
           
     % Создание выпадающего списка
     view_menu = uicontrol('Style', 'listbox',...
@@ -1251,6 +1253,8 @@ function signalViewerGUI(filePath)
                 activateBuiltInPan();
             case view_functions{19}%'Data Cursor'
                 activateDataCursor();
+            case view_functions{21}
+                viewFullChannelGUI();
             case ''
             dont_close_menu = true;
         end

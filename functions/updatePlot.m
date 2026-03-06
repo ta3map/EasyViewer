@@ -324,7 +324,15 @@ function updatePlot()
     text_y = Ylims(2) - diff(Ylims)*0.05;
     text_y = zeros(numel(evets_x), 1) + text_y;
     text_x = evets_x + diff(Xlims)*0.01;
-    text_text = num2str(find(cond2));
+    if isempty(evets_x)
+        text_text = '';
+    else
+        ev_ix = find(cond2);
+        event_times_units = events(cond2)*timeUnitFactor;
+        fmtOpts = {'%.3f', '%.0f'};
+        timeFmt = fmtOpts{1 + strcmp(selectedUnit, 'ms')};
+        text_text = arrayfun(@(i) sprintf(['%d\n', timeFmt], ev_ix(i), event_times_units(i)), 1:numel(ev_ix), 'UniformOutput', false);
+    end
     textMod(text_x, text_y, text_text, lines_and_styles, 'events_lines')
 %     text(text_x, text_y, text_text, 'color', events_color);
 
