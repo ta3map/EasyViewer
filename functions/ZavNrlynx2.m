@@ -1,4 +1,4 @@
-function [data, ttlIn, hd, spkTS, spkSM] = ZavNrlynx2(pf, hd, rCh, strt, stp)
+function [data, ttlIn, hd, spkTS, spkSM] = ZavNrlynx2(pf, hd, rCh, strt, stp, ncsFilePaths)
 %[data, hd, ttlIn, spkTS, spkSM] = ZavNrlynx(pf, rCh, strt, stp)
 %read neuralynx. NeuralynxMatlabImportExport_v501 require
 %
@@ -6,15 +6,14 @@ function [data, ttlIn, hd, spkTS, spkSM] = ZavNrlynx2(pf, hd, rCh, strt, stp)
 %pf - pathname or path-and-filename 
 %hd - header (full, for all channels)
 %rCh - numbers of channels to be read
-%strt - start time to read spontaneous record (seconds from beginning of record)
-%stp - stop time of read spontaneous record (seconds from beginning of record)
+%strt, stp - start/stop time (seconds), stp='e' for all
+%ncsFilePaths - optional cell of full paths to .ncs files (same order as rCh); if given, no folder scan
 %
 %OUTPUTS
 %data - signal samples
 %hd - file header (information about record)
 %ttlIn - moments of synchro-TTL inputs (samples from sweep beginning)
-%spkTS - spikes appearence moments (mks)
-%spkSM - spikes samples
+%spkTS, spkSM - spikes
 
 if (pf(end) ~= '\')%no slash
     pf(end + 1) = '\';
@@ -25,90 +24,105 @@ end
 
 if isempty(strt), strt = 0; end %start from zeros
 if isempty(stp), stp = 'e'; end %read to follow out
-    
-rChNum = 0;%counter of channels
-dirCnt = dir(pf);%directory content
-ncsFiles(1:length(dirCnt)) = struct('f', '', 'bytes', []);
-largestF = 1;%number of file (in ncsFiles structure) with largest size
-for t = 1:length(dirCnt)
-    if ((~dirCnt(t).isdir) && (length(dirCnt(t).name) > 3))%not directory and name good
-        if isequal(dirCnt(t).name(end - 3:end), '.ncs')
-            ch = str2double(dirCnt(t).name(4:(end - 4)));%number of channel (3-letteral name + number of channel)
-            ncsFiles(ch).f = [pf, dirCnt(t).name];%full name of channel-file
-            ncsFiles(ch).bytes = dirCnt(t).bytes;%size of file (bytes)
-            if (ncsFiles(ch).bytes > ncsFiles(largestF).bytes)
-                largestF = ch;%number of file (in ncsFiles structure) with largest size
+
+if nargin >= 6 && ~isempty(ncsFilePaths)
+    ncsFilePaths = ncsFilePaths(:)';
+    rCh = rCh(:)';
+    ncsFiles = struct('f', ncsFilePaths, 'chNum', num2cell(rCh));
+    for k = 1:length(ncsFilePaths)
+        info = dir(ncsFilePaths{k});
+        ncsFiles(k).bytes = info.bytes;
+    end
+    [~, largestIdx] = max([ncsFiles.bytes]);
+    largestF = largestIdx;
+else
+    dirCnt = dir(pf);
+    ncsFiles = struct('f', {}, 'bytes', {}, 'chNum', {});
+    for t = 1:length(dirCnt)
+        if ((~dirCnt(t).isdir) && (length(dirCnt(t).name) > 3))
+            if isequal(dirCnt(t).name(end - 3:end), '.ncs')
+                fileName = dirCnt(t).name(1:end-4);
+                numMatch = regexp(fileName, '\d+$', 'match');
+                if ~isempty(numMatch)
+                    ch = str2double(numMatch{1});
+                    if ~isnan(ch)
+                        ncsFiles(end + 1).f = [pf, dirCnt(t).name];
+                        ncsFiles(end).bytes = dirCnt(t).bytes;
+                        ncsFiles(end).chNum = ch;
+                    end
+                end
             end
-            rChNum = rChNum + 1;%increase counter of channels
         end
     end
+    [~, sortIdx] = sort([ncsFiles.chNum]);
+    ncsFiles = ncsFiles(sortIdx);
+    [~, largestIdx] = max([ncsFiles.bytes]);
+    largestF = largestIdx;
 end
-ncsFiles((rChNum + 1):end) = [];%delet empty
-        
+
 if (isequal(rCh, []) || isequal(rCh, 'a'))%all channels requested
-    if ~isempty(hd)%no header
-        rChNum = hd.nADCNumChannels;
+    if ~isempty(hd)
+        rCh = 1:hd.nADCNumChannels;
+    else
+        rCh = [ncsFiles.chNum];
     end
-    rCh = 1:rChNum;%read all channels
 end
 rChNum = length(rCh);%number of wanted channels
-fprintf('DEBUG ZavNrlynx2: rCh = %s, rChNum = %d, hd empty: %d\n', mat2str(rCh), rChNum, isempty(hd));
 
 %%% stimulus moments (if exist) %%%
 fileToRead = [pf, 'Events.nev'];%pathname of file to be read
 if exist(fileToRead, 'file')
     evntTStmp = Nlx2MatEV(fileToRead, [1 0 0 0 0], 0, 1, []);
     if (nargout > 1)%synchro events requested
-        [ttl, evntStr] = Nlx2MatEV(fileToRead, [0 0 1 0 1], 0, 1, []);%read events timestamps and strings
-        
-        if isempty(hd)%we have a header
-            fileToRead = ncsFiles(largestF).f;%[pf, 'CSC1.ncs'];%pathname of file to be read
-            cscHd = Nlx2MatCSC(fileToRead, [0 0 0 0 0], 1, 1, []);%header (lfp)
-            si = (1e6 / NlxParametr(cscHd, 'SamplingFrequency'));%sample interval (mks)
-        else%no header
-            si = hd.si;%sample interval (mks)
-        end
-        lfpTStmp = Nlx2MatCSC(ncsFiles(largestF).f, [1 0 0 0 0], 0, 1, []);%timestamps of recorded samples (read largest file)
-        mStStRec = FindStStStemp(lfpTStmp, si);%find moments of "Starting Recording" and "Stopping Recording"
-        
-        inEvntOn = zeros(1, length(evntStr));%numbers of events when input ports changed
-        for t = 1:length(evntStr) %run over event strings
-            inEvntOn(t) = t * double(~isempty(strfind(evntStr{t}, 'Input')));%find input events
-        end
-        inEvntOff = inEvntOn((ttl <= 0) & (inEvntOn > 0));%number of events when input TTL ports are in state 'OFF'
-        inEvntOn = inEvntOn((ttl > 0) & (inEvntOn > 0));%number of events when input TTL ports are in state 'OFF'
-        
-        ttlPrtOn = unique(evntStr(inEvntOn));%different TTL ports (input ports only) in state 'ON'
-        ttlIn(1:length(ttlPrtOn)) = struct('t', zeros(numel(inEvntOn), 2));%initialization
-        origTTL(1:length(ttlPrtOn)) = struct('t', []);%initialization
-        for ch = 1:length(ttlPrtOn) %run over different TTL ports
-            z = 1;%counter of synchroimpulses
-            for t = inEvntOn %run over inputs events when TTL set to On'
-                if strcmp(evntStr{t}(1:(end - 15)), ttlPrtOn{ch}(1:(end - 15)))%right number of inputs port
-                    ttlIn(ch).t(z, 1) = evntTStmp(t);%"on" (allStims(:, 1)) stimulus (mks from beginnig of day)
-                    for n = inEvntOff(inEvntOff > t) %run over input events when TTL set to 'Off'
-                        if strcmp(evntStr{n}(1:(end - 15)), ttlPrtOn{ch}(1:(end - 15)))%right number of inputs port
-                            ttlIn(ch).t(z, 2) = evntTStmp(n);%"off"(allStims(:, 2)) stimulus (mks from beginnig of day)
-                            z = z + 1;%counter of synchroimpulses
-                            break;%out of (for n)
+            [ttl, evntStr] = Nlx2MatEV(fileToRead, [0 0 1 0 1], 0, 1, []);%read events timestamps and strings
+            
+            if isempty(hd)%we have a header
+                fileToRead = ncsFiles(largestF).f;%[pf, 'CSC1.ncs'];%pathname of file to be read
+                cscHd = Nlx2MatCSC(fileToRead, [0 0 0 0 0], 1, 1, []);%header (lfp)
+                si = (1e6 / NlxParametr(cscHd, 'SamplingFrequency'));%sample interval (mks)
+            else%no header
+                si = hd.si;%sample interval (mks)
+            end
+            lfpTStmp = Nlx2MatCSC(ncsFiles(largestF).f, [1 0 0 0 0], 0, 1, []);%timestamps of recorded samples (read largest file)
+            mStStRec = FindStStStemp(lfpTStmp, si);%find moments of "Starting Recording" and "Stopping Recording"
+            
+            inEvntOn = zeros(1, length(evntStr));%numbers of events when input ports changed
+            for t = 1:length(evntStr) %run over event strings
+                inEvntOn(t) = t * double(~isempty(strfind(evntStr{t}, 'Input')));%find input events
+            end
+            inEvntOff = inEvntOn((ttl <= 0) & (inEvntOn > 0));%number of events when input TTL ports are in state 'OFF'
+            inEvntOn = inEvntOn((ttl > 0) & (inEvntOn > 0));%number of events when input TTL ports are in state 'OFF'
+            
+            ttlPrtOn = unique(evntStr(inEvntOn));%different TTL ports (input ports only) in state 'ON'
+            ttlIn(1:length(ttlPrtOn)) = struct('t', zeros(numel(inEvntOn), 2));%initialization
+            origTTL(1:length(ttlPrtOn)) = struct('t', []);%initialization
+            for ch = 1:length(ttlPrtOn) %run over different TTL ports
+                z = 1;%counter of synchroimpulses
+                for t = inEvntOn %run over inputs events when TTL set to On'
+                    if strcmp(evntStr{t}(1:(end - 15)), ttlPrtOn{ch}(1:(end - 15)))%right number of inputs port
+                        ttlIn(ch).t(z, 1) = evntTStmp(t);%"on" (allStims(:, 1)) stimulus (mks from beginnig of day)
+                        for n = inEvntOff(inEvntOff > t) %run over input events when TTL set to 'Off'
+                            if strcmp(evntStr{n}(1:(end - 15)), ttlPrtOn{ch}(1:(end - 15)))%right number of inputs port
+                                ttlIn(ch).t(z, 2) = evntTStmp(n);%"off"(allStims(:, 2)) stimulus (mks from beginnig of day)
+                                z = z + 1;%counter of synchroimpulses
+                                break;%out of (for n)
+                            end
                         end
                     end
                 end
+                ttlIn(ch).t(z:end, :) = [];%delete excess
+                origTTL(ch).t = ttlIn(ch).t;%original timestamps of input TTLs
+                
+                for z = (numel(mStStRec) - 1):-2:2 %run over start-stop events
+                    jj = (ttlIn(ch).t(:, 1) >= lfpTStmp(mStStRec(z)));%number of timestamps satisfying conditions
+                    ttlIn(ch).t(jj, :) = ttlIn(ch).t(jj, :) - (lfpTStmp(mStStRec(z)) - lfpTStmp(mStStRec(z - 1))) + (512 * si);%stimulus moments from record begin
+                end
+                ttlIn(ch).t = ttlIn(ch).t - lfpTStmp(mStStRec(1));%adduction to zeros (first sample)
+                ttlIn(ch).t = ttlIn(ch).t / si;%convert stimulus moments to samples from record begin
+                origTTL(ch).t = origTTL(ch).t - lfpTStmp(mStStRec(1));%adduction to zeros (first sample)
             end
-            ttlIn(ch).t(z:end, :) = [];%delete excess
-            origTTL(ch).t = ttlIn(ch).t;%original timestamps of input TTLs
-            
-            for z = (numel(mStStRec) - 1):-2:2 %run over start-stop events
-                jj = (ttlIn(ch).t(:, 1) >= lfpTStmp(mStStRec(z)));%number of timestamps satisfying conditions
-                ttlIn(ch).t(jj, :) = ttlIn(ch).t(jj, :) - (lfpTStmp(mStStRec(z)) - lfpTStmp(mStStRec(z - 1))) + (512 * si);%stimulus moments from record begin
-            end
-            ttlIn(ch).t = ttlIn(ch).t - lfpTStmp(mStStRec(1));%adduction to zeros (first sample)
-            ttlIn(ch).t = ttlIn(ch).t / si;%convert stimulus moments to samples from record begin
-            origTTL(ch).t = origTTL(ch).t - lfpTStmp(mStStRec(1));%adduction to zeros (first sample)
         end
     end
-end
-
 rStmps(1) = max((strt * 1e6) + evntTStmp(1), evntTStmp(1));%start read from (timestamp of recored began, mks)
 if isequal(stp, 'e')
     rStmps(2) = evntTStmp(end);%read all (timestamp, mks)
@@ -117,7 +131,7 @@ else
 end
 
 %%% data: lfp (samples), spikes %%%
-data = zeros(0, rChNum);%lfp samples
+data = zeros(0, rChNum);
 if (nargout > 3)
     spkTS(1:rChNum, 1) = struct('s', []);%spikes moment (mks)
 end
@@ -126,11 +140,14 @@ if (nargout > 4)
 end
 
 n = 1;%number of channel in list channels to be read
-fprintf('DEBUG ZavNrlynx2: Starting loop, rCh = %s\n', mat2str(rCh));
 for ch = rCh %run over all channels
-    fprintf('DEBUG ZavNrlynx2: Processing channel %d (n=%d)\n', ch, n);
     %%% lfp %%%
-    fileToRead = ncsFiles(ch).f;%[pf, 'CSC', num2str(ch), '.ncs'];%pathname of file to be read
+    idx = find([ncsFiles.chNum] == ch, 1);
+    if isempty(idx)
+        n = n + 1;
+        continue;
+    end
+    fileToRead = ncsFiles(idx).f;
     if exist(fileToRead, 'file')%requested file with lfp exist
         if isempty(hd)%we have a header
             cscHd = Nlx2MatCSC(fileToRead, [0 0 0 0 0], 1, 1, []);%header (lfp)
@@ -146,9 +163,10 @@ for ch = rCh %run over all channels
             z = hd.inverted(ch);%input inverted
         end
         smpl = Nlx2MatCSC(fileToRead, [0 0 0 0 1], 0, 4, rStmps);%
-        fprintf('DEBUG ZavNrlynx2: Channel %d, smpl size: %s, data size before: %s\n', ch, mat2str(size(smpl)), mat2str(size(data)));
-        data(1:numel(smpl), n) = smpl(:) * adBitVolts * 1e6;%lfp
-        fprintf('DEBUG ZavNrlynx2: Channel %d, data size after: %s\n', ch, mat2str(size(data)));
+        if size(data, 1) == 0
+            data = zeros(numel(smpl), rChNum);
+        end
+        data(1:numel(smpl), n) = smpl(:) * adBitVolts * 1e6;
         if (z >= 1)%inverted signal
             data(:, n) = -1 * data(:, n);%back inverse
         end
@@ -164,9 +182,9 @@ for ch = rCh %run over all channels
                 dspDelay_mksSpk = NlxParametr(spkHd, 'DspFilterDelay_µs');%DspFilterDelay_µs (spikes)
                 dspDelay_mksSpk = dspDelay_mksSpk * double(isequal(NlxParametr(spkHd, 'DspDelayCompensation'), 'Disabled'));%DspDelayCompensation (spikes)
             else%no header
-                adBitVoltsSpk = hd.adBitVoltsSpk(ch);%multiplier to convert from samples to volts (spikes)
-                dspDelay_mksSpk = hd.dspDelay_mksSpk(ch);%DspFilterDelay_µs (spikes)
-                dspDelay_mks = hd.dspDelay_mks(ch);%DspDelayCompensation (scs)
+                adBitVoltsSpk = hd.adBitVoltsSpk(idx);%multiplier to convert from samples to volts (spikes)
+                dspDelay_mksSpk = hd.dspDelay_mksSpk(idx);%DspFilterDelay_µs (spikes)
+                dspDelay_mks = hd.dspDelay_mks(idx);%DspDelayCompensation (scs)
             end
             spkTmStmp = Nlx2MatSpike(fileToRead, [1 0 0 0 0], 0, 1, []);%timestamps of spikes
             spkTmStmp = spkTmStmp((spkTmStmp >= rStmps(1)) & (spkTmStmp <= rStmps(2)));%wanted spikes only
@@ -187,62 +205,49 @@ for ch = rCh %run over all channels
     end
     n = n + 1;%number of channel in list channels to be read
 end
-fprintf('DEBUG ZavNrlynx2: Loop finished, final data size: %s\n', mat2str(size(data)));
-    
+
 %%% header compile (abf compatible)%%%
 if (nargout > 2)%header requested
     hd.fFileSignature = 'Neuralynx';
     hd.nOperationMode = 3;%data were acquired in gap-free mode (continuous record)
     hd.lActualEpisodes = 1;%number of sweeps (for compatibility with abfload)
 
-    hd.nADCNumChannels = 0;%number of channels
-    dirCnt = dir(pf);%content of directory
-    for t = 1:length(dirCnt)
-        if ((~dirCnt(t).isdir) && (length(dirCnt(t).name) > 3))
-            if isequal(dirCnt(t).name(end - 3:end), '.ncs')
-                hd.nADCNumChannels = hd.nADCNumChannels + 1;%counter of channels
-            end
-        end
-    end
-    
-    hd.adBitVolts = zeros(hd.nADCNumChannels, 1);%multiplier to convert from samples to volts (lfp)
-    hd.dspDelay_mks = zeros(hd.nADCNumChannels, 1);%DspFilterDelay_µs (lfp)
-    hd.adBitVoltsSpk = zeros(hd.nADCNumChannels, 1);%multiplier to convert from samples to volts (spikes)
-    hd.dspDelay_mksSpk = zeros(hd.nADCNumChannels, 1);%DspFilterDelay_µs (spikes)
-    hd.alignmentPt = zeros(hd.nADCNumChannels, 1);%spike samples back (from peak, including peak point)
-    hd.inverted = zeros(hd.nADCNumChannels, 1);%input inverted
-    hd.recChUnits = cell(hd.nADCNumChannels, 1);%mesurement units
-    hd.recChNames = cell(hd.nADCNumChannels, 1);%name of channels
-    hd.ch_si = zeros(hd.nADCNumChannels, 1);%sample interval (mks)
+    hd.nADCNumChannels = length(ncsFiles);
+    hd.chNumList = [ncsFiles.chNum];
 
-    %read headers
-    for ch = 1:hd.nADCNumChannels
-        %%% CSC(ncs)-files (lfp) %%%
-        fileToRead = ncsFiles(ch).f;%[pf, 'CSC', num2str(ch), '.ncs'];%pathname of file to be read
-        if exist(fileToRead, 'file')%requested file with lfp exist
-            cscHd = Nlx2MatCSC(fileToRead, [0 0 0 0 0], 1, 1, []);%header (lfp)
-            hd.ch_si(ch) = (1e6 / NlxParametr(cscHd, 'SamplingFrequency'));%sample interval (mks)
-            hd.adBitVolts(ch) = NlxParametr(cscHd, 'ADBitVolts');%multiplier to convert from samples to volts (lfp)
-            dspDelay_mks = NlxParametr(cscHd, 'DspFilterDelay_µs');%DspFilterDelay_µs (lfp)
+    hd.adBitVolts = zeros(hd.nADCNumChannels, 1);
+    hd.dspDelay_mks = zeros(hd.nADCNumChannels, 1);
+    hd.adBitVoltsSpk = zeros(hd.nADCNumChannels, 1);
+    hd.dspDelay_mksSpk = zeros(hd.nADCNumChannels, 1);
+    hd.alignmentPt = zeros(hd.nADCNumChannels, 1);
+    hd.inverted = zeros(hd.nADCNumChannels, 1);
+    hd.recChUnits = cell(hd.nADCNumChannels, 1);
+    hd.recChNames = cell(hd.nADCNumChannels, 1);
+    hd.ch_si = zeros(hd.nADCNumChannels, 1);
+
+    for k = 1:hd.nADCNumChannels
+        fileToRead = ncsFiles(k).f;
+        if exist(fileToRead, 'file')
+            cscHd = Nlx2MatCSC(fileToRead, [0 0 0 0 0], 1, 1, []);
+            hd.ch_si(k) = (1e6 / NlxParametr(cscHd, 'SamplingFrequency'));
+            hd.adBitVolts(k) = NlxParametr(cscHd, 'ADBitVolts');
+            dspDelay_mks = NlxParametr(cscHd, 'DspFilterDelay_µs');
             if isempty(dspDelay_mks)
                 dspDelay_mks = Inf;
             end
-            hd.dspDelay_mks(ch) = dspDelay_mks;%DspFilterDelay_µs (lfp)
-            hd.dspDelay_mks(ch) = hd.dspDelay_mks(ch) * double(isequal(NlxParametr(cscHd, 'DspDelayCompensation'), 'Disabled'));%DspDelayCompensation (lfp)
-            hd.recChUnits{ch} = 'µV';%mesurement units
-            z = find(fileToRead == '\', 1, 'last');%last slash
-            hd.recChNames{ch} = fileToRead((z + 1):(end - 4));%cscHd{20}(2:end);%name of channels
-            hd.inverted(ch) = double(strcmp(NlxParametr(cscHd, 'InputInverted'), 'True'));%input inverted
+            hd.dspDelay_mks(k) = dspDelay_mks * double(isequal(NlxParametr(cscHd, 'DspDelayCompensation'), 'Disabled'));
+            hd.recChUnits{k} = 'µV';
+            z = find(fileToRead == '\', 1, 'last');
+            hd.recChNames{k} = fileToRead((z + 1):(end - 4));
+            hd.inverted(k) = double(strcmp(NlxParametr(cscHd, 'InputInverted'), 'True'));
         end
 
-        %%% SE(nse)-files (spikes) %%%
-        fileToRead = [pf, 'SE', num2str(ch), '.nse'];%pathname of file to be read
-        if exist(fileToRead, 'file')%requested file with spikes exist
-            spkHd = Nlx2MatSpike(fileToRead, [0 0 0 0 0], 1, 1, []);%header (spikes)
-            hd.adBitVoltsSpk(ch) = NlxParametr(spkHd, 'ADBitVolts');%multiplier to convert from samples to volts (spikes)
-            hd.dspDelay_mksSpk(ch) = NlxParametr(spkHd, 'DspFilterDelay_µs');%DspFilterDelay_µs (spikes)
-            hd.dspDelay_mksSpk(ch) = hd.dspDelay_mksSpk(ch) * double(isequal(NlxParametr(spkHd, 'DspDelayCompensation'), 'Disabled'));%DspDelayCompensation (spikes)
-            hd.alignmentPt(ch) = NlxParametr(spkHd, 'AlignmentPt');%spike samples back (from peak, including peak point)
+        fileToRead = [pf, 'SE', num2str(ncsFiles(k).chNum), '.nse'];
+        if exist(fileToRead, 'file')
+            spkHd = Nlx2MatSpike(fileToRead, [0 0 0 0 0], 1, 1, []);
+            hd.adBitVoltsSpk(k) = NlxParametr(spkHd, 'ADBitVolts');
+            hd.dspDelay_mksSpk(k) = NlxParametr(spkHd, 'DspFilterDelay_µs') * double(isequal(NlxParametr(spkHd, 'DspDelayCompensation'), 'Disabled'));
+            hd.alignmentPt(k) = NlxParametr(spkHd, 'AlignmentPt');
         end
     end
 
@@ -285,6 +290,12 @@ if (nargout > 2)%header requested
 
     %(hd.sweepStartInPts * hd.fADCSampleInterval)   the start times of sweeps in sample points (from beginning of recording)
     %hd.sweepStartInPts = ?allStims(:, 1)?;%the start times of sweeps in sample points (from beginning of recording)
+end
+
+if nargout >= 6 && ~useTimingCache && exist('evntTStmp', 'var')
+    timingCacheOut = struct('evntTStmp', evntTStmp, 'rStmps', rStmps, 'si', si, 'ttl', ttl, 'evntStr', evntStr, 'origTTL', origTTL);
+else
+    timingCacheOut = [];
 end
 
 function mStStRec = FindStStStemp(evntTS, si)

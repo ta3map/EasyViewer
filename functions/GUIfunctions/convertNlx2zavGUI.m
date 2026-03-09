@@ -14,7 +14,7 @@ function convertNlx2zavGUI
     global SettingsFilepath zav_calling
 
     % Инициализация переменных
-    persistent recordPath zavFilePath detectMua mua_std_coef lfp_Fs doResample selectedChannels availableChannels channelNumbers active_folder
+    persistent recordPath zavFilePath detectMua mua_std_coef lfp_Fs doResample selectedChannels availableChannels channelNumbers channelFilePaths active_folder
 
     % Значения по умолчанию
     mua_std_coef = 3;
@@ -125,6 +125,7 @@ function convertNlx2zavGUI
             availableChannels = {};
             selectedChannels = {};
             channelNumbers = [];
+            channelFilePaths = {};
             set(FsOrigLabel, 'String', '...');
         else
             recordPath = folder;
@@ -185,39 +186,30 @@ function convertNlx2zavGUI
             availableChannels = {};
             selectedChannels = {};
             channelNumbers = [];
+            channelFilePaths = {};
             set(FsOrigLabel, 'String', '...');
             set(channelTable, 'Data', {});
                 return;
             end
             
-            waitbar(0.2, wb, sprintf('Reading headers from %d channels...', length(ncsFiles)));
-            
-            % Читаем заголовки для получения имен каналов и частоты дискретизации
+            waitbar(0.2, wb, 'Reading header (Fs)...');
             channelNames = cell(length(ncsFiles), 1);
             channelNums = zeros(length(ncsFiles), 1);
-            orig_Fs = [];
-            
             for i = 1:length(ncsFiles)
-                fileToRead = ncsFiles(i).f;
-                if exist(fileToRead, 'file')
-                    waitbar(0.2 + 0.7 * (i / length(ncsFiles)), wb, sprintf('Reading channel %d of %d...', i, length(ncsFiles)));
-                    cscHd = Nlx2MatCSC(fileToRead, [0 0 0 0 0], 1, 1, []);
-                    % Используем сохраненное имя канала
-                    channelNames{i} = ncsFiles(i).chName;
-                    channelNums(i) = ncsFiles(i).chNum;
-                    
-                    % Получаем частоту дискретизации из первого канала
-                    if isempty(orig_Fs)
-                        Fs = NlxParametr(cscHd, 'SamplingFrequency');
-                        orig_Fs = Fs;
-                    end
-                end
+                channelNames{i} = ncsFiles(i).chName;
+                channelNums(i) = ncsFiles(i).chNum;
+            end
+            orig_Fs = [];
+            if ~isempty(ncsFiles) && exist(ncsFiles(1).f, 'file')
+                cscHd = Nlx2MatCSC(ncsFiles(1).f, [0 0 0 0 0], 1, 1, []);
+                orig_Fs = NlxParametr(cscHd, 'SamplingFrequency');
             end
             
             waitbar(0.9, wb, 'Updating channel list...');
             
             availableChannels = channelNames;
-            channelNumbers = channelNums; % Сохраняем номера каналов в persistent переменную
+            channelNumbers = channelNums;
+            channelFilePaths = {ncsFiles.f};
             numChannels = numel(availableChannels);
 
             % Подготавливаем данные для таблицы
@@ -253,6 +245,7 @@ function convertNlx2zavGUI
             availableChannels = {};
             selectedChannels = {};
             channelNumbers = [];
+            channelFilePaths = {};
             set(FsOrigLabel, 'String', '...');
             set(channelTable, 'Data', {});
         end
@@ -364,126 +357,96 @@ function convertNlx2zavGUI
 
         try
             channels_n = numel(channels_list);
+            ncsFilePaths = channelFilePaths(selectedChannelIndices);
+            conversion_tic = tic;
 
-            % Считываем данные первого канала для определения размера матрицы lfp
-            fprintf('DEBUG: Requesting first channel: %d, channels_list: %s\n', channels_list(1), mat2str(channels_list));
-            fprintf('DEBUG: Calling ZavNrlynx2 with rCh = %d (type: %s)\n', channels_list(1), class(channels_list(1)));
-            [data, ~, hd] = ZavNrlynx2(recordPath, [], channels_list(1), [], []);
-            fprintf('DEBUG: First channel data size: %s, hd.nADCNumChannels: %d\n', mat2str(size(data)), hd.nADCNumChannels);
-            orig_Fs = 1e6/hd.si; % оригинальная частота дискретизации
-            
-            % Вычисляем размер lfp в зависимости от того, будет ли ресемплинг
-            if doResample
-                lfp_length = floor(length(data) * lfp_Fs / orig_Fs); % новая длина сигнала после ресемплинга
-                fprintf('DEBUG: RESAMPLING will be applied: lfp_length = floor(%d * %f / %f) = %d\n', length(data), lfp_Fs, orig_Fs, lfp_length);
-            else
-                lfp_length = length(data); % без ресемплинга используем оригинальную длину
-                fprintf('DEBUG: NO RESAMPLING: lfp_length = length(data) = %d\n', lfp_length);
-            end
-            fprintf('DEBUG: lfp_length: %d, channels_n: %d\n', lfp_length, channels_n);
-            
-            % Создаем MAT-файл v7.3 и инициализируем переменные для прямого доступа
-            waitbar(0, hWaitBar, 'Initializing MAT file...');
             m = matfile(zavFilePath, 'Writable', true);
-            
-            % Инициализируем lfp в файле (не в памяти)
-            m.lfp = zeros(lfp_length, channels_n, 'single');
-            fprintf('DEBUG: Initialized lfp in file, size: [%d %d]\n', lfp_length, channels_n);
+            spks(channels_n) = struct('tStamp', [], 'ampl', [], 'shape', []);
+            lfpVar = zeros(1, channels_n);
+            hd = [];
 
-            clear spks
-            ch_inx = 0;
-            for ch_idx = 1:length(channels_list)
-                ch = channels_list(ch_idx);
-                ch_inx = ch_inx + 1;
-                
-                fprintf('DEBUG: Requesting channel %d (index %d)\n', ch, ch_inx);
-                fprintf('DEBUG: Calling ZavNrlynx2 with rCh = %d (type: %s, size: %s)\n', ch, class(ch), mat2str(size(ch)));
-                [data, ~, hd_ch] = ZavNrlynx2(recordPath, [], ch, [], []);
-                fprintf('DEBUG: Channel %d data size: %s, hd_ch.nADCNumChannels: %d\n', ch, mat2str(size(data)), hd_ch.nADCNumChannels);
-                
-                % Убеждаемся, что data - вектор-столбец (один канал)
-                if size(data, 2) > 1
-                    fprintf('DEBUG: WARNING - data has %d columns, extracting first column\n', size(data, 2));
-                    data = data(:, 1);
+            for ch_inx = 1:channels_n
+                if ch_inx == 1
+                    [data, ~, hd_one] = ZavNrlynx2(recordPath, [], channels_list(1), [], [], ncsFilePaths(1));
+                    orig_Fs = 1e6 / hd_one.si;
+                    if doResample
+                        lfp_length = floor(size(data, 1) * lfp_Fs / orig_Fs);
+                    else
+                        lfp_length = size(data, 1);
+                    end
+                    waitbar(0, hWaitBar, 'Initializing MAT file...');
+                    m.lfp(lfp_length, channels_n) = single(0);
+                    hd = hd_one;
+                    hd.nADCNumChannels = channels_n;
+                else
+                    [data, ~, hd_one] = ZavNrlynx2(recordPath, [], channels_list(ch_inx), [], [], ncsFilePaths(ch_inx));
+                    hd.adBitVolts = [hd.adBitVolts; hd_one.adBitVolts];
+                    hd.dspDelay_mks = [hd.dspDelay_mks; hd_one.dspDelay_mks];
+                    hd.adBitVoltsSpk = [hd.adBitVoltsSpk; hd_one.adBitVoltsSpk];
+                    hd.dspDelay_mksSpk = [hd.dspDelay_mksSpk; hd_one.dspDelay_mksSpk];
+                    hd.alignmentPt = [hd.alignmentPt; hd_one.alignmentPt];
+                    hd.inverted = [hd.inverted; hd_one.inverted];
+                    hd.recChUnits = [hd.recChUnits; hd_one.recChUnits];
+                    hd.recChNames = [hd.recChNames; hd_one.recChNames];
+                    hd.ch_si = [hd.ch_si; hd_one.ch_si];
                 end
-                data = data(:);
+
+                data_col = data(:);
+
+                hd_ch.adBitVolts = hd_one.adBitVolts(1);
+                hd_ch.dspDelay_mks = hd_one.dspDelay_mks(1);
+                hd_ch.si = hd_one.si;
+                hd_ch.fADCSampleInterval = hd_one.fADCSampleInterval;
+                hd_ch.recChNames = hd_one.recChNames(1);
+                hd_ch.recChUnits = hd_one.recChUnits(1);
+                hd_ch.inTTL_timestamps = hd_one.inTTL_timestamps;
 
                 if detectMua
-                    [tStamp, ampl, shape] = detectMUA(data, hd_ch, mua_std_coef, true);
-                    spks(ch_inx).tStamp = single(tStamp); % сохраняем спайки канала в миллисекундном формате
+                    [tStamp, ampl, shape] = detectMUA(data_col, hd_ch, mua_std_coef, true);
+                    spks(ch_inx).tStamp = single(tStamp);
                     spks(ch_inx).ampl = single(ampl);
                     spks(ch_inx).shape = shape;
                 else
-                    % Пустые спайки, если не детектируем MUA
                     spks(ch_inx).tStamp = single([]);
                     spks(ch_inx).ampl = single([]);
                     spks(ch_inx).shape = [];
                 end
 
-                % Обработка данных канала (ресамплинг или без)
                 if doResample
-                    fprintf('DEBUG: RESAMPLING: YES - from %f Hz to %f Hz\n', orig_Fs, lfp_Fs);
-                    data_processed = resample1(data, lfp_Fs, orig_Fs);
+                    data_processed = resample1(data_col, lfp_Fs, orig_Fs);
                 else
-                    fprintf('DEBUG: RESAMPLING: NO - keeping original %f Hz\n', orig_Fs);
-                    data_processed = data;
+                    data_processed = data_col;
                 end
-                
-                % Убеждаемся, что data_processed - вектор-столбец
                 data_processed = data_processed(:);
-                
-                fprintf('DEBUG: data_processed size: %s, expected lfp_length: %d\n', mat2str(size(data_processed)), lfp_length);
-                
-                % Проверяем размер перед записью
-                if length(data_processed) ~= lfp_length
-                    fprintf('DEBUG: WARNING - size mismatch! data_processed length: %d, lfp_length: %d\n', length(data_processed), lfp_length);
-                    if length(data_processed) > lfp_length
-                        fprintf('DEBUG: Truncating data_processed to lfp_length\n');
-                        data_processed = data_processed(1:lfp_length);
-                    elseif length(data_processed) < lfp_length
-                        fprintf('DEBUG: Padding data_processed with zeros to lfp_length\n');
-                        data_processed = [data_processed; zeros(lfp_length - length(data_processed), 1)];
-                    end
+
+                if length(data_processed) > lfp_length
+                    data_processed = data_processed(1:lfp_length);
+                elseif length(data_processed) < lfp_length
+                    data_processed = [data_processed; zeros(lfp_length - length(data_processed), 1)];
                 end
-                
-                % Записываем данные канала напрямую в файл (не держим в памяти)
+
+                lfpVar(ch_inx) = std(data_processed) / 10;
                 m.lfp(:, ch_inx) = single(data_processed);
 
-                % Обновление индикатора прогресса
-                waitbar(ch_inx / numel(channels_list), hWaitBar, sprintf('Channel %d from %d...', ch, numel(channels_list)));
+                elapsed = toc(conversion_tic);
+                remain_sec = (ch_inx > 0) * (elapsed / ch_inx) * (channels_n - ch_inx);
+                remain_str = sprintf('~%d min %d s left', floor(remain_sec / 60), round(rem(remain_sec, 60)));
+                waitbar(ch_inx / channels_n, hWaitBar, sprintf('Channel %d from %d... %s', ch_inx, channels_n, remain_str));
+                clear data;
             end
-            
-            % преобразуем заголовок для выбранного списка каналов
-            hd.adBitVolts = hd.adBitVolts(channels_list);
-            hd.dspDelay_mks = hd.dspDelay_mks(channels_list);
-            hd.adBitVoltsSpk = hd.adBitVoltsSpk(channels_list);
-            hd.dspDelay_mksSpk = hd.dspDelay_mksSpk(channels_list);
-            hd.alignmentPt = hd.alignmentPt(channels_list);
-            hd.inverted = hd.inverted(channels_list);
-            hd.recChUnits = hd.recChUnits(channels_list); 
-            hd.recChNames = hd.recChNames(channels_list);
-            hd.ch_si = hd.ch_si(channels_list);
+
+            hd.chNumList = channels_list(:)';
             
             waitbar(0.95, hWaitBar, 'Finalizing data...');
-            
-            % Вычисляем lfpVar из данных в файле (читаем по частям для экономии памяти)
-            lfpVar = zeros(1, channels_n);
-            for ch_idx = 1:channels_n
-                channel_data = m.lfp(:, ch_idx);
-                lfpVar(ch_idx) = std(channel_data) / 10;
-            end
             lfpVar = np_flatten(lfpVar)';
-            
-            % Сохранение остальных данных
-            % Определяем фактическую частоту дискретизации сохраненных данных
+
             if doResample
-                actual_Fs = lfp_Fs; % если ресемплинг применен, используем lfp_Fs
-                skip_points = orig_Fs/lfp_Fs;
+                actual_Fs = lfp_Fs;
+                skip_points = orig_Fs / lfp_Fs;
             else
-                actual_Fs = orig_Fs; % если ресемплинг НЕ применен, используем оригинальную частоту
-                skip_points = 1; % без ресемплинга нет пропуска точек
+                actual_Fs = orig_Fs;
+                skip_points = 1;
             end
-            fprintf('DEBUG: actual_Fs (saved data frequency): %f Hz, skip_points: %f\n', actual_Fs, skip_points);
             
             chnlGrp = {};
             zavp.file = recordPath;
