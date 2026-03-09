@@ -196,6 +196,7 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
     
     % Initialize progress bar if not already initialized
     waitbar(0, hWaitBar, 'Initializing conversion...');
+    conversion_tic = tic;
     
     % Calculate total number of steps
     % Each channel has: MUA processing (if enabled) + LFP processing
@@ -322,10 +323,13 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
                 else
                     currentStep = chIdx; % LFP only step
                 end
-                progressMsg = sprintf('Step %d/%d: Processing chunks - Channel %d/%d (%s)\nChunks: %d / %d (%.1f%%) | Rows: %d / %d (%.1f%%)', ...
+                elapsed = toc(conversion_tic);
+                remain_sec = (chunksProcessed > 0) * (elapsed / chunksProcessed) * (totalChunksPerChannel - chunksProcessed);
+                remain_str = sprintf('~%d min %d s left', floor(remain_sec / 60), round(rem(remain_sec, 60)));
+                progressMsg = sprintf('Step %d/%d: Processing chunks - Channel %d/%d (%s)\nChunks: %d / %d (%.1f%%) | Rows: %d / %d (%.1f%%) %s', ...
                     currentStep, totalSteps, chIdx, numChannels, channelName, ...
                     chunksProcessed, totalChunksPerChannel, chunksProgress * 100, ...
-                    currentRow - 1, final_lfp_length, rowsProgress * 100);
+                    currentRow - 1, final_lfp_length, rowsProgress * 100, remain_str);
                 waitbar(chunksProgress, hWaitBar, progressMsg);
                 
                 clear dataMap dataChunk channelChunk channelChunkForLFP;
