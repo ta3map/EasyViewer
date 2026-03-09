@@ -60,6 +60,9 @@ function editEventsGUI()
     addEventButton = uicontrol('Style', 'pushbutton', 'Position', [280, 200, 120, 30], ...
                                'String', 'Add Event', 'Callback', @addEvent);
 
+    uicontrol('Style', 'pushbutton', 'Position', [410, 200, 140, 30], ...
+              'String', 'Keep in time range', 'Callback', @filterByTimeRange);
+
     % Shift operation section
     uicontrol('Style', 'text', 'Position', [20, 160, 200, 20], ...
               'String', ['Shift selected times by (' selectedUnit '):'], ...
@@ -120,8 +123,7 @@ function editEventsGUI()
     originalEvents = events;
     originalEventIndices = event_indices;
     if isempty(originalEventIndices) || length(originalEventIndices) ~= length(events)
-        [~, originalEventIndices] = min(abs(time(:) - events(:)'), [], 1);
-        originalEventIndices = originalEventIndices(:);
+        originalEventIndices = timeToIndices(time, events);
     end
     originalComments = event_comments;
     originalAmplitudes = event_amplitudes;
@@ -130,6 +132,13 @@ function editEventsGUI()
     originalProminences = event_prominences;
     originalMetadata = event_metadata;
     currentShiftValue = 0;
+
+    function ind = timeToIndices(timeVec, eventTimesVec)
+        ind = zeros(numel(eventTimesVec), 1);
+        for k = 1:numel(eventTimesVec)
+            [~, ind(k)] = min(abs(timeVec(:) - eventTimesVec(k)));
+        end
+    end
 
     function data = buildEventData()
         numEvents = length(events);
@@ -323,8 +332,7 @@ function editEventsGUI()
             event_widths = newWidths;
             event_prominences = newProminences;
             event_metadata = newMetadata;
-            [~, event_indices] = min(abs(time(:) - events(:)'), [], 1);
-            event_indices = event_indices(:);
+            event_indices = timeToIndices(time, events);
             events_exist = true;
         end
         
@@ -415,6 +423,54 @@ function editEventsGUI()
         newRowNum = size(tableData, 1) + 1;
         tableData(newRowNum, :) = {newRowNum, formatValue(newTime), newComment, formatValue(newAmp), newCh, formatValue(newW), formatValue(newP)};
         set(eventTable, 'Data', tableData);
+    end
+
+    function filterByTimeRange(~, ~)
+        tableData = get(eventTable, 'Data');
+        if isempty(tableData)
+            return;
+        end
+        timesDisplay = cellfun(@toNumericValue, tableData(:, 2));
+        tMin = min(timesDisplay);
+        tMax = max(timesDisplay);
+        n = size(tableData, 1);
+        helpStr = sprintf('Events: from %.3f to %.3f (%s), total %d events.', tMin, tMax, selectedUnit, n);
+
+        dlgFig = figure('Name', 'Time range', 'NumberTitle', 'off', ...
+            'MenuBar', 'none', 'ToolBar', 'none', 'WindowStyle', 'modal', ...
+            'Position', [150, 250, 380, 160], 'Resize', 'off');
+        uicontrol(dlgFig, 'Style', 'text', 'Position', [20, 115, 340, 28], ...
+            'String', helpStr, 'HorizontalAlignment', 'left', 'FontSize', 9);
+        uicontrol(dlgFig, 'Style', 'text', 'Position', [20, 88, 120, 20], ...
+            'String', ['Start (' selectedUnit '):'], 'HorizontalAlignment', 'left');
+        editStart = uicontrol(dlgFig, 'Style', 'edit', 'Position', [140, 88, 200, 22], 'String', sprintf('%.3f', tMin));
+        uicontrol(dlgFig, 'Style', 'text', 'Position', [20, 58, 120, 20], ...
+            'String', ['End (' selectedUnit '):'], 'HorizontalAlignment', 'left');
+        editEnd = uicontrol(dlgFig, 'Style', 'edit', 'Position', [140, 58, 200, 22], 'String', sprintf('%.3f', tMax));
+        uicontrol(dlgFig, 'Style', 'pushbutton', 'Position', [180, 18, 80, 26], 'String', 'Cancel', 'Callback', @onCancel);
+        uicontrol(dlgFig, 'Style', 'pushbutton', 'Position', [270, 18, 80, 26], 'String', 'OK', 'Callback', @onOk);
+
+        function onCancel(~, ~)
+            close(dlgFig);
+        end
+        function onOk(~, ~)
+            tStart = str2double(get(editStart, 'String'));
+            tEnd = str2double(get(editEnd, 'String'));
+            if isnan(tStart) || isnan(tEnd) || tStart >= tEnd
+                errordlg('Start must be less than end.', 'Error');
+                return;
+            end
+            mask = timesDisplay >= tStart & timesDisplay <= tEnd;
+            tableData = tableData(mask, :);
+            for i = 1:size(tableData, 1)
+                tableData{i, 1} = i;
+            end
+            set(eventTable, 'Data', tableData);
+            selected_rows = [];
+            allSelected = false;
+            set(selectAllButton, 'String', 'Select All');
+            close(dlgFig);
+        end
     end
 
     function importEvents(~, ~)
@@ -629,7 +685,7 @@ function editEventsGUI()
         mode = 'From file (add)';
         try
             if exist(SettingsFilepath, 'file')
-                data = load(SettingsFilepath, 'event_import_mode');
+                data = load(SettingsFilepath);
                 if isfield(data, 'event_import_mode')
                     mode = data.event_import_mode;
                 end
@@ -660,7 +716,7 @@ function editEventsGUI()
         mode = 'To file';
         try
             if exist(SettingsFilepath, 'file')
-                data = load(SettingsFilepath, 'event_export_mode');
+                data = load(SettingsFilepath);
                 if isfield(data, 'event_export_mode')
                     mode = data.event_export_mode;
                 end
@@ -706,8 +762,7 @@ function editEventsGUI()
         isReplace = contains(selectedMode, 'replace');
         
         if isToFile
-            [~, eventIndicesForExport] = min(abs(time(:) - eventTimes(:)'), [], 1);
-            eventIndicesForExport = eventIndicesForExport(:);
+            eventIndicesForExport = timeToIndices(time, eventTimes);
             saveEventsToFile(eventTimes, time, matFilePath, ...
                 'event_indices', eventIndicesForExport, ...
                 'event_comments', eventComments, ...
@@ -732,8 +787,7 @@ function editEventsGUI()
                 event_widths = eventWidths(sortIdx);
                 event_prominences = eventProminences(sortIdx);
                 event_metadata = eventMetadata(sortIdx);
-                [~, event_indices] = min(abs(time(:) - events(:)'), [], 1);
-                event_indices = event_indices(:);
+                event_indices = timeToIndices(time, events);
                 events_exist = true;
             else
                 if isempty(events)
@@ -782,8 +836,7 @@ function editEventsGUI()
                     allMetadata = [existingMetadata(:); eventMetadata(:)];
                     event_metadata = allMetadata(sortIdx(uniqueIdx));
                 end
-                [~, event_indices] = min(abs(time(:) - events(:)'), [], 1);
-                event_indices = event_indices(:);
+                event_indices = timeToIndices(time, events);
                 events_exist = true;
             end
             

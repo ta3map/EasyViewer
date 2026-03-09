@@ -32,7 +32,7 @@ function eventCrossCorrelationGUI()
     set(ax4, 'visible', 'off')
 
     % Текст под графиками: число событий A и B после фильтрации (если была)
-    eventsCountText = uicontrol(hFig, 'Style', 'text', 'Position', [385, 80, 550, 22], ...
+    eventsCountText = uicontrol(hFig, 'Style', 'text', 'Position', [385, 45, 550, 22], ...
         'String', '', 'HorizontalAlignment', 'left', 'FontSize', 9);
 
     % Система позиций для элементов (под блоками A/B — кнопка Swap, затем Normalize и ниже)
@@ -42,7 +42,7 @@ function eventCrossCorrelationGUI()
     uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(1), 150, 20], ...
               'String', 'Select Event File A:');
     uicontrol(hFig, 'Style', 'pushbutton', 'Position', [160, ypos(1), 130, 20], ...
-              'String', 'Load Event A', 'Callback', @(~,~) loadEventFile(1));
+              'String', 'Load Event A', 'Callback', @(~,~) loadEventFile(1), 'ForegroundColor', [0 0 1]);
     eventA_filename_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(1)-20, 260, 20], ...
               'String', '', 'HorizontalAlignment', 'left');
     eventA_range_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(1)-40, 260, 18], ...
@@ -51,7 +51,7 @@ function eventCrossCorrelationGUI()
     uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(2), 150, 20], ...
               'String', 'Select Event File B:');
     uicontrol(hFig, 'Style', 'pushbutton', 'Position', [160, ypos(2), 130, 20], ...
-              'String', 'Load Event B', 'Callback', @(~,~) loadEventFile(2));
+              'String', 'Load Event B', 'Callback', @(~,~) loadEventFile(2), 'ForegroundColor', [1 0 0]);
     eventB_filename_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(2)-20, 260, 20], ...
               'String', '', 'HorizontalAlignment', 'left');
     eventB_range_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(2)-40, 260, 18], ...
@@ -116,6 +116,13 @@ function eventCrossCorrelationGUI()
         end
     end
     timeRangeCallback();
+    % Попытка открыть последние использованные эвенты
+    if ~isempty(eventcorrelation_settings) && isfield(eventcorrelation_settings, 'EventA_filepath') && ~isempty(eventcorrelation_settings.EventA_filepath) && exist(eventcorrelation_settings.EventA_filepath, 'file')
+        loadEventFromPath(eventcorrelation_settings.EventA_filepath, 1);
+    end
+    if ~isempty(eventcorrelation_settings) && isfield(eventcorrelation_settings, 'EventB_filepath') && ~isempty(eventcorrelation_settings.EventB_filepath) && exist(eventcorrelation_settings.EventB_filepath, 'file')
+        loadEventFromPath(eventcorrelation_settings.EventB_filepath, 2);
+    end
 
     function timeRangeCallback(~, ~)
         isChecked = get(useTimeRangeCheckbox, 'Value');
@@ -149,31 +156,39 @@ function eventCrossCorrelationGUI()
         if ~isempty(lastOpenedFiles)
             initialDir = fileparts(lastOpenedFiles{end});
         end
-
         [file, path] = uigetfile({'*.ev'; '*.mean'}, 'Load Events', initialDir);
         if isequal(file, 0)
             disp('File selection canceled.');
             return;
         end
-        filepath = fullfile(path, file);
-        loadedData = load(filepath, '-mat'); % Load data into structure
+        loadEventFromPath(fullfile(path, file), eventNum);
+    end
 
-        if isfield(loadedData, 'manlDet')
-            indices = round([loadedData.manlDet.t]);
-            indices = max(1, min(indices, length(time)));
-            [~, filename_only, ~] = fileparts(file);
-            if eventNum == 1
-                events1 = time(indices)'; % Update events1
-                eventA_filepath = filepath; % Сохраняем путь к файлу
-                set(eventA_filename_text, 'String', filename_only); % Показываем имя файла
-                updateRangeText(1);
-            else
-                events2 = time(indices)'; % Update events2
-                eventB_filepath = filepath; % Сохраняем путь к файлу
-                set(eventB_filename_text, 'String', filename_only); % Показываем имя файла
-                updateRangeText(2);
-            end
+    function loadEventFromPath(filepath, eventNum)
+        loadedData = load(filepath, '-mat');
+        if ~isfield(loadedData, 'manlDet')
+            return;
         end
+        indices = round([loadedData.manlDet.t]);
+        indices = max(1, min(indices, length(time)));
+        [~, filename_only, ~] = fileparts(filepath);
+        if eventNum == 1
+            events1 = time(indices)';
+            eventA_filepath = filepath;
+            set(eventA_filename_text, 'String', filename_only);
+            updateRangeText(1);
+        else
+            events2 = time(indices)';
+            eventB_filepath = filepath;
+            set(eventB_filename_text, 'String', filename_only);
+            updateRangeText(2);
+        end
+        if eventNum == 1
+            eventcorrelation_settings.EventA_filepath = eventA_filepath;
+        else
+            eventcorrelation_settings.EventB_filepath = eventB_filepath;
+        end
+        save(SettingsFilepath, 'eventcorrelation_settings', '-append');
     end
 
     function updateRangeText(eventNum)
@@ -283,17 +298,18 @@ function eventCrossCorrelationGUI()
         lagTimes_scaled = lagTimes_scaled(validIndices);
         crossCorr = crossCorr(validIndices);
 
-        % Plot the cross-correlation result on ax1
+        % Plot the cross-correlation result on ax1 (столбиками по бинам)
         axes(ax1);
         set(ax1, 'visible', 'on');
         cla; hold on;
-        plot(lagTimes_scaled, crossCorr);
+        bar(lagTimes_scaled, crossCorr, 1, 'FaceColor', [0 0 0.8], 'EdgeColor', [0 0 0.6]);
         xline(0, 'r:');
         xlabel(xAxisLabel);
         ylabel('Cross-Correlation');
-        title('Cross-Correlation: Event A relative to Event B');
+        title('Cross-Corr. A rel. B');
         xlim(Xlims);
         grid on;
+        set(ax1, 'XColor', [1 0 0]);
         hold off;
         
         % Вычисляем относительное время событий (ev1 относительно ближайших ev2)
@@ -309,23 +325,37 @@ function eventCrossCorrelationGUI()
         % Конвертируем относительные времена в единицы отображения
         rel_times_scaled = rel_times * timeUnitFactor;
         
+        % Debug: диапазон данных и ограничение по окну (ev1 относительно ev2 = имена файлов A/B)
+        rel_min = min(rel_times_scaled);
+        rel_max = max(rel_times_scaled);
+        nInWindow = sum(rel_times_scaled >= Xlims(1) & rel_times_scaled <= Xlims(2));
+        nBelow = sum(rel_times_scaled < Xlims(1));
+        nAbove = sum(rel_times_scaled > Xlims(2));
+        [~, name1, ~] = fileparts(eventA_filepath);
+        [~, name2, ~] = fileparts(eventB_filepath);
+        fprintf('[eventCrossCorrelation] %s relative to %s: n=%d, rel_times range [%.2f, %.2f] %s\n', name1, name2, length(rel_times_scaled), rel_min, rel_max, selectedUnit);
+        fprintf('  Window Xlims [%.2f, %.2f] %s: inside=%d, below=%d, above=%d\n', Xlims(1), Xlims(2), selectedUnit, nInWindow, nBelow, nAbove);
+        
         % Строим боксплот на ax3
         axes(ax3);
         set(ax3, 'visible', 'on');
         cla; hold on;
         
         boxplot(rel_times_scaled, 'Orientation', 'horizontal');
+        hBox = findobj(gca, 'Tag', 'Box');
+        set(hBox, 'Color', [0 0 0.8]);
         hold on;
         
-        % Добавляем точки данных с небольшим jitter по вертикали, смещенные ниже боксплота
+        % Добавляем точки данных с небольшим jitter по вертикали, смещенные ниже боксплота (A — синий)
         y_jitter = 0.5 + 0.15 * (rand(size(rel_times_scaled)) - 0.5);
-        scatter(rel_times_scaled, y_jitter, 20, 'k', '.', 'MarkerFaceAlpha', 0.6);
+        scatter(rel_times_scaled, y_jitter, 20, [0 0 0.8], '.', 'MarkerFaceAlpha', 0.6);
         
         xlabel(xAxisLabel);
         ylabel('Events');
-        title(sprintf('Event A timing relative to Event B (n=%d)', length(rel_times)));
+        title(sprintf('Event A timing rel. B (n=%d)', length(rel_times)));
         xlim(Xlims);
         grid on;
+        set(ax3, 'XColor', [1 0 0]);
         hold off;
         
         % Строим гистограмму на ax4 с использованием BinSize
@@ -336,13 +366,14 @@ function eventCrossCorrelationGUI()
         % Используем BinSize для создания edges гистограммы
         binSize_scaled = binSize * timeUnitFactor; % BinSize в единицах отображения
         edges_hist = Xlims(1):binSize_scaled:Xlims(2);
-        histogram(rel_times_scaled, edges_hist, 'Normalization', 'probability', 'FaceColor', [0.3 0.6 0.9], 'EdgeColor', 'k');
+        histogram(rel_times_scaled, edges_hist, 'Normalization', 'probability', 'FaceColor', [0 0 0.8], 'EdgeColor', [0 0 0.6]);
         
         xlabel(xAxisLabel);
         ylabel('Probability');
-        title('Distribution of relative event times');
+        title('Distr. of rel. event times');
         xlim(Xlims);
         grid on;
+        set(ax4, 'XColor', [1 0 0]);
         hold off;
         
         % Сохранение настроек после анализа (в секундах)
@@ -354,7 +385,8 @@ function eventCrossCorrelationGUI()
             eventcorrelation_settings.TimeStart = tStart;
             eventcorrelation_settings.TimeEnd = tEnd;
         end
-        
+        eventcorrelation_settings.EventA_filepath = eventA_filepath;
+        eventcorrelation_settings.EventB_filepath = eventB_filepath;
         save(SettingsFilepath, 'eventcorrelation_settings', '-append');
         
         % Сохраняем результаты для возможности сохранения
@@ -401,14 +433,14 @@ function eventCrossCorrelationGUI()
         end
         
         % Удаляем старые кнопки, если они есть
-        old_buttons = findobj(hFig, 'Style', 'pushbutton', '-regexp', 'String', 'Save');
+        old_buttons = findobj(hFig, 'Type', 'uicontrol', 'Style', 'pushbutton', 'Tag', 'eventcorr_save_btn');
         if ~isempty(old_buttons)
             delete(old_buttons);
         end
         
         % Кнопка для сохранения результата
         save_btn_coords = [10, ypos(7)-45, 280, 30];
-        savebutton = uicontrol('Parent', hFig, 'Style', 'pushbutton', 'String', 'Save Result', 'Visible', 'on', 'Position', save_btn_coords, 'Callback', @SaveResultClb);
+        savebutton = uicontrol('Parent', hFig, 'Style', 'pushbutton', 'String', 'Save Result', 'Tag', 'eventcorr_save_btn', 'Visible', 'on', 'Position', save_btn_coords, 'Callback', @SaveResultClb);
         btnIcon(savebutton, fullfile(getAssetsPath(), 'data-storage.png'), false);
         
         function SaveResultClb(~,~)
