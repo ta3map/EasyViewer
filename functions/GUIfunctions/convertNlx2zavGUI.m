@@ -14,14 +14,13 @@ function convertNlx2zavGUI
     global SettingsFilepath zav_calling
 
     % Инициализация переменных
-    persistent recordPath zavFilePath detectMua mua_std_coef lfp_Fs doResample selectedChannels availableChannels channelNumbers channelFilePaths active_folder removeZeroChannels
+    persistent recordPath zavFilePath detectMua mua_std_coef lfp_Fs doResample selectedChannels availableChannels channelNumbers channelFilePaths active_folder channelBytes
 
     % Значения по умолчанию
     mua_std_coef = 3;
     lfp_Fs = 1000;
     detectMua = false;
     doResample = true;
-    removeZeroChannels = true;
     selectedChannels = {}; % Пустой означает все каналы
     availableChannels = {};
     channelNumbers = []; % Номера каналов, соответствующие именам
@@ -102,6 +101,9 @@ function convertNlx2zavGUI
     btnDeselectAll = uicontrol('Parent', channelPanel, 'Style', 'pushbutton', 'String', 'Deselect All', ...
         'Units', 'normalized', 'Position', [0.18, 0.92, 0.15, 0.06], 'Callback', @deselectAllChannels);
 
+    btnDeselectEmpty = uicontrol('Parent', channelPanel, 'Style', 'pushbutton', 'String', 'Deselect empty channels', ...
+        'Units', 'normalized', 'Position', [0.34, 0.92, 0.22, 0.06], 'Callback', @deselectEmptyChannels);
+
     % Таблица для отображения списка каналов с галочками
     channelTable = uitable('Parent', channelPanel, 'Data', {}, 'ColumnName', {'Use', 'Channel Name'}, ...
         'ColumnEditable', [true, false], 'Units', 'normalized', 'Position', [0, 0, 1, 0.92], 'CellEditCallback', @channelSelectionCallback);
@@ -109,10 +111,6 @@ function convertNlx2zavGUI
     % Checkbox для открытия файла    
     openafterConvToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Open after conversion', ...
         'Position', [leftMargin, 20, btnWidth, btnHeight], 'Value', openAfter, 'Callback', @openafterConvCallback);
-
-    % Checkbox для удаления нулевых каналов
-    removeZeroChannelsToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Remove zero channels', ...
-        'Position', [leftMargin, 45, btnWidth, btnHeight], 'Value', removeZeroChannels, 'Callback', @removeZeroChannelsCallback);
     
     % Кнопка для запуска конвертации
     uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Start Conversion', ...
@@ -131,6 +129,7 @@ function convertNlx2zavGUI
             selectedChannels = {};
             channelNumbers = [];
             channelFilePaths = {};
+            channelBytes = [];
             set(FsOrigLabel, 'String', '...');
         else
             recordPath = folder;
@@ -154,7 +153,7 @@ function convertNlx2zavGUI
         waitbar(0.1, wb, 'Scanning for .ncs files...');
 
         dirCnt = dir(recordPath);
-        ncsFiles = struct('f', {}, 'chNum', {}, 'chName', {});
+        ncsFiles = struct('f', {}, 'chNum', {}, 'chName', {}, 'bytes', {});
 
         for t = 1:length(dirCnt)
             if ((~dirCnt(t).isdir) && (length(dirCnt(t).name) > 3))
@@ -167,6 +166,7 @@ function convertNlx2zavGUI
                             ncsFiles(end + 1).f = fullfile(recordPath, dirCnt(t).name);
                             ncsFiles(end).chNum = ch;
                             ncsFiles(end).chName = fileName;
+                            ncsFiles(end).bytes = dirCnt(t).bytes;
                         end
                     end
                 end
@@ -185,6 +185,7 @@ function convertNlx2zavGUI
             selectedChannels = {};
             channelNumbers = [];
             channelFilePaths = {};
+            channelBytes = [];
             set(FsOrigLabel, 'String', '...');
             set(channelTable, 'Data', {});
             return;
@@ -208,6 +209,7 @@ function convertNlx2zavGUI
         availableChannels = channelNames;
         channelNumbers = channelNums;
         channelFilePaths = {ncsFiles.f};
+        channelBytes = [ncsFiles.bytes];
         numChannels = numel(availableChannels);
 
         channelData = cell(numChannels, 2);
@@ -268,8 +270,24 @@ function convertNlx2zavGUI
         openAfter = get(source, 'Value');
     end
 
-    function removeZeroChannelsCallback(source, ~)
-        removeZeroChannels = get(source, 'Value');
+    function deselectEmptyChannels(~, ~)
+        % Снимает выделение с каналов, у которых файл 16 КБ (пустой)
+        if isempty(channelBytes)
+            return;
+        end
+        channelData = get(channelTable, 'Data');
+        if isempty(channelData)
+            return;
+        end
+        emptyThreshold = 16 * 1024;
+        for i = 1:min(size(channelData, 1), numel(channelBytes))
+            if channelBytes(i) <= emptyThreshold
+                channelData{i, 1} = false;
+            end
+        end
+        set(channelTable, 'Data', channelData);
+        selectedChannelIndices = find([channelData{:, 1}]);
+        selectedChannels = availableChannels(selectedChannelIndices);
     end
 
     function muaCoefUICallback(source, ~)
@@ -344,7 +362,6 @@ function convertNlx2zavGUI
             spks(channels_n) = struct('tStamp', [], 'ampl', [], 'shape', []);
             lfpVar = zeros(1, channels_n);
             hd = [];
-            zeroChannelsList = [];
 
             for ch_inx = 1:channels_n
                 if ch_inx == 1
@@ -406,10 +423,6 @@ function convertNlx2zavGUI
                     data_processed = [data_processed; zeros(lfp_length - length(data_processed), 1)];
                 end
 
-                if all(data_processed == 0)
-                    zeroChannelsList(end+1) = ch_inx;
-                end
-
                 lfpVar(ch_inx) = std(data_processed) / 10;
                 m.lfp(:, ch_inx) = single(data_processed);
 
@@ -424,25 +437,6 @@ function convertNlx2zavGUI
             
             waitbar(0.95, hWaitBar, 'Finalizing data...');
             lfpVar = np_flatten(lfpVar)';
-
-            if removeZeroChannels && ~isempty(zeroChannelsList)
-                keepCh = setdiff(1:channels_n, zeroChannelsList);
-                lfp_kept = m.lfp(:, keepCh);
-                hd.nADCNumChannels = numel(keepCh);
-                hd.adBitVolts = hd.adBitVolts(keepCh);
-                hd.dspDelay_mks = hd.dspDelay_mks(keepCh);
-                hd.adBitVoltsSpk = hd.adBitVoltsSpk(keepCh);
-                hd.dspDelay_mksSpk = hd.dspDelay_mksSpk(keepCh);
-                hd.alignmentPt = hd.alignmentPt(keepCh);
-                hd.inverted = hd.inverted(keepCh);
-                hd.recChUnits = hd.recChUnits(keepCh);
-                hd.recChNames = hd.recChNames(keepCh);
-                hd.ch_si = hd.ch_si(keepCh);
-                hd.chNumList = channels_list(keepCh)';
-                spks = spks(keepCh);
-                lfpVar = lfpVar(keepCh);
-                m.lfp = lfp_kept;
-            end
 
             if doResample
                 actual_Fs = lfp_Fs;

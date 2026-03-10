@@ -30,31 +30,35 @@ function setupSignalFilteringGUI()
         'ColumnEditable', [false true], ...
         'Position', SubMeanSettings_coords, 'CellEditCallback', @checkbtns);
     
+    filterEnabledVal = true;
+    if isfield(filterSettings, 'filterEnabled')
+        filterEnabledVal = filterSettings.filterEnabled;
+    end
+    smoothEnabledVal = true;
+    if isfield(filterSettings, 'smoothEnabled')
+        smoothEnabledVal = filterSettings.smoothEnabled;
+    end
+
+    % Чекбокс: фильтрация по частотам (вкл/выкл)
+    hFilterEnabled = uicontrol('Style', 'checkbox', 'String', 'Фильтрация по частотам', ...
+        'Position', [320, 572, 200, 22], 'Value', filterEnabledVal, 'Callback', @filterEnabledCallback);
+
     % Выбор типа фильтра
-    % Сопоставление типов фильтров с их позициями в списке
     filterTypes = {'highpass', 'bandpass', 'lowpass'};
     filterIndex = find(strcmp(filterSettings.filterType, filterTypes));
-
-    % Проверка, что filterSettings.filterType содержит допустимое значение
     if isempty(filterIndex)
-        filterIndex = 1; % Выберите значение по умолчанию, если текущее значение недопустимо
+        filterIndex = 1;
     end
-    
-    % Создание выпадающего списка с выбранным значением
     hFilterType = uicontrol('Style', 'popup', 'String', filterTypes, ...
-        'Position', [320, 550, 100, 25], 'Callback', @filterTypeCallback, ...
-        'Value', filterIndex);
+        'Position', [320, 545, 100, 25], 'Callback', @filterTypeCallback, 'Value', filterIndex);
 
-    % Поля для ввода частот обрезки с подписями 'Hz'
-    uicontrol('Style', 'text', 'Position', [320, 535, 30, 15], 'String', 'Hz', 'HorizontalAlignment', 'left');
-    hFreqLow = uicontrol('Style', 'edit', 'Position', [320, 510, 50, 25], 'Enable', 'on', 'String', num2str(filterSettings.freqLow));
+    uicontrol('Style', 'text', 'Position', [320, 527, 30, 15], 'String', 'Hz', 'HorizontalAlignment', 'left');
+    hFreqLow = uicontrol('Style', 'edit', 'Position', [320, 502, 50, 25], 'String', num2str(filterSettings.freqLow));
+    uicontrol('Style', 'text', 'Position', [380, 527, 30, 15], 'String', 'Hz', 'HorizontalAlignment', 'left');
+    hFreqHigh = uicontrol('Style', 'edit', 'Position', [380, 502, 50, 25], 'String', num2str(filterSettings.freqHigh));
 
-    uicontrol('Style', 'text', 'Position', [380, 535, 30, 15], 'String', 'Hz', 'HorizontalAlignment', 'left');
-    hFreqHigh = uicontrol('Style', 'edit', 'Position', [380, 510, 50, 25], 'Enable', 'on', 'String', num2str(filterSettings.freqHigh));
-
-    % Поле для ввода порядка фильтра
-    uicontrol('Style', 'text', 'Position', [320, 480, 110, 15], 'String', 'Filter Order:', 'HorizontalAlignment', 'left');
-    hOrder = uicontrol('Style', 'edit', 'Position', [320, 455, 50, 25], 'String', filterSettings.order);  % Значение по умолчанию 4
+    uicontrol('Style', 'text', 'Position', [320, 472, 110, 15], 'String', 'Filter Order:', 'HorizontalAlignment', 'left');
+    hOrder = uicontrol('Style', 'edit', 'Position', [320, 447, 50, 25], 'String', filterSettings.order);
 
     smoothSpanVal = 0;
     if isfield(filterSettings, 'smoothSpan')
@@ -64,15 +68,18 @@ function setupSignalFilteringGUI()
     if isfield(filterSettings, 'smoothMethod')
         smoothMethodVal = filterSettings.smoothMethod;
     end
-    uicontrol('Style', 'text', 'Position', [320, 430, 140, 15], 'String', 'Smooth (samples):', 'HorizontalAlignment', 'left');
-    hSmoothSpan = uicontrol('Style', 'edit', 'Position', [320, 405, 50, 25], 'String', num2str(smoothSpanVal));
+    % Чекбокс: сглаживание
+    hSmoothEnabled = uicontrol('Style', 'checkbox', 'String', 'Сглаживание', ...
+        'Position', [320, 422, 120, 22], 'Value', smoothEnabledVal, 'Callback', @smoothEnabledCallback);
+    uicontrol('Style', 'text', 'Position', [320, 397, 140, 15], 'String', 'Smooth (samples):', 'HorizontalAlignment', 'left');
+    hSmoothSpan = uicontrol('Style', 'edit', 'Position', [320, 372, 50, 25], 'String', num2str(smoothSpanVal));
     smoothMethods = {'moving', 'median'};
     smoothMethodIdx = find(strcmp(smoothMethodVal, smoothMethods), 1);
     if isempty(smoothMethodIdx)
         smoothMethodIdx = 1;
     end
-    uicontrol('Style', 'text', 'Position', [320, 380, 80, 15], 'String', 'Method:', 'HorizontalAlignment', 'left');
-    hSmoothMethod = uicontrol('Style', 'popup', 'String', smoothMethods, 'Position', [320, 355, 80, 25], 'Value', smoothMethodIdx);
+    uicontrol('Style', 'text', 'Position', [320, 347, 80, 15], 'String', 'Method:', 'HorizontalAlignment', 'left');
+    hSmoothMethod = uicontrol('Style', 'popup', 'String', smoothMethods, 'Position', [320, 322, 80, 25], 'Value', smoothMethodIdx);
 
     % Ось для отображения графика
     ax = axes('Parent', fig, 'Position', [.1 .1 .8 .35]);
@@ -83,20 +90,15 @@ function setupSignalFilteringGUI()
     set(ax, 'Visible', 'off');    
     
     
-    % Кнопка для нажатия всех каналов
-    uicontrol('Style', 'pushbutton', 'String', 'Select ALL', 'Position', [320, 340, 110, 25], 'Callback', @selectAll);
-    % Кнопка для отжатия всех каналов
-    uicontrol('Style', 'pushbutton', 'String', 'Deselect ALL', 'Position', [320, 310, 110, 25], 'Callback', @deselectAll);
-    
-    % Кнопка для проверки фильтрации
-    checkfiltbtn = uicontrol('Style', 'pushbutton', 'String', 'Check Filtration', 'Position', [320, 260, 110, 25], 'Enable', 'on', 'Callback', {@checkFiltration, ax});
-    % Кнопка применения настроек
-    uicontrol('Style', 'pushbutton', 'String', 'Apply', 'Position', [320, 230, 70, 25], 'Enable', 'on', 'Callback', @applySettings);
-    % Кнопка отмены
-    uicontrol('Style', 'pushbutton', 'String', 'Cancel', 'Position', [320, 200, 70, 25], 'Enable', 'on', 'Callback', @cancelSettings);
-    
-    % вызов callback для адекватности отображения окон
-    filterTypeCallback(hFilterType)
+    uicontrol('Style', 'pushbutton', 'String', 'Select ALL', 'Position', [320, 292, 110, 25], 'Callback', @selectAll);
+    uicontrol('Style', 'pushbutton', 'String', 'Deselect ALL', 'Position', [320, 262, 110, 25], 'Callback', @deselectAll);
+    checkfiltbtn = uicontrol('Style', 'pushbutton', 'String', 'Check Filtration', 'Position', [320, 212, 110, 25], 'Enable', 'on', 'Callback', {@checkFiltration, ax});
+    uicontrol('Style', 'pushbutton', 'String', 'Apply', 'Position', [320, 182, 70, 25], 'Enable', 'on', 'Callback', @applySettings);
+    uicontrol('Style', 'pushbutton', 'String', 'Cancel', 'Position', [320, 152, 70, 25], 'Enable', 'on', 'Callback', @cancelSettings);
+
+    filterTypeCallback(hFilterType);
+    filterEnabledCallback(hFilterEnabled, []);
+    smoothEnabledCallback(hSmoothEnabled, []);
     
     uiwait(fig);
     
@@ -122,22 +124,47 @@ function setupSignalFilteringGUI()
         end
     end
 
+    function filterEnabledCallback(~, ~)
+        on = get(hFilterEnabled, 'Value');
+        set(hFilterType, 'Enable', on);
+        set(hFreqLow, 'Enable', on);
+        set(hFreqHigh, 'Enable', on);
+        set(hOrder, 'Enable', on);
+        if on
+            filterTypeCallback(hFilterType);
+        else
+            low_line_enable = false;
+            high_line_enable = false;
+        end
+    end
+
+    function smoothEnabledCallback(~, ~)
+        on = get(hSmoothEnabled, 'Value');
+        set(hSmoothSpan, 'Enable', on);
+        set(hSmoothMethod, 'Enable', on);
+    end
+
     function filterTypeCallback(src, ~)
+        if ~get(hFilterEnabled, 'Value')
+            low_line_enable = false;
+            high_line_enable = false;
+            return
+        end
         switch src.Value
             case 1 % highpass
                 set(hFreqLow, 'Enable', 'on');
-                low_line_enable = true;   
+                low_line_enable = true;
                 set(hFreqHigh, 'Enable', 'off');
                 high_line_enable = false;
             case 2 % bandpass
                 set(hFreqLow, 'Enable', 'on');
-                low_line_enable = true;   
+                low_line_enable = true;
                 set(hFreqHigh, 'Enable', 'on');
                 high_line_enable = true;
             case 3 % lowpass
                 set(hFreqLow, 'Enable', 'off');
-                low_line_enable = false;                
-                set(hFreqHigh, 'Enable', 'on');                
+                low_line_enable = false;
+                set(hFreqHigh, 'Enable', 'on');
                 high_line_enable = true;
         end
     end
@@ -154,6 +181,8 @@ function setupSignalFilteringGUI()
 
 
 
+            local_settings.filterEnabled = get(hFilterEnabled, 'Value');
+            local_settings.smoothEnabled = get(hSmoothEnabled, 'Value');
             local_settings.filterType = hFilterType.String{hFilterType.Value};
             local_settings.freqLow = str2double(hFreqLow.String);
             local_settings.freqHigh = str2double(hFreqHigh.String);
@@ -208,6 +237,8 @@ function setupSignalFilteringGUI()
     end
 
     function applySettings(~, ~)
+        local_settings.filterEnabled = get(hFilterEnabled, 'Value');
+        local_settings.smoothEnabled = get(hSmoothEnabled, 'Value');
         local_settings.filterType = hFilterType.String{hFilterType.Value};
         local_settings.freqLow = str2double(hFreqLow.String);
         local_settings.freqHigh = str2double(hFreqHigh.String);
