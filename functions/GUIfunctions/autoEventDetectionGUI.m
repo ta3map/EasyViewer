@@ -48,6 +48,7 @@ function autoEventDetectionGUI()
     widths_detected = [];
     channels_detected = [];
     metadata_detected = [];
+    indices_detected = [];
     
     % Идентификатор (tag) для GUI фигуры
     figTag = 'EventDetection';
@@ -437,7 +438,7 @@ function autoEventDetectionGUI()
         params.StartTime = str2double(get(hStartTime, 'String')) / timeUnitFactor;
         params.EndTime = str2double(get(hEndTime, 'String')) / timeUnitFactor;
         
-        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected] = autoEventDetection(params);
+        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected] = autoEventDetection(params);
         
         Trace_out(isnan(Trace_out)) = 0;
         Trace_out(isinf(Trace_out)) = 0;
@@ -574,11 +575,11 @@ function autoEventDetectionGUI()
 
 
     function detectButtonCallback(~, ~)
-        global event_amplitudes event_channels event_widths event_prominences event_metadata
+        global event_amplitudes event_channels event_widths event_prominences event_metadata event_indices
         
         % Проверяем что переменные с результатами детекции существуют
         if ~exist('amplitudes_detected', 'var') || ~exist('channels_detected', 'var') || ...
-           ~exist('widths_detected', 'var') || ~exist('metadata_detected', 'var')
+           ~exist('widths_detected', 'var') || ~exist('metadata_detected', 'var') || ~exist('indices_detected', 'var')
             fprintf('Please run "Check Detection" first before applying results.\n');
             return;
         end
@@ -591,6 +592,7 @@ function autoEventDetectionGUI()
             
             [events, ev_inxs] = sort(events);
             event_comments = event_comments(ev_inxs);
+            event_indices = indices_detected(ev_inxs);
             
             % Сортируем метаданные в том же порядке что и события
             event_amplitudes = amplitudes_detected(ev_inxs);
@@ -618,6 +620,7 @@ function autoEventDetectionGUI()
             event_widths = [];
             event_prominences = [];
             event_metadata = [];
+            event_indices = [];
         end
         
         [~, filename, ~] = fileparts(matFilePath);
@@ -682,7 +685,7 @@ function saveSettings()
     save(SettingsFilepath, 'autodetection_settings', '-append');
 end
 
-function [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected] = autoEventDetection(params)
+function [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected] = autoEventDetection(params)
     global Fs time newFs lfp_file wb ch_inxs csd_avaliable filterSettings filter_avaliable mean_group_ch 
     global stims_exist stims time art_rem_settings
     
@@ -1031,6 +1034,12 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
             metadata_detected(i).prominence = prominences(i);
         end
         
+        % Индексы в исходной шкале time (создаются при детекции, без поиска при сохранении)
+        indices_detected = zeros(length(events_detected), 1);
+        for i = 1:length(events_detected)
+            [~, indices_detected(i)] = min(abs(time - events_detected(i)));
+        end
+        
         fprintf('=== DEBUG: Final results ===\n');
         fprintf('Total events detected: %d\n', length(events_detected));
         fprintf('===================================\n\n');
@@ -1043,6 +1052,7 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
         channels_detected = [];
         metadata_detected = [];
         prominences_detected = [];
+        indices_detected = [];
     end
     
     waitbar(1.0, wb, 'Complete');

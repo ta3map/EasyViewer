@@ -94,20 +94,14 @@ function saveEventsToFile(events, time, matFilePath, varargin)
                                    'amplitude', [], 'channels', [], 'width', [], 'prominence', [], 'metadata', []);
     
     numEvents = numel(events);
-    useProvidedIndices = ~isempty(params.event_indices) && length(params.event_indices) == numEvents;
-    if useProvidedIndices
-        idxAll = params.event_indices(:);
-    else
-        [~, idxAll] = min(abs(time(:) - events(:)'), [], 1);
-        idxAll = idxAll(:);
+    if numEvents > 0 && (isempty(params.event_indices) || length(params.event_indices) ~= numEvents)
+        close(wb);
+        error('saveEventsToFile:event_indices required', 'event_indices (length %d) must be passed and match events count.', numEvents);
     end
+    idxAll = params.event_indices(:);
     
     % Заполнение manlDet
-    waitbarStep = max(1, floor(numEvents / 10));
     for i = 1:numEvents
-        if ~useProvidedIndices && mod(i, waitbarStep) == 0
-            waitbar(0.2 + 0.6 * (i / numEvents), wb, sprintf('Processing events... %d/%d', i, numEvents));
-        end
         manlDet(i).t = idxAll(i);
         
         % Обработка каналов

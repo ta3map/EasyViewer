@@ -3037,8 +3037,10 @@ end
         n = numel(eventTimes);
 
         events = eventTimes(:);
-        [~, event_indices] = min(abs(time(:) - eventTimes(:)'), [], 1);
-        event_indices = event_indices(:);
+        event_indices = zeros(n, 1);
+        for k = 1:n
+            [~, event_indices(k)] = min(abs(time(:) - eventTimes(k)));
+        end
         event_comments = repmat({'...'}, n, 1);
         event_amplitudes = NaN(n, 1);
         event_channels = ones(n, 1);
