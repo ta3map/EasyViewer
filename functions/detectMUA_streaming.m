@@ -52,7 +52,7 @@ function varargout = detectMUA_streaming(dataChunk, hd, mua_std_coef, remove_ttl
         
         % Удаление TTL артефактов (если нужно)
         if remove_ttl_artifact
-            if isfield(hd, "inTTL_timestamps")
+            if isfield(hd, "inTTL_timestamps") && ~isempty(hd.inTTL_timestamps)
                 ttl_window = 200;
                 ttl_ticks = hd.inTTL_timestamps.t(:,1)/hd.fADCSampleInterval;
                 

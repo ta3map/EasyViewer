@@ -11,9 +11,9 @@ function [tStamp, ampl, shape] = detectMUA(data, hd, mua_std_coef, remove_ttl_ar
     % Создание вектора времени в милисекундах
     Time = 1e3*((0:numPoints-1) / raw_Fs);
     
-    
+
     if remove_ttl_artifact
-        if isfield(hd, "inTTL_timestamps")
+        if isfield(hd, "inTTL_timestamps") && ~isempty(hd.inTTL_timestamps)
             ttl_window = 200;
             ttl_ticks = hd.inTTL_timestamps.t(:,1)/hd.fADCSampleInterval;
             % remove TTL artifact

@@ -26,7 +26,7 @@ function oep_to_zav(recordedData, zavFilePath, Fs, newFs, detectMua, mua_std_coe
         waitbar(0, hWaitBar, 'Starting MUA detection...');
         for chIdx = 1:numChannels
             % Обнаружение MUA
-            [tStamp, ampl, shape] = detectMUA(lfp(:, chIdx), hd, mua_std_coef, true);
+            [tStamp, ampl, shape] = detectMUAzav(lfp(:, chIdx), hd, mua_std_coef, true);
             spks(chIdx, sweepIdx).tStamp = double(tStamp);
             spks(chIdx, sweepIdx).ampl = double(-ampl);
             spks(chIdx, sweepIdx).shape = shape;

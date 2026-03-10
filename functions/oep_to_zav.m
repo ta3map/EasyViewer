@@ -105,7 +105,7 @@ function oep_to_zav(recordedData, zavFilePath, Fs, newFs, detectMua, mua_std_coe
 
             % Детектируем MUA
             disp(['Detecting MUA for channel: ', channelName]);
-            [tStamp, ampl, shape] = detectMUA(lfp_channel_data_for_mua, hd, mua_std_coef, true);
+            [tStamp, ampl, shape] = detectMUAzav(lfp_channel_data_for_mua, hd, mua_std_coef, true);
             spks(chIdx).tStamp = double(tStamp);
             spks(chIdx).ampl = double(-ampl); % Note the sign change as in original code
             spks(chIdx).shape = shape;

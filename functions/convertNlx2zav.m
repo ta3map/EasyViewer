@@ -28,7 +28,7 @@ for ch = channels_list
     ampl = min(spkSM.s(:, :));
     
     if detect_mua
-        [tStamp, ampl, shape] = detectMUA(data, hd);
+        [tStamp, ampl, shape] = detectMUAzav(data, hd);
         spks(ch).tStamp = single(tStamp); % сохраняем спайки канала в миллисекундном формате
         spks(ch).ampl = single(ampl);
         spks(ch).shape = shape;

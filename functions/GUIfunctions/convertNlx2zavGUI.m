@@ -14,13 +14,14 @@ function convertNlx2zavGUI
     global SettingsFilepath zav_calling
 
     % Инициализация переменных
-    persistent recordPath zavFilePath detectMua mua_std_coef lfp_Fs doResample selectedChannels availableChannels channelNumbers channelFilePaths active_folder
+    persistent recordPath zavFilePath detectMua mua_std_coef lfp_Fs doResample selectedChannels availableChannels channelNumbers channelFilePaths active_folder removeZeroChannels
 
     % Значения по умолчанию
     mua_std_coef = 3;
     lfp_Fs = 1000;
     detectMua = false;
     doResample = true;
+    removeZeroChannels = true;
     selectedChannels = {}; % Пустой означает все каналы
     availableChannels = {};
     channelNumbers = []; % Номера каналов, соответствующие именам
@@ -108,6 +109,10 @@ function convertNlx2zavGUI
     % Checkbox для открытия файла    
     openafterConvToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Open after conversion', ...
         'Position', [leftMargin, 20, btnWidth, btnHeight], 'Value', openAfter, 'Callback', @openafterConvCallback);
+
+    % Checkbox для удаления нулевых каналов
+    removeZeroChannelsToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Remove zero channels', ...
+        'Position', [leftMargin, 45, btnWidth, btnHeight], 'Value', removeZeroChannels, 'Callback', @removeZeroChannelsCallback);
     
     % Кнопка для запуска конвертации
     uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Start Conversion', ...
@@ -140,106 +145,40 @@ function convertNlx2zavGUI
 
     function extractChannels()
         % Извлечение списка каналов из папки Neuralynx
-        wb = [];
-        try
-            wb = waitbar(0, 'Loading Neuralynx channels...', 'Name', 'Loading Channels');
-            
-            if (recordPath(end) ~= '\')
-                recordPath(end + 1) = '\';
-            end
-            
-            waitbar(0.1, wb, 'Scanning for .ncs files...');
-            
-            % Находим все .ncs файлы
-            dirCnt = dir(recordPath);
-            ncsFiles = struct('f', {}, 'chNum', {}, 'chName', {});
-            
-            for t = 1:length(dirCnt)
-                if ((~dirCnt(t).isdir) && (length(dirCnt(t).name) > 3))
-                    if isequal(dirCnt(t).name(end - 3:end), '.ncs')
-                        % Извлекаем номер канала из имени файла (формат: префикс + номер + .ncs)
-                        % Например: CSC1.ncs -> 1, или CH1.ncs -> 1
-                        fileName = dirCnt(t).name(1:end-4); % убираем .ncs
-                        % Ищем последние цифры в имени файла
-                        numMatch = regexp(fileName, '\d+$', 'match');
-                        if ~isempty(numMatch)
-                            ch = str2double(numMatch{1});
-                            if ~isnan(ch)
-                                ncsFiles(end + 1).f = fullfile(recordPath, dirCnt(t).name);
-                                ncsFiles(end).chNum = ch;
-                                ncsFiles(end).chName = fileName;
-                            end
+        wb = waitbar(0, 'Loading Neuralynx channels...', 'Name', 'Loading Channels');
+
+        if (recordPath(end) ~= '\')
+            recordPath(end + 1) = '\';
+        end
+
+        waitbar(0.1, wb, 'Scanning for .ncs files...');
+
+        dirCnt = dir(recordPath);
+        ncsFiles = struct('f', {}, 'chNum', {}, 'chName', {});
+
+        for t = 1:length(dirCnt)
+            if ((~dirCnt(t).isdir) && (length(dirCnt(t).name) > 3))
+                if isequal(dirCnt(t).name(end - 3:end), '.ncs')
+                    fileName = dirCnt(t).name(1:end-4);
+                    numMatch = regexp(fileName, '\d+$', 'match');
+                    if ~isempty(numMatch)
+                        ch = str2double(numMatch{1});
+                        if ~isnan(ch)
+                            ncsFiles(end + 1).f = fullfile(recordPath, dirCnt(t).name);
+                            ncsFiles(end).chNum = ch;
+                            ncsFiles(end).chName = fileName;
                         end
                     end
                 end
             end
-            
-            % Сортируем по номеру канала
-            [~, sortIdx] = sort([ncsFiles.chNum]);
-            ncsFiles = ncsFiles(sortIdx);
-            
-            if isempty(ncsFiles)
-                close(wb);
-                warndlg('No .ncs files found in the selected folder.', 'No Channels Found');
-                set(recordPathLabel, 'String', 'No folder selected');
-            recordPath = '';
-            availableChannels = {};
-            selectedChannels = {};
-            channelNumbers = [];
-            channelFilePaths = {};
-            set(FsOrigLabel, 'String', '...');
-            set(channelTable, 'Data', {});
-                return;
-            end
-            
-            waitbar(0.2, wb, 'Reading header (Fs)...');
-            channelNames = cell(length(ncsFiles), 1);
-            channelNums = zeros(length(ncsFiles), 1);
-            for i = 1:length(ncsFiles)
-                channelNames{i} = ncsFiles(i).chName;
-                channelNums(i) = ncsFiles(i).chNum;
-            end
-            orig_Fs = [];
-            if ~isempty(ncsFiles) && exist(ncsFiles(1).f, 'file')
-                cscHd = Nlx2MatCSC(ncsFiles(1).f, [0 0 0 0 0], 1, 1, []);
-                orig_Fs = NlxParametr(cscHd, 'SamplingFrequency');
-            end
-            
-            waitbar(0.9, wb, 'Updating channel list...');
-            
-            availableChannels = channelNames;
-            channelNumbers = channelNums;
-            channelFilePaths = {ncsFiles.f};
-            numChannels = numel(availableChannels);
+        end
 
-            % Подготавливаем данные для таблицы
-            channelData = cell(numChannels, 2);
-            for i = 1:numChannels
-                channelData{i, 1} = true; % По умолчанию все каналы выбраны
-                channelData{i, 2} = availableChannels{i};
-            end
+        [~, sortIdx] = sort([ncsFiles.chNum]);
+        ncsFiles = ncsFiles(sortIdx);
 
-            % Обновляем таблицу каналов
-            set(channelTable, 'Data', channelData);
-            % Инициализируем выбранные каналы
-            selectedChannels = availableChannels; % Все каналы выбраны
-            
-            % Отображаем оригинальную частоту дискретизации
-            if ~isempty(orig_Fs)
-                set(FsOrigLabel, 'String', ['Fs (Hz): ', num2str(orig_Fs)]);
-            else
-                set(FsOrigLabel, 'String', 'Fs (Hz): N/A');
-            end
-            
-            waitbar(1, wb, 'Complete');
+        if isempty(ncsFiles)
             close(wb);
-            
-        catch ME
-            if ~isempty(wb) && ishandle(wb)
-                close(wb);
-            end
-            disp(['Error loading Neuralynx channels: ', ME.message]);
-            warndlg(['An error occurred while loading Neuralynx channels: ', ME.message], 'Loading Error');
+            warndlg('No .ncs files found in the selected folder.', 'No Channels Found');
             set(recordPathLabel, 'String', 'No folder selected');
             recordPath = '';
             availableChannels = {};
@@ -248,7 +187,46 @@ function convertNlx2zavGUI
             channelFilePaths = {};
             set(FsOrigLabel, 'String', '...');
             set(channelTable, 'Data', {});
+            return;
         end
+
+        waitbar(0.2, wb, 'Reading header (Fs)...');
+        channelNames = cell(length(ncsFiles), 1);
+        channelNums = zeros(length(ncsFiles), 1);
+        for i = 1:length(ncsFiles)
+            channelNames{i} = ncsFiles(i).chName;
+            channelNums(i) = ncsFiles(i).chNum;
+        end
+        orig_Fs = [];
+        if ~isempty(ncsFiles) && exist(ncsFiles(1).f, 'file')
+            cscHd = Nlx2MatCSC(ncsFiles(1).f, [0 0 0 0 0], 1, 1, []);
+            orig_Fs = NlxParametr(cscHd, 'SamplingFrequency');
+        end
+
+        waitbar(0.9, wb, 'Updating channel list...');
+
+        availableChannels = channelNames;
+        channelNumbers = channelNums;
+        channelFilePaths = {ncsFiles.f};
+        numChannels = numel(availableChannels);
+
+        channelData = cell(numChannels, 2);
+        for i = 1:numChannels
+            channelData{i, 1} = true;
+            channelData{i, 2} = availableChannels{i};
+        end
+
+        set(channelTable, 'Data', channelData);
+        selectedChannels = availableChannels;
+
+        if ~isempty(orig_Fs)
+            set(FsOrigLabel, 'String', ['Fs (Hz): ', num2str(orig_Fs)]);
+        else
+            set(FsOrigLabel, 'String', 'Fs (Hz): N/A');
+        end
+
+        waitbar(1, wb, 'Complete');
+        close(wb);
     end
 
     function channelSelectionCallback(src, event)
@@ -288,6 +266,10 @@ function convertNlx2zavGUI
 
     function openafterConvCallback(source, ~)
         openAfter = get(source, 'Value');
+    end
+
+    function removeZeroChannelsCallback(source, ~)
+        removeZeroChannels = get(source, 'Value');
     end
 
     function muaCoefUICallback(source, ~)
@@ -352,11 +334,9 @@ function convertNlx2zavGUI
             active_folder = path;
         end
 
-        % Создаем окно прогресса
         hWaitBar = waitbar(0, 'Initializing conversion...', 'Name', 'Neuralynx to ZAV Conversion');
 
-        try
-            channels_n = numel(channels_list);
+        channels_n = numel(channels_list);
             ncsFilePaths = channelFilePaths(selectedChannelIndices);
             conversion_tic = tic;
 
@@ -364,6 +344,7 @@ function convertNlx2zavGUI
             spks(channels_n) = struct('tStamp', [], 'ampl', [], 'shape', []);
             lfpVar = zeros(1, channels_n);
             hd = [];
+            zeroChannelsList = [];
 
             for ch_inx = 1:channels_n
                 if ch_inx == 1
@@ -402,7 +383,7 @@ function convertNlx2zavGUI
                 hd_ch.inTTL_timestamps = hd_one.inTTL_timestamps;
 
                 if detectMua
-                    [tStamp, ampl, shape] = detectMUA(data_col, hd_ch, mua_std_coef, true);
+                    [tStamp, ampl, shape] = detectMUAzav(data_col, hd_ch, mua_std_coef, true);
                     spks(ch_inx).tStamp = single(tStamp);
                     spks(ch_inx).ampl = single(ampl);
                     spks(ch_inx).shape = shape;
@@ -425,6 +406,10 @@ function convertNlx2zavGUI
                     data_processed = [data_processed; zeros(lfp_length - length(data_processed), 1)];
                 end
 
+                if all(data_processed == 0)
+                    zeroChannelsList(end+1) = ch_inx;
+                end
+
                 lfpVar(ch_inx) = std(data_processed) / 10;
                 m.lfp(:, ch_inx) = single(data_processed);
 
@@ -439,6 +424,25 @@ function convertNlx2zavGUI
             
             waitbar(0.95, hWaitBar, 'Finalizing data...');
             lfpVar = np_flatten(lfpVar)';
+
+            if removeZeroChannels && ~isempty(zeroChannelsList)
+                keepCh = setdiff(1:channels_n, zeroChannelsList);
+                lfp_kept = m.lfp(:, keepCh);
+                hd.nADCNumChannels = numel(keepCh);
+                hd.adBitVolts = hd.adBitVolts(keepCh);
+                hd.dspDelay_mks = hd.dspDelay_mks(keepCh);
+                hd.adBitVoltsSpk = hd.adBitVoltsSpk(keepCh);
+                hd.dspDelay_mksSpk = hd.dspDelay_mksSpk(keepCh);
+                hd.alignmentPt = hd.alignmentPt(keepCh);
+                hd.inverted = hd.inverted(keepCh);
+                hd.recChUnits = hd.recChUnits(keepCh);
+                hd.recChNames = hd.recChNames(keepCh);
+                hd.ch_si = hd.ch_si(keepCh);
+                hd.chNumList = channels_list(keepCh)';
+                spks = spks(keepCh);
+                lfpVar = lfpVar(keepCh);
+                m.lfp = lfp_kept;
+            end
 
             if doResample
                 actual_Fs = lfp_Fs;
@@ -511,14 +515,5 @@ function convertNlx2zavGUI
             if openAfter
                 zav_calling(zavFilePath)
             end
-            
-        catch ME
-            disp(['Error during conversion: ', ME.message]);
-            warndlg(['An error occurred during conversion: ', ME.message], 'Conversion Error');
-            % Закрываем окно прогресса при ошибке
-            if exist('hWaitBar', 'var') && isvalid(hWaitBar)
-                close(hWaitBar);
-            end
-        end
     end
 end

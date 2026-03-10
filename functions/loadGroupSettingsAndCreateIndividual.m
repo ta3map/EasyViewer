@@ -31,11 +31,7 @@ function loadGroupSettingsAndCreateIndividual(matFilePath, numChannels, Fs, EV_v
         applyGroupSettings(groupSettings);
         
     else
-        % Групповых настроек нет - создаем их
-        disp('Creating new group settings file...')
-        createGroupSettings(groupSettingsPath, numChannels, Fs, EV_version);
-        
-        % Применяем настройки по умолчанию
+        % Групповых настроек нет - применяем настройки по умолчанию без создания файла
         [newFs, shiftCoeff, time_back, time_forward, stim_offset] = setDefaultGroupSettings(numChannels, Fs);
         
         % Применяем настройки к глобальным переменным
