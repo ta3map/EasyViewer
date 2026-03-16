@@ -2,8 +2,8 @@ function app()
 
     global EV_path EV_version EV_date EV_author EV_email EV_description
 
-    EV_version = '1.16.05';
-    EV_date = '05.03.2026';
+    EV_version = '1.16.06';
+    EV_date = '16.03.2026';
     EV_author = 'Azat Gainutdinov';
     EV_email = 'ta3map@gmail.com';
     EV_description = 'Visualization and analysis of electrophysiological data';

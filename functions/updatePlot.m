@@ -53,6 +53,15 @@ function updatePlot()
     
     plot_time_interval = chosen_time_interval;
     plot_time_interval(1) = plot_time_interval(1) - time_back;
+    
+    % Относительное время по X:
+    % - обычный режим: 0 в начале выбранного окна (chosen_time_interval(1))
+    % - sweep режим: 0 в начале текущего свипа
+    if strcmp(selectedCenter, 'sweep') && sweep_info.is_sweep_data
+        time_origin = sweep_info.sweep_times(sweep_inx);
+    else
+        time_origin = chosen_time_interval(1);
+    end
 
     row_start = find(time >= plot_time_interval(1), 1, 'first');
     row_end   = find(time < plot_time_interval(2), 1, 'last');
@@ -64,7 +73,7 @@ function updatePlot()
     
     if not(isempty(stims)) && visualSettings.stim_show
         cond3 = stims >= plot_time_interval(1) & stims < plot_time_interval(2); 
-        stims_x = stims(cond3)*timeUnitFactor;
+        stims_x = (stims(cond3) - time_origin) * timeUnitFactor;
         % Убираем артефакт из LFP
         win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
         debugState('updatePlot', 'Stim artifact removal: Fs=%dHz, window=%.3f ms (~%d samples)', Fs, art_rem_settings.artifact_window_ms, win_r);
@@ -123,7 +132,7 @@ function updatePlot()
     end
     
     % Отображение времени на графике с учетом выбранной единицы времени
-    time_in_transformed = time_res * timeUnitFactor;
+    time_in_transformed = (time_res - time_origin) * timeUnitFactor;
 
     % Очистка и обновление графика
     axes(multiax);
@@ -196,7 +205,11 @@ function updatePlot()
 
     
     % Обновляем отображение осей
-    xlabel('Time, s');
+    if strcmp(selectedCenter, 'sweep') && sweep_info.is_sweep_data
+        xlabel(sprintf('Time, %s (Sweep %d/%d)', selectedUnit, sweep_inx, sweep_info.sweep_count));
+    else
+        xlabel('Time, ' + string(selectedUnit) + '');
+    end
     ylabel('Channels');
 
     % Устанавливаем новые тики по оси Y
@@ -244,47 +257,49 @@ function updatePlot()
             
         end
         
-        scatter(x_coord*timeUnitFactor, y_coord, 'r|')
+        scatter((x_coord - time_origin)*timeUnitFactor, y_coord, 'r|')
     end
     
-    Xlims = plot_time_interval*timeUnitFactor;
+    Xlims = (plot_time_interval - time_origin) * timeUnitFactor;
     
     
-    % Манипуляция с тиками времени
-    % Извлечение текущих тиков оси X из графика
-%     xTicks = get(multiax, 'XTick');%(0.5*timeUnitFactor)
-%     tickInterval = xTicks(3)-xTicks(2);
-    tickInterval = (Xlims(2)-Xlims(1))/10;
-    xTicks = Xlims(1):tickInterval:Xlims(2);
-    
-    xticks(xTicks)
     xlim(Xlims)
-    
-    % Вычисление новых тиков и меток в зависимости от режима отображения
-    if strcmp(selectedCenter, 'sweep') && sweep_info.is_sweep_data
-        % Режим свипа: показываем время относительно начала текущего свипа
-        sweep_start_time = sweep_info.sweep_times(sweep_inx);
-        newTicks = xTicks - sweep_start_time*timeUnitFactor - time_back*timeUnitFactor;
-        newTicks(abs(newTicks)<1e-4) = 0;
-        newLabels = arrayfun(@num2str, newTicks, 'UniformOutput', false);
-        newLabels{1} = [sprintf('Sweep %d, ', sweep_inx), newLabels{1}, ' ', selectedUnit];
-        
-        % Устанавливаем заголовок оси для режима свипа
-        xlabel(sprintf('Time, %s (Sweep %d/%d)', selectedUnit, sweep_inx, sweep_info.sweep_count));
-    else
-        % Обычный режим: первый тик остается без изменений, остальные равны отступу от первого
-        newTicks = xTicks - xTicks(1) - time_back*timeUnitFactor;
-        newTicks(1) = xTicks(1); % Установка первого тика в исходное значение
-        newTicks(abs(newTicks)<1e-4) = 0;
-        newLabels = arrayfun(@num2str, newTicks, 'UniformOutput', false);
-        newLabels{1} = [newLabels{1}, ' ', selectedUnit];
-        
-        % Обычный заголовок оси
-        xlabel('Time, ' + string(selectedUnit) + '');
-    end
-    
-    % Применение новых меток тиков к текущему графику
-    set(multiax, 'XTickLabel', newLabels);
+%     
+%     % Манипуляция с тиками времени (временно отключено)
+%     % Даем MATLAB самому выставлять XTick/XTickLabel.
+%     % Извлечение текущих тиков оси X из графика
+%%     xTicks = get(multiax, 'XTick');%(0.5*timeUnitFactor)
+%%     tickInterval = xTicks(3)-xTicks(2);
+%     tickInterval = (Xlims(2)-Xlims(1))/10;
+%     xTicks = Xlims(1):tickInterval:Xlims(2);
+%     
+%     xticks(xTicks)
+%     
+%     % Вычисление новых тиков и меток в зависимости от режима отображения
+%     if strcmp(selectedCenter, 'sweep') && sweep_info.is_sweep_data
+%         % Режим свипа: показываем время относительно начала текущего свипа
+%         sweep_start_time = sweep_info.sweep_times(sweep_inx);
+%         newTicks = xTicks - sweep_start_time*timeUnitFactor - time_back*timeUnitFactor;
+%         newTicks(abs(newTicks)<1e-4) = 0;
+%         newLabels = arrayfun(@num2str, newTicks, 'UniformOutput', false);
+%         newLabels{1} = [sprintf('Sweep %d, ', sweep_inx), newLabels{1}, ' ', selectedUnit];
+%         
+%         % Устанавливаем заголовок оси для режима свипа
+%         xlabel(sprintf('Time, %s (Sweep %d/%d)', selectedUnit, sweep_inx, sweep_info.sweep_count));
+%     else
+%         % Обычный режим: первый тик остается без изменений, остальные равны отступу от первого
+%         newTicks = xTicks - xTicks(1) - time_back*timeUnitFactor;
+%         newTicks(1) = xTicks(1); % Установка первого тика в исходное значение
+%         newTicks(abs(newTicks)<1e-4) = 0;
+%         newLabels = arrayfun(@num2str, newTicks, 'UniformOutput', false);
+%         newLabels{1} = [newLabels{1}, ' ', selectedUnit];
+%         
+%         % Обычный заголовок оси
+%         xlabel('Time, ' + string(selectedUnit) + '');
+%     end
+%     
+%     % Применение новых меток тиков к текущему графику
+%     set(multiax, 'XTickLabel', newLabels);
     
     if visualSettings.show_full_signal
         data_with_offsets = data_res + offsets;
@@ -306,7 +321,7 @@ function updatePlot()
 
     if ~isempty(events)
         cond2 = events >= plot_time_interval(1) & events < plot_time_interval(2);    
-        evets_x = events(cond2)*timeUnitFactor;
+        evets_x = (events(cond2) - time_origin) * timeUnitFactor;
     else
         cond2 = [];
         evets_x = [];
@@ -328,7 +343,7 @@ function updatePlot()
         text_text = '';
     else
         ev_ix = find(cond2);
-        event_times_units = events(cond2)*timeUnitFactor;
+        event_times_units = (events(cond2) - time_origin) * timeUnitFactor;
         fmtOpts = {'%.3f', '%.0f'};
         timeFmt = fmtOpts{1 + strcmp(selectedUnit, 'ms')};
         text_text = arrayfun(@(i) sprintf(['%d\n', timeFmt], ev_ix(i), event_times_units(i)), 1:numel(ev_ix), 'UniformOutput', false);

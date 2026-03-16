@@ -66,7 +66,14 @@ function autoEventDetectionGUI()
     base_figure_position = coordsData.base_figure_position;
     detectionFig = figure('Name', 'Auto Event Detection', 'Tag', figTag, ...
         'Resize', 'on', ...
-        'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', 'Position', base_figure_position);
+        'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'figure', 'Position', base_figure_position, ...
+        'Visible', 'off');
+    
+    % Эксперимент: включаем тулбар при создании, затем скрываем его
+    hToolbar = findall(detectionFig, 'Type', 'uitoolbar');
+    if ~isempty(hToolbar)
+        set(hToolbar, 'Visible', 'off');
+    end
     
     % Окно выбора источника данных LFP или CSD
     uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('sourceText'), 'String', 'Source:', 'Tag', 'sourceText');
@@ -78,7 +85,7 @@ function autoEventDetectionGUI()
 
     % Основной канал и опция вычитания другого канала
     uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('chPosText'), 'String', 'Channel:', 'Tag', 'chPosText');
-    hMainChannel = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('chPos'), 'String', hd.recChNames, 'Callback', @changeDetectionType, 'Tag', 'chPos');
+    hMainChannel = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('chPos'), 'String', hd.recChNames, 'Callback', @mainChannelCallback, 'Tag', 'chPos');
     hSubtractChannelCheck = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', getElementPosition('subtractChannelCheckbox'), 'String', 'Subtract another channel', 'Value', 0, 'Callback', @changeDetectionType, 'Tag', 'subtractChannelCheckbox');
     hChNeg_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('chNegText'), 'String', 'Channel to subtract:', 'Tag', 'chNegText', 'Visible', 'off');
     hSubtractChannel = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('chNeg'), 'String', hd.recChNames, 'Callback', @changeDetectionType, 'Tag', 'chNeg', 'Visible', 'off');
@@ -220,7 +227,7 @@ function autoEventDetectionGUI()
             set(hEndTime, 'visible', 'off')
         end
     end
-    
+
     % Кнопка сброса настроек (слева от Check Detection)
     uicontrol(detectionFig, 'Style', 'pushbutton', 'String', 'Reset settings',...
         'Position', getElementPosition('resetSettingsBtn'), 'Callback', @resetSettingsCallback, 'Tag', 'resetSettingsBtn');
@@ -235,6 +242,13 @@ function autoEventDetectionGUI()
     
     % Устанавливаем обработчик изменения размера окна
     set(detectionFig, 'SizeChangedFcn', @(~,~) resizeComponentsCallback(detectionFig, coordsFile));
+    
+    % Рисуем превью до показа окна
+    previewData();
+    
+    % Показываем окно после превью
+    set(detectionFig, 'Visible', 'on');
+    drawnow;
     
     % Разворачиваем окно после успешной инициализации
     detectionFig.WindowState = 'maximized';
@@ -269,6 +283,11 @@ function autoEventDetectionGUI()
             set(hEndTime, 'Visible', 'off');
         end
         changeDetectionType();
+    end
+
+    function mainChannelCallback(~, ~)
+        changeDetectionType();
+        previewData();
     end
 
     function [detectionType, chPos, chNeg] = uiToDetectionParams()
@@ -372,6 +391,11 @@ function autoEventDetectionGUI()
     function previewData()
         % Предварительная прорисовка
         % Сбор значений параметров и упаковка их в структуру
+        global wb
+        if ~isempty(wb) && isvalid(wb)
+            waitbar(0.05, wb, 'Preview: preparing trace...');
+            drawnow;
+        end
         [params.DetectionType, params.ChPos, params.ChNeg] = uiToDetectionParams();
         params.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
         params.MinPeakDistance = str2double(get(hMinPeakDistance, 'String')) / timeUnitFactor;
@@ -390,6 +414,10 @@ function autoEventDetectionGUI()
         Trace_out(isnan(Trace_out)) = 0;
         Trace_out(isinf(Trace_out)) = 0;
         
+        if ~isempty(wb) && isvalid(wb)
+            waitbar(0.9, wb, 'Preview: rendering plots...');
+            drawnow;
+        end
         outlier = plotRequest(events_detected, Trace_out, time_res, params, prominences_detected);
         set(hMinPeakProminence, 'String', num2str(outlier));
     end
@@ -487,13 +515,17 @@ function autoEventDetectionGUI()
             t = tiledlayout(plotPanel, 1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
         end
         
-        % Tile 1 (левый верхний): временной ряд
+        % Tile 1 (левый верхний): временной ряд (голубые бары)
         ax1 = nexttile(t);
         hold(ax1, 'on');
-        stairs(ax1, time_res*timeUnitFactor, Trace_out);
+        bar(ax1, time_res*timeUnitFactor, Trace_out, 'FaceColor', [0.3 0.6 0.9], 'EdgeColor', 'none');
         xlabel(ax1, ['Time, ' selectedUnit]);
         yline(ax1, chosen_th, 'k:');
-        xlim(ax1, [time_res(1), time_res(end)]*timeUnitFactor);
+        if params.detect && isfield(params, 'UseTimeRange') && params.UseTimeRange
+            xlim(ax1, [params.StartTime, params.EndTime]*timeUnitFactor);
+        else
+            xlim(ax1, [time_res(1), time_res(end)]*timeUnitFactor);
+        end
         Lines(events_detected*timeUnitFactor, [], 'r',':');
         numEvents = numel(events_detected);
         if params.detect
@@ -503,7 +535,7 @@ function autoEventDetectionGUI()
         end
         hold(ax1, 'off');
         
-        % Tile 2 (правый верхний): гистограмма
+        % Tile 2 (правый верхний): гистограмма (амплитуда по оси Y)
         ax2 = nexttile(t);
         hold(ax2, 'on');
         
@@ -511,24 +543,43 @@ function autoEventDetectionGUI()
         hist_label = 'Height';
         
         % Автоматическое определение количества бинов для улучшения визуализации
-        h = histogram(ax2, hist_data, 50,'Normalization','probability');
+        % Поворачиваем распределение так, чтобы амплитуда была по оси Y (как на первом сабплоте)
+        h = histogram(ax2, hist_data, 50, ...
+            'Normalization', 'probability', ...
+            'Orientation', 'horizontal', ...
+            'FaceColor', [0.3 0.6 0.9], ...
+            'EdgeColor', 'none');
         
-        xline(ax2, outlier, 'k:');
-        outlier_h = max(h.Values)*0.9;
-        text(ax2, outlier, outlier_h, 'outlier');
-        text(ax2, outlier, outlier_h*0.95, num2str(outlier, 3));
+        maxProb = max(h.Values);
+        yl = ylim(ax2);
+        ySpan = yl(2) - yl(1);
+        labelLift = 0.05 * ySpan;
+        valueLift = 0.02 * ySpan;
+        topPad = 0.01 * ySpan;
         
-        std3_h = max(h.Values);
-        xline(ax2, std3, 'k:');
-        text(ax2, std3, std3_h, '3*STD');
-        text(ax2, std3, std3_h*0.95, num2str(std3, 3));
+        yline(ax2, outlier, 'k:');
+        outlier_x = maxProb*0.9;
+        outlier_y_label = min(outlier + labelLift, yl(2) - topPad);
+        outlier_y_value = min(outlier + valueLift, yl(2) - topPad);
+        text(ax2, outlier_x, outlier_y_label, 'outlier', 'VerticalAlignment', 'bottom');
+        text(ax2, outlier_x, outlier_y_value, num2str(outlier, 3), 'VerticalAlignment', 'bottom');
         
-        chosen_th_h = std3_h*0.5;
-        xline(ax2, chosen_th, 'r:');
-        text(ax2, chosen_th, chosen_th_h, 'now');
-        text(ax2, chosen_th, std3_h*0.45, num2str(chosen_th, 3), 'color', 'r');
+        std3_x = maxProb;
+        yline(ax2, std3, 'k:');
+        std3_y_label = min(std3 + labelLift, yl(2) - topPad);
+        std3_y_value = min(std3 + valueLift, yl(2) - topPad);
+        text(ax2, std3_x, std3_y_label, '3*STD', 'VerticalAlignment', 'bottom');
+        text(ax2, std3_x, std3_y_value, num2str(std3, 3), 'VerticalAlignment', 'bottom');
         
-        xlabel(ax2, ['Peak ' hist_label]);
+        chosen_th_x = maxProb*0.5;
+        yline(ax2, chosen_th, 'r:');
+        chosen_th_y_label = min(chosen_th + labelLift, yl(2) - topPad);
+        chosen_th_y_value = min(chosen_th + valueLift, yl(2) - topPad);
+        text(ax2, chosen_th_x, chosen_th_y_label, 'now', 'VerticalAlignment', 'bottom');
+        text(ax2, chosen_th_x, chosen_th_y_value, num2str(chosen_th, 3), 'color', 'r', 'VerticalAlignment', 'bottom');
+        
+        xlabel(ax2, 'Probability');
+        ylabel(ax2, ['Peak ' hist_label]);
         title(ax2, ['Distribution of Peak ' hist_label]);
         hold(ax2, 'off');
         
@@ -696,6 +747,9 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     if isempty(wb) || ~isvalid(wb)
         wb = waitbar(0, 'Initializing...', 'Name', 'Event Detection');
     end
+    drawnow;
+    waitbar(0.06, wb, 'Preparing data...');
+    drawnow;
     
     % Распаковка параметров из структуры
     DetectionType = params.DetectionType;
@@ -713,10 +767,15 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     lfp_frq = round(newFs);
     
     % Фильтруем если попросили
+    waitbar(0.08, wb, 'Preparing filters...');
+    drawnow;
     waitbar(0.1, wb, 'Applying filters...');
+    drawnow;
     try
         if sum(filter_avaliable)>0
             ch_to_filter = find(filter_avaliable);
+            waitbar(0.12, wb, sprintf('Applying filters (channels: %d)...', numel(ch_to_filter)));
+            drawnow;
             data_in(:, ch_to_filter) = applyFilter(data_in(:, ch_to_filter), filterSettings, newFs);        
         end
     catch ME
@@ -725,6 +784,7 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
 
     % Убираем артефакт стимула если включено
     waitbar(0.2, wb, 'Removing stimulus artifacts...');
+    drawnow;
     if stims_exist && ~isempty(stims) && art_rem_settings.artifact_window_ms > 0
         win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
         data_in = removeStimArtifact(data_in, stims, time, win_r, art_rem_settings.interp_method);
@@ -732,33 +792,46 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     
     % Вычитаем среднее из запрошенных
     waitbar(0.3, wb, 'Subtracting mean...');
+    drawnow;
     data_in(:, mean_group_ch) = data_in(:, mean_group_ch) - mean(data_in(:, mean_group_ch), 2); % вычитание выбранных средних каналов
     
     % Если источником выбран CSD
     waitbar(0.4, wb, 'Computing CSD...');
+    drawnow;
     switch SourceType
         case 'CSD'
         % Выборка только разрешенных каналов, которым доступен CSD
         allowed_ch_inxs = ch_inxs(csd_avaliable(ch_inxs) == 1);
+        waitbar(0.45, wb, sprintf('Computing CSD (channels: %d)...', numel(allowed_ch_inxs)));
+        drawnow;
         data_in = -globalCSD(data_in, allowed_ch_inxs);
     end
 
     % Создание Trace_out
     waitbar(0.5, wb, 'Creating detection trace...');
+    drawnow;
     switch DetectionType
         case 'two channels difference'
 
+            waitbar(0.55, wb, 'Resampling channels...');
+            drawnow;
             NegTrace = resample1(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
             PosTrace = resample1(double(data_in(:, ChPos)), lfp_frq , raw_frq)';
             Trace_out = PosTrace - NegTrace;
         case 'two channels multiplied'
+            waitbar(0.55, wb, 'Resampling channels...');
+            drawnow;
             NegTrace = resample1(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
             PosTrace = resample1(double(data_in(:, ChPos)), lfp_frq , raw_frq)';              
             Trace_out = -(NegTrace.*PosTrace);        
         case 'one channel negative'
+            waitbar(0.55, wb, 'Resampling channel...');
+            drawnow;
             NegTrace = resample1(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
             Trace_out = -NegTrace;
         case 'one channel positive'
+            waitbar(0.55, wb, 'Resampling channel...');
+            drawnow;
             PosTrace = resample1(double(data_in(:, ChPos)), lfp_frq , raw_frq)';
             Trace_out = PosTrace;
     end
@@ -768,7 +841,7 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     
     time_res = linspace(time(1),time(end),numel(Trace_out));
     
-    % Фильтрация по временному диапазону, если включено
+    % Параметры временного диапазона (используются только для фильтрации событий)
     UseTimeRange = false;
     StartTime = time(1);
     EndTime = time(end);
@@ -780,12 +853,6 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     end
     if isfield(params, 'EndTime')
         EndTime = params.EndTime;
-    end
-    
-    if UseTimeRange
-        timeIndices = (time_res >= StartTime) & (time_res <= EndTime);
-        Trace_out = Trace_out(timeIndices);
-        time_res = time_res(timeIndices);
     end
     
     % Проверка на пустой Trace_out
@@ -1000,6 +1067,14 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
             widths_detected = widths(:);
             prominences = prominences(:);
         end
+
+        if UseTimeRange
+            time_mask = events_detected >= StartTime & events_detected <= EndTime;
+            events_detected = events_detected(time_mask);
+            amplitudes_detected = amplitudes_detected(time_mask);
+            widths_detected = widths_detected(time_mask);
+            prominences = prominences(time_mask);
+        end
         
         waitbar(0.95, wb, 'Finalizing results...');
         
@@ -1056,10 +1131,10 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     end
     
     waitbar(1.0, wb, 'Complete');
-    fprintf('Events detected.\n');
-    
-    % Закрываем waitbar только если detect = true (в режиме детекции)
-    if detect && ~isempty(wb) && isvalid(wb)
+    if detect
+        fprintf('Events detected.\n');
+    end
+    if ~isempty(wb) && isvalid(wb)
         delete(wb);
     end
 end

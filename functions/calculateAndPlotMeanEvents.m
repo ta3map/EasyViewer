@@ -29,6 +29,14 @@ global t_mean_profile
 global wb
 global matFileName
 
+wbCreatedHere = isempty(wb) || ~isvalid(wb);
+if wbCreatedHere
+    wb = waitbar(0.10, 'Preparing mean trace...', 'Name', 'Mean Events');
+else
+    waitbar(0.10, wb, 'Preparing mean trace...');
+end
+drawnow;
+
 if strcmp(sourceType, 'stimuli')
     params.timePoints = stims;
     if isempty(evfilename) || strcmp(evfilename, '')
@@ -54,11 +62,19 @@ channelSettings = get(channelTable, 'Data');
 params.sourceType = sourceType;
 buildFigure = ~isfield(opts, 'buildFigure') || logical(opts.buildFigure);
 if buildFigure
-    params.figure = figure('Name', figureName, 'Tag', 'meanSignalResult');
+    params.figure = figure('Name', figureName, 'Tag', 'meanSignalResult', ...
+        'MenuBar', 'none', 'ToolBar', 'figure');
 else
-    params.figure = figure('Name', figureName, 'Tag', 'meanSignalResult', 'Visible', 'off');
+    params.figure = figure('Name', figureName, 'Tag', 'meanSignalResult', 'Visible', 'off', ...
+        'MenuBar', 'none', 'ToolBar', 'figure');
 end
 params.figure.Position = [32, 64, 1024, 768];
+
+% Тулбар создаём для доступа к инструментам (zoom и т.д.), затем скрываем
+hToolbar = findall(params.figure, 'Type', 'uitoolbar');
+if ~isempty(hToolbar)
+    set(hToolbar, 'Visible', 'off');
+end
 
 % Создаем tiledlayout с опциональным размером через opts
 % По умолчанию 1x1, но можно задать больше для таблиц и scatter-графиков
@@ -103,6 +119,11 @@ params.timeUnitFactor = timeUnitFactor;
 params.lfpVar = lfpVar;
 params.mean_group_ch = mean_group_ch;
 params.t_profile = t_mean_profile;
+
+if ~isempty(wb) && isvalid(wb)
+    waitbar(0.15, wb, 'Preparing input data...');
+    drawnow;
+end
 % Определение параметров удаления артефакта: приоритет у параметров из opts
 if isfield(opts, 'removeArtifact')
     params.remove_artifact = strcmp(sourceType, 'stimuli') && logical(opts.removeArtifact);
@@ -148,6 +169,10 @@ end
 if params.remove_artifact
     win_r = round(artifact_window_ms * (Fs/1000));
     debugState('calculateAndPlotMeanEvents', 'Stim artifact removal: Fs=%dHz, window=%.3f ms (~%d samples)', Fs, artifact_window_ms, win_r);
+    if ~isempty(wb) && isvalid(wb)
+        waitbar(0.3, wb, 'Removing stimulus artifacts...');
+        drawnow;
+    end
     params.lfp = removeStimArtifact(params.lfp, stims, time, win_r, art_rem_settings.interp_method);
     
     if params.show_spikes
@@ -168,12 +193,16 @@ end
 % Фильтруем
 if sum(filter_avaliable)>0
     ch_to_filter = filter_avaliable;
+    if ~isempty(wb) && isvalid(wb)
+        waitbar(0.5, wb, sprintf('Applying filters (channels: %d)...', sum(ch_to_filter)));
+        drawnow;
+    end
     params.lfp(:, ch_to_filter) = applyFilter(params.lfp(:, ch_to_filter), filterSettings, newFs);        
 end
 
-try
-    delete(wb);
-catch
+if ~isempty(wb) && isvalid(wb)
+    waitbar(0.85, wb, 'Rendering mean trace...');
+    drawnow;
 end
 
 [mean_f, calculation_result] = plotMeanEvents(params);
@@ -196,6 +225,13 @@ if ~buildFigure
     close(mean_f);
     mean_f = [];
     fprintf('Mean events calculated.\n');
+    if ~isempty(wb) && isvalid(wb)
+        waitbar(1.0, wb, 'Complete');
+        drawnow;
+    end
+    if wbCreatedHere && ~isempty(wb) && isvalid(wb)
+        delete(wb);
+    end
     return
 end
 
@@ -312,4 +348,11 @@ function SaveImageClb(~,~)
 end
 
 fprintf('Mean events calculated.\n');
+if ~isempty(wb) && isvalid(wb)
+    waitbar(1.0, wb, 'Complete');
+    drawnow;
+end
+if wbCreatedHere && ~isempty(wb) && isvalid(wb)
+    delete(wb);
+end
 end
