@@ -63,7 +63,8 @@ function signalViewerGUI(filePath)
     global call_setStandardChannelSettings
     global saveChannelSettingsFunc
     global updateTableFunc updateLocalCoefsFunc updatePlotFunc
- 
+    global event_label_click_callback
+
     debugState('signalViewerGUI', 'Signal Viewer Started')
 
     if nargin < 1
@@ -122,6 +123,7 @@ function signalViewerGUI(filePath)
         'pan_start_xlim', [0 0], ...
         'pan_start_ylim', [0 0]);
     zoomButton = [];
+    add_event_pending = false;
     
     % Инициализация настроек slope measurement
     slope_measurement_settings = struct();
@@ -247,6 +249,7 @@ function signalViewerGUI(filePath)
     updateTableFunc = @updateTable;
     updateLocalCoefsFunc = @updateLocalCoefs;
     updatePlotFunc = @updatePlot;
+    event_label_click_callback = @selectEventByIndex;
     
     % Устанавливаем matFilePath и matFileName из последних открытых файлов
     if ~isempty(lastOpenedFiles)
@@ -705,14 +708,39 @@ function signalViewerGUI(filePath)
             addMarker(ax);
             updateMarkersDiff(ax);
             
-        elseif ismember('shift', modifiers) % Если зажата Ctrl
-            % Добавление события
-            addEvent(eventAdd);
+        elseif ismember('shift', modifiers) % Добавление события по клику (та же логика, что у маркера)
+            cp = get(ax, 'CurrentPoint');
+            x = cp(1, 1);
+            if strcmp(selectedCenter, 'sweep') && sweep_info.is_sweep_data
+                time_origin = sweep_info.sweep_times(sweep_inx);
+            else
+                time_origin = chosen_time_interval(1);
+            end
+            t_absolute = time_origin + x / timeUnitFactor;
+            addEventAtTime(t_absolute);
+        elseif add_event_pending
+            cp = get(ax, 'CurrentPoint');
+            x = cp(1, 1);
+            if strcmp(selectedCenter, 'sweep') && sweep_info.is_sweep_data
+                time_origin = sweep_info.sweep_times(sweep_inx);
+            else
+                time_origin = chosen_time_interval(1);
+            end
+            t_absolute = time_origin + x / timeUnitFactor;
+            addEventAtTime(t_absolute);
+            add_event_pending = false;
         end
     end
     
     function ButtonMotionFcn(ax, fig)
         if ~zoomState.is_panning
+            modifiers = get(fig, 'CurrentModifier');
+            need_plus = add_event_pending || ismember('control', modifiers) || ismember('shift', modifiers);
+            if need_plus
+                set(fig, 'Pointer', 'crosshair');
+            else
+                set(fig, 'Pointer', 'arrow');
+            end
             return;
         end
         
@@ -1969,6 +1997,20 @@ function signalViewerGUI(filePath)
 
         updatePlot();
     end
+
+    function selectEventByIndex(ev_ix)
+        if isempty(events) || ev_ix < 1 || ev_ix > numel(events)
+            return;
+        end
+        selectedCenter = 'event';
+        event_inx = ev_ix;
+        set(timeCenterPopup, 'Value', 3);
+        windowSize = time_forward;
+        chosen_time_interval(1) = events(event_inx);
+        chosen_time_interval(2) = events(event_inx) + windowSize;
+        set(eventDeleteEdit, 'String', num2str(event_inx));
+        updatePlot();
+    end
     
     % Внутренние функции для обработки событий GUI
     function OpenZavLfpFile(~, ~)
@@ -2653,22 +2695,22 @@ end
     end
 
     function addEvent(~, ~)
-        [event_x, amplitude, channel, width, prominence, metadata] = addExtraEvent();% alvays in seconds!
-        events = [events; event_x];
-        [~, idx] = min(abs(time - event_x));
+        add_event_pending = true;
+    end
+
+    function addEventAtTime(t_absolute)
+        events = [events; t_absolute];
+        [~, idx] = min(abs(time - t_absolute));
         event_indices = [event_indices; idx];
         event_comments{numel(events), 1} = '...';
-        
-        % Добавляем метаданные
-        event_amplitudes = [event_amplitudes; amplitude];
-        event_channels = [event_channels; channel];
-        event_widths = [event_widths; width];
-        event_prominences = [event_prominences; prominence];
-        event_metadata = [event_metadata; metadata];
-        
+        event_amplitudes = [event_amplitudes; NaN];
+        event_channels = [event_channels; 1];
+        event_widths = [event_widths; NaN];
+        event_prominences = [event_prominences; NaN];
+        event_metadata = [event_metadata; createDefaultEventMetadata('manual', 1)];
         UpdateEventTable();
         events_exist = true;
-        updatePlot()
+        updatePlot();
     end
 
     function clearTable(~, ~)

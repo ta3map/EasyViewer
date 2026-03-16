@@ -11,6 +11,7 @@ function updatePlot()
     global baseline_subtract_available % каналы с вычитанием базовой линии
     global plot_updating loading_text_handle % флаг обновления и handle текста
     global previousSliderValue % сохраняем предыдущее значение слайдера
+    global event_label_click_callback
     
     fprintf('[%s] updatePlot: START, chosen_time_interval=[%.3f, %.3f], selectedCenter=%s\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2), selectedCenter);
     
@@ -343,12 +344,24 @@ function updatePlot()
         text_text = '';
     else
         ev_ix = find(cond2);
-        event_times_units = (events(cond2) - time_origin) * timeUnitFactor;
+        event_times_absolute = events(cond2) * timeUnitFactor;
+        event_times_relative = (events(cond2) - time_origin) * timeUnitFactor;
         fmtOpts = {'%.3f', '%.0f'};
         timeFmt = fmtOpts{1 + strcmp(selectedUnit, 'ms')};
-        text_text = arrayfun(@(i) sprintf(['%d\n', timeFmt], ev_ix(i), event_times_units(i)), 1:numel(ev_ix), 'UniformOutput', false);
+        text_text = arrayfun(@(i) sprintf(['#%d\n', timeFmt, ' ', selectedUnit, '\nrel ', timeFmt, ' ', selectedUnit], ev_ix(i), event_times_absolute(i), event_times_relative(i)), 1:numel(ev_ix), 'UniformOutput', false);
     end
-    textMod(text_x, text_y, text_text, lines_and_styles, 'events_lines')
+    if isempty(evets_x)
+        % nothing to draw
+    elseif ~isempty(event_label_click_callback)
+        lineStyle = lines_and_styles.events_lines;
+        for i = 1:numel(ev_ix)
+            h = text(multiax, text_x(i), text_y(i), text_text{i}, 'Color', lineStyle.LabelColor, 'FontSize', lineStyle.LabelFontSize, ...
+                'BackgroundColor', lineStyle.LabelBackgroundColor, 'FontWeight', lineStyle.LabelFontWeight, 'HitTest', 'on');
+            set(h, 'ButtonDownFcn', @(~,~) event_label_click_callback(ev_ix(i)));
+        end
+    else
+        textMod(text_x, text_y, text_text, lines_and_styles, 'events_lines');
+    end
 %     text(text_x, text_y, text_text, 'color', events_color);
 
     % stims number

@@ -91,7 +91,7 @@ function autoEventDetectionGUI()
     hSubtractChannel = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('chNeg'), 'String', hd.recChNames, 'Callback', @changeDetectionType, 'Tag', 'chNeg', 'Visible', 'off');
     
     % Окошко для ввода минимальной высоты пика
-    hMinPeakProminence_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('minPeakProminenceText'), 'String', 'Minimal Peak Height:', 'Tag', 'minPeakProminenceText');
+    hMinPeakProminence_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('minPeakProminenceText'), 'String', 'Threshold:', 'Tag', 'minPeakProminenceText');
     hMinPeakProminence = uicontrol(detectionFig, 'Style', 'edit', 'Position', getElementPosition('minPeakProminence'), 'String', '50', 'Tag', 'minPeakProminence');
 
     % Окошко для ввода MinPeakDistance
@@ -390,12 +390,14 @@ function autoEventDetectionGUI()
 
     function previewData()
         % Предварительная прорисовка
-        % Сбор значений параметров и упаковка их в структуру
         global wb
-        if ~isempty(wb) && isvalid(wb)
-            waitbar(0.05, wb, 'Preview: preparing trace...');
-            drawnow;
+        if isempty(wb) || ~isvalid(wb)
+            wb = waitbar(0, 'Preview: preparing...', 'Name', 'Event Detection');
+        else
+            waitbar(0, wb, 'Preview: preparing...');
         end
+        drawnow;
+        % Сбор значений параметров и упаковка их в структуру
         [params.DetectionType, params.ChPos, params.ChNeg] = uiToDetectionParams();
         params.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
         params.MinPeakDistance = str2double(get(hMinPeakDistance, 'String')) / timeUnitFactor;
@@ -479,12 +481,22 @@ function autoEventDetectionGUI()
 
     function outlier = plotRequest(events_detected, Trace_out, time_res, params, prominences_detected)
 
-        outlier = quantile(Trace_out, [0.999]);
-        std3 = 3*nanstd(Trace_out);
-        
         numSegments = 100;
         Trace_out = findSegmentMaxima(Trace_out, numSegments);
         time_res = linspace(time_res(1),time_res(end),numSegments);
+        
+        yMin = quantile(Trace_out, 0.02);
+        yMax = quantile(Trace_out, 0.98);
+        if yMax <= yMin
+            yMax = yMin + 1;
+        end
+        inRange = Trace_out >= yMin & Trace_out <= yMax;
+        dataInRange = Trace_out(inRange);
+        if isempty(dataInRange)
+            dataInRange = Trace_out;
+        end
+        outlier = quantile(dataInRange, 0.999);
+        std3 = 3*nanstd(dataInRange);
         
         if params.detect % если идет детекция
             chosen_th = params.MinPeakProminence;
@@ -526,6 +538,7 @@ function autoEventDetectionGUI()
         else
             xlim(ax1, [time_res(1), time_res(end)]*timeUnitFactor);
         end
+        ylim(ax1, [yMin, yMax]);
         Lines(events_detected*timeUnitFactor, [], 'r',':');
         numEvents = numel(events_detected);
         if params.detect
@@ -541,15 +554,14 @@ function autoEventDetectionGUI()
         
         hist_data = Trace_out;
         hist_label = 'Height';
-        
-        % Автоматическое определение количества бинов для улучшения визуализации
-        % Поворачиваем распределение так, чтобы амплитуда была по оси Y (как на первом сабплоте)
-        h = histogram(ax2, hist_data, 50, ...
+        nBins = max(25, min(80, round(3*sqrt(numel(hist_data)))));
+        edges = linspace(yMin, yMax, nBins + 1);
+        h = histogram(ax2, hist_data, edges, ...
             'Normalization', 'probability', ...
             'Orientation', 'horizontal', ...
             'FaceColor', [0.3 0.6 0.9], ...
             'EdgeColor', 'none');
-        
+        ylim(ax2, [yMin, yMax]);
         maxProb = max(h.Values);
         yl = ylim(ax2);
         ySpan = yl(2) - yl(1);
