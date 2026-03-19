@@ -1844,6 +1844,7 @@ function signalViewerGUI(filePath)
         filterSettings.channelsToFilter = np_flatten(filter_avaliable);
 
         updateLocalCoefs()% локальные аналоги для текущего учаска времени
+        updateCSDControlsVisibility();
 
         saveChannelSettings();
 
@@ -2135,6 +2136,7 @@ function signalViewerGUI(filePath)
 
     function resetToNoFileState()
         lfp_file = []; spks = []; hd = []; zavp = []; lfpVar = []; chnlGrp = []; time = []; stims = [];
+        ch_inxs = [];
         sweep_info = struct('is_sweep_data', false, 'sweep_count', 0, 'sweep_times', []);
         time_forward = []; time_back = []; matFilePath = ''; matFileName = ''; stims_exist = false;
         events = []; event_indices = []; event_comments = {}; event_amplitudes = []; event_channels = [];
@@ -2156,6 +2158,8 @@ function signalViewerGUI(filePath)
         set(LoadMatFileBtn, 'Enable', 'on');
         set(FMbutton, 'Enable', 'on');
         set(loadEventsBtn, 'Enable', 'on');
+        updateMUAControlsVisibility();
+        updateCSDControlsVisibility();
         data_loaded = false;
     end
 
@@ -2222,6 +2226,8 @@ function signalViewerGUI(filePath)
         set(showCSDbutton, 'Value', visualSettings.show_CSD);
         set(showEventsButton, 'Value', visualSettings.events_show);
         set(showStimButton, 'Value', visualSettings.stim_show);
+        updateMUAControlsVisibility();
+        updateCSDControlsVisibility();
         
         % Установка правильного значения в выпадающем списке в зависимости от selectedCenter
         switch selectedCenter
@@ -2261,6 +2267,26 @@ function signalViewerGUI(filePath)
         
         % включаем multiax
         set(multiax, 'Visible', 'on')
+    end
+
+    function updateMUAControlsVisibility()
+        hasMUA = ~isempty(spks);
+        visibilityStates = {'off', 'on'};
+        visibilityValue = visibilityStates{hasMUA + 1};
+        set(showSpikesButton, 'Visible', visibilityValue);
+        set(stdCoefText, 'Visible', visibilityValue);
+        set(stdCoefEdit, 'Visible', visibilityValue);
+    end
+
+    function updateCSDControlsVisibility()
+        enoughActiveChannels = numel(ch_inxs) >= 4;
+        visibilityStates = {'off', 'on'};
+        visibilityValue = visibilityStates{enoughActiveChannels + 1};
+        if ~enoughActiveChannels
+            visualSettings.show_CSD = false;
+            set(showCSDbutton, 'Value', visualSettings.show_CSD);
+        end
+        set(showCSDbutton, 'Visible', visibilityValue);
     end
 
     function toggleChannelProperty(~, ~, columnIndex)
