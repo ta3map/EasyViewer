@@ -425,7 +425,7 @@ function autoEventDetectionGUI()
             waitbar(0.9, wb, 'Preview: rendering plots...');
             drawnow;
         end
-        outlier = plotRequest(events_detected, Trace_out, time_res, params, prominences_detected);
+        outlier = plotRequest(events_detected, Trace_out, time_res, params, prominences_detected, amplitudes_detected);
         set(hMinPeakProminence, 'String', num2str(outlier));
     end
 
@@ -441,8 +441,8 @@ function autoEventDetectionGUI()
             
             % Создаем tiledlayout в зависимости от необходимости дополнительных графиков
             if searchEnabled
-                t = tiledlayout(plotPanel, 2, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-                numTiles = 4;
+                t = tiledlayout(plotPanel, 3, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+                numTiles = 6;
             else
                 t = tiledlayout(plotPanel, 1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
                 numTiles = 2;
@@ -478,13 +478,13 @@ function autoEventDetectionGUI()
         Trace_out(isnan(Trace_out)) = 0;
         Trace_out(isinf(Trace_out)) = 0;
         
-        plotRequest(events_detected, Trace_out, time_res, params, prominences_detected);
+        plotRequest(events_detected, Trace_out, time_res, params, prominences_detected, amplitudes_detected);
         
         set(applybutton, 'Enable', 'on')
         
     end
 
-    function outlier = plotRequest(events_detected, Trace_out, time_res, params, prominences_detected)
+    function outlier = plotRequest(events_detected, Trace_out, time_res, params, prominences_detected, amplitudes_detected)
 
         numSegments = 100;
         Trace_out = findSegmentMaxima(Trace_out, numSegments);
@@ -527,7 +527,7 @@ function autoEventDetectionGUI()
         
         % Создаем tiledlayout в зависимости от необходимости дополнительных графиков
         if needStimuliPlots
-            t = tiledlayout(plotPanel, 2, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+            t = tiledlayout(plotPanel, 3, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
         else
             t = tiledlayout(plotPanel, 1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
         end
@@ -600,7 +600,7 @@ function autoEventDetectionGUI()
         title(ax2, ['Distribution of Peak ' hist_label]);
         hold(ax2, 'off');
         
-        % Tile 3 и 4 (нижний ряд): боксплот и гистограмма относительного времени
+        % Tile 3 и 4 (второй ряд): боксплот и гистограмма относительного времени
         % Создаем только если нужны графики для поиска вокруг стимулов
         if needStimuliPlots
             % Вычисляем относительное время для каждого события
@@ -637,7 +637,31 @@ function autoEventDetectionGUI()
             ylabel(ax4, 'Probability');
             title(ax4, 'Distribution of relative event times');
             grid(ax4, 'on');
+            xlim(ax3, xlim(ax4));
             hold(ax4, 'off');
+
+            % Tile 5 (левый нижний): боксплот амплитуд событий
+            ax5 = nexttile(t);
+            hold(ax5, 'on');
+            boxplot(ax5, amplitudes_detected, 'Orientation', 'horizontal');
+            y_jitter_amp = 0.5 + 0.15 * (rand(size(amplitudes_detected)) - 0.5);
+            scatter(ax5, amplitudes_detected, y_jitter_amp, 20, 'k', '.', 'MarkerFaceAlpha', 0.6);
+            xlabel(ax5, 'Event amplitude');
+            ylabel(ax5, 'Events');
+            title(ax5, sprintf('Event amplitudes (n=%d)', length(amplitudes_detected)));
+            grid(ax5, 'on');
+            hold(ax5, 'off');
+
+            % Tile 6 (правый нижний): гистограмма амплитуд событий
+            ax6 = nexttile(t);
+            hold(ax6, 'on');
+            histogram(ax6, amplitudes_detected, 30, 'Normalization', 'probability', 'FaceColor', [0.3 0.6 0.9], 'EdgeColor', 'k');
+            xlabel(ax6, 'Event amplitude');
+            ylabel(ax6, 'Probability');
+            title(ax6, 'Distribution of event amplitudes');
+            grid(ax6, 'on');
+            xlim(ax5, xlim(ax6));
+            hold(ax6, 'off');
         end
     end
 

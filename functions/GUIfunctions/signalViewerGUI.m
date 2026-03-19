@@ -177,32 +177,6 @@ function signalViewerGUI(filePath)
     analysis_menu_visible = false;
     help_menu_visible = false;
     
-    binsize = 0.001;%s
-    visualSettings.show_spikes = false;
-    visualSettings.show_CSD = false;
-    if ~isfield(visualSettings, 'events_show')
-        visualSettings.events_show = true;
-    end
-    std_coef = 0;
-    time_back = 0.6;
-    time_forward = 0.6;
-    
-    stims = [];
-    stim_inx = 1;
-    
-    events = [];
-    event_indices = [];
-    event_inx = 1;
-    selected_event_rows = [];
-    event_comments = {};
-    
-    % Новые массивы метаданных событий для расширенной функциональности
-    event_amplitudes = [];      % Амплитуды событий
-    event_channels = [];        % Каналы событий (может быть массив для многоканальных)
-    event_widths = [];          % Ширина пиков (для автодетекции)
-    event_prominences = [];     % Выраженность пиков (для автодетекции)
-    event_metadata = [];        % Структура с полными метаданными каждого события
-    
     min_scale_coef = 0.8;
     base_figure_position = [20 60 1280 650]*min_scale_coef;
 
@@ -245,6 +219,32 @@ function signalViewerGUI(filePath)
     updatePlotFunc = @updatePlot;
     event_label_click_callback = @selectEventByIndex;
     stim_label_click_callback = @selectStimulusByIndex;
+
+    binsize = 0.001;%s
+    visualSettings.show_spikes = false;
+    visualSettings.show_CSD = false;
+    if ~isfield(visualSettings, 'events_show')
+        visualSettings.events_show = true;
+    end
+    std_coef = 0;
+    time_back = 0.6;
+    time_forward = 0.6;
+    
+    stims = [];
+    stim_inx = 1;
+    
+    events = [];
+    event_indices = [];
+    event_inx = 1;
+    selected_event_rows = [];
+    event_comments = {};
+    
+    % Новые массивы метаданных событий для расширенной функциональности
+    event_amplitudes = [];      % Амплитуды событий
+    event_channels = [];        % Каналы событий (может быть массив для многоканальных)
+    event_widths = [];          % Ширина пиков (для автодетекции)
+    event_prominences = [];     % Выраженность пиков (для автодетекции)
+    event_metadata = [];        % Структура с полными метаданными каждого события
     
     % Устанавливаем matFilePath и matFileName из последних открытых файлов
     if ~isempty(lastOpenedFiles)
@@ -2820,6 +2820,19 @@ end
         if events_exist
             chosen_time_interval(1) = events(event_inx);
             chosen_time_interval(2) = events(event_inx) + windowSize;
+        else
+            if stims_exist && ~isempty(stims)
+                selectedCenter = 'stimulus';
+                stim_inx = 1;
+                set(timeCenterPopup, 'Value', 2);
+                chosen_time_interval(1) = stims(stim_inx);
+                chosen_time_interval(2) = stims(stim_inx) + windowSize;
+            else
+                selectedCenter = 'time';
+                set(timeCenterPopup, 'Value', 1);
+                chosen_time_interval = [0, windowSize];
+            end
+            updateSliderMaxValue();
         end
         
         updatePlot();
