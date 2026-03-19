@@ -40,7 +40,7 @@ function autoEventDetectionGUI()
     global hMinPeakProminence hDetectionType hMainChannel hSubtractChannelCheck hSubtractChannel hMaxPeakWidth
     global hMinPeakDistance
     global hSourceType selectedCenter timeCenterPopup windowSize chosen_time_interval
-    global hSearchAroundStimuli hSearchWindow stims_exist stims
+    global hSearchAroundStimuli hSearchWindow hSearchAroundDirection stims_exist stims
     global hUseTimeRange hStartTime hEndTime time
     
     % Переменные для хранения результатов детекции в области видимости GUI
@@ -119,6 +119,17 @@ function autoEventDetectionGUI()
     hSearchWindow_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('searchWindowText'), 'String', ['Search window (' selectedUnit '):'], 'Tag', 'searchWindowText');
     hSearchWindow = uicontrol(detectionFig, 'Style', 'edit', 'Position', getElementPosition('searchWindow'), 'String', num2str(0.5*timeUnitFactor), 'Tag', 'searchWindow');
 
+    % Выпадающий список направления окна поиска
+    hSearchAroundDirection_text = uicontrol(detectionFig, 'Style', 'text', ...
+        'Position', getElementPosition('searchDirectionText'), ...
+        'String', 'Search direction:', ...
+        'Tag', 'searchDirectionText', 'Visible', 'off');
+    hSearchAroundDirection = uicontrol(detectionFig, 'Style', 'popupmenu', ...
+        'Position', getElementPosition('searchDirection'), ...
+        'String', {'Two-sided (-window..+window)', 'One-sided after (0..+window)'}, ...
+        'Value', 2, ...
+        'Tag', 'searchDirection', 'Visible', 'off');
+
     % Инициализация видимости элементов в зависимости от наличия стимулов
     changeDetectionType();
 
@@ -189,6 +200,10 @@ function autoEventDetectionGUI()
         if isfield(settings, 'SearchWindow')
             set(hSearchWindow, 'String', num2str(settings.SearchWindow*timeUnitFactor));
         end
+        if isfield(settings, 'SearchAroundDirection')
+            safeSetPopupValue(hSearchAroundDirection, settings.SearchAroundDirection, ...
+                numel(get(hSearchAroundDirection, 'String')), 'SearchAroundDirection');
+        end
         
         % Обновляем видимость поля Search window после загрузки настроек
         if stims_exist
@@ -196,9 +211,13 @@ function autoEventDetectionGUI()
             if search_enabled
                 set(hSearchWindow_text, 'visible', 'on')
                 set(hSearchWindow, 'visible', 'on')
+                set(hSearchAroundDirection_text, 'visible', 'on')
+                set(hSearchAroundDirection, 'visible', 'on')
             else
                 set(hSearchWindow_text, 'visible', 'off')
                 set(hSearchWindow, 'visible', 'off')
+                set(hSearchAroundDirection_text, 'visible', 'off')
+                set(hSearchAroundDirection, 'visible', 'off')
             end
         end
         
@@ -226,6 +245,7 @@ function autoEventDetectionGUI()
             set(hEndTimeLabel, 'visible', 'off')
             set(hEndTime, 'visible', 'off')
         end
+        changeDetectionType();
     end
 
     % Кнопка сброса настроек (слева от Check Detection)
@@ -340,6 +360,7 @@ function autoEventDetectionGUI()
         set(hEndTime, 'String', num2str(time(end)*timeUnitFactor));
         set(hSearchAroundStimuli, 'Value', 0);
         set(hSearchWindow, 'String', num2str(0.5*timeUnitFactor));
+        set(hSearchAroundDirection, 'Value', 2);
         changeDetectionType();
     end
 
@@ -378,14 +399,20 @@ function autoEventDetectionGUI()
             if search_enabled && ~useTimeRange
                 set(hSearchWindow_text, 'visible', 'on')
                 set(hSearchWindow, 'visible', 'on')
+                set(hSearchAroundDirection_text, 'visible', 'on')
+                set(hSearchAroundDirection, 'visible', 'on')
             else
                 set(hSearchWindow_text, 'visible', 'off')
                 set(hSearchWindow, 'visible', 'off')
+                set(hSearchAroundDirection_text, 'visible', 'off')
+                set(hSearchAroundDirection, 'visible', 'off')
             end
         else
             set(hSearchAroundStimuli, 'visible', 'off')
             set(hSearchWindow_text, 'visible', 'off')
             set(hSearchWindow, 'visible', 'off')
+            set(hSearchAroundDirection_text, 'visible', 'off')
+            set(hSearchAroundDirection, 'visible', 'off')
             set(hSearchAroundStimuli, 'Value', 0)
         end
         
@@ -412,6 +439,7 @@ function autoEventDetectionGUI()
         params.max_peak_width = str2double(get(hMaxPeakWidth, 'String')) / timeUnitFactor;
         params.SearchAroundStimuli = get(hSearchAroundStimuli, 'Value');
         params.SearchWindow = str2double(get(hSearchWindow, 'String')) / timeUnitFactor;
+        params.SearchAroundDirection = get(hSearchAroundDirection, 'Value');
         params.UseTimeRange = get(hUseTimeRange, 'Value');
         params.StartTime = str2double(get(hStartTime, 'String')) / timeUnitFactor;
         params.EndTime = str2double(get(hEndTime, 'String')) / timeUnitFactor;
@@ -469,6 +497,7 @@ function autoEventDetectionGUI()
         params.max_peak_width = str2double(get(hMaxPeakWidth, 'String')) / timeUnitFactor;
         params.SearchAroundStimuli = get(hSearchAroundStimuli, 'Value');
         params.SearchWindow = str2double(get(hSearchWindow, 'String')) / timeUnitFactor;
+        params.SearchAroundDirection = get(hSearchAroundDirection, 'Value');
         params.UseTimeRange = get(hUseTimeRange, 'Value');
         params.StartTime = str2double(get(hStartTime, 'String')) / timeUnitFactor;
         params.EndTime = str2double(get(hEndTime, 'String')) / timeUnitFactor;
@@ -614,7 +643,7 @@ function autoEventDetectionGUI()
                 rel_times = [rel_times; rel_time];
             end
             
-            % Tile 3 (левый нижний): боксплот относительного времени
+            % Tile 3 (левый средний): боксплот относительного времени
             ax3 = nexttile(t);
             hold(ax3, 'on');
             boxplot(ax3, rel_times*timeUnitFactor, 'Orientation', 'horizontal');
@@ -629,7 +658,7 @@ function autoEventDetectionGUI()
             grid(ax3, 'on');
             hold(ax3, 'off');
             
-            % Tile 4 (правый нижний): гистограмма относительного времени
+            % Tile 4 (правый средний): гистограмма относительного времени
             ax4 = nexttile(t);
             hold(ax4, 'on');
             histogram(ax4, rel_times*timeUnitFactor, 30, 'Normalization', 'probability', 'FaceColor', [0.3 0.6 0.9], 'EdgeColor', 'k');
@@ -755,7 +784,7 @@ function saveSettings()
     global hMinPeakProminence hDetectionType hMainChannel hSubtractChannelCheck hSubtractChannel hMaxPeakWidth
     global hMinPeakDistance
     global autodetection_settings SettingsFilepath
-    global hSourceType timeUnitFactor hSearchAroundStimuli hSearchWindow
+    global hSourceType timeUnitFactor hSearchAroundStimuli hSearchWindow hSearchAroundDirection
     global hUseTimeRange hStartTime hEndTime
 
     settings.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
@@ -768,6 +797,7 @@ function saveSettings()
     settings.MaxPeakWidth = str2double(get(hMaxPeakWidth, 'String')) / timeUnitFactor;
     settings.SearchAroundStimuli = get(hSearchAroundStimuli, 'Value');
     settings.SearchWindow = str2double(get(hSearchWindow, 'String')) / timeUnitFactor;
+    settings.SearchAroundDirection = get(hSearchAroundDirection, 'Value');
     settings.UseTimeRange = get(hUseTimeRange, 'Value');
     settings.StartTime = str2double(get(hStartTime, 'String')) / timeUnitFactor;
     settings.EndTime = str2double(get(hEndTime, 'String')) / timeUnitFactor;
@@ -939,18 +969,23 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
             % Проверяем, нужно ли искать вокруг стимулов
             SearchAroundStimuli = false;
             SearchWindow = 0;
+            SearchAroundDirection = 2; % 1 - two-sided, 2 - after-only
             if isfield(params, 'SearchAroundStimuli')
                 SearchAroundStimuli = params.SearchAroundStimuli;
             end
             if isfield(params, 'SearchWindow')
                 SearchWindow = params.SearchWindow;
             end
+            if isfield(params, 'SearchAroundDirection')
+                SearchAroundDirection = params.SearchAroundDirection;
+            end
+            isTwoSided = (SearchAroundDirection == 1);
         
         % Поиск вокруг стимулов возможен только если не включен временной диапазон
         if SearchAroundStimuli && stims_exist && ~isempty(stims) && ~UseTimeRange
             fprintf('=== DEBUG: Searching around stimuli ===\n');
             fprintf('Number of stimuli: %d\n', length(stims));
-            fprintf('Search window: ±%.6f sec\n', SearchWindow);
+            fprintf('Search window: [%.6f..%.6f] sec\n', -SearchWindow*isTwoSided, SearchWindow);
             fprintf('\n');
             
             waitbar(0.65, wb, sprintf('Detecting events around %d stimuli...', length(stims)));
@@ -967,7 +1002,7 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
                 waitbar(0.65 + 0.25 * (stim_idx / num_stims), wb, ...
                     sprintf('Processing stimulus %d of %d...', stim_idx, num_stims));
                 stim = stims(stim_idx);
-                window_start = stim - SearchWindow;
+                window_start = stim - SearchWindow*isTwoSided;
                 window_end = stim + SearchWindow;
                 
                 % Находим индексы, попадающие в окно
