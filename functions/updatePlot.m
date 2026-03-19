@@ -12,6 +12,7 @@ function updatePlot()
     global plot_updating loading_text_handle % флаг обновления и handle текста
     global previousSliderValue % сохраняем предыдущее значение слайдера
     global event_label_click_callback stim_label_click_callback
+global event_amplitudes
     
     show_events = true;
     if isfield(visualSettings, 'events_show')
@@ -358,11 +359,26 @@ function updatePlot()
         text_text = '';
     else
         ev_ix = find(cond2);
+        ev_ix = ev_ix(:); % ensure column shape for consistent cell-array sizing
         event_times_absolute = events(cond2) * timeUnitFactor;
         event_times_relative = (events(cond2) - time_origin) * timeUnitFactor;
         fmtOpts = {'%.3f', '%.0f'};
         timeFmt = fmtOpts{1 + strcmp(selectedUnit, 'ms')};
-        text_text = arrayfun(@(i) sprintf(['#%d\n', timeFmt, ' ', selectedUnit, '\nrel ', timeFmt, ' ', selectedUnit], ev_ix(i), event_times_absolute(i), event_times_relative(i)), 1:numel(ev_ix), 'UniformOutput', false);
+        idx = (1:numel(ev_ix)).'; % column vector to force column cell output
+        baseText = arrayfun( ...
+            @(i) sprintf(['#%d\n', timeFmt, ' ', selectedUnit, '\nrel ', timeFmt, ' ', selectedUnit], ...
+                ev_ix(i), event_times_absolute(i), event_times_relative(i)), ...
+            idx, 'UniformOutput', false);
+        
+        ev_amps = NaN(size(ev_ix));
+        if ~isempty(event_amplitudes) && numel(event_amplitudes) >= max(ev_ix)
+            ev_amps = event_amplitudes(ev_ix);
+        end
+        
+        ampText = arrayfun(@(a) sprintf('\nAmp %.3f', a), ev_amps, 'UniformOutput', false);
+        ampText(isnan(ev_amps)) = {''};
+        
+        text_text = cellfun(@(b, a) [b a], baseText, ampText, 'UniformOutput', false);
     end
     if show_events
         if isempty(evets_x)

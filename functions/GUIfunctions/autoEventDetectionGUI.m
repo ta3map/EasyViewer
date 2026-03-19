@@ -995,6 +995,7 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
             all_peaks = [];
             all_widths = [];
             all_prominences = [];
+            mpdWarningShown = false;
             
             % Детекция в окнах вокруг каждого стимула
             num_stims = length(stims);
@@ -1019,6 +1020,32 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
                 % Пропускаем окно, если данных нет
                 if isempty(Trace_out_window) || numel(Trace_out_window) == 0
                     continue;
+                end
+                
+                % findpeaks requires MinPeakDistance < (x(end) - x(1)).
+                % Here x is time_res_window; if MinPeakDistance is larger than the
+                % available time span in the current window, MATLAB throws an error.
+                time_span_window = time_res_window(end) - time_res_window(1);
+                if MinPeakDistance >= time_span_window
+                    if ~mpdWarningShown
+                        suggested = max(0, time_span_window - eps(time_span_window));
+                        msg = sprintf(['MinPeakDistance is too large for the current search window.\n\n' ...
+                            'MATLAB requires: MinPeakDistance < (max(time) - min(time))\n' ...
+                            'Current MinPeakDistance: %.6f s\n' ...
+                            'Available window time span: %.6f s\n' ...
+                            'Suggested maximum value: %.6f s\n\n' ...
+                            'Please decrease "Minimal Time Between Peaks" in the GUI and press Detect again.'], ...
+                            MinPeakDistance, time_span_window, suggested);
+                        uiwait(msgbox(msg, 'MinPeakDistance too large', 'warn', 'modal'));
+                        mpdWarningShown = true;
+                    end
+                    
+                    % Abort full detection to avoid repeated findpeaks errors.
+                    all_peak_times = [];
+                    all_peaks = [];
+                    all_widths = [];
+                    all_prominences = [];
+                    break;
                 end
                 
                 % Детекция в окне
