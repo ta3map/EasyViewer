@@ -62,7 +62,7 @@ function signalViewerGUI(filePath)
     global call_setStandardChannelSettings
     global saveChannelSettingsFunc
     global updateTableFunc updateLocalCoefsFunc updatePlotFunc
-    global event_label_click_callback
+    global event_label_click_callback stim_label_click_callback
 
     debugState('signalViewerGUI', 'Signal Viewer Started')
 
@@ -244,6 +244,7 @@ function signalViewerGUI(filePath)
     updateLocalCoefsFunc = @updateLocalCoefs;
     updatePlotFunc = @updatePlot;
     event_label_click_callback = @selectEventByIndex;
+    stim_label_click_callback = @selectStimulusByIndex;
     
     % Устанавливаем matFilePath и matFileName из последних открытых файлов
     if ~isempty(lastOpenedFiles)
@@ -1897,6 +1898,19 @@ function signalViewerGUI(filePath)
         chosen_time_interval(1) = events(event_inx);
         chosen_time_interval(2) = events(event_inx) + windowSize;
         set(eventDeleteEdit, 'String', num2str(event_inx));
+        updatePlot();
+    end
+
+    function selectStimulusByIndex(st_ix)
+        if isempty(stims) || st_ix < 1 || st_ix > numel(stims)
+            return;
+        end
+        selectedCenter = 'stimulus';
+        stim_inx = st_ix;
+        set(timeCenterPopup, 'Value', 2);
+        windowSize = time_forward;
+        chosen_time_interval(1) = stims(stim_inx);
+        chosen_time_interval(2) = stims(stim_inx) + windowSize;
         updatePlot();
     end
     

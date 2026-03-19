@@ -11,7 +11,7 @@ function updatePlot()
     global baseline_subtract_available % каналы с вычитанием базовой линии
     global plot_updating loading_text_handle % флаг обновления и handle текста
     global previousSliderValue % сохраняем предыдущее значение слайдера
-    global event_label_click_callback
+    global event_label_click_callback stim_label_click_callback
     
     show_events = true;
     if isfield(visualSettings, 'events_show')
@@ -322,10 +322,12 @@ function updatePlot()
     centerModes = {'stimulus', 'event', 'sweep', 'time'};
     centerLabels = {'Stimuli', 'Event', 'Sweep', 'ContinuousTime'};
     centerStyleNames = {'stimulus_lines', 'events_lines', 'stimulus_lines', 'stimulus_lines'};
+    labelHeightFractions = [0.05, 0.10]; % [stimulus, event]
     centerLabel = centerLabels{find(strcmp(centerModes, selectedCenter), 1)};
     centerStyleName = centerStyleNames{find(strcmp(centerModes, selectedCenter), 1)};
     yTop = multiax.YLim(2);
-    yPad = diff(multiax.YLim) * 0.03;
+    centerLabelHeightFraction = labelHeightFractions(1 + strcmp(centerStyleName, 'events_lines'));
+    yPad = diff(multiax.YLim) * centerLabelHeightFraction;
     drawLabelWithBg(multiax, 0, yTop - yPad, centerLabel, lines_and_styles.(centerStyleName), [], 'right')
 
 
@@ -349,7 +351,7 @@ function updatePlot()
     xlineMod(stims_x, lines_and_styles, 'stimulus_lines')
     
     % events number
-    text_y = Ylims(2) - diff(Ylims)*0.05;
+    text_y = Ylims(2) - diff(Ylims)*labelHeightFractions(2);
     text_y = zeros(numel(evets_x), 1) + text_y;
     text_x = evets_x + diff(Xlims)*0.01;
     if isempty(evets_x)
@@ -377,12 +379,26 @@ function updatePlot()
 %     text(text_x, text_y, text_text, 'color', events_color);
 
     % stims number
-    text_y = Ylims(2) - diff(Ylims)*0.1;
+    text_y = Ylims(2) - diff(Ylims)*labelHeightFractions(1);
     text_y = zeros(numel(stims_x), 1) + text_y;
     text_x = stims_x + diff(Xlims)*0.01;
-    text_text = num2str(find(cond3));
+    stim_ix = find(cond3);
+    if isempty(stims_x)
+        text_text = '';
+    else
+        text_text = arrayfun(@(i) sprintf('%d', stim_ix(i)), 1:numel(stim_ix), 'UniformOutput', false);
+    end
 %     text(text_x, text_y, text_text, 'color', stims_color);    
-    textMod(text_x, text_y, text_text, lines_and_styles, 'stimulus_lines')
+    if isempty(stims_x)
+        % nothing to draw
+    elseif ~isempty(stim_label_click_callback)
+        lineStyle = lines_and_styles.stimulus_lines;
+        for i = 1:numel(stim_ix)
+            drawLabelWithBg(multiax, text_x(i), text_y(i), text_text{i}, lineStyle, @(~,~) stim_label_click_callback(stim_ix(i)));
+        end
+    else
+        textMod(text_x, text_y, text_text, lines_and_styles, 'stimulus_lines')
+    end
     
     % Обновление положения слайдера с фильтром
     sliderMin = get(timeSlider, 'Min');
