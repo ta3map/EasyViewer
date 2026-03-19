@@ -13,6 +13,7 @@ function updatePlot()
     global previousSliderValue % сохраняем предыдущее значение слайдера
     global event_label_click_callback stim_label_click_callback
 global event_amplitudes
+global event_channels
     
     show_events = true;
     if isfield(visualSettings, 'events_show')
@@ -331,6 +332,10 @@ global event_amplitudes
     yPad = diff(multiax.YLim) * centerLabelHeightFraction;
     drawLabelWithBg(multiax, 0, yTop - yPad, centerLabel, lines_and_styles.(centerStyleName), [], 'right')
 
+    % Дальше рисуем события/стимулы (в т.ч. scatter). Должен быть hold on,
+    % иначе новые вызовы могут перерисовать оси и стереть трейсы.
+    hold(multiax, 'on');
+
 
 
     if show_events && ~isempty(events)
@@ -373,6 +378,30 @@ global event_amplitudes
         ev_amps = NaN(size(ev_ix));
         if ~isempty(event_amplitudes) && numel(event_amplitudes) >= max(ev_ix)
             ev_amps = event_amplitudes(ev_ix);
+        end
+        
+        % Если у события есть канал, показываем подпись на уровне амплитуды
+        % и рисуем красную точку на соответствующем смещении канала.
+        event_y = NaN(size(ev_ix));
+        if ~isempty(event_channels)
+            ev_chs = event_channels(:); % ожидаем 1 канал на событие
+            if numel(ev_chs) >= max(ev_ix)
+                for iEv = 1:numel(ev_ix)
+                    ev_ch = ev_chs(ev_ix(iEv));
+                    if isnan(ev_ch) || isinf(ev_ch) || isnan(ev_amps(iEv))
+                        continue;
+                    end
+                    ch_plot_idx = find(ch_inxs == ev_ch, 1, 'first');
+                    if ~isempty(ch_plot_idx)
+                        event_y(iEv) = offsets(ch_plot_idx) + ev_amps(iEv);
+                    end
+                end
+            end
+        end
+        
+        valid_event_mask = ~isnan(event_y);
+        if any(valid_event_mask)
+            text_y(valid_event_mask) = event_y(valid_event_mask);
         end
         
         ampText = arrayfun(@(a) sprintf('\nAmp %.3f', a), ev_amps, 'UniformOutput', false);
