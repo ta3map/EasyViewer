@@ -144,6 +144,7 @@ function signalViewerGUI(filePath)
                 'LineColor', 'b', ...
                 'LineStyle', '-', ...
                 'LineWidth', 2, ...
+                'LineAlpha', 1, ...
                 'LabelText', 'stimuli', ...
                 'LabelColor', 'b', ...
                 'LabelFontSize', 10, ...
@@ -155,6 +156,7 @@ function signalViewerGUI(filePath)
                 'LineColor', 'r', ...
                 'LineStyle', '--', ...
                 'LineWidth', 2, ...
+                'LineAlpha', 1, ...
                 'LabelText', 'event', ...
                 'LabelColor', 'r', ...
                 'LabelFontSize', 10, ...
@@ -189,6 +191,9 @@ function signalViewerGUI(filePath)
     binsize = 0.001;%s
     visualSettings.show_spikes = false;
     visualSettings.show_CSD = false;
+    if ~isfield(visualSettings, 'events_show')
+        visualSettings.events_show = true;
+    end
     std_coef = 0;
     time_back = 0.6;
     time_forward = 0.6;
@@ -435,6 +440,8 @@ function signalViewerGUI(filePath)
     
     showSpikesButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'MUA', 'Position', getElementPosition('show_spikes_button'), 'Callback', @ShowSpikesButtonCallback, 'Tag', 'show_spikes_button');
     showCSDbutton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'CSD', 'Position', getElementPosition('show_csd_button'), 'Callback', @ShowCSDButtonCallback, 'Tag', 'show_csd_button');
+    showEventsButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Events', 'Position', getElementPosition('show_events_button'), 'Value', visualSettings.events_show, 'Callback', @ShowEventsButtonCallback, 'Tag', 'show_events_button');
+    showStimButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Stim', 'Position', getElementPosition('show_stim_button'), 'Value', visualSettings.stim_show, 'Callback', @ShowStimButtonCallback, 'Tag', 'show_stim_button');
     
     % Кнопки для навигации по времени
     previousbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Previous', 'Position', getElementPosition('previous_button'), 'Callback', {@shiftTime, -1, timeForwardEdit}, 'Tag', 'previous_button');
@@ -961,6 +968,9 @@ function signalViewerGUI(filePath)
         
         % Закрываем все зависимые окна
         closeChildWindows();
+
+        % Сбрасываем состояние загруженного файла перед закрытием окна
+        resetToNoFileState();
         
         % Удаляем окно
         delete(src);
@@ -1346,6 +1356,7 @@ function signalViewerGUI(filePath)
         view_functions{5} = str_out;
         set(view_menu, 'String', view_functions);
         visualSettings.stim_show = ~visualSettings.stim_show;
+        set(showStimButton, 'Value', visualSettings.stim_show);
         
         updatePlot()
     end
@@ -1673,10 +1684,49 @@ function signalViewerGUI(filePath)
         updatePlot(); % Обновление графика
     end
 
+    function ShowEventsButtonCallback(~, ~)
+        if ~isfield(visualSettings, 'events_show')
+            visualSettings.events_show = true;
+        end
+        visualSettings.events_show = ~visualSettings.events_show;
+        set(showEventsButton, 'Value', visualSettings.events_show);
+        updatePlot();
+    end
+
+    function ShowStimButtonCallback(~, ~)
+        visualSettings.stim_show = ~visualSettings.stim_show;
+        set(showStimButton, 'Value', visualSettings.stim_show);
+        updatePlot();
+    end
+
     function ShowCSDButtonCallback(~, ~)
+        prev_show_csd = visualSettings.show_CSD;
         visualSettings.show_CSD = ~visualSettings.show_CSD;
+
+        if visualSettings.show_CSD
+            active_csd_channels = sum(csd_avaliable(ch_inxs));
+            if active_csd_channels < 4
+                visualSettings.show_CSD = prev_show_csd;
+                set(showCSDbutton, 'Value', visualSettings.show_CSD);
+                errordlg('At least 4 active channels are required to compute CSD.', 'CSD Error', 'modal');
+                return;
+            end
+        end
+
         set(showCSDbutton, 'Value', visualSettings.show_CSD);
-        updatePlot(); % Обновление графика
+        try
+            updatePlot(); % Обновление графика
+        catch ME
+            csd_error_detected = contains(ME.message, 'At least 4 channels are required to compute CSD.') || ...
+                contains(ME.message, 'Output argument "csd"');
+            if csd_error_detected
+                visualSettings.show_CSD = prev_show_csd;
+                set(showCSDbutton, 'Value', visualSettings.show_CSD);
+                errordlg('At least 4 active channels are required to compute CSD.', 'CSD Error', 'modal');
+                return;
+            end
+            rethrow(ME);
+        end
     end
 
     % Функция обратного вызова для timeBackEdit
@@ -1984,14 +2034,10 @@ function signalViewerGUI(filePath)
         selected_event_rows = selected_event_rows(selected_event_rows > 0 & selected_event_rows <= length(events));
 
         selected_row = selected_event_rows(1);
-        selectedCenter = 'event';
         event_inx = selected_row;
 
-        set(timeCenterPopup, 'Value', 3);
-
-        windowSize = time_forward;
-        chosen_time_interval(1) = events(event_inx);
-        chosen_time_interval(2) = events(event_inx) + windowSize;
+        chosen_time_interval(1) = max(events(event_inx) - time_back, 0);
+        chosen_time_interval(2) = min(events(event_inx) + time_forward, time(end));
 
         set(eventDeleteEdit, 'String', num2str(event_inx));
 
@@ -2307,6 +2353,9 @@ function signalViewerGUI(filePath)
 
 
     function resetMainWindowButtons()
+        if ~isfield(visualSettings, 'events_show')
+            visualSettings.events_show = true;
+        end
         
         % разрешение опций
         set(OptBtn, 'Enable', 'on');
@@ -2315,6 +2364,8 @@ function signalViewerGUI(filePath)
         
         set(showSpikesButton, 'Value', visualSettings.show_spikes);
         set(showCSDbutton, 'Value', visualSettings.show_CSD);
+        set(showEventsButton, 'Value', visualSettings.events_show);
+        set(showStimButton, 'Value', visualSettings.stim_show);
         
         % Установка правильного значения в выпадающем списке в зависимости от selectedCenter
         switch selectedCenter

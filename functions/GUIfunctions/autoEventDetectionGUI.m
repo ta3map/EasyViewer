@@ -76,19 +76,19 @@ function autoEventDetectionGUI()
     end
     
     % Окно выбора источника данных LFP или CSD
-    uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('sourceText'), 'String', 'Source:', 'Tag', 'sourceText');
-    hSourceType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('sourceType'), 'String', {'LFP', 'CSD'}, 'Callback', @changeDetectionType, 'Tag', 'sourceType');
+    uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('sourceText'), 'String', 'Source:', 'Tag', 'sourceText', 'Visible', 'off');
+    hSourceType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('sourceType'), 'String', {'LFP', 'CSD'}, 'Callback', @changeDetectionType, 'Tag', 'sourceType', 'Visible', 'off');
 
     % Режим: Positive / Negative
     uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('detectionTypeText'), 'String', 'Mode:', 'Tag', 'detectionTypeText');
-    hDetectionType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('detectionType'), 'String', {'Positive', 'Negative'}, 'Callback', @changeDetectionType, 'Tag', 'detectionType');
+    hDetectionType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('detectionType'), 'String', {'Positive', 'Negative'}, 'Callback', @detectionControlsCallback, 'Tag', 'detectionType');
 
     % Основной канал и опция вычитания другого канала
     uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('chPosText'), 'String', 'Channel:', 'Tag', 'chPosText');
     hMainChannel = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('chPos'), 'String', hd.recChNames, 'Callback', @mainChannelCallback, 'Tag', 'chPos');
-    hSubtractChannelCheck = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', getElementPosition('subtractChannelCheckbox'), 'String', 'Subtract another channel', 'Value', 0, 'Callback', @changeDetectionType, 'Tag', 'subtractChannelCheckbox');
+    hSubtractChannelCheck = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', getElementPosition('subtractChannelCheckbox'), 'String', 'Subtract another channel', 'Value', 0, 'Callback', @detectionControlsCallback, 'Tag', 'subtractChannelCheckbox');
     hChNeg_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('chNegText'), 'String', 'Channel to subtract:', 'Tag', 'chNegText', 'Visible', 'off');
-    hSubtractChannel = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('chNeg'), 'String', hd.recChNames, 'Callback', @changeDetectionType, 'Tag', 'chNeg', 'Visible', 'off');
+    hSubtractChannel = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('chNeg'), 'String', hd.recChNames, 'Callback', @detectionControlsCallback, 'Tag', 'chNeg', 'Visible', 'off');
     
     % Окошко для ввода минимальной высоты пика
     hMinPeakProminence_text = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('minPeakProminenceText'), 'String', 'Threshold:', 'Tag', 'minPeakProminenceText');
@@ -286,6 +286,11 @@ function autoEventDetectionGUI()
     end
 
     function mainChannelCallback(~, ~)
+        changeDetectionType();
+        previewData();
+    end
+
+    function detectionControlsCallback(~, ~)
         changeDetectionType();
         previewData();
     end

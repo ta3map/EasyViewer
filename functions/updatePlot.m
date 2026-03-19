@@ -13,6 +13,11 @@ function updatePlot()
     global previousSliderValue % сохраняем предыдущее значение слайдера
     global event_label_click_callback
     
+    show_events = true;
+    if isfield(visualSettings, 'events_show')
+        show_events = visualSettings.events_show;
+    end
+
     fprintf('[%s] updatePlot: START, chosen_time_interval=[%.3f, %.3f], selectedCenter=%s\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2), selectedCenter);
     
     % Устанавливаем флаг обновления
@@ -320,7 +325,7 @@ function updatePlot()
 
 
 
-    if ~isempty(events)
+    if show_events && ~isempty(events)
         cond2 = events >= plot_time_interval(1) & events < plot_time_interval(2);    
         evets_x = (events(cond2) - time_origin) * timeUnitFactor;
     else
@@ -333,7 +338,9 @@ function updatePlot()
 
 %     Lines(evets_x, [], events_color, ':');
 %     Lines(stims_x, [], stims_color, ':');
-    xlineMod(evets_x, lines_and_styles, 'events_lines')
+    if show_events
+        xlineMod(evets_x, lines_and_styles, 'events_lines')
+    end
     xlineMod(stims_x, lines_and_styles, 'stimulus_lines')
     
     % events number
@@ -350,17 +357,17 @@ function updatePlot()
         timeFmt = fmtOpts{1 + strcmp(selectedUnit, 'ms')};
         text_text = arrayfun(@(i) sprintf(['#%d\n', timeFmt, ' ', selectedUnit, '\nrel ', timeFmt, ' ', selectedUnit], ev_ix(i), event_times_absolute(i), event_times_relative(i)), 1:numel(ev_ix), 'UniformOutput', false);
     end
-    if isempty(evets_x)
-        % nothing to draw
-    elseif ~isempty(event_label_click_callback)
-        lineStyle = lines_and_styles.events_lines;
-        for i = 1:numel(ev_ix)
-            h = text(multiax, text_x(i), text_y(i), text_text{i}, 'Color', lineStyle.LabelColor, 'FontSize', lineStyle.LabelFontSize, ...
-                'BackgroundColor', lineStyle.LabelBackgroundColor, 'FontWeight', lineStyle.LabelFontWeight, 'HitTest', 'on');
-            set(h, 'ButtonDownFcn', @(~,~) event_label_click_callback(ev_ix(i)));
+    if show_events
+        if isempty(evets_x)
+            % nothing to draw
+        elseif ~isempty(event_label_click_callback)
+            lineStyle = lines_and_styles.events_lines;
+            for i = 1:numel(ev_ix)
+                drawLabelWithBg(multiax, text_x(i), text_y(i), text_text{i}, lineStyle, @(~,~) event_label_click_callback(ev_ix(i)));
+            end
+        else
+            textMod(text_x, text_y, text_text, lines_and_styles, 'events_lines');
         end
-    else
-        textMod(text_x, text_y, text_text, lines_and_styles, 'events_lines');
     end
 %     text(text_x, text_y, text_text, 'color', events_color);
 
