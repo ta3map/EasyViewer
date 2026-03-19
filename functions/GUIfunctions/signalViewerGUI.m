@@ -2181,9 +2181,9 @@ function signalViewerGUI(filePath)
         end
         
         % Автоматический выбор режима центра
-        if stims_exist
+        if stims_exist && numel(stims) > 1
             selectedCenter = 'stimulus';
-        elseif sweep_info.is_sweep_data
+        elseif sweep_info.is_sweep_data && sweep_info.sweep_count > 1
             selectedCenter = 'sweep';
         else
             selectedCenter = 'time';

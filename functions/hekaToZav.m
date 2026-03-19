@@ -38,7 +38,12 @@ function [lfp, spks, hd, zavp, lfpVar, chnlGrp] = hekaToZav(filepath)
         n_sweeps = max(ThirdValue);
         n_channels = max(FourthValue);
         firstTrace = aa{FilesOfInterest(1)};
-        n_points = size(eval([firstTrace, '(:,2)']), 1);
+        trace_lengths = zeros(1, numel(FilesOfInterest));
+        for listOfTraces = 1:numel(FilesOfInterest)
+            traceName = aa{FilesOfInterest(listOfTraces)};
+            trace_lengths(listOfTraces) = size(eval([traceName, '(:,2)']), 1);
+        end
+        n_points = min(trace_lengths);
         lfp = zeros(n_points, n_channels, n_sweeps, 'single');
         
         % Calculate sampling frequency from first trace
@@ -51,6 +56,7 @@ function [lfp, spks, hd, zavp, lfpVar, chnlGrp] = hekaToZav(filepath)
             SweepNumber = str2num(bz(h1(3)+1:h1(4)-1));
             ChannelNumber = str2num(bz(h1(4)+1:end));
             d = eval([bz, '(:,2)']);
+            d = d(1:n_points);
             
             med = abs(median(d));
             if med > 1e-3 && med < 1e-1
@@ -63,10 +69,13 @@ function [lfp, spks, hd, zavp, lfpVar, chnlGrp] = hekaToZav(filepath)
         
         disp(['Found ' num2str(n_channels) ' channels, ' num2str(n_sweeps) ' sweeps, ' num2str(n_points) ' points per sweep']);
         
-        % Create events for each sweep in format compatible with sweepProcessData
-        zavp.realStim = struct('r', cell(1, n_sweeps));
-        for sweep = 1:n_sweeps
-            zavp.realStim(sweep).r = 1; % Start of each sweep
+        % Create events for each sweep in format compatible with sweepProcessData.
+        % For single-sweep recordings we keep data continuous and do not add synthetic stimuli.
+        if n_sweeps > 1
+            zavp.realStim = struct('r', cell(1, n_sweeps));
+            for sweep = 1:n_sweeps
+                zavp.realStim(sweep).r = 1; % Start of each sweep
+            end
         end
         
         % Create spike structure for each channel and sweep

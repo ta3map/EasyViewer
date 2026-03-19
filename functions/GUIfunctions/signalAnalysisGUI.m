@@ -3383,7 +3383,7 @@ updateCursorEditFields();
             newFs = Fs; % используем частоту даунсемплинга
             
             % Автоматический выбор режима центра
-            if stims_exist && ~isempty(stims)
+            if stims_exist && numel(stims) > 1
                 selectedCenter = 'stimulus';
             else
                 selectedCenter = 'time';
