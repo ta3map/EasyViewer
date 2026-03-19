@@ -1,6 +1,9 @@
-function h = drawLabelWithBg(ax, x, y, textValue, lineStyle, clickCallback)
+function h = drawLabelWithBg(ax, x, y, textValue, lineStyle, clickCallback, horizontalAlignment)
     if nargin < 6
         clickCallback = [];
+    end
+    if nargin < 7 || isempty(horizontalAlignment)
+        horizontalAlignment = 'left';
     end
 
     h = struct('rect', [], 'text', []);
@@ -11,7 +14,7 @@ function h = drawLabelWithBg(ax, x, y, textValue, lineStyle, clickCallback)
         'FontWeight', lineStyle.LabelFontWeight, ...
         'BackgroundColor', 'none', ...
         'Units', 'data', ...
-        'HorizontalAlignment', 'left', ...
+        'HorizontalAlignment', horizontalAlignment, ...
         'VerticalAlignment', 'middle', ...
         'Visible', 'off');
 

@@ -322,6 +322,14 @@ function updatePlot()
     [~, name, ~] = fileparts(matFilePath);
 %     title(name, 'interpreter', 'none')
     hylabel_ax(Xlims(1), multiax, name)
+    centerModes = {'stimulus', 'event', 'sweep', 'time'};
+    centerLabels = {'Stimuli', 'Event', 'Sweep', 'ContinuousTime'};
+    centerStyleNames = {'stimulus_lines', 'events_lines', 'stimulus_lines', 'stimulus_lines'};
+    centerLabel = centerLabels{find(strcmp(centerModes, selectedCenter), 1)};
+    centerStyleName = centerStyleNames{find(strcmp(centerModes, selectedCenter), 1)};
+    yTop = multiax.YLim(2);
+    yPad = diff(multiax.YLim) * 0.03;
+    drawLabelWithBg(multiax, 0, yTop - yPad, centerLabel, lines_and_styles.(centerStyleName), [], 'right')
 
 
 

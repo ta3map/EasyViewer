@@ -2034,10 +2034,14 @@ function signalViewerGUI(filePath)
         selected_event_rows = selected_event_rows(selected_event_rows > 0 & selected_event_rows <= length(events));
 
         selected_row = selected_event_rows(1);
+        selectedCenter = 'event';
         event_inx = selected_row;
 
-        chosen_time_interval(1) = max(events(event_inx) - time_back, 0);
-        chosen_time_interval(2) = min(events(event_inx) + time_forward, time(end));
+        set(timeCenterPopup, 'Value', 3);
+
+        windowSize = time_forward;
+        chosen_time_interval(1) = events(event_inx);
+        chosen_time_interval(2) = events(event_inx) + windowSize;
 
         set(eventDeleteEdit, 'String', num2str(event_inx));
 
