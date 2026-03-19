@@ -46,7 +46,6 @@ function signalViewerGUI(filePath)
     global numChannels % число каналов
     global tableData
     global channelTable % отображаемые данные о каналах
-    global zoomState zoomButton % состояние зума и кнопка зума
     global channelNames % названия каналов
     global channelEnabled % вкл/выкл каналы
     global scalingCoefficients % множитель амплитуды
@@ -113,16 +112,6 @@ function signalViewerGUI(filePath)
     plot_updating = false;
     loading_text_handle = [];
     previousSliderValue = 0; % инициализация предыдущего значения слайдера
-    zoomState = struct( ...
-        'await_points', false, ...
-        'has_zoom', false, ...
-        'points', zeros(0, 2), ...
-        'lines', gobjects(0), ...
-        'is_panning', false, ...
-        'pan_start_point', [0 0], ...
-        'pan_start_xlim', [0 0], ...
-        'pan_start_ylim', [0 0]);
-    zoomButton = [];
     add_event_pending = false;
     
     % Инициализация настроек slope measurement
@@ -693,21 +682,6 @@ function signalViewerGUI(filePath)
     f.WindowState = 'maximized';
     
     function ButtonDownFcn(ax, fig)
-        if zoomState.await_points
-            handleZoomClick(ax);
-            return;
-        end
-        
-        if zoomState.has_zoom
-            cp = get(ax, 'CurrentPoint');
-            zoomState.is_panning = true;
-            zoomState.pan_start_point = [cp(1, 1), cp(1, 2)];
-            zoomState.pan_start_xlim = get(ax, 'XLim');
-            zoomState.pan_start_ylim = get(ax, 'YLim');
-            set(f, 'Pointer', 'fleur');
-            return;
-        end
-        
         % Проверяем, зажата ли клавиша Ctrl
         modifiers = get(fig, 'CurrentModifier');
         if ismember('control', modifiers) % Если зажата Ctrl
@@ -740,154 +714,25 @@ function signalViewerGUI(filePath)
     end
     
     function ButtonMotionFcn(ax, fig)
-        if ~zoomState.is_panning
-            modifiers = get(fig, 'CurrentModifier');
-            need_plus = add_event_pending || ismember('control', modifiers) || ismember('shift', modifiers);
-            if need_plus
-                set(fig, 'Pointer', 'crosshair');
-            else
-                set(fig, 'Pointer', 'arrow');
-            end
-            return;
+        modifiers = get(fig, 'CurrentModifier');
+        need_plus = add_event_pending || ismember('control', modifiers) || ismember('shift', modifiers);
+        if need_plus
+            set(fig, 'Pointer', 'crosshair');
+        else
+            set(fig, 'Pointer', 'arrow');
         end
-        
-        cp = get(ax, 'CurrentPoint');
-        current_point = [cp(1, 1), cp(1, 2)];
-        
-        dx = current_point(1) - zoomState.pan_start_point(1);
-        dy = current_point(2) - zoomState.pan_start_point(2);
-        
-        zoomState.pan_new_xlim = zoomState.pan_start_xlim - dx;
-        zoomState.pan_new_ylim = zoomState.pan_start_ylim - dy;
     end
     
     function ButtonUpFcn(ax, fig)
-        if zoomState.is_panning
-            if isfield(zoomState, 'pan_new_xlim') && ~isempty(zoomState.pan_new_xlim)
-                set(ax, 'XLim', zoomState.pan_new_xlim);
-                set(ax, 'YLim', zoomState.pan_new_ylim);
-            end
-            zoomState.is_panning = false;
-            zoomState.pan_new_xlim = [];
-            zoomState.pan_new_ylim = [];
-            set(f, 'Pointer', 'arrow');
+        modifiers = get(fig, 'CurrentModifier');
+        need_plus = add_event_pending || ismember('control', modifiers) || ismember('shift', modifiers);
+        if ~need_plus
+            set(fig, 'Pointer', 'arrow');
         end
-    end
-
-    function handleZoomClick(ax)
-        cp = get(ax, 'CurrentPoint');
-        x = cp(1, 1);
-        y = cp(1, 2);
-        
-        zoomState.points(end + 1, :) = [x y];
-        
-        yLim = get(ax, 'YLim');
-        xLim = get(ax, 'XLim');
-        
-        zoomState.lines(end + 1) = line(ax, [x x], yLim, ...
-            'Color', [0 0 0], ...
-            'LineStyle', '--', ...
-            'HitTest', 'off');
-        zoomState.lines(end + 1) = line(ax, xLim, [y y], ...
-            'Color', [0 0 0], ...
-            'LineStyle', '--', ...
-            'HitTest', 'off');
-        
-        if size(zoomState.points, 1) < 2
-            return;
-        end
-        
-        xs = sort(zoomState.points(:, 1));
-        ys = sort(zoomState.points(:, 2));
-        
-        if xs(1) == xs(2)
-            xs(2) = xs(2) + eps(xs(2) + 1);
-        end
-        if ys(1) == ys(2)
-            ys(2) = ys(2) + eps(ys(2) + 1);
-        end
-        
-        set(ax, 'XLim', xs);
-        set(ax, 'YLim', ys);
-        
-        zero_time_units = chosen_time_interval(1) * timeUnitFactor;
-        y_bottom = ys(1);
-        y_range = max(ys(2) - ys(1), eps);
-        tick_height = max(y_range * 0.05, eps);
-        label_offset = tick_height * 0.6;
-        
-        rel_min = xs(1) - zero_time_units;
-        rel_max = xs(2) - zero_time_units;
-        tick_values = generateNiceTicks(rel_min, rel_max, 10);
-
-        for idx = 1:numel(tick_values)
-            rel_time = tick_values(idx);
-            t_pos = zero_time_units + rel_time;
-            line(ax, [t_pos t_pos], [y_bottom y_bottom + tick_height], ...
-                'Color', [0 0 0], ...
-                'LineWidth', 1, ...
-                'HitTest', 'off');
-            
-            label_str = sprintf('%.1f', rel_time);
-            text(ax, t_pos, y_bottom + tick_height + label_offset, label_str, ...
-                'HorizontalAlignment', 'center', ...
-                'VerticalAlignment', 'bottom', ...
-                'Color', [0 0 0], ...
-                'BackgroundColor', 'none', ...
-                'Clipping', 'on');
-        end
-        
-        zoomState.await_points = false;
-        zoomState.has_zoom = true;
-        zoomState.points = zeros(0, 2);
-        zoomState.lines = gobjects(0);
-        set(zoomButton, 'String', 'Reset Zoom');
-        set(f, 'Pointer', 'arrow');
-    end
-
-    function ticks = generateNiceTicks(minVal, maxVal, desiredCount)
-        if minVal > maxVal
-            temp = minVal; minVal = maxVal; maxVal = temp;
-        end
-        rangeVal = max(maxVal - minVal, eps);
-        if desiredCount < 2
-            desiredCount = 2;
-        end
-        rawStep = rangeVal / (desiredCount - 1);
-        magnitude = 10^floor(log10(rawStep));
-        normalized = rawStep / magnitude;
-        if normalized < 1.5
-            niceFraction = 1;
-        elseif normalized < 3
-            niceFraction = 2;
-        elseif normalized < 7
-            niceFraction = 5;
-        else
-            niceFraction = 10;
-        end
-        step = niceFraction * magnitude;
-        startTick = ceil(minVal / step) * step;
-        endTick = floor(maxVal / step) * step;
-        if startTick > minVal
-            startTick = startTick - step;
-        end
-        ticks = startTick:step:endTick;
-        if isempty(ticks) || ticks(1) > minVal
-            ticks = [startTick - step, ticks];
-        end
-        if ticks(end) < maxVal
-            ticks = [ticks, ticks(end) + step];
-        end
-        ticks = ticks(ticks >= minVal - step*0.5 & ticks <= maxVal + step*0.5);
-        if isempty(ticks)
-            ticks = [minVal, maxVal];
-        end
-        ticks = unique(ticks);
     end
 
     function zoomButtonCallback(src, ~)
         % Активация встроенного zoom
-        resetZoom(); % Сбрасываем кастомный zoom если был активен
         pan(f, 'off'); % Отключаем другие инструменты
         datacursormode(f, 'off');
         brush(f, 'off');
@@ -898,7 +743,6 @@ function signalViewerGUI(filePath)
 
     function panButtonCallback(src, ~)
         % Активация встроенного pan
-        resetZoom(); % Сбрасываем кастомный zoom если был активен
         zoom(f, 'off'); % Отключаем другие инструменты
         datacursormode(f, 'off');
         brush(f, 'off');
@@ -909,7 +753,6 @@ function signalViewerGUI(filePath)
 
     function cursorButtonCallback(src, ~)
         % Активация встроенного data cursor
-        resetZoom(); % Сбрасываем кастомный zoom если был активен
         zoom(f, 'off'); % Отключаем другие инструменты
         pan(f, 'off');
         brush(f, 'off');
@@ -919,7 +762,6 @@ function signalViewerGUI(filePath)
 
     function homeButtonCallback(src, ~)
         % Сброс всех инструментов и восстановление исходного вида графика
-        resetZoom(); % Сбрасываем кастомный zoom
         zoom(f, 'off'); % Отключаем все встроенные инструменты
         pan(f, 'off');
         datacursormode(f, 'off');
@@ -930,7 +772,6 @@ function signalViewerGUI(filePath)
 
     function brushButtonCallback(src, ~)
         % Активация встроенного brush
-        resetZoom(); % Сбрасываем кастомный zoom если был активен
         zoom(f, 'off'); % Отключаем другие инструменты
         pan(f, 'off');
         datacursormode(f, 'off');
@@ -1399,7 +1240,6 @@ function signalViewerGUI(filePath)
 
     function activateBuiltInZoom()
         % Активация встроенного инструмента zoom для multiax через меню
-        resetZoom();
         pan(f, 'off');
         datacursormode(f, 'off');
         brush(f, 'off');
@@ -1410,7 +1250,6 @@ function signalViewerGUI(filePath)
 
     function activateBuiltInPan()
         % Активация встроенного инструмента pan для multiax через меню
-        resetZoom();
         zoom(f, 'off');
         datacursormode(f, 'off');
         brush(f, 'off');
@@ -1421,7 +1260,6 @@ function signalViewerGUI(filePath)
 
     function activateDataCursor()
         % Активация встроенного инструмента data cursor для multiax через меню
-        resetZoom();
         zoom(f, 'off');
         pan(f, 'off');
         brush(f, 'off');
@@ -2750,7 +2588,12 @@ end
     end
 
     function addEvent(~, ~)
+        zoom(f, 'off');
+        pan(f, 'off');
+        datacursormode(f, 'off');
+        brush(f, 'off');
         add_event_pending = true;
+        set(f, 'Pointer', 'crosshair');
     end
 
     function addEventAtTime(t_absolute)

@@ -39,9 +39,6 @@ function updatePlot()
     end
     drawnow; % Принудительное обновление экрана
     
-    % Сброс зума при обновлении графика
-    resetZoom();
-    
     if isempty(ch_inxs)
         axes(multiax);
         cla(multiax);
