@@ -25,6 +25,11 @@ function [f, calculation_result] = plotMeanEvents(params)
     csd_smooth_coef = params.csd_smooth_coef;
     csd_contrast_coef = params.csd_contrast_coef;
     csd_active = params.csd_active;
+    if isfield(params, 'csd_split_by_channel_gaps')
+        csd_split_by_channel_gaps = logical(params.csd_split_by_channel_gaps);
+    else
+        csd_split_by_channel_gaps = false;
+    end
     lfpVar = params.lfpVar;
     mean_group_ch = params.mean_group_ch;
     t_profile = params.t_profile;
@@ -264,15 +269,23 @@ function [f, calculation_result] = plotMeanEvents(params)
         params.offsets = offsets;
         params.csd_smooth_coef = csd_smooth_coef;
         params.csd_active = csd_active;
+        params.ch_inxs_original = ch_inxs;
+        params.csd_split_by_channel_gaps = csd_split_by_channel_gaps;
         
         [csd_image, csd_trange, csd_ch_range] = csdCalc(params);
-        csd_ch_range = linspace(csd_ch_range(1), csd_ch_range(2), size(csd_image, 1));
         
       
         csdPlotting(csd_image, csd_trange, csd_ch_range, csd_contrast_coef);
         
         % Построение профиля CSD
-        csd_time_zero_idx = round(ClosestIndex(t_profile, csd_trange)/csd_smooth_coef); % находим индекс данных, соответствующий времени профиля
+        smoothCoef = double(csd_smooth_coef);
+        smoothCoef = smoothCoef(:);
+        smoothCoef = smoothCoef(isfinite(smoothCoef) & isreal(smoothCoef));
+        smoothCoef = [smoothCoef; 1];
+        smoothCoef = smoothCoef(1);
+        smoothCoef = max(smoothCoef, 1);
+        
+        csd_time_zero_idx = round(ClosestIndex(t_profile, csd_trange) / smoothCoef); % находим индекс данных, соответствующий времени профиля
         csd_profile = csd_image(:, csd_time_zero_idx);
         [max_csd_profile, max_csd_prof_index] = max(csd_profile);
         [min_csd_profile, min_csd_prof_index] = min(csd_profile);
@@ -335,6 +348,17 @@ end
     'shiftCoeff',pl_shiftCoeff, ...
     'linewidth', pl_widths_in, ...
     'color', pl_colors_in);
+
+    [~, gapIdx] = splitConsecutiveChannels(ch_inxs);
+    if ~isempty(gapIdx)
+        x1 = timeAxis(1);
+        x2 = timeAxis(end);
+        for k = 1:numel(gapIdx)
+            i = gapIdx(k);
+            y = (offsets(i) + offsets(i+1)) / 2;
+            plot([x1, x2], [y, y], '--', 'Color', [0.6 0.6 0.6], 'LineWidth', 1);
+        end
+    end
 
     xlabel('Time');
     ylabel('Mean Value');

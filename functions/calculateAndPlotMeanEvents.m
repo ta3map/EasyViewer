@@ -19,6 +19,7 @@ global std_coef binsize % спайки/CSD
 global visualSettings
 global csd_avaliable filter_avaliable filterSettings
 global channelTable csd_smooth_coef csd_contrast_coef
+global csd_split_by_channel_gaps
 global lfpVar 
 global mean_group_ch
 global app_path evfilename offsets
@@ -60,6 +61,7 @@ end
 channelSettings = get(channelTable, 'Data');
 
 params.sourceType = sourceType;
+params.csd_split_by_channel_gaps = logical(csd_split_by_channel_gaps);
 buildFigure = ~isfield(opts, 'buildFigure') || logical(opts.buildFigure);
 if buildFigure
     params.figure = figure('Name', figureName, 'Tag', 'meanSignalResult', ...

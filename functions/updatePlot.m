@@ -4,6 +4,7 @@ function updatePlot()
     global ch_labels_l shiftCoeff widths_in_l colors_in_l spks std_coef selectedUnit matFilePath stims events timeSlider
     global data time_in filterSettings filter_avaliable csd_smooth_coef
     global csd_contrast_coef csd_avaliable lfpVar
+    global csd_split_by_channel_gaps
     global csd_image csd_t_range csd_ch_range offsets
     global art_rem_settings lines_and_styles
     global visualSettings
@@ -14,6 +15,7 @@ function updatePlot()
     global event_label_click_callback stim_label_click_callback
 global event_amplitudes
 global event_channels
+global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
     
     show_events = true;
     if isfield(visualSettings, 'events_show')
@@ -135,6 +137,11 @@ global event_channels
             data_res(:, ch) = data_res(:, ch) - baselineMedian;
         end
     end
+
+    % Кэшируем подготовленные данные для ручных событий без повторных вычислений.
+    lastPlotTimeResForEvents = time_res;
+    lastPlotDataResForEvents = data_res;
+    lastPlotChInxsForEvents = ch_inxs;
     
     % Отображение времени на графике с учетом выбранной единицы времени
     time_in_transformed = (time_res - time_origin) * timeUnitFactor;
@@ -165,6 +172,8 @@ global event_channels
         params.offsets = offsets;
         params.csd_smooth_coef = csd_smooth_coef;
         params.csd_active = csd_active;
+        params.ch_inxs_original = ch_inxs;
+        params.csd_split_by_channel_gaps = csd_split_by_channel_gaps;
         
         [csd_image, csd_t_range, csd_ch_range] = csdCalc(params);
         csdPlotting(csd_image, csd_t_range, csd_ch_range, csd_contrast_coef);
@@ -181,6 +190,17 @@ global event_channels
             'shiftCoeff', shiftCoeff, ...
             'linewidth', widths_in_l, ...
             'color', colors_in_l);
+    end
+
+    [~, gapIdx] = splitConsecutiveChannels(ch_inxs);
+    if ~isempty(gapIdx)
+        x1 = time_in_transformed(1);
+        x2 = time_in_transformed(end);
+        for k = 1:numel(gapIdx)
+            i = gapIdx(k);
+            y = (offsets(i) + offsets(i+1)) / 2;
+            plot([x1, x2], [y, y], '--', 'Color', [0.6 0.6 0.6], 'LineWidth', 1);
+        end
     end
     
     y_pixel_size = 750;             % Размер по Y в пикселях
@@ -253,8 +273,9 @@ global event_channels
             win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
             for i = 1:length(stim_inxs) 
                 start_inx = stim_inxs(i) - win_r;
-                start_inx(start_inx<1) = 1;
+                start_inx = max(start_inx, 1);
                 end_inx = stim_inxs(i) + win_r;
+                end_inx = min(end_inx, numel(time_in));
                 cond5 = x_coord >= time_in(start_inx) & x_coord < time_in(end_inx);
                 x_coord = x_coord(~cond5);
                 y_coord = y_coord(~cond5);

@@ -18,6 +18,7 @@ function CSDSettingsGUI()
     
     % Инициализация таблиц
     global channelNames csd_avaliable matFilePath csd_smooth_coef csd_contrast_coef
+    global csd_split_by_channel_gaps
     
     label = 'CSD Displaying Settings';
     CSDSettingsFig = figure('Name', label, 'Tag', figTag, 'NumberTitle', 'off', ...
@@ -59,6 +60,14 @@ function CSDSettingsGUI()
     % Поле для выбора значения csd_smooth_coef
     uicontrol('Style', 'text', 'String', 'Smooth Coef:', 'Position', [220, 150, 100, 15], 'HorizontalAlignment', 'left');
     csdSmoothCoefEdit = uicontrol('Style', 'edit', 'String', num2str(csd_smooth_coef), 'Position', [220, 130, 100, 20], 'BackgroundColor', 'white');
+
+    if isempty(csd_split_by_channel_gaps)
+        csd_split_by_channel_gaps = false;
+    end
+    csdSplitByGapsCheckbox = uicontrol('Style', 'checkbox', ...
+        'String', 'Split by gaps', ...
+        'Position', [220, 100, 120, 20], ...
+        'Value', logical(csd_split_by_channel_gaps));
     
     % Button to save settings
     uicontrol('Style', 'pushbutton', 'Position', [220, 50, 100, 25], 'String', 'Apply', 'Callback', @saveSettings);
@@ -100,10 +109,11 @@ end
         slider_value = csdContrastSlider.Value;
         csd_contrast_coef = slider_formula(slider_value, min_coef, max_coef, slider_max);
         csd_smooth_coef = str2double(get(csdSmoothCoefEdit, 'String')); % Обновление значения коэффициента
+        csd_split_by_channel_gaps = logical(get(csdSplitByGapsCheckbox, 'Value'));
         updatePlot();
         [path, name, ~] = fileparts(matFilePath);
         channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
-        save(channelSettingsFilePath, 'csd_avaliable', 'csd_smooth_coef', 'csd_contrast_coef', '-append');
+        save(channelSettingsFilePath, 'csd_avaliable', 'csd_smooth_coef', 'csd_contrast_coef', 'csd_split_by_channel_gaps', '-append');
         uiresume(CSDSettingsFig);
         close(CSDSettingsFig);
     end

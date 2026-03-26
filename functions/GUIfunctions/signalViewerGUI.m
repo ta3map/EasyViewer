@@ -26,6 +26,7 @@ function signalViewerGUI(filePath)
     global data_loaded
     global SettingsFilepath
     global csd_smooth_coef csd_contrast_coef
+    global csd_split_by_channel_gaps
     global autodetection_settings
     global lfpVar windowSize
     global timeCenterPopup
@@ -41,6 +42,9 @@ function signalViewerGUI(filePath)
     global autoSetTimeWindowsFromSweeps % флаг автоматической установки time_back/time_forward на основе свипов
     global slope_measurement_settings % настройки измерения slope
     global stims_loaded_from_settings % флаг загрузки стимулов из настроек
+    
+    % Кэшированные данные последнего updatePlot для ручных событий
+    global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
     % Переменные для работы со свипами
     global sweep_info sweep_inx % информация о свипах и индекс текущего свипа
     global numChannels % число каналов
@@ -113,6 +117,8 @@ function signalViewerGUI(filePath)
     loading_text_handle = [];
     previousSliderValue = 0; % инициализация предыдущего значения слайдера
     add_event_pending = false;
+    manualEventChannelIdx = 1;
+    eventsChannelPopupChIdxs = 1;
     
     % Инициализация настроек slope measurement
     slope_measurement_settings = struct();
@@ -163,6 +169,7 @@ function signalViewerGUI(filePath)
     
     
     csd_smooth_coef = 5;
+    csd_split_by_channel_gaps = false;
     
     event_title_string = 'Events';
     csd_contrast_coef = 99.9;
@@ -392,6 +399,16 @@ function signalViewerGUI(filePath)
               'HorizontalAlignment', 'left', ...
               'FontSize', 11, ...
               'FontWeight', 'bold', 'Tag', 'events_table_title'); % Жирный шрифт для заголовка
+
+    % Выпадающий список канала для ручных событий
+    activeChIdxs = find(channelEnabled);
+    eventsChannelPopupChIdxs = activeChIdxs;
+    manualEventChannelIdx = activeChIdxs(1);
+    eventsChannelPopup = uicontrol('Parent', sidePanel, 'Style', 'popup', ...
+              'String', channelNames(activeChIdxs), ...
+              'Position', getElementPosition('events_channel_popup'), ...
+              'Callback', @eventsChannelPopupCallback, 'Tag', 'events_channel_popup', ...
+              'Value', 1);
       
     % Добавление слайдера для времени
     timeSlider = uicontrol('Parent', mainPanel, 'Style', 'slider', 'Position', getElementPosition('time_slider'), 'Min', 0, 'Max', 1, 'Value', 0, 'Callback', @timeSliderCallback, 'Tag', 'time_slider');
@@ -1543,8 +1560,14 @@ function signalViewerGUI(filePath)
         visualSettings.show_CSD = ~visualSettings.show_CSD;
 
         if visualSettings.show_CSD
-            active_csd_channels = sum(csd_avaliable(ch_inxs));
-            if active_csd_channels < 4
+            csd_orig = ch_inxs(csd_avaliable(ch_inxs));
+            [segments, ~] = splitConsecutiveChannels(csd_orig);
+            maxLen = max(segments(:,2) - segments(:,1) + 1);
+            if isempty(maxLen)
+                maxLen = 0;
+            end
+            enoughCsd = (maxLen >= 4) * logical(csd_split_by_channel_gaps) + (sum(csd_avaliable(ch_inxs)) >= 4) * ~logical(csd_split_by_channel_gaps);
+            if ~logical(enoughCsd)
                 visualSettings.show_CSD = prev_show_csd;
                 set(showCSDbutton, 'Value', visualSettings.show_CSD);
                 errordlg('At least 4 active channels are required to compute CSD.', 'CSD Error', 'modal');
@@ -1857,6 +1880,41 @@ function signalViewerGUI(filePath)
     ch_labels_l = channelNames(ch_inxs);
     colors_in_l = colorsIn(ch_inxs);
     widths_in_l = lineCoefficients(ch_inxs);
+        
+        updateEventsChannelPopup();
+    end
+
+    function updateEventsChannelPopup()
+        activeChIdxsLocal = find(channelEnabled);
+        if isempty(activeChIdxsLocal)
+            set(eventsChannelPopup, 'String', {'-'}, 'Value', 1);
+            eventsChannelPopupChIdxs = [];
+            manualEventChannelIdx = 1;
+            return;
+        end
+        
+        eventsChannelPopupChIdxs = activeChIdxsLocal;
+        set(eventsChannelPopup, 'String', channelNames(activeChIdxsLocal));
+        
+        if isempty(manualEventChannelIdx) || ~ismember(manualEventChannelIdx, activeChIdxsLocal)
+            manualEventChannelIdx = activeChIdxsLocal(1);
+        end
+        valueIdx = find(eventsChannelPopupChIdxs == manualEventChannelIdx, 1, 'first');
+        if ~isempty(valueIdx)
+            set(eventsChannelPopup, 'Value', valueIdx);
+        else
+            set(eventsChannelPopup, 'Value', 1);
+        end
+    end
+    
+    function eventsChannelPopupCallback(~, ~)
+        if isempty(eventsChannelPopupChIdxs)
+            return;
+        end
+        val = get(eventsChannelPopup, 'Value');
+        if val >= 1 && val <= numel(eventsChannelPopupChIdxs)
+            manualEventChannelIdx = eventsChannelPopupChIdxs(val);
+        end
     end
     % Функция для обновления данных на основе выбора в таблице
     function updateEventTable(~, ~)
@@ -2279,7 +2337,13 @@ function signalViewerGUI(filePath)
     end
 
     function updateCSDControlsVisibility()
-        enoughActiveChannels = numel(ch_inxs) >= 4;
+        csd_orig = ch_inxs(csd_avaliable(ch_inxs));
+        [segments, ~] = splitConsecutiveChannels(csd_orig);
+        maxLen = max(segments(:,2) - segments(:,1) + 1);
+        if isempty(maxLen)
+            maxLen = 0;
+        end
+        enoughActiveChannels = (numel(ch_inxs) >= 4) * ~logical(csd_split_by_channel_gaps) + (maxLen >= 4) * logical(csd_split_by_channel_gaps);
         visibilityStates = {'off', 'on'};
         visibilityValue = visibilityStates{enoughActiveChannels + 1};
         if ~enoughActiveChannels
@@ -2438,6 +2502,12 @@ function loadSettingsFile()
         else
             csd_contrast_coef = 99.99;
             debugState('loadSettingsFile', 'settings were without CSD contrast coef');
+        end
+        
+        if isfield(loadedSettings, 'csd_split_by_channel_gaps')
+            csd_split_by_channel_gaps = logical(loadedSettings.csd_split_by_channel_gaps);
+        else
+            csd_split_by_channel_gaps = false;
         end
         
         % Загружаем смещенные стимулы если они есть
@@ -2641,8 +2711,20 @@ end
         [~, idx] = min(abs(time - t_absolute));
         event_indices = [event_indices; idx];
         event_comments{numel(events), 1} = '...';
-        event_amplitudes = [event_amplitudes; NaN];
-        event_channels = [event_channels; 1];
+        
+        % Амплитуда берется из уже подготовленного на экране data_res,
+        % т.е. без повторной обработки (filters/resample/baseline).
+        evAmp = NaN;
+        if ~isempty(lastPlotTimeResForEvents) && ~isempty(lastPlotDataResForEvents) && ~isempty(lastPlotChInxsForEvents)
+            [~, idxPlot] = min(abs(lastPlotTimeResForEvents - t_absolute));
+            ch_plot_idx = find(lastPlotChInxsForEvents == manualEventChannelIdx, 1, 'first');
+            if ~isempty(ch_plot_idx)
+                evAmp = lastPlotDataResForEvents(idxPlot, ch_plot_idx);
+            end
+        end
+        
+        event_amplitudes = [event_amplitudes; evAmp];
+        event_channels = [event_channels; manualEventChannelIdx];
         event_widths = [event_widths; NaN];
         event_prominences = [event_prominences; NaN];
         event_metadata = [event_metadata; createDefaultEventMetadata('manual', 1)];
@@ -3031,9 +3113,19 @@ end
         end
         
         saveExcel = strcmp(choice, 'Excel (.xlsx)');
+
+        % Индексы событий обязательны для saveEventsToFile.
+        % При ручном добавлении/редактировании событий event_indices может
+        % остаться пустым/несинхронным, поэтому пересчитаем их перед сохранением.
+        timeVec = time(:);
+        eventsVec = events(:);
+        event_indices_to_save = zeros(numel(eventsVec), 1);
+        for k = 1:numel(eventsVec)
+            [~, event_indices_to_save(k)] = min(abs(timeVec - eventsVec(k)));
+        end
         
         saveEventsToFile(events, time, matFilePath, ...
-            'event_indices', event_indices, ...
+            'event_indices', event_indices_to_save, ...
             'event_comments', event_comments, ...
             'event_amplitudes', event_amplitudes, ...
             'event_channels', event_channels, ...
