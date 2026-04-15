@@ -164,8 +164,13 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
     % Initialize MAT file
     debugState('oep_to_zav_streaming', 'Initializing output MAT file...');
     disp(['Initializing output file: ', zavFilePath]);
-    % Создаем пустой файл в формате v7.3 (HDF5) для поддержки больших массивов
-    save(zavFilePath, '-v7.3');
+    % Создаем v7.3 файл, сохраняя только целевые поля (без workspace-мусора)
+    hd = struct();
+    zavp = struct();
+    chnlGrp = {};
+    spks = struct([]);
+    lfpVar = [];
+    save(zavFilePath, 'hd', 'zavp', 'chnlGrp', 'spks', 'lfpVar', '-v7.3');
     m = matfile(zavFilePath, 'Writable', true);
     
     % Save header

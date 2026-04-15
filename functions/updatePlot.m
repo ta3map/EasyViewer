@@ -1,7 +1,8 @@
 function updatePlot()
     % disp('Plot is updated')
     global chosen_time_interval time_back cond time lfp_file mean_group_ch ch_inxs m_coef Fs newFs timeUnitFactor multiax
-    global ch_labels_l shiftCoeff widths_in_l colors_in_l spks std_coef selectedUnit matFilePath stims events timeSlider
+    global ch_labels_l shiftCoeff widths_in_l colors_in_l spks std_coef selectedUnit matFilePath stims events timeSlider timeZeroEdit
+    global viewerYlimManual viewerYlim yLimMinEdit yLimMaxEdit
     global data time_in filterSettings filter_avaliable csd_smooth_coef
     global csd_contrast_coef csd_avaliable lfpVar
     global csd_split_by_channel_gaps
@@ -52,6 +53,17 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
         plot_updating = false;
         if ~isempty(loading_text_handle) && isvalid(loading_text_handle)
             set(loading_text_handle, 'Visible', 'off');
+        end
+        if strcmp(selectedCenter, 'sweep') && sweep_info.is_sweep_data
+            time_origin_early = sweep_info.sweep_times(sweep_inx);
+        else
+            time_origin_early = chosen_time_interval(1);
+        end
+        set(timeZeroEdit, 'String', num2str(time_origin_early * timeUnitFactor));
+        if isgraphics(multiax)
+            yl = get(multiax, 'YLim');
+            set(yLimMinEdit, 'String', sprintf('%.6g', yl(1)));
+            set(yLimMaxEdit, 'String', sprintf('%.6g', yl(2)));
         end
         return;
     end
@@ -327,7 +339,10 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
 %     % Применение новых меток тиков к текущему графику
 %     set(multiax, 'XTickLabel', newLabels);
     
-    if visualSettings.show_full_signal
+    manualYlimValid = viewerYlimManual && numel(viewerYlim) == 2 && all(isfinite(viewerYlim)) && viewerYlim(1) < viewerYlim(2);
+    if manualYlimValid
+        Ylims = [viewerYlim(1), viewerYlim(2)];
+    elseif visualSettings.show_full_signal
         data_with_offsets = data_res + offsets;
         yMin = min(data_with_offsets(:));
         yMax = max(data_with_offsets(:));
@@ -335,6 +350,9 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
         Ylims = [yMin - margin, yMax + margin];
     else
         Ylims = [min(chRangesOffsets)-shiftCoeff*0.2, max(chRangesOffsets)+shiftCoeff*0.2];
+    end
+    if viewerYlimManual && ~manualYlimValid
+        viewerYlimManual = false;
     end
     ylim(Ylims)
     hold off;
@@ -474,6 +492,11 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
     sliderValue = max(sliderMin, min(sliderMax, sliderValue));
     set(timeSlider, 'Value', sliderValue);
     previousSliderValue = sliderValue; % обновляем предыдущее значение
+
+    set(timeZeroEdit, 'String', num2str(time_origin * timeUnitFactor));
+
+    set(yLimMinEdit, 'String', sprintf('%.6g', Ylims(1)));
+    set(yLimMaxEdit, 'String', sprintf('%.6g', Ylims(2)));
 
     % Сбрасываем флаг обновления в самом конце
     plot_updating = false;

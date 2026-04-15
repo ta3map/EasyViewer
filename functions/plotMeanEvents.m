@@ -239,6 +239,7 @@ function [f, calculation_result] = plotMeanEvents(params)
     else
         ax = axes('Position', [0.13,0.11,0.72,0.82]); % fallback для обратной совместимости
     end
+    set(ax, 'Tag', 'mean_main_axis');
     hold on  
         
      % Initialize offsets array

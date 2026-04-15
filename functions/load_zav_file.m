@@ -79,6 +79,7 @@ if is_heka
 else
     waitbar(0.1, hWaitBar, 'Loading data in ZAV format...');
     fprintf('Loading data in ZAV format...\n');
+    whitelist_fields = {'spks', 'hd', 'zavp', 'lfpVar', 'chnlGrp'};
     
     % Пробуем matfile для ленивого чтения lfp (только v7.3)
     try
@@ -89,18 +90,23 @@ else
         lfp_dims = lfp_info.size;
         fprintf('v7.3 format detected, lazy LFP access enabled\n');
         
-        % Загружаем всё кроме lfp через matfile
+        % Загружаем только whitelist полей через matfile
         all_info = whos(mf);
-        vars_to_load = setdiff({all_info.name}, {'lfp'});
+        vars_to_load = intersect(whitelist_fields, {all_info.name}, 'stable');
         d = struct();
         for vi = 1:length(vars_to_load)
             d.(vars_to_load{vi}) = mf.(vars_to_load{vi});
         end
     catch
         % Не v7.3 — загружаем всё целиком
-        d = load(filepath);
-        if isfield(d, 'lfp')
-            lfp_dims = size(d.lfp);
+        d_raw = load(filepath);
+        if isfield(d_raw, 'lfp')
+            lfp_dims = size(d_raw.lfp);
+            d = struct('lfp', d_raw.lfp);
+            vars_to_load = intersect(whitelist_fields, fieldnames(d_raw), 'stable');
+            for vi = 1:length(vars_to_load)
+                d.(vars_to_load{vi}) = d_raw.(vars_to_load{vi});
+            end
         else
             error('Field lfp is required for loading ZAV file');
         end

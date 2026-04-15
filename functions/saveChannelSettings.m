@@ -7,6 +7,7 @@ function saveChannelSettings(varargin)
     global channelNames channelEnabled scalingCoefficients colorsIn lineCoefficients
     global mean_group_ch csd_avaliable filter_avaliable baseline_subtract_available filterSettings
     global stims EV_version csd_smooth_coef csd_contrast_coef
+    global axes_background_color
     
     if exist(matFilePath, 'file') ~= 2
         return;
@@ -34,6 +35,7 @@ function saveChannelSettings(varargin)
             'csd_avaliable'
             'filter_avaliable'
             'baseline_subtract_available'
+            'axes_background_color'
             'stims'
             'EV_version'
         };

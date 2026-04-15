@@ -21,7 +21,8 @@ function signalViewerGUI(filePath)
     global std_coef binsize % спайки/CSD
     global ch_labels_l colors_in_l  widths_in_l
     global add_event_settings
-    global timeSlider menu_visible filterSettings
+    global timeSlider timeZeroEdit yLimMinEdit yLimMaxEdit yLimResetBtn menu_visible filterSettings
+    global viewerYlimManual viewerYlim
     global previousSliderValue % сохраняем предыдущее значение слайдера
     global data_loaded
     global SettingsFilepath
@@ -35,6 +36,7 @@ function signalViewerGUI(filePath)
     global lines_and_styles
     global auto_open_last_file
     global visualSettings
+    global axes_background_color
     global keyboardpressed previousKey
     global plot_updating loading_text_handle % флаг обновления графика и handle текста
     global ica_flag pca_flag
@@ -76,6 +78,10 @@ function signalViewerGUI(filePath)
     
     % Загружаем глобальные настройки (включая инициализацию по умолчанию)
     loadGlobalSettings();
+
+    if isempty(axes_background_color)
+        axes_background_color = '#FFFFFF';
+    end
     
     % Загружаем координаты элементов из JSON файла
     coordsFile = getGUIConfigPath('signalViewerGUI_coords.json');
@@ -175,6 +181,8 @@ function signalViewerGUI(filePath)
     csd_contrast_coef = 99.9;
     
     data_loaded = false;
+    viewerYlimManual = false;
+    viewerYlim = [0 1];
     autoSetNewFsFromFs = true; % по умолчанию включен автоматический расчет newFs
     autoSetTimeWindowsFromSweeps = true; % по умолчанию включен автоматический расчет временных окон на основе свипов
     stims_loaded_from_settings = false; % флаг загрузки стимулов из настроек
@@ -295,6 +303,10 @@ function signalViewerGUI(filePath)
     multiax_position_b = getElementPosition('multiax_position_b');
     multiax = axes('Position', multiax_position_a, 'Tag', 'multiax');
     set(multiax,'TickLabelInterpreter','none')
+
+    if ~isempty(axes_background_color)
+        set(multiax, 'Color', hex2rgb_local(axes_background_color));
+    end
     
     sidePanel = uipanel('Parent', f, 'Position', getElementPosition('side_panel'), 'Tag', 'side_panel');
     
@@ -342,6 +354,7 @@ function signalViewerGUI(filePath)
                            'ColumnName', {'Channel', 'Enabled', 'Scale', 'Color', 'Line Width', 'Averaging', 'CSD', 'Filter', 'Baseline'}, ...
                            'ColumnFormat', {'char', 'logical', 'numeric', 'char', 'numeric', 'logical', 'logical', 'logical', 'logical'}, ...
                            'ColumnEditable', [false true true true true true true true true], ...
+                           'CellSelectionCallback', @channelTableSelectionChanged, ...
                            'Position', getElementPosition('channel_table'), 'Tag', 'channel_table');
     % Toggle кнопки для свойств каналов (порядок как в таблице: ch, Averaging, CSD, Filter, Baseline)
     toggleAllChannelsBtn = uicontrol('Parent', sidePanel, 'Style', 'togglebutton', 'String', '(De)select ch', 'Position', getElementPosition('toggle_all_channels_btn'), 'Callback', @(src,evt)toggleChannelProperty(src, evt, 2), 'Tag', 'toggle_all_channels_btn');
@@ -377,6 +390,14 @@ function signalViewerGUI(filePath)
               'HorizontalAlignment', 'center', ...
               'FontWeight', 'bold', ...
               'Tag', 'separator_1');
+
+    % Кнопка выбора цвета каналов (располагается под (De)select ch)
+    % Важно: создаём после separator_1, чтобы не перекрывалась им по Z-order.
+    channelColorPaletteBtn = uicontrol('Parent', sidePanel, 'Style', 'pushbutton', ...
+        'String', 'Color Palette', ...
+        'Position', getElementPosition('channel_color_palette_btn'), ...
+        'Callback', @openChannelColorPalette, ...
+        'Tag', 'channel_color_palette_btn');
     
     % Заголовок секции стимулов
     StimuliTitle = uicontrol('Parent', sidePanel, 'Style', 'text', 'String', 'Stimuli', ...
@@ -412,6 +433,9 @@ function signalViewerGUI(filePath)
       
     % Добавление слайдера для времени
     timeSlider = uicontrol('Parent', mainPanel, 'Style', 'slider', 'Position', getElementPosition('time_slider'), 'Min', 0, 'Max', 1, 'Value', 0, 'Callback', @timeSliderCallback, 'Tag', 'time_slider');
+
+    timeZeroText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 't=0 @ rec:', 'Position', getElementPosition('time_zero_text'), 'HorizontalAlignment', 'left', 'Tag', 'time_zero_text');
+    timeZeroEdit = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', '0', 'Position', getElementPosition('time_zero_edit'), 'Callback', @timeZeroEditCallback, 'Tag', 'time_zero_edit');
 
     % Добавление выпадающего списка для выбора единиц времени
     units = {'s', 'ms', 'min'};
@@ -449,6 +473,7 @@ function signalViewerGUI(filePath)
     showCSDbutton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'CSD', 'Position', getElementPosition('show_csd_button'), 'Callback', @ShowCSDButtonCallback, 'Tag', 'show_csd_button');
     showEventsButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Events', 'Position', getElementPosition('show_events_button'), 'Value', visualSettings.events_show, 'Callback', @ShowEventsButtonCallback, 'Tag', 'show_events_button');
     showStimButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Stim', 'Position', getElementPosition('show_stim_button'), 'Value', visualSettings.stim_show, 'Callback', @ShowStimButtonCallback, 'Tag', 'show_stim_button');
+    showFullSignalCheckbox = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Full signal', 'Position', getElementPosition('show_full_signal_checkbox'), 'Value', visualSettings.show_full_signal, 'Callback', @fullSignalCheckboxCallback, 'Tag', 'show_full_signal_checkbox');
     
     % Кнопки для навигации по времени
     previousbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Previous', 'Position', getElementPosition('previous_button'), 'Callback', {@shiftTime, -1, timeForwardEdit}, 'Tag', 'previous_button');
@@ -456,6 +481,12 @@ function signalViewerGUI(filePath)
     
     nextbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Next', 'Position', getElementPosition('next_button'), 'Callback', {@shiftTime, 1, timeForwardEdit}, 'Tag', 'next_button');
     btnIcon(nextbutton, fullfile(assetsPath, 'next_button.png'), false);
+
+    yLimMinText = uicontrol('Parent', f, 'Style', 'text', 'String', 'Y min:', 'Position', getElementPosition('y_lim_min_text'), 'HorizontalAlignment', 'left', 'Tag', 'y_lim_min_text');
+    yLimMinEdit = uicontrol('Parent', f, 'Style', 'edit', 'String', '0', 'Position', getElementPosition('y_lim_min_edit'), 'Callback', @yLimEditCallback, 'Tag', 'y_lim_min_edit');
+    yLimMaxText = uicontrol('Parent', f, 'Style', 'text', 'String', 'Y max:', 'Position', getElementPosition('y_lim_max_text'), 'HorizontalAlignment', 'left', 'Tag', 'y_lim_max_text');
+    yLimMaxEdit = uicontrol('Parent', f, 'Style', 'edit', 'String', '1', 'Position', getElementPosition('y_lim_max_edit'), 'Callback', @yLimEditCallback, 'Tag', 'y_lim_max_edit');
+    yLimResetBtn = uicontrol('Parent', f, 'Style', 'pushbutton', 'String', 'Reset graph', 'Position', getElementPosition('y_lim_reset_btn'), 'Callback', @yLimResetCallback, 'Tag', 'y_lim_reset_btn');
 
     % Окошко для выбора размера shiftCoeff
     shiftCoefText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'Ch. Shift:', 'Position', getElementPosition('shift_coef_text'), 'Tag', 'shift_coef_text');
@@ -548,7 +579,11 @@ function signalViewerGUI(filePath)
         '', ...
         'Data Cursor', ...
         '', ...
-        'Full channel trace'};
+        'Full channel trace', ...
+        '', ...
+        'Channel color palette', ...
+        '', ...
+        'Background color palette'};
           
     % Создание выпадающего списка
     view_menu = uicontrol('Style', 'listbox',...
@@ -684,7 +719,8 @@ function signalViewerGUI(filePath)
     set(OptBtn, 'Enable', 'off');
     set(viewBtn, 'Enable', 'off');
     set(analysisBtn, 'Enable', 'off');
-    setUIControlsEnable({sidePanel, mainPanel} , 'off')    
+    setUIControlsEnable({sidePanel, mainPanel} , 'off')
+    set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit, yLimResetBtn], 'Enable', 'off');
     set(LoadMatFileBtn, 'Enable', 'on');
     set(FMbutton, 'Enable', 'on');
     set(loadEventsBtn, 'Enable', 'on');
@@ -955,7 +991,7 @@ function signalViewerGUI(filePath)
             case file_functions{1}
                 OpenZavLfpFile([], []);
             case file_functions{3}
-                showRecentFilesDialog();
+                showRecentFilesDialog(lastOpenedFiles, @loadMatFile);
             case file_functions{5}
                 loadEvents([], []);
             case file_functions{7}
@@ -977,65 +1013,6 @@ function signalViewerGUI(filePath)
         end
     end
 
-
-    function showRecentFilesDialog()
-        selectedRow = [];
-        
-        tableData_rf = cell(0, 2);
-        reversed = unique(lastOpenedFiles(end:-1:1), 'stable');
-        for i = 1:numel(reversed)
-            [~, fname, fext] = fileparts(reversed{i});
-            tableData_rf{i, 1} = [fname, fext];
-            tableData_rf{i, 2} = reversed{i};
-        end
-        
-        dlgWidth = 600;
-        dlgHeight = 400;
-        screenSize = get(0, 'ScreenSize');
-        dlgPos = [(screenSize(3) - dlgWidth) / 2, (screenSize(4) - dlgHeight) / 2, dlgWidth, dlgHeight];
-        
-        dlg = figure('Name', 'Recent files', 'NumberTitle', 'off', ...
-            'MenuBar', 'none', 'ToolBar', 'none', ...
-            'WindowStyle', 'modal', 'Resize', 'off', ...
-            'Position', dlgPos);
-        
-        recentTable = uitable('Parent', dlg, ...
-            'Data', tableData_rf, ...
-            'ColumnName', {'File name', 'Path'}, ...
-            'RowName', {}, ...
-            'ColumnEditable', [false false], ...
-            'ColumnWidth', {180, 380}, ...
-            'Position', [10, 50, 580, 340], ...
-            'CellSelectionCallback', @onCellSelection);
-        
-        btnOpenLoc = uicontrol('Parent', dlg, 'Style', 'pushbutton', ...
-            'String', 'Open File Location', 'Position', [10, 10, 140, 30], ...
-            'Enable', 'off', 'Callback', @onOpenLocation);
-        
-        btnOpen = uicontrol('Parent', dlg, 'Style', 'pushbutton', ...
-            'String', 'Open', 'Position', [490, 10, 100, 30], ...
-            'Enable', 'off', 'Callback', @onOpen);
-        
-        function onCellSelection(~, evt)
-            if ~isempty(evt.Indices)
-                selectedRow = evt.Indices(1, 1);
-                set(btnOpen, 'Enable', 'on');
-                set(btnOpenLoc, 'Enable', 'on');
-            end
-        end
-        
-        function onOpen(~, ~)
-            filePath_rf = recentTable.Data{selectedRow, 2};
-            close(dlg);
-            loadMatFile(filePath_rf);
-        end
-        
-        function onOpenLocation(~, ~)
-            filePath_rf = recentTable.Data{selectedRow, 2};
-            folder = fileparts(filePath_rf);
-            winopen(folder);
-        end
-    end
 
     function importEventsFromSimulus()
         if not(isempty(stims))
@@ -1118,6 +1095,10 @@ function signalViewerGUI(filePath)
                 activateDataCursor();
             case view_functions{21}
                 viewFullChannelGUI();
+            case view_functions{23}
+                openChannelColorPalette();
+            case view_functions{25}
+                openBackgroundColorPalette();
             case ''
             dont_close_menu = true;
         end
@@ -1231,6 +1212,7 @@ function signalViewerGUI(filePath)
         
         view_functions{7} = str_out;
         set(view_menu, 'String', view_functions);
+        set(showFullSignalCheckbox, 'Value', visualSettings.show_full_signal);
         
         save(SettingsFilepath, 'visualSettings', '-append');
         updatePlot()
@@ -1429,7 +1411,6 @@ function signalViewerGUI(filePath)
         end
     end
 
-
     function openAutoEventDetectionWindow(~, ~)
         global wb
         if isempty(wb) || ~isvalid(wb)
@@ -1552,6 +1533,15 @@ function signalViewerGUI(filePath)
     function ShowStimButtonCallback(~, ~)
         visualSettings.stim_show = ~visualSettings.stim_show;
         set(showStimButton, 'Value', visualSettings.stim_show);
+        updatePlot();
+    end
+
+    function fullSignalCheckboxCallback(src, ~)
+        visualSettings.show_full_signal = logical(get(src, 'Value'));
+        viewMenuLabels = {'Show full signal', 'Hide full signal'};
+        view_functions{7} = viewMenuLabels{visualSettings.show_full_signal + 1};
+        set(view_menu, 'String', view_functions);
+        save(SettingsFilepath, 'visualSettings', '-append');
         updatePlot();
     end
 
@@ -1850,6 +1840,118 @@ function signalViewerGUI(filePath)
         updatePlot(); % Обновление графика
     end
 
+    function timeZeroEditCallback(src, ~)
+        if plot_updating
+            return;
+        end
+        if strcmp(selectedCenter, 'sweep') && sweep_info.is_sweep_data
+            tor_restore = sweep_info.sweep_times(sweep_inx);
+        else
+            tor_restore = chosen_time_interval(1);
+        end
+        t_disp = str2double(get(src, 'String'));
+        if isnan(t_disp)
+            set(src, 'String', num2str(tor_restore * timeUnitFactor));
+            return;
+        end
+        if isempty(time)
+            set(src, 'String', num2str(tor_restore * timeUnitFactor));
+            return;
+        end
+        sliderValue = t_disp / timeUnitFactor;
+        windowSize = str2double(get(timeForwardEdit, 'String')) / timeUnitFactor;
+        if isnan(windowSize) || windowSize <= 0
+            set(src, 'String', num2str(tor_restore * timeUnitFactor));
+            return;
+        end
+        switch selectedCenter
+            case 'stimulus'
+                if stims_exist
+                    stim_inx = ClosestIndex(sliderValue, stims);
+                    if stim_inx > numel(stims)
+                        stim_inx = numel(stims);
+                    end
+                    if stim_inx < 1
+                        stim_inx = 1;
+                    end
+                    chosen_time_interval(1) = stims(stim_inx);
+                    chosen_time_interval(2) = stims(stim_inx) + windowSize;
+                else
+                    if sliderValue + windowSize > time(end)
+                        sliderValue = time(end) - windowSize;
+                    end
+                    chosen_time_interval = [sliderValue, sliderValue + windowSize];
+                end
+            case 'event'
+                if events_exist
+                    event_inx = ClosestIndex(sliderValue, events);
+                    if event_inx > numel(events)
+                        event_inx = numel(events);
+                    end
+                    if event_inx < 1
+                        event_inx = 1;
+                    end
+                    chosen_time_interval(1) = events(event_inx);
+                    chosen_time_interval(2) = events(event_inx) + windowSize;
+                    set(eventDeleteEdit, 'String', num2str(event_inx));
+                else
+                    if sliderValue + windowSize > time(end)
+                        sliderValue = time(end) - windowSize;
+                    end
+                    chosen_time_interval = [sliderValue, sliderValue + windowSize];
+                end
+            case 'sweep'
+                if sweep_info.is_sweep_data
+                    sweep_inx = ClosestIndex(sliderValue, sweep_info.sweep_times);
+                    if sweep_inx > sweep_info.sweep_count
+                        sweep_inx = sweep_info.sweep_count;
+                    end
+                    if sweep_inx < 1
+                        sweep_inx = 1;
+                    end
+                    chosen_time_interval(1) = sweep_info.sweep_times(sweep_inx);
+                    chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
+                else
+                    if sliderValue + windowSize > time(end)
+                        sliderValue = time(end) - windowSize;
+                    end
+                    chosen_time_interval = [sliderValue, sliderValue + windowSize];
+                end
+            case 'time'
+                if sliderValue + windowSize > time(end)
+                    sliderValue = time(end) - windowSize;
+                end
+                chosen_time_interval = [sliderValue, sliderValue + windowSize];
+                if not(isempty(events))
+                    event_inx = ClosestIndex(sliderValue, events);
+                    set(eventDeleteEdit, 'String', num2str(event_inx));
+                end
+        end
+        updatePlot();
+    end
+
+    function yLimEditCallback(~, ~)
+        if plot_updating
+            return;
+        end
+        ycur = ylim(multiax);
+        ymin = str2double(get(yLimMinEdit, 'String'));
+        ymax = str2double(get(yLimMaxEdit, 'String'));
+        if isnan(ymin) || isnan(ymax) || ymin >= ymax
+            set(yLimMinEdit, 'String', sprintf('%.6g', ycur(1)));
+            set(yLimMaxEdit, 'String', sprintf('%.6g', ycur(2)));
+            return;
+        end
+        viewerYlimManual = true;
+        viewerYlim = [ymin ymax];
+        ylim(multiax, viewerYlim);
+    end
+
+    function yLimResetCallback(~, ~)
+        viewerYlimManual = false;
+        updatePlot();
+    end
+
     % Функция для обновления данных на основе выбора в таблице
     function updateChannelSelection(~, ~)
         % Получение данных из таблицы
@@ -1905,6 +2007,310 @@ function signalViewerGUI(filePath)
         else
             set(eventsChannelPopup, 'Value', 1);
         end
+    end
+
+    function channelTableSelectionChanged(~, event)
+        if isempty(event.Indices)
+            set(channelTable, 'UserData', []);
+            return
+        end
+        set(channelTable, 'UserData', event.Indices);
+    end
+
+    function openChannelColorPalette(~, ~)
+        selectedIndices = get(channelTable, 'UserData');
+        tableDataLocal = get(channelTable, 'Data');
+        if isempty(tableDataLocal)
+            return
+        end
+
+        if isempty(selectedIndices)
+            selectedRows = find(channelEnabled);
+        else
+            selectedRows = unique(selectedIndices(:, 1));
+        end
+
+        selectedRows = selectedRows(selectedRows >= 1 & selectedRows <= size(tableDataLocal, 1));
+        if isempty(selectedRows)
+            return
+        end
+
+        currentColor = '';
+        firstRow = selectedRows(1);
+        if size(tableDataLocal, 2) >= 4
+            v = tableDataLocal{firstRow, 4};
+            if ischar(v) || isstring(v)
+                currentColor = char(v);
+            end
+        end
+
+        createChannelColorEditDialog(selectedRows, currentColor);
+    end
+
+    function openBackgroundColorPalette(~, ~)
+        currentColor = '';
+        if ~isempty(axes_background_color)
+            currentColor = axes_background_color;
+        end
+        createBackgroundColorEditDialog(currentColor);
+    end
+
+    function createChannelColorEditDialog(selectedRows, currentColor)
+        colors = getColors(30);
+        grayColors = {'#000000', '#404040', '#808080', '#BFBFBF', '#FFFFFF'};
+
+        dialogWidth = 400;
+        buttonHeight = 30;
+        margin = 10;
+        buttonWidth = 80;
+        colorButtonSize = 35;
+        gridCols = 6;
+        gridRows = 5;
+        gridSpacing = 5;
+        gridWidth = gridCols * colorButtonSize + (gridCols - 1) * gridSpacing;
+        grayColWidth = colorButtonSize;
+        totalGridWidth = gridWidth + gridSpacing + grayColWidth;
+        gridHeight = gridRows * colorButtonSize + (gridRows - 1) * gridSpacing;
+        dialogHeight = gridHeight + buttonHeight + 3 * margin + 20;
+        dialogWidth = max(dialogWidth, totalGridWidth + 2 * margin);
+
+        dialogFig = figure('Position', [100, 100, dialogWidth, dialogHeight], ...
+            'Name', 'Edit Channel Color', ...
+            'NumberTitle', 'off', ...
+            'MenuBar', 'none', ...
+            'Resize', 'off', ...
+            'WindowStyle', 'modal');
+
+        gridStartX = (dialogWidth - totalGridWidth) / 2;
+        gridStartY = dialogHeight - gridHeight - margin - 20;
+
+        selectedColorHex = '';
+        if ~isempty(currentColor)
+            selectedColorHex = currentColor;
+        end
+
+        for row = 1:gridRows
+            for col = 1:gridCols
+                colorIdx = (row - 1) * gridCols + col;
+                if colorIdx > 30
+                    break
+                end
+
+                colorHex = colors{colorIdx};
+                colorRGB = hex2rgb_local(colorHex);
+
+                xPos = gridStartX + (col - 1) * (colorButtonSize + gridSpacing);
+                yPos = gridStartY + (gridRows - row) * (colorButtonSize + gridSpacing);
+
+                isSelected = strcmp(colorHex, selectedColorHex);
+
+                colorBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+                    'Position', [xPos, yPos, colorButtonSize, colorButtonSize], ...
+                    'BackgroundColor', colorRGB, ...
+                    'Tag', 'colorButton', ...
+                    'UserData', colorHex, ...
+                    'String', '', ...
+                    'Callback', @(src,~) selectColorButton(src, dialogFig, colorHex));
+
+                if isSelected
+                    set(colorBtn, 'String', '✓', 'ForegroundColor', [1 1 1], 'FontSize', 16, 'FontWeight', 'bold');
+                end
+            end
+        end
+
+        grayX = gridStartX + gridWidth + gridSpacing;
+        for row = 1:gridRows
+            grayHex = grayColors{row};
+            grayRGB = hex2rgb_local(grayHex);
+            yPos = gridStartY + (gridRows - row) * (colorButtonSize + gridSpacing);
+
+            isSelected = strcmp(grayHex, selectedColorHex);
+            grayBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+                'Position', [grayX, yPos, colorButtonSize, colorButtonSize], ...
+                'BackgroundColor', grayRGB, ...
+                'Tag', 'colorButton', ...
+                'UserData', grayHex, ...
+                'String', '', ...
+                'Callback', @(src,~) selectColorButton(src, dialogFig, grayHex));
+
+            if isSelected
+                set(grayBtn, 'String', '✓', 'ForegroundColor', [1 1 1], 'FontSize', 16, 'FontWeight', 'bold');
+            end
+        end
+
+        applyBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+            'Position', [dialogWidth - 2*margin - 2*buttonWidth - 10, margin, buttonWidth, buttonHeight], ...
+            'String', 'Apply', ...
+            'Callback', @(src,~) applyChannelColorEdit(src, selectedRows));
+
+        cancelBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+            'Position', [dialogWidth - margin - buttonWidth, margin, buttonWidth, buttonHeight], ...
+            'String', 'Cancel', ...
+            'Callback', @(src,~) cancelChannelColorEdit(src));
+
+        set(dialogFig, 'UserData', selectedColorHex);
+    end
+
+    function selectColorButton(src, dialogFig, colorHex)
+        colorButtons = findobj(dialogFig, 'Tag', 'colorButton');
+        for i = 1:length(colorButtons)
+            set(colorButtons(i), 'String', '', 'ForegroundColor', [0 0 0]);
+        end
+        set(src, 'String', '✓', 'ForegroundColor', [1 1 1], 'FontSize', 16, 'FontWeight', 'bold');
+        set(dialogFig, 'UserData', colorHex);
+    end
+
+    function applyChannelColorEdit(src, selectedRows)
+        dialogFig = ancestor(src, 'figure');
+        selectedColorHex = get(dialogFig, 'UserData');
+        if isempty(selectedColorHex)
+            close(dialogFig);
+            return
+        end
+
+        tableDataLocal = get(channelTable, 'Data');
+        if isempty(tableDataLocal)
+            close(dialogFig);
+            return
+        end
+
+        if size(tableDataLocal, 2) < 4
+            close(dialogFig);
+            return
+        end
+
+        for k = 1:numel(selectedRows)
+            r = selectedRows(k);
+            tableDataLocal{r, 4} = selectedColorHex;
+        end
+
+        set(channelTable, 'Data', tableDataLocal);
+        updateChannelSelection();
+
+        close(dialogFig);
+    end
+
+    function createBackgroundColorEditDialog(currentColor)
+        colors = getColors(30);
+        grayColors = {'#000000', '#404040', '#808080', '#BFBFBF', '#FFFFFF'};
+
+        dialogWidth = 400;
+        buttonHeight = 30;
+        margin = 10;
+        buttonWidth = 80;
+        colorButtonSize = 35;
+        gridCols = 6;
+        gridRows = 5;
+        gridSpacing = 5;
+        gridWidth = gridCols * colorButtonSize + (gridCols - 1) * gridSpacing;
+        grayColWidth = colorButtonSize;
+        totalGridWidth = gridWidth + gridSpacing + grayColWidth;
+        gridHeight = gridRows * colorButtonSize + (gridRows - 1) * gridSpacing;
+        dialogHeight = gridHeight + buttonHeight + 3 * margin + 20;
+        dialogWidth = max(dialogWidth, totalGridWidth + 2 * margin);
+
+        dialogFig = figure('Position', [100, 100, dialogWidth, dialogHeight], ...
+            'Name', 'Edit Background Color', ...
+            'NumberTitle', 'off', ...
+            'MenuBar', 'none', ...
+            'Resize', 'off', ...
+            'WindowStyle', 'modal');
+
+        gridStartX = (dialogWidth - totalGridWidth) / 2;
+        gridStartY = dialogHeight - gridHeight - margin - 20;
+
+        selectedColorHex = '';
+        if ~isempty(currentColor)
+            selectedColorHex = currentColor;
+        end
+
+        for row = 1:gridRows
+            for col = 1:gridCols
+                colorIdx = (row - 1) * gridCols + col;
+                if colorIdx > 30
+                    break
+                end
+
+                colorHex = colors{colorIdx};
+                colorRGB = hex2rgb_local(colorHex);
+
+                xPos = gridStartX + (col - 1) * (colorButtonSize + gridSpacing);
+                yPos = gridStartY + (gridRows - row) * (colorButtonSize + gridSpacing);
+
+                isSelected = strcmp(colorHex, selectedColorHex);
+
+                colorBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+                    'Position', [xPos, yPos, colorButtonSize, colorButtonSize], ...
+                    'BackgroundColor', colorRGB, ...
+                    'Tag', 'colorButton', ...
+                    'UserData', colorHex, ...
+                    'String', '', ...
+                    'Callback', @(src,~) selectColorButton(src, dialogFig, colorHex));
+
+                if isSelected
+                    set(colorBtn, 'String', '✓', 'ForegroundColor', [1 1 1], 'FontSize', 16, 'FontWeight', 'bold');
+                end
+            end
+        end
+
+        grayX = gridStartX + gridWidth + gridSpacing;
+        for row = 1:gridRows
+            grayHex = grayColors{row};
+            grayRGB = hex2rgb_local(grayHex);
+            yPos = gridStartY + (gridRows - row) * (colorButtonSize + gridSpacing);
+
+            isSelected = strcmp(grayHex, selectedColorHex);
+            grayBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+                'Position', [grayX, yPos, colorButtonSize, colorButtonSize], ...
+                'BackgroundColor', grayRGB, ...
+                'Tag', 'colorButton', ...
+                'UserData', grayHex, ...
+                'String', '', ...
+                'Callback', @(src,~) selectColorButton(src, dialogFig, grayHex));
+
+            if isSelected
+                set(grayBtn, 'String', '✓', 'ForegroundColor', [1 1 1], 'FontSize', 16, 'FontWeight', 'bold');
+            end
+        end
+
+        applyBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+            'Position', [dialogWidth - 2*margin - 2*buttonWidth - 10, margin, buttonWidth, buttonHeight], ...
+            'String', 'Apply', ...
+            'Callback', @(src,~) applyBackgroundColorEdit(src));
+
+        cancelBtn = uicontrol('Parent', dialogFig, 'Style', 'pushbutton', ...
+            'Position', [dialogWidth - margin - buttonWidth, margin, buttonWidth, buttonHeight], ...
+            'String', 'Cancel', ...
+            'Callback', @(src,~) cancelChannelColorEdit(src));
+
+        set(dialogFig, 'UserData', selectedColorHex);
+    end
+
+    function applyBackgroundColorEdit(src)
+        dialogFig = ancestor(src, 'figure');
+        selectedColorHex = get(dialogFig, 'UserData');
+        if isempty(selectedColorHex)
+            close(dialogFig);
+            return
+        end
+
+        axes_background_color = selectedColorHex;
+        set(multiax, 'Color', hex2rgb_local(selectedColorHex));
+        saveChannelSettings('axes_background_color');
+        close(dialogFig);
+    end
+
+    function cancelChannelColorEdit(src)
+        dialogFig = ancestor(src, 'figure');
+        close(dialogFig);
+    end
+
+    function rgb = hex2rgb_local(hexColor)
+        hexColor = strrep(hexColor, '#', '');
+        r = hex2dec(hexColor(1:2)) / 255;
+        g = hex2dec(hexColor(3:4)) / 255;
+        b = hex2dec(hexColor(5:6)) / 255;
+        rgb = [r, g, b];
     end
     
     function eventsChannelPopupCallback(~, ~)
@@ -2060,6 +2466,7 @@ function signalViewerGUI(filePath)
         ica_flag = false;
         pca_flag = false;
         stims_loaded_from_settings = false; % сбрасываем флаг при загрузке нового файла
+        viewerYlimManual = false;
         
         windowSize = str2double(get(timeForwardEdit, 'String'))/timeUnitFactor;% должен быть в секундах
         
@@ -2201,6 +2608,7 @@ function signalViewerGUI(filePath)
         event_widths = []; event_prominences = []; event_metadata = [];
         N = []; Fs = []; newFs = []; sweep_inx = 1; selectedCenter = 'time'; stim_inx = 1;
         chosen_time_interval = [0, 0];
+        viewerYlimManual = false;
         set(StimuliTitle, 'String', 'Stimuli');
         axes(multiax);
         cla(multiax);
@@ -2213,6 +2621,7 @@ function signalViewerGUI(filePath)
         set(viewBtn, 'Enable', 'off');
         set(analysisBtn, 'Enable', 'off');
         setUIControlsEnable({sidePanel, mainPanel}, 'off');
+        set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit, yLimResetBtn], 'Enable', 'off');
         set(LoadMatFileBtn, 'Enable', 'on');
         set(FMbutton, 'Enable', 'on');
         set(loadEventsBtn, 'Enable', 'on');
@@ -2320,6 +2729,7 @@ function signalViewerGUI(filePath)
         % раз
         if ~data_loaded
             setUIControlsEnable({sidePanel, mainPanel} , 'on')
+            set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit, yLimResetBtn], 'Enable', 'on');
             data_loaded = true;
         end
         
@@ -2523,6 +2933,14 @@ function loadSettingsFile()
             else
                 set(StimuliTitle, 'String', 'Stimuli');
             end
+        end
+
+        if isfield(loadedSettings, 'axes_background_color') && ~isempty(loadedSettings.axes_background_color)
+            axes_background_color = loadedSettings.axes_background_color;
+            set(multiax, 'Color', hex2rgb_local(axes_background_color));
+        else
+            axes_background_color = '#FFFFFF';
+            set(multiax, 'Color', hex2rgb_local(axes_background_color));
         end
         
         % Правильно устанавливаем chosen_time_interval в зависимости от режима

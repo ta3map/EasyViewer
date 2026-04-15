@@ -29,6 +29,7 @@ global stims
 global t_mean_profile
 global wb
 global matFileName
+global axes_background_color
 
 wbCreatedHere = isempty(wb) || ~isvalid(wb);
 if wbCreatedHere
@@ -71,6 +72,7 @@ else
         'MenuBar', 'none', 'ToolBar', 'figure');
 end
 params.figure.Position = [32, 64, 1024, 768];
+set(params.figure, 'WindowButtonMotionFcn', []);
 
 % Тулбар создаём для доступа к инструментам (zoom и т.д.), затем скрываем
 hToolbar = findall(params.figure, 'Type', 'uitoolbar');
@@ -214,6 +216,19 @@ if strcmp(sourceType, 'stimuli')
 else
     mean_f.Name = [figureName, ': ', local_evfilename, ' (', num2str(numEvents), ' events)'];
 end
+
+bgHex = axes_background_color;
+if isempty(bgHex)
+    bgHex = '#FFFFFF';
+end
+bgRgb = hex2rgb_meanEvents(bgHex);
+axesHandles = findobj(mean_f, 'Type', 'axes');
+for iAx = 1:numel(axesHandles)
+    axh = axesHandles(iAx);
+    if isprop(axh, 'Color')
+        set(axh, 'Color', bgRgb);
+    end
+end
 if ~isempty(params.customXLimits)
     Xlims = params.customXLimits;
 else
@@ -270,7 +285,17 @@ colors_in_selected = colors_in(ch_inxs);
 % Вычисляем и применяем пределы Y
 ax = findobj(mean_f, 'Type', 'axes', '-not', 'Tag', 'legend');
 if ~isempty(ax)
-    ax = ax(1);
+    mainAx = [];
+    for iAx = 1:numel(ax)
+        xLbl = get(get(ax(iAx), 'XLabel'), 'String');
+        if ischar(xLbl) && strcmp(xLbl, 'Time')
+            mainAx = ax(iAx);
+            break
+        end
+    end
+    if isempty(mainAx)
+        mainAx = ax(1);
+    end
     if visualSettings.show_full_signal
         pl_meanData = calculation_result.meanData(:, ch_inxs) .* calculation_result.scalingCoefficients(ch_inxs);
         data_with_offsets = pl_meanData + offsets;
@@ -289,64 +314,81 @@ if ~isempty(ax)
     else
         Ylims = [min(chRangesOffsets)-shiftCoeff*0.5, max(chRangesOffsets)+shiftCoeff*0.5];
     end
-    ylim(ax, Ylims);
+    ylim(mainAx, Ylims);
+    for iAx = 1:numel(ax)
+        if ax(iAx) ~= mainAx
+            ylim(ax(iAx), Ylims);
+        end
+    end
 end
 
 
 
 xline(0, 'r:');
 
-% Кнопка для сохранения файлов
+% Кнопка для сохранения (по расширению файла определяется: данные или картинка)
 save_btn_coords = [5, 5, 40, 25];
-savebutton = uicontrol('Parent', mean_f, 'Style', 'pushbutton', 'String', 'Save Data', 'Visible', 'off', 'Position', save_btn_coords, 'Callback', @SaveBtnClb);
+savebutton = uicontrol('Parent', mean_f, 'Style', 'pushbutton', 'String', 'Save', ...
+    'Visible', 'on', 'Position', save_btn_coords, 'Callback', @SaveClb);
 btnIcon(savebutton, fullfile(getAssetsPath(), 'data-storage.png'), false) % ставим иконку для кнопки
 
-save_btn_coords = [5, 32.5, 40, 25];
-saveImgbutton = uicontrol('Parent', mean_f, 'Style', 'pushbutton', 'String', 'Save Image', 'Visible', 'off', 'Position', save_btn_coords, 'Callback', @SaveImageClb);
-btnIcon(saveImgbutton, fullfile(getAssetsPath(), 'save_image.png'), false) % ставим иконку для кнопки
-btn_list = [savebutton, saveImgbutton];
+function SaveClb(~,~)
+    [file, path] = uiputfile(...
+        {'*.png',  'PNG image (*.png)'; ...
+         '*.fig',  'MATLAB figure (*.fig)'; ...
+         '*.pdf',  'PDF file (*.pdf)'; ...
+         '*.eps',  'EPS file (*.eps)'; ...
+         '*.*',    'All Files (*.*)'; ...
+         '*.mean', 'Mean data (*.mean)'}, ...
+        'Save file name', fullfile(mat_file_folder, [local_evfilename '_mean']));
+    if isequal(file, 0) || isequal(path, 0)
+        disp('User pressed cancel');
+        return
+    end
 
-set(mean_f, 'WindowButtonMotionFcn', @(src, event)autoHideBtn(src, event, btn_list));
+    filename = fullfile(path, file);
+    [~, ~, ext] = fileparts(filename);
 
-function SaveBtnClb(~,~)
-    set(savebutton, 'Visible', 'off')
-    [file,path] = uiputfile([mat_file_folder '/' local_evfilename '_data.mean'], 'Save file name');
-    if isequal(file,0) || isequal(path,0)
-       disp('User pressed cancel')
-    else
-       filename = fullfile(path, file);      
-       save(filename, '-struct', 'calculation_result');
-       save(filename, 'original_filename', '-append');
-       
-       disp(['Data saved to ', filename]);
+    switch lower(ext)
+        case '.mean'
+            save(filename, '-struct', 'calculation_result');
+            save(filename, 'original_filename', '-append');
+            disp(['Data saved to ', filename]);
+        case '.fig'
+            fclose('all');
+            drawnow;
+            deleteSaveButton_meanEvents();
+            restoreSaveBtn = onCleanup(@() createSaveButton_meanEvents());
+            savefig(mean_f, filename, 'compact');
+            disp(['Figure saved to ', filename]);
+        case '.pdf'
+            print(mean_f, filename, '-dpdf', '-bestfit');
+            disp(['Image saved to ', filename]);
+        case '.eps'
+            print(mean_f, filename, '-depsc');
+            disp(['Image saved to ', filename]);
+        case '.png'
+            saveas(mean_f, filename, 'png');
+            disp(['Image saved to ', filename]);
+        otherwise
+            saveas(mean_f, filename);
+            disp(['Saved to ', filename]);
     end
 end
 
-function SaveImageClb(~,~)
-    set(saveImgbutton, 'Visible', 'off')
-    [file, path, filterindex] = uiputfile(...
-        {'*.pdf', 'PDF files (*.pdf)';...
-         '*.eps', 'EPS files (*.eps)';...
-         '*.png', 'PNG files (*.png)';...
-         '*.*', 'All Files (*.*)'},...
-         'Save file name', [mat_file_folder '/' local_evfilename '_mean']);
-    if isequal(file,0) || isequal(path,0)
-       disp('User pressed cancel');
-    else
-       filename = fullfile(path, file);      
-       switch filterindex
-           case 1
-               print(mean_f, filename, '-dpdf', '-bestfit');
-           case 2
-               print(mean_f, filename, '-depsc');
-           case 3
-               saveas(mean_f, filename, 'png');
-           otherwise
-               saveas(mean_f, filename);
-       end
-       disp(['Image saved to ', filename]);
-    end
-    
+function deleteSaveButton_meanEvents()
+if ~isempty(savebutton) && isgraphics(savebutton, 'uicontrol')
+    delete(savebutton);
+end
+end
+
+function createSaveButton_meanEvents()
+if ~isgraphics(mean_f, 'figure')
+    return
+end
+savebutton = uicontrol('Parent', mean_f, 'Style', 'pushbutton', 'String', 'Save', ...
+    'Visible', 'on', 'Position', save_btn_coords, 'Callback', @SaveClb);
+btnIcon(savebutton, fullfile(getAssetsPath(), 'data-storage.png'), false)
 end
 
 fprintf('Mean events calculated.\n');
@@ -357,4 +399,12 @@ end
 if wbCreatedHere && ~isempty(wb) && isvalid(wb)
     delete(wb);
 end
+end
+
+function rgb = hex2rgb_meanEvents(hexColor)
+hexColor = strrep(hexColor, '#', '');
+r = hex2dec(hexColor(1:2)) / 255;
+g = hex2dec(hexColor(3:4)) / 255;
+b = hex2dec(hexColor(5:6)) / 255;
+rgb = [r, g, b];
 end
