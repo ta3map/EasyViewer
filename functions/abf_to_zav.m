@@ -122,7 +122,7 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
                 [tStamp, ampl, shape] = detectMUAzav(sweepData, hd_abf, mua_std_coef, true);
                 profile_times.mua_detect = profile_times.mua_detect + toc(tic_mua);
                 spks(chIdx, sweepIdx).tStamp = single(tStamp);
-                spks(chIdx, sweepIdx).ampl = single(-ampl);
+                spks(chIdx, sweepIdx).ampl = single(abs(ampl));
                 spks(chIdx, sweepIdx).shape = shape;
             else
                 % Инициализируем пустые поля.

@@ -47,7 +47,7 @@ function nlx_to_zav_streaming(recordPath, zavFilePath, channels_list, ncsFilePat
         if detectMua
             [tStamp, ampl, shape] = detectMUAzav(data_col, hd_ch, mua_std_coef, true);
             spks(ch_inx).tStamp = single(tStamp);
-            spks(ch_inx).ampl = single(ampl);
+            spks(ch_inx).ampl = single(abs(ampl));
             spks(ch_inx).shape = shape;
         else
             spks(ch_inx).tStamp = single([]);

@@ -341,7 +341,7 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
             [tStamp, ampl, shape] = detectMUAzav(lfp_channel_data_for_mua, hd, mua_std_coef, true);
             
             spks(chIdx).tStamp = double(tStamp);
-            spks(chIdx).ampl = double(-ampl);
+            spks(chIdx).ampl = double(abs(ampl));
             spks(chIdx).shape = shape;
             
             clear lfp_channel_data_for_mua tStamp ampl shape;

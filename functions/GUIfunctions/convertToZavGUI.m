@@ -14,16 +14,10 @@ function convertToZavGUI(formatKey)
     end
 
     cfg = getFormatConfig(formatKey);
-
-    sourcePath = '';
-    zavFilePath = '';
+    queueSettingsKey = char(formatKey);
+    queueData = struct('items', [], 'lastSelectedItemId', '', 'nextId', 1);
+    selectedItemIdx = 0;
     active_folder = userpath;
-    availableChannels = {};
-    selectedChannels = {};
-    channelNumbers = [];
-    channelFilePaths = {};
-    channelBytes = [];
-    sourceFs = [];
 
     mua_std_coef = cfg.defaultMuaStdCoef;
     lfp_Fs = cfg.defaultNewFs;
@@ -33,80 +27,81 @@ function convertToZavGUI(formatKey)
 
     loadInitialState();
 
-    fig = figure('Name', cfg.windowTitle, 'Position', [100, 100, 600, 600], 'NumberTitle', 'off', ...
+    fig = figure('Name', cfg.windowTitle, 'Position', [60, 60, 1200, 700], 'NumberTitle', 'off', ...
         'MenuBar', 'none', 'ToolBar', 'none', 'Resize', 'off', 'Tag', figTag);
 
-    leftMargin = 20;
-    topMargin = 550;
-    btnWidth = 150;
-    btnHeight = 25;
-    spacing = 10;
-    secondcolumnshift = 170;
+    uicontrol('Parent', fig, 'Style', 'text', 'String', 'Sources queue', ...
+        'Position', [20, 655, 260, 22], 'HorizontalAlignment', 'left', 'FontWeight', 'bold');
+
+    sourceList = uicontrol('Parent', fig, 'Style', 'listbox', 'String', {'(queue is empty)'}, ...
+        'Position', [20, 210, 420, 440], 'Callback', @sourceSelectionChanged);
 
     uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', cfg.selectButtonText, ...
-        'Position', [leftMargin, topMargin, btnWidth, btnHeight], 'Callback', @selectSource);
+        'Position', [20, 170, 200, 30], 'Callback', @addSource);
 
-    sourcePathLabel = uicontrol('Parent', fig, 'Style', 'text', 'String', cfg.emptySourceLabel, ...
-        'Position', [leftMargin + btnWidth + spacing, topMargin, 400, btnHeight], 'HorizontalAlignment', 'left');
+    uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Clear status', ...
+        'Position', [240, 170, 200, 30], 'Callback', @clearStatus);
 
-    shiftdown = btnHeight + 20;
-    FsOrigLabel = uicontrol('Parent', fig, 'Style', 'text', 'String', '...', ...
-        'Position', [leftMargin + btnWidth + spacing, topMargin - shiftdown, 400, btnHeight], 'HorizontalAlignment', 'left');
+    uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Clear queue', ...
+        'Position', [20, 106, 420, 30], 'Callback', @clearQueue);
 
-    shiftdown = 80;
-    uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Detect MUA', ...
-        'Position', [leftMargin, topMargin - (btnHeight + spacing) + 30 - shiftdown, btnWidth, btnHeight], ...
-        'Value', detectMua, 'Callback', @detectMuaCallback);
+    itemStatusLabel = uicontrol('Parent', fig, 'Style', 'text', 'String', 'Status: -', ...
+        'Position', [20, 140, 420, 22], 'HorizontalAlignment', 'left');
 
-    uicontrol('Parent', fig, 'Style', 'text', 'String', 'MUA Threshold (n*STD):', ...
-        'Position', [leftMargin, topMargin - (btnHeight + spacing) - shiftdown, 150, btnHeight], 'HorizontalAlignment', 'right');
+    queueProgressLabel = uicontrol('Parent', fig, 'Style', 'text', 'String', 'Progress: 0/0 done', ...
+        'Position', [20, 82, 420, 22], 'HorizontalAlignment', 'left');
 
-    muaCoefUI = uicontrol('Parent', fig, 'Style', 'edit', 'String', num2str(mua_std_coef), ...
-        'Position', [leftMargin + secondcolumnshift, topMargin - (btnHeight + spacing) - shiftdown, 50, btnHeight], 'Callback', @muaCoefUICallback);
+    sourceNameLabel = uicontrol('Parent', fig, 'Style', 'text', 'String', 'Source: -', ...
+        'Position', [470, 655, 700, 22], 'HorizontalAlignment', 'left', 'FontWeight', 'bold');
 
-    shiftdown = 120;
-    uicontrol('Parent', fig, 'Style', 'text', 'String', 'New Fs (Hz):', ...
-        'Position', [leftMargin, topMargin - 2 * (btnHeight + spacing) - shiftdown, 150, btnHeight], 'HorizontalAlignment', 'right');
+    FsOrigLabel = uicontrol('Parent', fig, 'Style', 'text', 'String', 'Fs (Hz): -', ...
+        'Position', [470, 630, 400, 22], 'HorizontalAlignment', 'left');
 
-    lfpFsUI = uicontrol('Parent', fig, 'Style', 'edit', 'String', num2str(lfp_Fs), ...
-        'Position', [leftMargin + secondcolumnshift, topMargin - 2 * (btnHeight + spacing) - shiftdown, 50, btnHeight], 'Callback', @lfpFsUICallback);
-
-    doResampleToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Resample LFP', ...
-        'Position', [leftMargin, topMargin - 2 * (btnHeight + spacing) + 30 - shiftdown, 100, btnHeight], ...
-        'Value', doResample, 'Callback', @doResampleCallback);
-
-    channelPanel = uipanel('Parent', fig, 'Title', 'Select Channels', 'Position', [0.05, 0.1, 0.9, 0.45]);
+    channelPanel = uipanel('Parent', fig, 'Title', 'Channels', 'Position', [0.39, 0.28, 0.58, 0.58]);
 
     uicontrol('Parent', channelPanel, 'Style', 'pushbutton', 'String', 'Select All', ...
-        'Units', 'normalized', 'Position', [0.02, 0.92, 0.15, 0.06], 'Callback', @selectAllChannels);
-
+        'Units', 'normalized', 'Position', [0.02, 0.92, 0.13, 0.06], 'Callback', @selectAllChannels);
     uicontrol('Parent', channelPanel, 'Style', 'pushbutton', 'String', 'Deselect All', ...
-        'Units', 'normalized', 'Position', [0.18, 0.92, 0.15, 0.06], 'Callback', @deselectAllChannels);
-
+        'Units', 'normalized', 'Position', [0.16, 0.92, 0.13, 0.06], 'Callback', @deselectAllChannels);
     if cfg.hasDeselectEmpty
         uicontrol('Parent', channelPanel, 'Style', 'pushbutton', 'String', 'Deselect empty channels', ...
-            'Units', 'normalized', 'Position', [0.34, 0.92, 0.22, 0.06], 'Callback', @deselectEmptyChannels);
+            'Units', 'normalized', 'Position', [0.30, 0.92, 0.22, 0.06], 'Callback', @deselectEmptyChannels);
     end
 
     channelTable = uitable('Parent', channelPanel, 'Data', {}, 'ColumnName', {'Use', 'Channel Name'}, ...
-        'ColumnEditable', [true, false], 'Units', 'normalized', 'Position', [0, 0, 1, 0.92], 'CellEditCallback', @channelSelectionCallback);
+        'ColumnEditable', [true, false], 'Units', 'normalized', 'Position', [0, 0, 1, 0.92], ...
+        'CellEditCallback', @channelSelectionCallback);
+
+    uicontrol('Parent', fig, 'Style', 'text', 'String', 'Output file:', ...
+        'Position', [470, 178, 120, 22], 'HorizontalAlignment', 'left');
+    outputPathEdit = uicontrol('Parent', fig, 'Style', 'edit', 'String', '-', ...
+        'Position', [560, 176, 610, 26], 'HorizontalAlignment', 'left', 'Callback', @outputPathEditCallback);
+    uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Change output...', ...
+        'Position', [470, 145, 160, 28], 'Callback', @changeOutputPath);
+
+    uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Detect MUA', ...
+        'Position', [470, 100, 120, 24], 'Value', detectMua, 'Callback', @detectMuaCallback);
+    uicontrol('Parent', fig, 'Style', 'text', 'String', 'MUA Threshold (n*STD):', ...
+        'Position', [600, 100, 160, 22], 'HorizontalAlignment', 'right');
+    muaCoefUI = uicontrol('Parent', fig, 'Style', 'edit', 'String', num2str(mua_std_coef), ...
+        'Position', [770, 100, 70, 24], 'Callback', @muaCoefUICallback);
+
+    uicontrol('Parent', fig, 'Style', 'text', 'String', 'New Fs (Hz):', ...
+        'Position', [850, 100, 100, 22], 'HorizontalAlignment', 'right');
+    lfpFsUI = uicontrol('Parent', fig, 'Style', 'edit', 'String', num2str(lfp_Fs), ...
+        'Position', [960, 100, 70, 24], 'Callback', @lfpFsUICallback);
+
+    uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Resample LFP', ...
+        'Position', [1040, 100, 120, 24], 'Value', doResample, 'Callback', @doResampleCallback);
 
     uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Open after conversion', ...
-        'Position', [leftMargin, 20, btnWidth, btnHeight], 'Value', openAfter, 'Callback', @openafterConvCallback);
-
+        'Position', [470, 60, 180, 24], 'Value', openAfter, 'Callback', @openafterConvCallback);
     uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Start Conversion', ...
-        'Position', [leftMargin + secondcolumnshift, 20, btnWidth, btnHeight], 'Callback', @startConversion);
+        'Position', [990, 48, 180, 36], 'Callback', @startConversion);
 
-    set(doResampleToggle, 'Value', doResample);
-    set(muaCoefUI, 'String', num2str(mua_std_coef));
-    set(lfpFsUI, 'String', num2str(lfp_Fs));
-
-    if ~isempty(sourcePath)
-        set(sourcePathLabel, 'String', sourcePath);
-        if (cfg.sourceType == "file" && exist(sourcePath, 'file')) || (cfg.sourceType == "folder" && exist(sourcePath, 'dir'))
-            extractChannels();
-        end
-    end
+    refreshQueueList();
+    restoreSelectedItem();
+    refreshQueueProgressLabel();
 
     function cfgOut = getFormatConfig(key)
         cfgOut = struct();
@@ -155,161 +150,333 @@ function convertToZavGUI(formatKey)
         catch
         end
 
+        if isfield(import_settings, 'convert_queue') && isfield(import_settings.convert_queue, queueSettingsKey)
+            queueData = import_settings.convert_queue.(queueSettingsKey);
+            if ~isfield(queueData, 'nextId')
+                queueData.nextId = numel(queueData.items) + 1;
+            end
+            if ~isfield(queueData, 'lastSelectedItemId')
+                queueData.lastSelectedItemId = '';
+            end
+        end
+
         if formatKey == "abf" && isfield(import_settings, 'abf2zav')
             settings = import_settings.abf2zav;
-            if isfield(settings, 'filePath') && ~isempty(settings.filePath)
-                sourcePath = settings.filePath;
-            end
             if isfield(settings, 'doResample')
                 doResample = settings.doResample;
-            end
-            if isfield(settings, 'selectedChannels')
-                selectedChannels = settings.selectedChannels;
             end
         end
     end
 
-    function saveAbfImportSettings()
+    function saveQueueState()
+        if ~isfield(import_settings, 'convert_queue')
+            import_settings.convert_queue = struct();
+        end
+        import_settings.convert_queue.(queueSettingsKey) = queueData;
+        save(SettingsFilepath, 'import_settings', '-append');
+    end
+
+    function saveAbfImportSettings(item)
         if formatKey ~= "abf"
             return;
         end
         if ~isfield(import_settings, 'abf2zav')
             import_settings.abf2zav = struct();
         end
-        import_settings.abf2zav.filePath = sourcePath;
+        import_settings.abf2zav.filePath = item.sourcePath;
         import_settings.abf2zav.doResample = doResample;
-        import_settings.abf2zav.selectedChannels = selectedChannels;
+        import_settings.abf2zav.selectedChannels = item.selectedChannels;
         save(SettingsFilepath, 'import_settings', '-append');
     end
 
-    function selectSource(~, ~)
+    function addSource(~, ~)
+        [sourcePath, cancelled] = pickSource();
+        if cancelled
+            return;
+        end
+        [item, err] = buildQueueItem(sourcePath);
+        if ~isempty(err)
+            warndlg(err, 'Source error');
+            return;
+        end
+        queueData.items = [queueData.items; item];
+        queueData.lastSelectedItemId = item.id;
+        queueData.nextId = queueData.nextId + 1;
+        saveQueueState();
+        refreshQueueList();
+        selectQueueItemById(item.id);
+    end
+
+    function [sourcePath, cancelled] = pickSource()
+        sourcePath = '';
+        cancelled = false;
         if cfg.sourceType == "file"
             [file, path] = uigetfile('*.abf', 'Select ABF File', active_folder);
             if isequal(file, 0)
-                clearSourceSelection();
+                cancelled = true;
                 return;
             end
             sourcePath = fullfile(path, file);
             active_folder = path;
-        else
-            if formatKey == "nlx"
-                selectedFolder = uigetdir(active_folder, 'Select Neuralynx Folder');
-            else
-                selectedFolder = uigetdir(active_folder, 'Select OpenEphys Folder');
-            end
-            if isequal(selectedFolder, 0)
-                clearSourceSelection();
-                return;
-            end
-            sourcePath = selectedFolder;
-            active_folder = selectedFolder;
+            return;
         end
-
-        set(sourcePathLabel, 'String', sourcePath);
-        extractChannels();
-        saveAbfImportSettings();
+        if formatKey == "nlx"
+            selectedFolder = uigetdir(active_folder, 'Select Neuralynx Folder');
+        else
+            selectedFolder = uigetdir(active_folder, 'Select OpenEphys Folder');
+        end
+        if isequal(selectedFolder, 0)
+            cancelled = true;
+            return;
+        end
+        sourcePath = selectedFolder;
+        active_folder = selectedFolder;
     end
 
-    function clearSourceSelection()
-        sourcePath = '';
-        set(sourcePathLabel, 'String', cfg.emptySourceLabel);
-        set(channelTable, 'Data', {});
-        availableChannels = {};
-        selectedChannels = {};
-        channelNumbers = [];
-        channelFilePaths = {};
-        channelBytes = [];
+    function [item, err] = buildQueueItem(sourcePath)
+        item = struct();
+        err = '';
+        [channels, sourceFs, meta, err] = readSourceMetadata(sourcePath);
+        if ~isempty(err)
+            return;
+        end
+        selectedChannels = channels;
+        outputPath = buildDefaultOutputName(sourcePath);
+        if formatKey == "abf" && isfield(import_settings, 'abf2zav') && isfield(import_settings.abf2zav, 'selectedChannels')
+            saved = import_settings.abf2zav.selectedChannels;
+            if ~isempty(saved)
+                selectedChannels = intersect(channels, saved, 'stable');
+                if isempty(selectedChannels)
+                    selectedChannels = channels;
+                end
+            end
+        end
+        item.id = sprintf('%s_%d', char(formatKey), queueData.nextId);
+        item.sourcePath = sourcePath;
+        item.sourceType = char(cfg.sourceType);
+        item.displayName = getSourceDisplayName(sourcePath);
+        item.status = 'pending';
+        item.errorMessage = '';
+        item.outputPath = outputPath;
+        item.availableChannels = channels;
+        item.selectedChannels = selectedChannels;
+        item.sourceFs = sourceFs;
+        item.formatMeta = meta;
+        item.progress = 0;
+    end
+
+    function [channels, sourceFs, meta, err] = readSourceMetadata(sourcePath)
+        channels = {};
         sourceFs = [];
-        set(FsOrigLabel, 'String', '...');
-    end
-
-    function extractChannels()
-        switch formatKey
-            case "abf"
-                [~, ~, hd_abf] = abfload(sourcePath, 'stop', 1, 'doDispInfo', false);
-                availableChannels = hd_abf.recChNames;
-                sourceFs = 1e6 / hd_abf.si;
-
-            case "oep"
-                metadataTable = readOpenEphysMetadata(sourcePath);
-                if isempty(metadataTable)
-                    error('OpenEphys metadata is empty');
-                end
-                availableChannels = metadataTable.Channel_Names{1}';
-                sourceFs = metadataTable.Sample_Rate{1};
-
-            case "nlx"
-                if sourcePath(end) ~= '\'
-                    sourcePath(end + 1) = '\';
-                end
-                dirCnt = dir(sourcePath);
-                ncsFiles = struct('f', {}, 'chNum', {}, 'chName', {}, 'bytes', {});
-                for t = 1:length(dirCnt)
-                    if ((~dirCnt(t).isdir) && (length(dirCnt(t).name) > 3))
-                        if isequal(dirCnt(t).name(end - 3:end), '.ncs')
-                            fileName = dirCnt(t).name(1:end-4);
-                            numMatch = regexp(fileName, '\d+$', 'match');
-                            if ~isempty(numMatch)
-                                ch = str2double(numMatch{1});
-                                if ~isnan(ch)
-                                    ncsFiles(end + 1).f = fullfile(sourcePath, dirCnt(t).name);
-                                    ncsFiles(end).chNum = ch;
-                                    ncsFiles(end).chName = fileName;
-                                    ncsFiles(end).bytes = dirCnt(t).bytes;
+        meta = struct();
+        err = '';
+        try
+            switch formatKey
+                case "abf"
+                    [~, ~, hd_abf] = abfload(sourcePath, 'stop', 1, 'doDispInfo', false);
+                    channels = hd_abf.recChNames;
+                    sourceFs = 1e6 / hd_abf.si;
+                case "oep"
+                    metadataTable = readOpenEphysMetadata(sourcePath);
+                    if isempty(metadataTable)
+                        err = 'OpenEphys metadata is empty';
+                        return;
+                    end
+                    channels = metadataTable.Channel_Names{1}';
+                    sourceFs = metadataTable.Sample_Rate{1};
+                case "nlx"
+                    folderPath = sourcePath;
+                    if folderPath(end) ~= '\'
+                        folderPath(end + 1) = '\';
+                    end
+                    dirCnt = dir(folderPath);
+                    ncsFiles = struct('f', {}, 'chNum', {}, 'chName', {}, 'bytes', {});
+                    for t = 1:length(dirCnt)
+                        if ((~dirCnt(t).isdir) && (length(dirCnt(t).name) > 3))
+                            if isequal(dirCnt(t).name(end - 3:end), '.ncs')
+                                fileName = dirCnt(t).name(1:end-4);
+                                numMatch = regexp(fileName, '\d+$', 'match');
+                                if ~isempty(numMatch)
+                                    ch = str2double(numMatch{1});
+                                    if ~isnan(ch)
+                                        ncsFiles(end + 1).f = fullfile(folderPath, dirCnt(t).name);
+                                        ncsFiles(end).chNum = ch;
+                                        ncsFiles(end).chName = fileName;
+                                        ncsFiles(end).bytes = dirCnt(t).bytes;
+                                    end
                                 end
                             end
                         end
                     end
-                end
-                [~, sortIdx] = sort([ncsFiles.chNum]);
-                ncsFiles = ncsFiles(sortIdx);
-                if isempty(ncsFiles)
-                    error('No .ncs files found in selected folder');
-                end
-                availableChannels = {ncsFiles.chName}';
-                channelNumbers = [ncsFiles.chNum]';
-                channelFilePaths = {ncsFiles.f}';
-                channelBytes = [ncsFiles.bytes]';
-                cscHd = Nlx2MatCSC(ncsFiles(1).f, [0 0 0 0 0], 1, 1, []);
-                sourceFs = NlxParametr(cscHd, 'SamplingFrequency');
+                    [~, sortIdx] = sort([ncsFiles.chNum]);
+                    ncsFiles = ncsFiles(sortIdx);
+                    if isempty(ncsFiles)
+                        err = 'No .ncs files found in selected folder';
+                        return;
+                    end
+                    channels = {ncsFiles.chName}';
+                    meta.channelNumbers = [ncsFiles.chNum]';
+                    meta.channelFilePaths = {ncsFiles.f}';
+                    meta.channelBytes = [ncsFiles.bytes]';
+                    cscHd = Nlx2MatCSC(ncsFiles(1).f, [0 0 0 0 0], 1, 1, []);
+                    sourceFs = NlxParametr(cscHd, 'SamplingFrequency');
+            end
+        catch ME
+            err = ME.message;
         end
+    end
 
-        channelData = cell(numel(availableChannels), 2);
-        for i = 1:numel(availableChannels)
-            channelData{i, 1} = true;
-            channelData{i, 2} = availableChannels{i};
+    function refreshQueueList()
+        if isempty(queueData.items)
+            set(sourceList, 'String', {'(queue is empty)'}, 'Value', 1);
+            selectedItemIdx = 0;
+            renderSelectedItem();
+            return;
         end
-        set(channelTable, 'Data', channelData);
-        selectedChannels = availableChannels;
-
-        if ~isempty(sourceFs)
-            set(FsOrigLabel, 'String', ['Fs (Hz): ', num2str(sourceFs)]);
-        else
-            set(FsOrigLabel, 'String', 'Fs (Hz): N/A');
+        labels = cell(numel(queueData.items), 1);
+        for i = 1:numel(queueData.items)
+            it = queueData.items(i);
+            labels{i} = sprintf('[%s] %s', upper(it.status), it.displayName);
         end
+        if selectedItemIdx < 1 || selectedItemIdx > numel(queueData.items)
+            selectedItemIdx = 1;
+        end
+        set(sourceList, 'String', labels, 'Value', selectedItemIdx);
+        renderSelectedItem();
+    end
 
-        if formatKey == "abf" && ~isempty(import_settings) && isfield(import_settings, 'abf2zav')
-            savedSelectedChannels = import_settings.abf2zav.selectedChannels;
-            if ~isempty(savedSelectedChannels)
-                channelData = get(channelTable, 'Data');
-                for i = 1:size(channelData, 1)
-                    channelData{i, 1} = any(strcmp(channelData{i, 2}, savedSelectedChannels));
+    function restoreSelectedItem()
+        if isempty(queueData.items)
+            return;
+        end
+        selectedItemIdx = 1;
+        if ~isempty(queueData.lastSelectedItemId)
+            for i = 1:numel(queueData.items)
+                if strcmp(queueData.items(i).id, queueData.lastSelectedItemId)
+                    selectedItemIdx = i;
                 end
-                set(channelTable, 'Data', channelData);
-                selectedChannelIndices = find([channelData{:, 1}]);
-                selectedChannels = availableChannels(selectedChannelIndices);
+            end
+        end
+        set(sourceList, 'Value', selectedItemIdx);
+        renderSelectedItem();
+    end
+
+    function sourceSelectionChanged(~, ~)
+        if isempty(queueData.items)
+            selectedItemIdx = 0;
+            renderSelectedItem();
+            return;
+        end
+        selectedItemIdx = get(sourceList, 'Value');
+        queueData.lastSelectedItemId = queueData.items(selectedItemIdx).id;
+        saveQueueState();
+        renderSelectedItem();
+    end
+
+    function selectQueueItemById(itemId)
+        for i = 1:numel(queueData.items)
+            if strcmp(queueData.items(i).id, itemId)
+                selectedItemIdx = i;
+                set(sourceList, 'Value', i);
+                renderSelectedItem();
+                return;
             end
         end
     end
 
+    function renderSelectedItem()
+        if selectedItemIdx < 1 || selectedItemIdx > numel(queueData.items)
+            set(sourceNameLabel, 'String', 'Source: -');
+            set(FsOrigLabel, 'String', 'Fs (Hz): -');
+            set(outputPathEdit, 'String', '-');
+            set(itemStatusLabel, 'String', 'Status: -');
+            set(channelTable, 'Data', {});
+            set(channelPanel, 'Title', 'Channels');
+            return;
+        end
+        item = queueData.items(selectedItemIdx);
+        set(sourceNameLabel, 'String', ['Source: ' item.sourcePath]);
+        if ~isempty(item.sourceFs)
+            set(FsOrigLabel, 'String', ['Fs (Hz): ' num2str(item.sourceFs)]);
+        else
+            set(FsOrigLabel, 'String', 'Fs (Hz): N/A');
+        end
+        set(outputPathEdit, 'String', item.outputPath);
+        statusText = ['Status: ' upper(item.status)];
+        if ~isempty(item.errorMessage)
+            statusText = [statusText ' | ' item.errorMessage];
+        end
+        set(itemStatusLabel, 'String', statusText);
+        set(channelPanel, 'Title', ['Channels - ' item.displayName]);
+
+        channelData = cell(numel(item.availableChannels), 2);
+        for i = 1:numel(item.availableChannels)
+            channelData{i, 1} = any(strcmp(item.availableChannels{i}, item.selectedChannels));
+            channelData{i, 2} = item.availableChannels{i};
+        end
+        set(channelTable, 'Data', channelData);
+    end
+
+    function clearQueue(~, ~)
+        queueData.items = [];
+        queueData.lastSelectedItemId = '';
+        saveQueueState();
+        refreshQueueList();
+        refreshQueueProgressLabel();
+    end
+
+    function clearStatus(~, ~)
+        if isempty(queueData.items)
+            return;
+        end
+        for i = 1:numel(queueData.items)
+            queueData.items(i).status = 'pending';
+            queueData.items(i).errorMessage = '';
+            queueData.items(i).progress = 0;
+        end
+        saveQueueState();
+        refreshQueueList();
+        refreshQueueProgressLabel();
+    end
+
+    function refreshQueueProgressLabel()
+        total = numel(queueData.items);
+        doneCount = 0;
+        failedCount = 0;
+        for i = 1:total
+            if strcmp(queueData.items(i).status, 'done')
+                doneCount = doneCount + 1;
+            end
+            if strcmp(queueData.items(i).status, 'failed')
+                failedCount = failedCount + 1;
+            end
+        end
+        set(queueProgressLabel, 'String', sprintf('Progress: %d/%d done, %d failed', doneCount, total, failedCount));
+    end
+
     function channelSelectionCallback(src, ~)
+        if selectedItemIdx < 1 || selectedItemIdx > numel(queueData.items)
+            return;
+        end
         channelData = get(src, 'Data');
         selectedChannelIndices = find([channelData{:, 1}]);
-        selectedChannels = availableChannels(selectedChannelIndices);
-        saveAbfImportSettings();
+        queueData.items(selectedItemIdx).selectedChannels = queueData.items(selectedItemIdx).availableChannels(selectedChannelIndices);
+        if strcmp(queueData.items(selectedItemIdx).status, 'done')
+            queueData.items(selectedItemIdx).status = 'pending';
+            queueData.items(selectedItemIdx).progress = 0;
+        end
+        saveQueueState();
+        if formatKey == "abf"
+            saveAbfImportSettings(queueData.items(selectedItemIdx));
+        end
+        refreshQueueList();
+        set(sourceList, 'Value', selectedItemIdx);
     end
 
     function selectAllChannels(~, ~)
+        if selectedItemIdx < 1 || selectedItemIdx > numel(queueData.items)
+            return;
+        end
         channelData = get(channelTable, 'Data');
         if isempty(channelData)
             return;
@@ -318,11 +485,14 @@ function convertToZavGUI(formatKey)
             channelData{i, 1} = true;
         end
         set(channelTable, 'Data', channelData);
-        selectedChannels = availableChannels;
-        saveAbfImportSettings();
+        queueData.items(selectedItemIdx).selectedChannels = queueData.items(selectedItemIdx).availableChannels;
+        saveQueueState();
     end
 
     function deselectAllChannels(~, ~)
+        if selectedItemIdx < 1 || selectedItemIdx > numel(queueData.items)
+            return;
+        end
         channelData = get(channelTable, 'Data');
         if isempty(channelData)
             return;
@@ -331,14 +501,18 @@ function convertToZavGUI(formatKey)
             channelData{i, 1} = false;
         end
         set(channelTable, 'Data', channelData);
-        selectedChannels = {};
-        saveAbfImportSettings();
+        queueData.items(selectedItemIdx).selectedChannels = {};
+        saveQueueState();
     end
 
     function deselectEmptyChannels(~, ~)
-        if formatKey ~= "nlx" || isempty(channelBytes)
+        if formatKey ~= "nlx" || selectedItemIdx < 1 || selectedItemIdx > numel(queueData.items)
             return;
         end
+        if ~isfield(queueData.items(selectedItemIdx).formatMeta, 'channelBytes')
+            return;
+        end
+        channelBytes = queueData.items(selectedItemIdx).formatMeta.channelBytes;
         channelData = get(channelTable, 'Data');
         if isempty(channelData)
             return;
@@ -351,7 +525,8 @@ function convertToZavGUI(formatKey)
         end
         set(channelTable, 'Data', channelData);
         selectedChannelIndices = find([channelData{:, 1}]);
-        selectedChannels = availableChannels(selectedChannelIndices);
+        queueData.items(selectedItemIdx).selectedChannels = queueData.items(selectedItemIdx).availableChannels(selectedChannelIndices);
+        saveQueueState();
     end
 
     function detectMuaCallback(source, ~)
@@ -382,58 +557,107 @@ function convertToZavGUI(formatKey)
 
     function doResampleCallback(source, ~)
         doResample = get(source, 'Value');
-        saveAbfImportSettings();
     end
 
-    function startConversion(~, ~)
-        if isempty(sourcePath)
-            warndlg(cfg.emptySourceLabel, 'No Source Selected');
+    function changeOutputPath(~, ~)
+        if selectedItemIdx < 1 || selectedItemIdx > numel(queueData.items)
             return;
         end
-
-        channelData = get(channelTable, 'Data');
-        selectedChannelIndices = find([channelData{:, 1}]);
-        if isempty(selectedChannelIndices)
-            warndlg('Please select at least one channel.', 'No Channels Selected');
-            return;
-        end
-        selectedChannels = availableChannels(selectedChannelIndices);
-
-        defaultOutputName = buildDefaultOutputName();
-        [file, path] = uiputfile('*.mat', 'Save ZAV File As', defaultOutputName);
+        item = queueData.items(selectedItemIdx);
+        [file, path] = uiputfile('*.mat', 'Save ZAV File As', item.outputPath);
         if isequal(file, 0)
             return;
         end
-        zavFilePath = fullfile(path, file);
+        queueData.items(selectedItemIdx).outputPath = fullfile(path, file);
+        if strcmp(queueData.items(selectedItemIdx).status, 'done')
+            queueData.items(selectedItemIdx).status = 'pending';
+            queueData.items(selectedItemIdx).progress = 0;
+        end
         active_folder = path;
+        saveQueueState();
+        renderSelectedItem();
+        refreshQueueList();
+        set(sourceList, 'Value', selectedItemIdx);
+    end
 
-        if formatKey == "abf"
-            settingsFilePath = [zavFilePath(1:end-4), '_channelSettings.stn'];
-            if exist(settingsFilePath, 'file')
-                delete(settingsFilePath);
-            end
+    function outputPathEditCallback(source, ~)
+        if selectedItemIdx < 1 || selectedItemIdx > numel(queueData.items)
+            set(source, 'String', '-');
+            return;
+        end
+        newPath = strtrim(get(source, 'String'));
+        if isempty(newPath)
+            set(source, 'String', queueData.items(selectedItemIdx).outputPath);
+            return;
+        end
+        queueData.items(selectedItemIdx).outputPath = newPath;
+        if strcmp(queueData.items(selectedItemIdx).status, 'done')
+            queueData.items(selectedItemIdx).status = 'pending';
+            queueData.items(selectedItemIdx).progress = 0;
+        end
+        saveQueueState();
+        refreshQueueList();
+        set(sourceList, 'Value', selectedItemIdx);
+    end
+
+    function startConversion(~, ~)
+        if isempty(queueData.items)
+            warndlg('Queue is empty.', 'No Sources');
+            return;
         end
 
-        hWaitBar = waitbar(0, 'Initializing conversion...', 'Name', cfg.windowTitle);
-        try
-            runConversion(selectedChannelIndices, hWaitBar);
-            savePostActions();
-            if isvalid(hWaitBar)
-                close(hWaitBar);
+        lastOpenedZav = '';
+        for i = 1:numel(queueData.items)
+            if ~(strcmp(queueData.items(i).status, 'pending') || strcmp(queueData.items(i).status, 'failed'))
+                continue;
             end
-            close(fig);
-            if openAfter
-                zav_calling(zavFilePath);
+            if isempty(queueData.items(i).selectedChannels)
+                queueData.items(i).status = 'failed';
+                queueData.items(i).errorMessage = 'No channels selected';
+                queueData.items(i).progress = 0;
+                saveQueueState();
+                continue;
             end
-        catch ME
+
+            queueData.items(i).status = 'running';
+            queueData.items(i).errorMessage = '';
+            queueData.items(i).progress = 0;
+            queueData.lastSelectedItemId = queueData.items(i).id;
+            saveQueueState();
+            refreshQueueList();
+            selectQueueItemById(queueData.items(i).id);
+            refreshQueueProgressLabel();
+
+            hWaitBar = waitbar(0, sprintf('Converting %d/%d...', i, numel(queueData.items)), 'Name', cfg.windowTitle);
+            try
+                runItemConversion(i, hWaitBar);
+                queueData.items(i).status = 'done';
+                queueData.items(i).progress = 1;
+                queueData.items(i).errorMessage = '';
+                lastOpenedZav = queueData.items(i).outputPath;
+            catch ME
+                queueData.items(i).status = 'failed';
+                queueData.items(i).errorMessage = ME.message;
+                queueData.items(i).progress = 0;
+            end
             if exist('hWaitBar', 'var') && isvalid(hWaitBar)
                 close(hWaitBar);
             end
-            warndlg(['An error occurred during conversion: ', ME.message], 'Conversion Error');
+            saveQueueState();
+            if strcmp(queueData.items(i).status, 'done')
+                savePostActionsForItem(i);
+            end
+            refreshQueueList();
+            refreshQueueProgressLabel();
         end
+
+        if openAfter && ~isempty(lastOpenedZav)
+            zav_calling(lastOpenedZav);
+        end
+        renderSelectedItem();
     end
 
-    function outputName = buildDefaultOutputName()
+    function outputName = buildDefaultOutputName(sourcePath)
         if formatKey == "abf"
             [~, sourceName, ~] = fileparts(sourcePath);
             outputName = fullfile(active_folder, [sourceName, '_converted.mat']);
@@ -451,29 +675,34 @@ function convertToZavGUI(formatKey)
         outputName = fullfile(active_folder, [folderName, '.mat']);
     end
 
-    function runConversion(selectedChannelIndices, hWaitBar)
+    function runItemConversion(itemIdx, hWaitBar)
+        item = queueData.items(itemIdx);
+        selectedChannelIndices = find(ismember(item.availableChannels, item.selectedChannels));
+        outputPath = item.outputPath;
+
         switch formatKey
             case "abf"
                 collectSweeps = true;
-                abf_to_zav(sourcePath, zavFilePath, lfp_Fs, detectMua, doResample, collectSweeps, selectedChannels, mua_std_coef, hWaitBar);
+                abf_to_zav(item.sourcePath, outputPath, lfp_Fs, detectMua, doResample, collectSweeps, item.selectedChannels, mua_std_coef, hWaitBar);
             case "oep"
-                oep_to_zav_streaming(sourcePath, zavFilePath, sourceFs, lfp_Fs, detectMua, mua_std_coef, doResample, availableChannels, selectedChannelIndices, hWaitBar);
+                oep_to_zav_streaming(item.sourcePath, outputPath, item.sourceFs, lfp_Fs, detectMua, mua_std_coef, doResample, item.availableChannels, selectedChannelIndices, hWaitBar);
             case "nlx"
-                channels_list = channelNumbers(selectedChannelIndices);
-                ncsFilePaths = channelFilePaths(selectedChannelIndices);
-                nlx_to_zav_streaming(sourcePath, zavFilePath, channels_list, ncsFilePaths, lfp_Fs, detectMua, mua_std_coef, doResample, hWaitBar);
+                channels_list = item.formatMeta.channelNumbers(selectedChannelIndices);
+                ncsFilePaths = item.formatMeta.channelFilePaths(selectedChannelIndices);
+                nlx_to_zav_streaming(item.sourcePath, outputPath, channels_list, ncsFilePaths, lfp_Fs, detectMua, mua_std_coef, doResample, hWaitBar);
         end
     end
 
-    function savePostActions()
+    function savePostActionsForItem(itemIdx)
+        item = queueData.items(itemIdx);
         if formatKey == "abf"
-            lastOpenedFiles = {zavFilePath};
+            lastOpenedFiles = {item.outputPath};
             save(SettingsFilepath, 'lastOpenedFiles', '-append');
-            saveAbfImportSettings();
+            saveAbfImportSettings(item);
             return;
         end
 
-        lastOpenedFolders = {sourcePath};
+        lastOpenedFolders = {item.sourcePath};
         if exist(SettingsFilepath, 'file')
             save(SettingsFilepath, 'lastOpenedFolders', '-append');
         else
@@ -481,8 +710,15 @@ function convertToZavGUI(formatKey)
         end
 
         if formatKey == "nlx"
-            lastOpenedFiles = {zavFilePath};
+            lastOpenedFiles = {item.outputPath};
             save(SettingsFilepath, 'lastOpenedFiles', '-append');
+        end
+    end
+
+    function name = getSourceDisplayName(sourcePath)
+        [~, name, ext] = fileparts(sourcePath);
+        if cfg.sourceType == "file"
+            name = [name ext];
         end
     end
 end

@@ -264,8 +264,8 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
             c = c+1;
             offset = offsets(c) ;
             
-            % Порог ZAV метод
-            ii = double(spks(ch_inx).ampl) <= (-lfpVar(ch_inx) * prg);
+            % Порог MUA по модулю амплитуды
+            ii = abs(double(spks(ch_inx).ampl)) >= (lfpVar(ch_inx) * prg);
             spks_in(ch_inx).tStamp = spks(ch_inx).tStamp(ii);
             spks_in(ch_inx).ampl = spks(ch_inx).ampl(ii);
             
