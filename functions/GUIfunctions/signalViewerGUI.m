@@ -970,11 +970,11 @@ function signalViewerGUI(filePath)
         if ok && ~isempty(selection)
             switch selection
                 case 1
-                    convertAbf2zavGUI();
+                    convertToZavGUI('abf');
                 case 2
-                    convertNlx2zavGUI();
+                    convertToZavGUI('nlx');
                 case 3
-                    convertOEP2zavGUI();
+                    convertToZavGUI('oep');
                 case 4
                     importLFPGUI();
             end
