@@ -14,14 +14,13 @@ function convertOEP2zavGUI
     global SettingsFilepath zav_calling
 
     % Инициализация переменных
-    persistent recPath zavFilePath newFs detectMua mua_std_coef doResample useStreamingMUA selectedChannels availableChannels active_folder
+    persistent recPath zavFilePath newFs detectMua mua_std_coef doResample selectedChannels availableChannels active_folder
 
     % Значения по умолчанию
     mua_std_coef = 3;
     newFs = 1000; % Гц
     detectMua = true;
     doResample = true;
-    useStreamingMUA = true; % По умолчанию используем потоковую детекцию
     selectedChannels = {}; % Пустой означает все каналы
     availableChannels = {};
     recPath = '';
@@ -69,10 +68,6 @@ function convertOEP2zavGUI
     shiftdown = 80;
     detectMuaToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Detect MUA', ...
         'Position', [leftMargin, topMargin - (btnHeight + spacing) + 30 - shiftdown, btnWidth, btnHeight], 'Value', detectMua, 'Callback', @detectMuaCallback);
-
-    % Checkbox для потоковой детекции MUA
-    useStreamingMUAToggle = uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Streaming MUA (low memory)', ...
-        'Position', [leftMargin + btnWidth + spacing, topMargin - (btnHeight + spacing) + 30 - shiftdown, 200, btnHeight], 'Value', useStreamingMUA, 'Callback', @useStreamingMUACallback);
 
     % Поле для ввода коэффициента порога MUA    
     uicontrol('Parent', fig, 'Style', 'text', 'String', 'MUA Threshold (n*STD):', ...
@@ -220,10 +215,6 @@ function convertOEP2zavGUI
         detectMua = get(source, 'Value');
     end
 
-    function useStreamingMUACallback(source, ~)
-        useStreamingMUA = get(source, 'Value');
-    end
-
     function openafterConvCallback(source, ~)
         openAfter = get(source, 'Value');
     end
@@ -291,15 +282,15 @@ function convertOEP2zavGUI
             debugState('convertOEP2zavGUI', 'Calling oep_to_zav_streaming...');
             debugState('convertOEP2zavGUI', 'recPath: %s', recPath);
             debugState('convertOEP2zavGUI', 'zavFilePath: %s', zavFilePath);
-            debugState('convertOEP2zavGUI', 'Fs: %f, newFs: %f, detectMua: %d, doResample: %d, useStreamingMUA: %d', ...
-                Fs, newFs, detectMua, doResample, useStreamingMUA);
+            debugState('convertOEP2zavGUI', 'Fs: %f, newFs: %f, detectMua: %d, doResample: %d', ...
+                Fs, newFs, detectMua, doResample);
             
             % Проверяем, что функция существует
             if ~exist('oep_to_zav_streaming', 'file')
                 error('oep_to_zav_streaming function not found in path!');
             end
             
-            oep_to_zav_streaming(recPath, zavFilePath, Fs, newFs, detectMua, mua_std_coef, doResample, availableChannels, selectedChannelIndices, useStreamingMUA, hWaitBar);
+            oep_to_zav_streaming(recPath, zavFilePath, Fs, newFs, detectMua, mua_std_coef, doResample, availableChannels, selectedChannelIndices, hWaitBar);
             
             debugState('convertOEP2zavGUI', 'oep_to_zav_streaming completed');
             fprintf('[convertOEP2zavGUI] oep_to_zav_streaming completed successfully\n');

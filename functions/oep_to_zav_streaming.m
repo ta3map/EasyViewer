@@ -1,4 +1,4 @@
-function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_std_coef, doResample, channelNames, selectedChIndexes, useStreamingMUA, hWaitBar)
+function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_std_coef, doResample, channelNames, selectedChIndexes, hWaitBar)
 % OEP_TO_ZAV_STREAMING Converts Open Ephys data to ZAV format using streaming approach
 % Reads data in chunks from binary files and writes directly to MAT file
 %
@@ -12,18 +12,11 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
 %       doResample: Boolean flag to enable/disable LFP resampling
 %       channelNames: Cell array of all channel names in the original data
 %       selectedChIndexes: Numeric array of indices of the channels to process and save
-%       useStreamingMUA: Boolean flag to use streaming MUA detection (default: true)
 %       hWaitBar: Optional waitbar handle to reuse existing progress bar
 %
-%   If useStreamingMUA is true, MUA detection processes data in chunks without
-%   loading entire channel into memory. If false, loads entire channel first.
-
-    if nargin < 10
-        useStreamingMUA = true; % По умолчанию используем потоковую версию
-    end
     
     % Create waitbar if not provided
-    if nargin < 11 || isempty(hWaitBar)
+    if nargin < 10 || isempty(hWaitBar)
         hWaitBar = waitbar(0, 'Initializing conversion...', 'Name', 'OEP to ZAV Conversion');
         closeWaitBar = true; % Flag to close waitbar at the end
     else
@@ -202,6 +195,7 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
     % Initialize progress bar if not already initialized
     waitbar(0, hWaitBar, 'Initializing conversion...');
     conversion_tic = tic;
+    formatEta = @(sec) sprintf('~%d min %d s left', floor(sec / 60), round(rem(sec, 60)));
     
     % Calculate total number of steps
     % Each channel has: MUA processing (if enabled) + LFP processing
@@ -237,9 +231,7 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
         disp(['Processing channel: ', channelName]);
         
         % Инициализация для канала
-        if detectMua && useStreamingMUA
-            muaState = detectMUA_streaming([], hd, mua_std_coef, true, Fs);
-        elseif detectMua && ~useStreamingMUA
+        if detectMua
             lfp_channel_data_for_mua = [];
         end
         
@@ -287,9 +279,7 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
                 channelChunk = double(dataChunk(current_channel_global_index, :))';
                 
                 % 2. Если нужна MUA - обрабатываем оригинальный chunk
-                if detectMua && useStreamingMUA
-                    muaState = detectMUA_streaming(channelChunk, hd, mua_std_coef, true, Fs, muaState);
-                elseif detectMua && ~useStreamingMUA
+                if detectMua
                     lfp_channel_data_for_mua = [lfp_channel_data_for_mua; channelChunk];
                 end
                 
@@ -329,7 +319,9 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
                     currentStep = chIdx; % LFP only step
                 end
                 overallProgress = (currentStep - 1 + chunksProgress) / totalSteps;
-                progressMsg = sprintf('Step %d/%d: %s (%.0f%%)', currentStep, totalSteps, channelName, overallProgress * 100);
+                elapsed = toc(conversion_tic);
+                etaSec = elapsed * (1 - overallProgress) / max(overallProgress, eps);
+                progressMsg = sprintf('%d/%d: %s (%.0f%%) %s', currentStep, totalSteps, channelName, overallProgress * 100, formatEta(etaSec));
                 waitbar(overallProgress, hWaitBar, progressMsg);
                 
                 clear dataMap dataChunk channelChunk channelChunkForLFP;
@@ -337,23 +329,12 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
         end
         
         % Финализация MUA если нужно
-        if detectMua && useStreamingMUA
-            currentStep = (chIdx - 1) * 2 + 1; % MUA finalization step
-            overallProgress = (currentStep - 1 + 0.95) / totalSteps;
-            progressMsg = sprintf('Step %d/%d: MUA - Finalizing - %s (%.0f%%)', currentStep, totalSteps, channelName, overallProgress * 100);
-            waitbar(overallProgress, hWaitBar, progressMsg);
-            
-            [tStamp, ampl, shape] = detectMUA_streaming([], hd, mua_std_coef, true, Fs, muaState, 'finalize');
-            
-            spks(chIdx).tStamp = double(tStamp);
-            spks(chIdx).ampl = double(-ampl);
-            spks(chIdx).shape = shape;
-            
-            clear muaState tStamp ampl shape;
-        elseif detectMua && ~useStreamingMUA
+        if detectMua
             currentStep = (chIdx - 1) * 2 + 1; % MUA detection step
             overallProgress = (currentStep - 1 + 0.5) / totalSteps;
-            progressMsg = sprintf('Step %d/%d: MUA - Detecting - %s (%.0f%%)', currentStep, totalSteps, channelName, overallProgress * 100);
+            elapsed = toc(conversion_tic);
+            etaSec = elapsed * (1 - overallProgress) / max(overallProgress, eps);
+            progressMsg = sprintf('%d/%d: MUA - %s (%.0f%%) %s', currentStep, totalSteps, channelName, overallProgress * 100, formatEta(etaSec));
             waitbar(overallProgress, hWaitBar, progressMsg);
             
             disp(['Detecting MUA (full-channel) for channel: ', channelName]);
@@ -366,9 +347,9 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
             clear lfp_channel_data_for_mua tStamp ampl shape;
         end
         
-        % Calculate variance
+        % Calculate lfpVar in the same scale as Neuralynx converter
         if ~isempty(channelDataForVariance)
-            lfpVar_channelwise(chIdx) = var(channelDataForVariance);
+            lfpVar_channelwise(chIdx) = std(channelDataForVariance) / 10;
         end
         
         % Update progress after channel completion
@@ -378,7 +359,10 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
         else
             currentStep = chIdx; % Channel complete step
         end
-        progressMsg = sprintf('Step %d/%d: %s - Complete', currentStep, totalSteps, channelName);
+        overallProgress = currentStep / totalSteps;
+        elapsed = toc(conversion_tic);
+        etaSec = elapsed * (1 - overallProgress) / max(overallProgress, eps);
+        progressMsg = sprintf('%d/%d: %s - Complete %s', currentStep, totalSteps, channelName, formatEta(etaSec));
         waitbar(currentStep / totalSteps, hWaitBar, progressMsg);
         
         clear channelDataForVariance;
@@ -388,13 +372,13 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
     m.spks = spks;
     clear spks;
     
-    waitbar(1, hWaitBar, sprintf('Step %d/%d: Finalizing...', totalSteps, totalSteps));
+    waitbar(1, hWaitBar, sprintf('%d/%d: Finalizing...', totalSteps, totalSteps));
     
     % Save variance
     debugState('oep_to_zav_streaming', 'Saving LFP variance...');
     m.lfpVar = lfpVar_channelwise;
     
-    waitbar(1, hWaitBar, sprintf('Step %d/%d: Conversion complete', totalSteps, totalSteps));
+    waitbar(1, hWaitBar, sprintf('%d/%d: Conversion complete', totalSteps, totalSteps));
     pause(0.5);
     
     % Close waitbar only if we created it

@@ -53,6 +53,7 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
     profile_times.lfpVar_calc = 0;
     profile_times.other = 0;
     tic_total = tic;
+    formatEta = @(sec) sprintf('~%d min %d s left', floor(sec / 60), round(rem(sec, 60)));
     
     chIdx = 1;
     for truechIdx = selectedChannelIndices'        
@@ -60,7 +61,10 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
         current_message = ['Channel processing: ', chName{1}];
         disp(current_message); % Выводим имя канала.
         
-        waitbar([chIdx/numChannels], hWaitBar, current_message);
+        progress = chIdx / numChannels;
+        elapsed = toc(tic_total);
+        remain_sec = elapsed * (1 - progress) / max(progress, eps);
+        waitbar(progress, hWaitBar, sprintf('%d/%d: %s %s', chIdx, numChannels, chName{1}, formatEta(remain_sec)));
         
         % Чтение данных канала.
         tic_abf = tic;
@@ -217,7 +221,7 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
         else
             channel_data = m.lfp(:, chIdx);
         end
-        lfpVar(chIdx) = var(channel_data);
+        lfpVar(chIdx) = std(channel_data) / 10;
     end
     profile_times.lfpVar_calc = toc(tic_lfpVar);
 

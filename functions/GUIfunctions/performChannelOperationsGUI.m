@@ -142,9 +142,9 @@ function performChannelOperationsGUI()
         % Расчет вариации LFP по каналам.
         [m, n, p] = size(lfp_file.lfp);  % получение размеров исходной матрицы        
         if p > 1 % случай со свипами
-            lfpVar = squeeze(var(lfp_file.lfp));        
+            lfpVar = squeeze(std(lfp_file.lfp)) / 10;
         else
-            lfpVar = var(reshape(lfp_file.lfp, [], numChannels));
+            lfpVar = std(reshape(lfp_file.lfp, [], numChannels)) / 10;
         end
                    
         % Form properties table   

@@ -18,18 +18,17 @@ function metadataTable = readOpenEphysMetadata(rec_path)
     settingsFile = fullfile(rec_path, 'settings.xml');
     
     % Check for Record Node directories
-    recordNodeDirs = glob(fullfile(rec_path, 'Record Node *'));
-    
+    recordNodeDirs = {};
     if exist(settingsFile, 'file') == 2
         % This is a Record Node directory itself
         recordNodeDirs = {rec_path};
-    elseif isempty(recordNodeDirs)
-        % Check if structure.oebin exists directly (might be a recording directory)
-        structureFile = fullfile(rec_path, 'structure.oebin');
-        if exist(structureFile, 'file')
+    else
+        recordNodeDirs = glob(fullfile(rec_path, 'Record Node *'));
+        if isempty(recordNodeDirs)
+            % Fallback: treat selected folder as a potential Record Node root.
+            % This supports direct selection of "Record Node NNN" even without
+            % settings.xml/structure.oebin on that exact level.
             recordNodeDirs = {rec_path};
-        else
-            error('No Record Node directories, settings.xml, or structure.oebin found in %s', rec_path);
         end
     end
 
@@ -107,14 +106,13 @@ function metadataTable = readOpenEphysMetadata(rec_path)
         end
     end
 
-    % Create table with metadata only
     if isempty(pathArray)
-        metadataTable = table({}, {}, {}, ...
-            'VariableNames', {'Path', 'Sample_Rate', 'Channel_Names'});
-    else
-        metadataTable = table(pathArray, sampleRateArray, channelNamesArray, ...
-            'VariableNames', {'Path', 'Sample_Rate', 'Channel_Names'});
+        error('No Open Ephys metadata found in %s. Select a Session or Record Node folder containing experiment*/recording* data.', rec_path);
     end
+
+    % Create table with metadata only
+    metadataTable = table(pathArray, sampleRateArray, channelNamesArray, ...
+        'VariableNames', {'Path', 'Sample_Rate', 'Channel_Names'});
 
 end
 

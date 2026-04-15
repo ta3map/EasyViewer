@@ -142,7 +142,7 @@ end
             hd.recChNames = channelNames;            
             
             chnlGrp = {};
-            lfpVar = std(lfp_file.lfp);
+            lfpVar = std(lfp_file.lfp) / 10;
         
             % Формируем таблицу свойств              
             numChannels = r;% число каналов равно числу источников

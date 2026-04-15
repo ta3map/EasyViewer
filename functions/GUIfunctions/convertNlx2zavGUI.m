@@ -357,6 +357,7 @@ function convertNlx2zavGUI
         channels_n = numel(channels_list);
             ncsFilePaths = channelFilePaths(selectedChannelIndices);
             conversion_tic = tic;
+            formatEta = @(sec) sprintf('~%d min %d s left', floor(sec / 60), round(rem(sec, 60)));
 
             m = matfile(zavFilePath, 'Writable', true);
             spks(channels_n) = struct('tStamp', [], 'ampl', [], 'shape', []);
@@ -428,8 +429,7 @@ function convertNlx2zavGUI
 
                 elapsed = toc(conversion_tic);
                 remain_sec = (ch_inx > 0) * (elapsed / ch_inx) * (channels_n - ch_inx);
-                remain_str = sprintf('~%d min %d s left', floor(remain_sec / 60), round(rem(remain_sec, 60)));
-                waitbar(ch_inx / channels_n, hWaitBar, sprintf('Channel %d from %d... %s', ch_inx, channels_n, remain_str));
+                waitbar(ch_inx / channels_n, hWaitBar, sprintf('%d/%d: Channel %d %s', ch_inx, channels_n, ch_inx, formatEta(remain_sec)));
                 clear data;
             end
 

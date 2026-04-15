@@ -85,7 +85,7 @@ function [lfp, spks, hd, zavp, lfpVar, chnlGrp] = hekaToZav(filepath)
         lfpVar = zeros(n_channels, n_sweeps);
         for ch = 1:n_channels
             for sweep = 1:n_sweeps
-                lfpVar(ch, sweep) = std(lfp(:, ch, sweep));
+                lfpVar(ch, sweep) = std(lfp(:, ch, sweep)) / 10;
             end
         end
         
