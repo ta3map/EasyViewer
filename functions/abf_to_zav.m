@@ -1,4 +1,4 @@
-function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, collectSweeps, selectedChannels, mua_std_coef, hWaitBar)
+function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, collectSweeps, selectedChannels, mua_std_coef, hWaitBar, progressCallback)
     % Конвертирует ABF-файл в формат ZAV.
     %
     % Параметры:
@@ -9,6 +9,10 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
     %   doResample    - логическое значение, указывающее, нужно ли выполнять ресемплинг.
     %   collectSweeps - логическое значение, указывающее, нужно ли сохранять данные по свипам.
     
+    if nargin < 10
+        progressCallback = [];
+    end
+
     sweepStartAsStim = true;
     
     % Чтение заголовка ABF-файла.
@@ -64,7 +68,8 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
         progress = chIdx / numChannels;
         elapsed = toc(tic_total);
         remain_sec = elapsed * (1 - progress) / max(progress, eps);
-        waitbar(progress, hWaitBar, sprintf('%d/%d: %s %s', chIdx, numChannels, chName{1}, formatEta(remain_sec)));
+        updateWaitbar(progress, sprintf('%d/%d: %s %s', chIdx, numChannels, chName{1}, formatEta(remain_sec)));
+        notifyProgress(progress, 'channel', sprintf('Channel %d/%d', chIdx, numChannels));
         
         % Чтение данных канала.
         tic_abf = tic;
@@ -293,4 +298,21 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
     fprintf('  Other: %.2f sec (%.1f%%)\n', profile_times.other, 100*profile_times.other/profile_times.total);
     fprintf('==============================\n\n');
 
+    notifyProgress(1, 'finalize', 'Complete');
+
+    function notifyProgress(itemProgress, stage, message)
+        if isempty(progressCallback)
+            return;
+        end
+        progressStruct = struct('itemProgress', itemProgress, 'stage', stage, 'message', message);
+        progressCallback(progressStruct);
+    end
+
+    function updateWaitbar(itemProgress, message)
+        if isempty(progressCallback)
+            waitbar(itemProgress, hWaitBar, message);
+            return;
+        end
+        waitbar(itemProgress, hWaitBar);
+    end
 end

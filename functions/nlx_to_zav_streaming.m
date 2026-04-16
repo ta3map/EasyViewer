@@ -1,4 +1,7 @@
-function nlx_to_zav_streaming(recordPath, zavFilePath, channels_list, ncsFilePaths, lfp_Fs, detectMua, mua_std_coef, doResample, hWaitBar)
+function nlx_to_zav_streaming(recordPath, zavFilePath, channels_list, ncsFilePaths, lfp_Fs, detectMua, mua_std_coef, doResample, hWaitBar, progressCallback)
+    if nargin < 10
+        progressCallback = [];
+    end
     channels_n = numel(channels_list);
     conversion_tic = tic;
     formatEta = @(sec) sprintf('~%d min %d s left', floor(sec / 60), round(rem(sec, 60)));
@@ -17,7 +20,7 @@ function nlx_to_zav_streaming(recordPath, zavFilePath, channels_list, ncsFilePat
             else
                 lfp_length = size(data, 1);
             end
-            waitbar(0, hWaitBar, 'Initializing MAT file...');
+            updateWaitbar(0, 'Initializing MAT file...');
             m.lfp(lfp_length, channels_n) = single(0);
             hd = hd_one;
             hd.nADCNumChannels = channels_n;
@@ -73,13 +76,14 @@ function nlx_to_zav_streaming(recordPath, zavFilePath, channels_list, ncsFilePat
 
         elapsed = toc(conversion_tic);
         remain_sec = (ch_inx > 0) * (elapsed / ch_inx) * (channels_n - ch_inx);
-        waitbar(ch_inx / channels_n, hWaitBar, sprintf('%d/%d: Channel %d %s', ch_inx, channels_n, ch_inx, formatEta(remain_sec)));
+        updateWaitbar(ch_inx / channels_n, sprintf('%d/%d: Channel %d %s', ch_inx, channels_n, ch_inx, formatEta(remain_sec)));
+        notifyProgress(ch_inx / channels_n, 'channel', sprintf('Channel %d/%d', ch_inx, channels_n));
         clear data;
     end
 
     hd.chNumList = channels_list(:)';
 
-    waitbar(0.95, hWaitBar, 'Finalizing data...');
+    updateWaitbar(0.95, 'Finalizing data...');
     lfpVar = np_flatten(lfpVar)';
 
     if doResample
@@ -118,5 +122,22 @@ function nlx_to_zav_streaming(recordPath, zavFilePath, channels_list, ncsFilePat
     m.spks = spks;
     m.zavp = zavp;
 
-    waitbar(1, hWaitBar, 'Complete');
+    updateWaitbar(1, 'Complete');
+    notifyProgress(1, 'finalize', 'Complete');
+
+    function notifyProgress(itemProgress, stage, message)
+        if isempty(progressCallback)
+            return;
+        end
+        progressStruct = struct('itemProgress', itemProgress, 'stage', stage, 'message', message);
+        progressCallback(progressStruct);
+    end
+
+    function updateWaitbar(itemProgress, message)
+        if isempty(progressCallback)
+            waitbar(itemProgress, hWaitBar, message);
+            return;
+        end
+        waitbar(itemProgress, hWaitBar);
+    end
 end

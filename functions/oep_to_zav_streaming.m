@@ -1,4 +1,4 @@
-function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_std_coef, doResample, channelNames, selectedChIndexes, hWaitBar)
+function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_std_coef, doResample, channelNames, selectedChIndexes, hWaitBar, progressCallback)
 % OEP_TO_ZAV_STREAMING Converts Open Ephys data to ZAV format using streaming approach
 % Reads data in chunks from binary files and writes directly to MAT file
 %
@@ -15,6 +15,10 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
 %       hWaitBar: Optional waitbar handle to reuse existing progress bar
 %
     
+    if nargin < 11
+        progressCallback = [];
+    end
+
     % Create waitbar if not provided
     if nargin < 10 || isempty(hWaitBar)
         hWaitBar = waitbar(0, 'Initializing conversion...', 'Name', 'OEP to ZAV Conversion');
@@ -193,7 +197,7 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
     % при работе с большими массивами. Данные записываются напрямую на диск через HDF5.
     
     % Initialize progress bar if not already initialized
-    waitbar(0, hWaitBar, 'Initializing conversion...');
+    updateWaitbar(0, 'Initializing conversion...');
     conversion_tic = tic;
     formatEta = @(sec) sprintf('~%d min %d s left', floor(sec / 60), round(rem(sec, 60)));
     
@@ -322,7 +326,8 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
                 elapsed = toc(conversion_tic);
                 etaSec = elapsed * (1 - overallProgress) / max(overallProgress, eps);
                 progressMsg = sprintf('%d/%d: %s (%.0f%%) %s', currentStep, totalSteps, channelName, overallProgress * 100, formatEta(etaSec));
-                waitbar(overallProgress, hWaitBar, progressMsg);
+                updateWaitbar(overallProgress, progressMsg);
+                notifyProgress(overallProgress, 'stream', progressMsg);
                 
                 clear dataMap dataChunk channelChunk channelChunkForLFP;
             end
@@ -335,7 +340,8 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
             elapsed = toc(conversion_tic);
             etaSec = elapsed * (1 - overallProgress) / max(overallProgress, eps);
             progressMsg = sprintf('%d/%d: MUA - %s (%.0f%%) %s', currentStep, totalSteps, channelName, overallProgress * 100, formatEta(etaSec));
-            waitbar(overallProgress, hWaitBar, progressMsg);
+            updateWaitbar(overallProgress, progressMsg);
+            notifyProgress(overallProgress, 'mua', progressMsg);
             
             disp(['Detecting MUA (full-channel) for channel: ', channelName]);
             [tStamp, ampl, shape] = detectMUAzav(lfp_channel_data_for_mua, hd, mua_std_coef, true);
@@ -363,7 +369,8 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
         elapsed = toc(conversion_tic);
         etaSec = elapsed * (1 - overallProgress) / max(overallProgress, eps);
         progressMsg = sprintf('%d/%d: %s - Complete %s', currentStep, totalSteps, channelName, formatEta(etaSec));
-        waitbar(currentStep / totalSteps, hWaitBar, progressMsg);
+        updateWaitbar(currentStep / totalSteps, progressMsg);
+        notifyProgress(currentStep / totalSteps, 'channel', progressMsg);
         
         clear channelDataForVariance;
     end
@@ -372,13 +379,14 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
     m.spks = spks;
     clear spks;
     
-    waitbar(1, hWaitBar, sprintf('%d/%d: Finalizing...', totalSteps, totalSteps));
+    updateWaitbar(1, sprintf('%d/%d: Finalizing...', totalSteps, totalSteps));
     
     % Save variance
     debugState('oep_to_zav_streaming', 'Saving LFP variance...');
     m.lfpVar = lfpVar_channelwise;
     
-    waitbar(1, hWaitBar, sprintf('%d/%d: Conversion complete', totalSteps, totalSteps));
+    updateWaitbar(1, sprintf('%d/%d: Conversion complete', totalSteps, totalSteps));
+    notifyProgress(1, 'finalize', 'Complete');
     pause(0.5);
     
     % Close waitbar only if we created it
@@ -392,5 +400,21 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
     debugState('oep_to_zav_streaming', 'Processing complete. Data saved to: %s', zavFilePath);
     disp('Processing complete. Data saved to:');
     disp(zavFilePath);
+
+    function notifyProgress(itemProgress, stage, message)
+        if isempty(progressCallback)
+            return;
+        end
+        progressStruct = struct('itemProgress', itemProgress, 'stage', stage, 'message', message);
+        progressCallback(progressStruct);
+    end
+
+    function updateWaitbar(itemProgress, message)
+        if isempty(progressCallback)
+            waitbar(itemProgress, hWaitBar, message);
+            return;
+        end
+        waitbar(itemProgress, hWaitBar);
+    end
 end
 

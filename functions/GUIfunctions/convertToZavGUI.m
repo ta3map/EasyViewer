@@ -23,7 +23,8 @@ function convertToZavGUI(formatKey)
     lfp_Fs = cfg.defaultNewFs;
     detectMua = cfg.defaultDetectMua;
     doResample = cfg.defaultDoResample;
-    openAfter = true;
+    queueRunStartedAt = [];
+    lastProgressSaveTic = [];
 
     loadInitialState();
 
@@ -39,7 +40,7 @@ function convertToZavGUI(formatKey)
     uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', cfg.selectButtonText, ...
         'Position', [20, 170, 200, 30], 'Callback', @addSource);
 
-    uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Clear status', ...
+    uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Reset status', ...
         'Position', [240, 170, 200, 30], 'Callback', @clearStatus);
 
     uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Clear queue', ...
@@ -94,8 +95,8 @@ function convertToZavGUI(formatKey)
     uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Resample LFP', ...
         'Position', [1040, 100, 120, 24], 'Value', doResample, 'Callback', @doResampleCallback);
 
-    uicontrol('Parent', fig, 'Style', 'checkbox', 'String', 'Open after conversion', ...
-        'Position', [470, 60, 180, 24], 'Value', openAfter, 'Callback', @openafterConvCallback);
+    openSelectedBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Open selected', ...
+        'Position', [470, 48, 180, 36], 'Enable', 'off', 'Callback', @openSelected);
     uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Start Conversion', ...
         'Position', [990, 48, 180, 36], 'Callback', @startConversion);
 
@@ -157,6 +158,16 @@ function convertToZavGUI(formatKey)
             end
             if ~isfield(queueData, 'lastSelectedItemId')
                 queueData.lastSelectedItemId = '';
+            end
+            if isfield(queueData, 'items')
+                for i = 1:numel(queueData.items)
+                    if ~isfield(queueData.items(i), 'itemWeightBytes') || isempty(queueData.items(i).itemWeightBytes)
+                        queueData.items(i).itemWeightBytes = 1;
+                    end
+                    if ~isfield(queueData.items(i), 'progress') || isempty(queueData.items(i).progress)
+                        queueData.items(i).progress = 0;
+                    end
+                end
             end
         end
 
@@ -263,6 +274,54 @@ function convertToZavGUI(formatKey)
         item.sourceFs = sourceFs;
         item.formatMeta = meta;
         item.progress = 0;
+        item.itemWeightBytes = estimateSourceWeightBytes(sourcePath, meta);
+    end
+
+    function itemWeightBytes = estimateSourceWeightBytes(sourcePath, meta)
+        itemWeightBytes = 1;
+        switch formatKey
+            case "abf"
+                fileInfo = dir(sourcePath);
+                if ~isempty(fileInfo)
+                    itemWeightBytes = max(fileInfo(1).bytes, 1);
+                end
+            case "nlx"
+                if isfield(meta, 'channelBytes') && ~isempty(meta.channelBytes)
+                    itemWeightBytes = max(sum(meta.channelBytes), 1);
+                end
+            case "oep"
+                continuousFiles = collectContinuousDatFiles(sourcePath);
+                if ~isempty(continuousFiles)
+                    totalBytes = 0;
+                    for i = 1:numel(continuousFiles)
+                        totalBytes = totalBytes + continuousFiles(i).bytes;
+                    end
+                    itemWeightBytes = max(totalBytes, 1);
+                end
+        end
+    end
+
+    function files = collectContinuousDatFiles(rootPath)
+        files = struct('folder', {}, 'name', {}, 'bytes', {}, 'date', {}, 'datenum', {}, 'isdir', {});
+        stack = {rootPath};
+        while ~isempty(stack)
+            currentPath = stack{end};
+            stack(end) = [];
+            dirEntries = dir(currentPath);
+            for i = 1:numel(dirEntries)
+                entry = dirEntries(i);
+                if entry.isdir
+                    if strcmp(entry.name, '.') || strcmp(entry.name, '..')
+                        continue;
+                    end
+                    stack{end + 1} = fullfile(currentPath, entry.name);
+                    continue;
+                end
+                if strcmpi(entry.name, 'continuous.dat')
+                    files(end + 1) = entry; %#ok<AGROW>
+                end
+            end
+        end
     end
 
     function [channels, sourceFs, meta, err] = readSourceMetadata(sourcePath)
@@ -392,6 +451,7 @@ function convertToZavGUI(formatKey)
             set(itemStatusLabel, 'String', 'Status: -');
             set(channelTable, 'Data', {});
             set(channelPanel, 'Title', 'Channels');
+            set(openSelectedBtn, 'Enable', 'off');
             return;
         end
         item = queueData.items(selectedItemIdx);
@@ -408,6 +468,11 @@ function convertToZavGUI(formatKey)
         end
         set(itemStatusLabel, 'String', statusText);
         set(channelPanel, 'Title', ['Channels - ' item.displayName]);
+        if strcmp(item.status, 'done')
+            set(openSelectedBtn, 'Enable', 'on');
+        else
+            set(openSelectedBtn, 'Enable', 'off');
+        end
 
         channelData = cell(numel(item.availableChannels), 2);
         for i = 1:numel(item.availableChannels)
@@ -418,6 +483,10 @@ function convertToZavGUI(formatKey)
     end
 
     function clearQueue(~, ~)
+        choice = questdlg('Clear all sources from queue?', 'Confirm clear queue', 'Yes', 'No', 'No');
+        if ~strcmp(choice, 'Yes')
+            return;
+        end
         queueData.items = [];
         queueData.lastSelectedItemId = '';
         saveQueueState();
@@ -426,16 +495,15 @@ function convertToZavGUI(formatKey)
     end
 
     function clearStatus(~, ~)
-        if isempty(queueData.items)
+        if isempty(queueData.items) || selectedItemIdx < 1 || selectedItemIdx > numel(queueData.items)
             return;
         end
-        for i = 1:numel(queueData.items)
-            queueData.items(i).status = 'pending';
-            queueData.items(i).errorMessage = '';
-            queueData.items(i).progress = 0;
-        end
+        queueData.items(selectedItemIdx).status = 'pending';
+        queueData.items(selectedItemIdx).errorMessage = '';
+        queueData.items(selectedItemIdx).progress = 0;
         saveQueueState();
         refreshQueueList();
+        set(sourceList, 'Value', selectedItemIdx);
         refreshQueueProgressLabel();
     end
 
@@ -443,6 +511,7 @@ function convertToZavGUI(formatKey)
         total = numel(queueData.items);
         doneCount = 0;
         failedCount = 0;
+        [overallProgress, etaText] = calculateOverallProgressAndEta();
         for i = 1:total
             if strcmp(queueData.items(i).status, 'done')
                 doneCount = doneCount + 1;
@@ -451,7 +520,36 @@ function convertToZavGUI(formatKey)
                 failedCount = failedCount + 1;
             end
         end
-        set(queueProgressLabel, 'String', sprintf('Progress: %d/%d done, %d failed', doneCount, total, failedCount));
+        set(queueProgressLabel, 'String', sprintf('Progress: %d/%d done, %d failed, %.1f%%%s', ...
+            doneCount, total, failedCount, overallProgress * 100, etaText));
+    end
+
+    function [overallProgress, etaText] = calculateOverallProgressAndEta()
+        totalWeight = 0;
+        completedWeight = 0;
+        runningContribution = 0;
+        for i = 1:numel(queueData.items)
+            itemWeight = 1;
+            if isfield(queueData.items(i), 'itemWeightBytes') && ~isempty(queueData.items(i).itemWeightBytes)
+                itemWeight = max(queueData.items(i).itemWeightBytes, 1);
+            end
+            totalWeight = totalWeight + itemWeight;
+            if strcmp(queueData.items(i).status, 'done')
+                completedWeight = completedWeight + itemWeight;
+            end
+            if strcmp(queueData.items(i).status, 'running')
+                runningContribution = runningContribution + itemWeight * min(max(queueData.items(i).progress, 0), 1);
+            end
+        end
+        totalWeight = max(totalWeight, 1);
+        overallProgress = min(max((completedWeight + runningContribution) / totalWeight, 0), 1);
+
+        etaText = '';
+        if ~isempty(queueRunStartedAt) && overallProgress > 0 && overallProgress < 1
+            elapsedSec = toc(queueRunStartedAt);
+            etaSec = elapsedSec * (1 - overallProgress) / max(overallProgress, eps);
+            etaText = sprintf('~%d min %d s', floor(etaSec / 60), round(rem(etaSec, 60)));
+        end
     end
 
     function channelSelectionCallback(src, ~)
@@ -533,8 +631,15 @@ function convertToZavGUI(formatKey)
         detectMua = get(source, 'Value');
     end
 
-    function openafterConvCallback(source, ~)
-        openAfter = get(source, 'Value');
+    function openSelected(~, ~)
+        if selectedItemIdx < 1 || selectedItemIdx > numel(queueData.items)
+            return;
+        end
+        item = queueData.items(selectedItemIdx);
+        if ~strcmp(item.status, 'done')
+            return;
+        end
+        zav_calling(item.outputPath);
     end
 
     function muaCoefUICallback(source, ~)
@@ -606,6 +711,8 @@ function convertToZavGUI(formatKey)
             return;
         end
 
+        queueRunStartedAt = tic;
+        lastProgressSaveTic = tic;
         lastOpenedZav = '';
         for i = 1:numel(queueData.items)
             if ~(strcmp(queueData.items(i).status, 'pending') || strcmp(queueData.items(i).status, 'failed'))
@@ -651,9 +758,6 @@ function convertToZavGUI(formatKey)
             refreshQueueProgressLabel();
         end
 
-        if openAfter && ~isempty(lastOpenedZav)
-            zav_calling(lastOpenedZav);
-        end
         renderSelectedItem();
     end
 
@@ -679,17 +783,63 @@ function convertToZavGUI(formatKey)
         item = queueData.items(itemIdx);
         selectedChannelIndices = find(ismember(item.availableChannels, item.selectedChannels));
         outputPath = item.outputPath;
+        progressCallback = @(progressStruct)handleBackendProgress(itemIdx, progressStruct, hWaitBar);
 
         switch formatKey
             case "abf"
                 collectSweeps = true;
-                abf_to_zav(item.sourcePath, outputPath, lfp_Fs, detectMua, doResample, collectSweeps, item.selectedChannels, mua_std_coef, hWaitBar);
+                abf_to_zav(item.sourcePath, outputPath, lfp_Fs, detectMua, doResample, collectSweeps, item.selectedChannels, mua_std_coef, hWaitBar, progressCallback);
             case "oep"
-                oep_to_zav_streaming(item.sourcePath, outputPath, item.sourceFs, lfp_Fs, detectMua, mua_std_coef, doResample, item.availableChannels, selectedChannelIndices, hWaitBar);
+                oep_to_zav_streaming(item.sourcePath, outputPath, item.sourceFs, lfp_Fs, detectMua, mua_std_coef, doResample, item.availableChannels, selectedChannelIndices, hWaitBar, progressCallback);
             case "nlx"
                 channels_list = item.formatMeta.channelNumbers(selectedChannelIndices);
                 ncsFilePaths = item.formatMeta.channelFilePaths(selectedChannelIndices);
-                nlx_to_zav_streaming(item.sourcePath, outputPath, channels_list, ncsFilePaths, lfp_Fs, detectMua, mua_std_coef, doResample, hWaitBar);
+                nlx_to_zav_streaming(item.sourcePath, outputPath, channels_list, ncsFilePaths, lfp_Fs, detectMua, mua_std_coef, doResample, hWaitBar, progressCallback);
+        end
+    end
+
+    function handleBackendProgress(itemIdx, progressStruct, hWaitBar)
+        if itemIdx < 1 || itemIdx > numel(queueData.items)
+            return;
+        end
+        if ~isfield(progressStruct, 'itemProgress')
+            return;
+        end
+        queueData.items(itemIdx).progress = min(max(progressStruct.itemProgress, 0), 1);
+        [overallProgress, etaText] = calculateOverallProgressAndEta();
+        if isgraphics(hWaitBar)
+            backendMessage = '';
+            if isfield(progressStruct, 'message') && ~isempty(progressStruct.message)
+                backendMessage = progressStruct.message;
+            elseif isfield(progressStruct, 'stage') && ~isempty(progressStruct.stage)
+                backendMessage = progressStruct.stage;
+            end
+
+            if isempty(backendMessage)
+                if isempty(etaText)
+                    waitbar(queueData.items(itemIdx).progress, hWaitBar, '...');
+                else
+                    waitbar(queueData.items(itemIdx).progress, hWaitBar, etaText);
+                end
+            else
+                % Replace only local ETA tail from backend text.
+                messageNoLocalEta = regexprep(backendMessage, '\s*~\d+\s*min\s*\d+\s*s\s*left\s*$', '');
+                if isempty(etaText)
+                    waitbar(queueData.items(itemIdx).progress, hWaitBar, strtrim(messageNoLocalEta));
+                else
+                    waitbar(queueData.items(itemIdx).progress, hWaitBar, ...
+                        sprintf('%s %s (%.1f%%)', strtrim(messageNoLocalEta), etaText, overallProgress * 100));
+                end
+            end
+        end
+        refreshQueueProgressLabel();
+        renderSelectedItem();
+        if isempty(lastProgressSaveTic)
+            lastProgressSaveTic = tic;
+        end
+        if toc(lastProgressSaveTic) >= 1 || queueData.items(itemIdx).progress >= 1
+            saveQueueState();
+            lastProgressSaveTic = tic;
         end
     end
 
