@@ -125,6 +125,10 @@ function signalViewerGUI(filePath)
     add_event_pending = false;
     manualEventChannelIdx = 1;
     eventsChannelPopupChIdxs = 1;
+    channelUpdateDebounceTimer = timer( ...
+        'TimerFcn', @debouncedChannelUpdatePlotCallback, ...
+        'StartDelay', 1, ...
+        'ExecutionMode', 'singleShot');
     
     % Инициализация настроек slope measurement
     slope_measurement_settings = struct();
@@ -466,8 +470,11 @@ function signalViewerGUI(filePath)
 
     % Spikes
     % STD
-    stdCoefEdit = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', num2str(std_coef), 'Position', getElementPosition('std_coef_edit'), 'Callback', @StdCoefCallback, 'Tag', 'std_coef_edit');
+    stdCoefValue = min(max(std_coef, 0), 10);
+    std_coef = stdCoefValue;
+    stdCoefEdit = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', num2str(stdCoefValue), 'Position', getElementPosition('std_coef_edit'), 'Callback', @StdCoefCallback, 'Tag', 'std_coef_edit');
     stdCoefText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'MUA coef:', 'Position', getElementPosition('std_coef_text'), 'Tag', 'std_coef_text');
+    stdCoefSlider = uicontrol('Parent', mainPanel, 'Style', 'slider', 'Min', 0, 'Max', 10, 'Value', stdCoefValue, 'Position', getElementPosition('std_coef_slider'), 'Callback', @StdCoefSliderCallback, 'Tag', 'std_coef_slider');
     
     showSpikesButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'MUA', 'Position', getElementPosition('show_spikes_button'), 'Callback', @ShowSpikesButtonCallback, 'Tag', 'show_spikes_button');
     showCSDbutton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'CSD', 'Position', getElementPosition('show_csd_button'), 'Callback', @ShowCSDButtonCallback, 'Tag', 'show_csd_button');
@@ -854,6 +861,11 @@ function signalViewerGUI(filePath)
 %     resizeComponents();
     % Функция, вызываемая при закрытии фигуры
     function closeAllCallback(src, ~)
+        if exist('channelUpdateDebounceTimer', 'var') && ~isempty(channelUpdateDebounceTimer) && isvalid(channelUpdateDebounceTimer)
+            stop(channelUpdateDebounceTimer);
+            delete(channelUpdateDebounceTimer);
+        end
+
         % Сохраняем настройки перед закрытием
         try
             saveSettings();
@@ -1511,7 +1523,23 @@ function signalViewerGUI(filePath)
     
     % std coef
     function StdCoefCallback(src, ~)
-        std_coef = str2double(get(src, 'String'));
+        newStdCoef = str2double(get(src, 'String'));
+        if isnan(newStdCoef)
+            return;
+        end
+        std_coef = min(max(newStdCoef, 0), 10);
+        set(stdCoefEdit, 'String', num2str(std_coef));
+        set(stdCoefSlider, 'Value', std_coef);
+        visualSettings.show_spikes = true;
+        set(showSpikesButton, 'Value', 1);
+        updatePlot(); % Обновление графика
+    end
+
+    function StdCoefSliderCallback(src, ~)
+        std_coef = get(src, 'Value');
+        set(stdCoefEdit, 'String', num2str(std_coef));
+        visualSettings.show_spikes = true;
+        set(showSpikesButton, 'Value', 1);
         updatePlot(); % Обновление графика
     end
 
@@ -1973,7 +2001,18 @@ function signalViewerGUI(filePath)
 
         saveChannelSettings();
 
-        updatePlot(); % Обновление графика
+        if ~exist('channelUpdateDebounceTimer', 'var') || isempty(channelUpdateDebounceTimer) || ~isvalid(channelUpdateDebounceTimer)
+            channelUpdateDebounceTimer = timer( ...
+                'TimerFcn', @debouncedChannelUpdatePlotCallback, ...
+                'StartDelay', 1.5, ...
+                'ExecutionMode', 'singleShot');
+        end
+        stop(channelUpdateDebounceTimer);
+        start(channelUpdateDebounceTimer);
+    end
+
+    function debouncedChannelUpdatePlotCallback(~, ~)
+        updatePlot();
     end
 
     function updateLocalCoefs()
@@ -2744,6 +2783,7 @@ function signalViewerGUI(filePath)
         set(showSpikesButton, 'Visible', visibilityValue);
         set(stdCoefText, 'Visible', visibilityValue);
         set(stdCoefEdit, 'Visible', visibilityValue);
+        set(stdCoefSlider, 'Visible', visibilityValue);
     end
 
     function updateCSDControlsVisibility()

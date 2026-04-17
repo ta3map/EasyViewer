@@ -175,10 +175,11 @@ function [f, calculation_result] = plotMeanEvents(params)
                 for ch_inx = ch_inxs
                     c = c+1;
                     
-                    % Порог ZAV метод
-                    ii = double(spks(ch_inx).ampl) <= (-lfpVar(ch_inx) * prg);
+                    % Порог ZAV метод для положительных амплитуд:
+                    % берем |ampl| и сравниваем с положительным порогом.
+                    ii = abs(double(spks(ch_inx).ampl)) >= (lfpVar(ch_inx) * prg);
                     spks_in(ch_inx).tStamp = spks(ch_inx).tStamp(ii);
-                    spks_in(ch_inx).ampl = spks(ch_inx).ampl(ii);
+                    spks_in(ch_inx).ampl = abs(double(spks(ch_inx).ampl(ii)));
 
                     spk = spks_in(ch_inx).tStamp/1000;
                     
@@ -311,6 +312,8 @@ function [f, calculation_result] = plotMeanEvents(params)
 
 
 if not(isempty(ev_hists))  && not(show_CSD)      % режим показа MUA (не работает если выбран CSD)
+    % Перед отрисовкой центрируем каждый канал по своей медиане.
+    ev_hists = ev_hists - median(ev_hists, 2);
     mua_x = linspace(start_time*timeUnitFactor, end_time*timeUnitFactor, size(ev_hists, 2));
     im = imagesc(mua_x, offsets, ev_hists);
     

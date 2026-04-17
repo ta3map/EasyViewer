@@ -359,7 +359,7 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
 
     [~, name, ~] = fileparts(matFilePath);
 %     title(name, 'interpreter', 'none')
-    hylabel_ax(Xlims(1), multiax, name)
+    hylabel_ax(Xlims(1), multiax, name);
     centerModes = {'stimulus', 'event', 'sweep', 'time'};
     centerLabels = {'Stimuli', 'Event', 'Sweep', 'ContinuousTime'};
     centerStyleNames = {'stimulus_lines', 'events_lines', 'stimulus_lines', 'stimulus_lines'};
@@ -369,7 +369,7 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
     yTop = multiax.YLim(2);
     centerLabelHeightFraction = labelHeightFractions(1 + strcmp(centerStyleName, 'events_lines'));
     yPad = diff(multiax.YLim) * centerLabelHeightFraction;
-    drawLabelWithBg(multiax, 0, yTop - yPad, centerLabel, lines_and_styles.(centerStyleName), [], 'right')
+    drawLabelWithBg(multiax, 0, yTop - yPad, centerLabel, lines_and_styles.(centerStyleName), [], 'right');
 
     % Дальше рисуем события/стимулы (в т.ч. scatter). Должен быть hold on,
     % иначе новые вызовы могут перерисовать оси и стереть трейсы.
