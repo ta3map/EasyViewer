@@ -12,7 +12,7 @@ function loadEventsFromFile(filepath, options)
     global events event_inx events_exist event_comments event_indices
     global event_amplitudes event_channels event_widths event_prominences event_metadata
     global event_title_string
-    global time matFilePath
+    global time matFilePath Fs spks
     global selectedCenter chosen_time_interval time_forward
     global lastOpenedFiles outside_calling_filepath
     
@@ -41,7 +41,7 @@ function loadEventsFromFile(filepath, options)
                 initialDir = fileparts(lastOpenedFiles{end});
             end
             
-            [file, path] = uigetfile({'*.ev'; '*.mean'}, 'Load Events', initialDir);
+            [file, path] = uigetfile({'*.ev;*.mua;*.mean', 'Event files (*.ev, *.mua, *.mean)'}, 'Load Events', initialDir);
             if isequal(file, 0)
                 disp('File selection canceled.');
                 return;
@@ -79,6 +79,39 @@ function loadEventsFromFile(filepath, options)
         return;
     end
     
+    is_mua_file = strcmpi(ext, '.mua');
+    if is_mua_file || isfield(loadedData, 'spks')
+        if isfield(loadedData, 'spks')
+            spks = loadedData.spks;
+            loaded_count = sum(cellfun(@numel, {spks.tStamp}));
+        elseif isfield(loadedData, 'manlDet')
+            [spks, loaded_count] = assign_mua_to_spks(loadedData.manlDet, Fs, spks);
+        else
+            loaded_count = 0;
+        end
+        events = [];
+        event_indices = [];
+        event_comments = {};
+        event_amplitudes = [];
+        event_channels = [];
+        event_widths = [];
+        event_prominences = [];
+        event_metadata = [];
+        events_exist = false;
+        event_inx = 1;
+        event_title_string = [file ' (MUA)'];
+
+        if ~options.skip_callbacks && exist('updatePlotFunc', 'var') && ~isempty(updatePlotFunc)
+            try
+                updatePlotFunc();
+            catch ME
+                warning('Error calling updatePlotFunc: %s', ME.message);
+            end
+        end
+        fprintf('✓ MUA loaded: %d spikes from %s\n', loaded_count, file);
+        return;
+    end
+
     % Обработка данных событий
     if isfield(loadedData, 'manlDet')
         event_indices = round([loadedData.manlDet.t])';
@@ -180,6 +213,54 @@ function loadEventsFromFile(filepath, options)
     else
         event_indices = [];
         fprintf('No events found in the file.\n');
+    end
+end
+
+function [spks_out, loaded_count] = assign_mua_to_spks(manlDet, Fs, spks_in)
+    loaded_count = 0;
+    spks_out = spks_in;
+
+    if isempty(manlDet) || isempty(Fs) || ~isfinite(Fs) || Fs <= 0
+        return;
+    end
+
+    event_indices = round([manlDet.t])';
+    event_indices = max(1, event_indices);
+    tStampMs = ((double(event_indices) - 1) ./ Fs) * 1000;
+    loaded_count = numel(tStampMs);
+
+    if isfield(manlDet, 'amplitude')
+        amplitudes = [manlDet.amplitude]';
+    else
+        amplitudes = NaN(size(event_indices));
+    end
+
+    if isfield(manlDet, 'channels')
+        raw_channels = [manlDet.channels]';
+    elseif isfield(manlDet, 'ch')
+        raw_channels = [manlDet.ch]';
+    else
+        raw_channels = ones(size(event_indices));
+    end
+
+    mua_channels = round(raw_channels);
+    mua_channels(~isfinite(mua_channels) | mua_channels < 1) = 1;
+
+    maxChannel = max(mua_channels);
+    emptySpk = struct('tStamp', [], 'ampl', [], 'shape', []);
+    spks_out = repmat(emptySpk, maxChannel, 1);
+
+    [sortedChannels, sortOrder] = sort(mua_channels);
+    sortedTime = tStampMs(sortOrder);
+    sortedAmpl = amplitudes(sortOrder);
+    channelBoundaries = [1; find(diff(sortedChannels) > 0) + 1; numel(sortedChannels) + 1];
+
+    for b = 1:(numel(channelBoundaries) - 1)
+        startIdx = channelBoundaries(b);
+        endIdx = channelBoundaries(b + 1) - 1;
+        ch = sortedChannels(startIdx);
+        spks_out(ch).tStamp = sortedTime(startIdx:endIdx);
+        spks_out(ch).ampl = sortedAmpl(startIdx:endIdx);
     end
 end
 

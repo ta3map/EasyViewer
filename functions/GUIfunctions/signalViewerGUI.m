@@ -206,7 +206,7 @@ function signalViewerGUI(filePath)
         if ~isempty(filePath)
             [~, ~, ext] = fileparts(filePath);
             switch lower(ext)
-                case '.ev'
+                case {'.ev', '.mua'}
                     outside_calling_filepath = filePath;
                     event_calling();
                 case {'.mat', '.abf'}
@@ -544,6 +544,8 @@ function signalViewerGUI(filePath)
         'Open event (.ev) file',...
         '', ...
         'Save File', ...
+        '', ...
+        'Save MUA', ...
         '', ...
         'File manager', ...
         '', ...
@@ -1009,12 +1011,14 @@ function signalViewerGUI(filePath)
             case file_functions{7}
                 saveMatFile(matFilePath);
             case file_functions{9}
-                fileManagerBtnClb([], []);
+                saveMUA();
             case file_functions{11}
-                openFigureWithFileDialog();
+                fileManagerBtnClb([], []);
             case file_functions{13}
-                showImportFormatDialog();
+                openFigureWithFileDialog();
             case file_functions{15}
+                showImportFormatDialog();
+            case file_functions{17}
                 saveMainAxisAs();
             case ''
                 dont_close_menu = true;
@@ -3418,7 +3422,7 @@ function loadEvents(~, ~)
             initialDir = fileparts(lastOpenedFiles{end});
         end
 
-        [file, path] = uigetfile({'*.ev;*.mean;*.xlsx;*.xls', 'Events / Excel files (*.ev, *.mean, *.xlsx, *.xls)'}, 'Load Events', initialDir);
+        [file, path] = uigetfile({'*.ev;*.mua;*.mean;*.xlsx;*.xls', 'Events / Excel files (*.ev, *.mua, *.mean, *.xlsx, *.xls)'}, 'Load Events', initialDir);
         if isequal(file, 0)
             debugState('loadEvents', 'File selection canceled.');
             return;
@@ -3456,6 +3460,12 @@ function loadEvents(~, ~)
     end
 
     
+    [~, ~, loadedExt] = fileparts(filepath);
+    if strcmpi(loadedExt, '.mua') || isfield(loadedData, 'spks')
+        loadMUAFromEvData(loadedData, file);
+        return;
+    end
+
     if isfield(loadedData, 'manlDet')
         event_indices = round([loadedData.manlDet.t])';
         events = time(event_indices)';
@@ -3526,6 +3536,100 @@ function loadEvents(~, ~)
         debugState('loadEvents', 'No events found in the file.');
     end
 end
+
+    function loadMUAFromEvData(loadedData, file)
+        if isfield(loadedData, 'spks') && ~isempty(loadedData.spks)
+            spks = loadedData.spks;
+            loadedCount = sum(cellfun(@numel, {spks.tStamp}));
+            events = [];
+            event_indices = [];
+            event_comments = {};
+            event_amplitudes = [];
+            event_channels = [];
+            event_widths = [];
+            event_prominences = [];
+            event_metadata = [];
+            events_exist = false;
+            event_inx = 1;
+            event_title_string = [file ' (MUA)'];
+            visualSettings.show_spikes = true;
+            set(showSpikesButton, 'Value', 1);
+            UpdateEventTable();
+            updateMUAControlsVisibility();
+            updatePlot();
+            debugState('loadMUAFromEvData', sprintf('Loaded %d MUA spikes from %s', loadedCount, file));
+            return;
+        end
+
+        if ~isfield(loadedData, 'manlDet') || isempty(loadedData.manlDet)
+            debugState('loadMUAFromEvData', 'No MUA data (spks/manlDet) found in the file.');
+            return;
+        end
+
+        if isempty(Fs) || ~isfinite(Fs) || Fs <= 0
+            debugState('loadMUAFromEvData', 'Fs is unavailable. Load .mat file first.');
+            return;
+        end
+
+        event_indices_local = round([loadedData.manlDet.t])';
+        event_indices_local = max(1, event_indices_local);
+
+        if isfield(loadedData.manlDet, 'amplitude')
+            mua_amplitudes = [loadedData.manlDet.amplitude]';
+        else
+            mua_amplitudes = NaN(size(event_indices_local));
+        end
+
+        if isfield(loadedData.manlDet, 'channels')
+            raw_channels = [loadedData.manlDet.channels]';
+        elseif isfield(loadedData.manlDet, 'ch')
+            raw_channels = [loadedData.manlDet.ch]';
+        else
+            raw_channels = ones(size(event_indices_local));
+        end
+
+        mua_channels = round(raw_channels);
+        mua_channels(~isfinite(mua_channels) | mua_channels < 1) = 1;
+
+        tStampMs = ((double(event_indices_local) - 1) ./ Fs) * 1000;
+
+        maxChannel = max(mua_channels);
+        emptySpk = struct('tStamp', [], 'ampl', [], 'shape', []);
+        newSpks = repmat(emptySpk, maxChannel, 1);
+
+        [sortedChannels, sortOrder] = sort(mua_channels);
+        sortedTime = tStampMs(sortOrder);
+        sortedAmpl = mua_amplitudes(sortOrder);
+        channelBoundaries = [1; find(diff(sortedChannels) > 0) + 1; numel(sortedChannels) + 1];
+
+        for b = 1:(numel(channelBoundaries) - 1)
+            startIdx = channelBoundaries(b);
+            endIdx = channelBoundaries(b + 1) - 1;
+            ch = sortedChannels(startIdx);
+            newSpks(ch).tStamp = sortedTime(startIdx:endIdx);
+            newSpks(ch).ampl = sortedAmpl(startIdx:endIdx);
+        end
+
+        spks = newSpks;
+        events = [];
+        event_indices = [];
+        event_comments = {};
+        event_amplitudes = [];
+        event_channels = [];
+        event_widths = [];
+        event_prominences = [];
+        event_metadata = [];
+        events_exist = false;
+        event_inx = 1;
+        event_title_string = [file ' (MUA)'];
+
+        visualSettings.show_spikes = true;
+        set(showSpikesButton, 'Value', 1);
+        UpdateEventTable();
+        updateMUAControlsVisibility();
+        updatePlot();
+        debugState('loadMUAFromEvData', sprintf('Loaded %d MUA spikes from %s', numel(tStampMs), file));
+    end
 
     function loadEventsFromExcel(filepath, file)
         T = readtable(filepath);
@@ -3599,13 +3703,34 @@ end
             'saveExcel', saveExcel);
     end
 
+    function saveMUA(~, ~)
+        channel_names = {};
+        if isstruct(hd) && isfield(hd, 'recChNames') && ~isempty(hd.recChNames)
+            if iscell(hd.recChNames)
+                channel_names = hd.recChNames(:)';
+            else
+                channel_names = cellstr(hd.recChNames);
+            end
+        end
+
+        saveMUAEventsToFile(spks, Fs, matFilePath, ...
+            'dialogTitle', 'Save MUA (.mua)', ...
+            'defaultFileNameSuffix', '_mua', ...
+            'max_index', length(time), ...
+            'matFileName', matFileName, ...
+            'autodetection_settings', autodetection_settings, ...
+            'add_event_settings', add_event_settings, ...
+            'EV_version', EV_version, ...
+            'channel_names', channel_names);
+    end
+
     set(eventTable, 'CellEditCallback', @updateEventTable);
     set(channelTable, 'CellEditCallback', @updateChannelSelection);
     
     if ~isempty(filePath)
         [~, ~, ext] = fileparts(filePath);
         switch lower(ext)
-            case '.ev'
+            case {'.ev', '.mua'}
                 outside_calling_filepath = filePath;
                 loadEvents();
             case {'.mat', '.abf'}

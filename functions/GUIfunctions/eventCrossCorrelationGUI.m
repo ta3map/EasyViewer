@@ -62,6 +62,8 @@ function eventCrossCorrelationGUI()
               'String', 'Select Event File A:');
     uicontrol(hFig, 'Style', 'pushbutton', 'Position', [160, ypos(1), 130, 20], ...
               'String', 'Load Event A', 'Callback', @(~,~) loadEventFile(1), 'ForegroundColor', [0 0 1]);
+    uicontrol(hFig, 'Style', 'pushbutton', 'Position', [370, ypos(1)-22, 200, 18], ...
+              'String', 'Change MUA Ch A', 'Callback', @(~,~) changeMuaChannels(1));
     eventA_filename_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(1)-20, 260, 20], ...
               'String', '', 'HorizontalAlignment', 'left');
     eventA_range_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(1)-40, 260, 18], ...
@@ -71,6 +73,8 @@ function eventCrossCorrelationGUI()
               'String', 'Select Event File B:');
     uicontrol(hFig, 'Style', 'pushbutton', 'Position', [160, ypos(2), 130, 20], ...
               'String', 'Load Event B', 'Callback', @(~,~) loadEventFile(2), 'ForegroundColor', [1 0 0]);
+    uicontrol(hFig, 'Style', 'pushbutton', 'Position', [370, ypos(2)-22, 200, 18], ...
+              'String', 'Change MUA Ch B', 'Callback', @(~,~) changeMuaChannels(2));
     eventB_filename_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(2)-20, 260, 20], ...
               'String', '', 'HorizontalAlignment', 'left');
     eventB_range_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(2)-40, 260, 18], ...
@@ -202,7 +206,7 @@ function eventCrossCorrelationGUI()
         if ~isempty(lastOpenedFiles)
             initialDir = fileparts(lastOpenedFiles{end});
         end
-        [file, path] = uigetfile({'*.ev'; '*.mean'}, 'Load Events', initialDir);
+        [file, path] = uigetfile({'*.ev;*.mua;*.mean', 'Event files (*.ev, *.mua, *.mean)'}, 'Load Events', initialDir);
         if isequal(file, 0)
             disp('File selection canceled.');
             return;
@@ -212,31 +216,24 @@ function eventCrossCorrelationGUI()
 
     function loadEventFromPath(filepath, eventNum)
         loadedData = load(filepath, '-mat');
-        if ~isfield(loadedData, 'manlDet')
+        [eventTimesSec, amplitudes, canceledByUser, selectedChannels] = extractEventDataForCorrelation(loadedData, eventNum, filepath);
+        if canceledByUser
             return;
         end
-        indices = round([loadedData.manlDet.t]);
-        indices = max(1, min(indices, length(time)));
-        
-        if isfield(loadedData.manlDet, 'amplitude')
-            amplitudes = [loadedData.manlDet.amplitude]';
-        else
-            amplitudes = NaN(size(indices));
+        if isempty(eventTimesSec)
+            warndlg('Selected file does not contain supported event data.', 'Load Events');
+            return;
         end
-        % На случай несовпадений размеров (на старых форматах/битых файлах)
-        amplitudes = amplitudes(:);
-        if numel(amplitudes) ~= numel(indices)
-            amplitudes = NaN(size(indices));
-        end
+
         [~, filename_only, ~] = fileparts(filepath);
         if eventNum == 1
-            events1 = time(indices)';
+            events1 = eventTimesSec;
             eventAmplitudes1 = amplitudes;
             eventA_filepath = filepath;
             set(eventA_filename_text, 'String', filename_only);
             updateRangeText(1);
         else
-            events2 = time(indices)';
+            events2 = eventTimesSec;
             eventAmplitudes2 = amplitudes;
             eventB_filepath = filepath;
             set(eventB_filename_text, 'String', filename_only);
@@ -244,10 +241,169 @@ function eventCrossCorrelationGUI()
         end
         if eventNum == 1
             eventcorrelation_settings.EventA_filepath = eventA_filepath;
+            if ~isempty(selectedChannels)
+                eventcorrelation_settings.EventA_mua_channels = selectedChannels;
+            end
         else
             eventcorrelation_settings.EventB_filepath = eventB_filepath;
+            if ~isempty(selectedChannels)
+                eventcorrelation_settings.EventB_mua_channels = selectedChannels;
+            end
         end
         save(SettingsFilepath, 'eventcorrelation_settings', '-append');
+    end
+
+    function changeMuaChannels(eventNum)
+        if eventNum == 1
+            targetPath = eventA_filepath;
+            settingsPathField = 'EventA_filepath';
+            settingsChannelsField = 'EventA_mua_channels';
+        else
+            targetPath = eventB_filepath;
+            settingsPathField = 'EventB_filepath';
+            settingsChannelsField = 'EventB_mua_channels';
+        end
+
+        if isempty(targetPath) || ~exist(targetPath, 'file')
+            warndlg('Load event file first.', 'Change MUA channels');
+            return;
+        end
+
+        [~, ~, ext] = fileparts(targetPath);
+        if ~strcmpi(ext, '.mua')
+            warndlg('Channel selection is available for .mua files only.', 'Change MUA channels');
+            return;
+        end
+
+        eventcorrelation_settings.(settingsPathField) = targetPath;
+        if isfield(eventcorrelation_settings, settingsChannelsField)
+            eventcorrelation_settings = rmfield(eventcorrelation_settings, settingsChannelsField);
+        end
+        save(SettingsFilepath, 'eventcorrelation_settings', '-append');
+        loadEventFromPath(targetPath, eventNum);
+    end
+
+    function [eventTimesSec, amplitudes, canceledByUser, selectedChannels] = extractEventDataForCorrelation(loadedData, eventNum, filepath)
+        eventTimesSec = [];
+        amplitudes = [];
+        canceledByUser = false;
+        selectedChannels = [];
+
+        if isfield(loadedData, 'spks')
+            spksData = loadedData.spks;
+            if isempty(spksData) || ~isfield(spksData, 'tStamp')
+                return;
+            end
+
+            tAllCells = {spksData.tStamp};
+            hasChannelDataMask = ~cellfun(@isempty, tAllCells);
+            channelIndicesWithData = find(hasChannelDataMask);
+            if isempty(channelIndicesWithData)
+                return;
+            end
+
+            storedChannels = [];
+            if eventNum == 1 && isfield(eventcorrelation_settings, 'EventA_filepath') && strcmp(eventcorrelation_settings.EventA_filepath, filepath) ...
+                    && isfield(eventcorrelation_settings, 'EventA_mua_channels')
+                storedChannels = eventcorrelation_settings.EventA_mua_channels;
+            elseif eventNum == 2 && isfield(eventcorrelation_settings, 'EventB_filepath') && strcmp(eventcorrelation_settings.EventB_filepath, filepath) ...
+                    && isfield(eventcorrelation_settings, 'EventB_mua_channels')
+                storedChannels = eventcorrelation_settings.EventB_mua_channels;
+            end
+
+            storedChannels = storedChannels(:)';
+            storedChannels = storedChannels(ismember(storedChannels, channelIndicesWithData));
+
+            channelNames = arrayfun(@(ch) sprintf('Channel %d', ch), channelIndicesWithData, 'UniformOutput', false);
+            if isfield(loadedData, 'channel_names') && ~isempty(loadedData.channel_names)
+                savedNames = loadedData.channel_names;
+                if isstring(savedNames)
+                    savedNames = cellstr(savedNames);
+                elseif ischar(savedNames)
+                    savedNames = {savedNames};
+                end
+                for idx = 1:numel(channelIndicesWithData)
+                    ch = channelIndicesWithData(idx);
+                    if ch <= numel(savedNames) && ~isempty(savedNames{ch})
+                        channelNames{idx} = sprintf('%d: %s', ch, savedNames{ch});
+                    end
+                end
+            end
+
+            if isempty(storedChannels)
+                promptText = sprintf('Select MUA channels for set %s:', char('A' + (eventNum - 1)));
+                [selectedPos, ok] = listdlg( ...
+                    'ListString', channelNames, ...
+                    'SelectionMode', 'multiple', ...
+                    'PromptString', promptText, ...
+                    'ListSize', [260, 320]);
+                if ~ok || isempty(selectedPos)
+                    canceledByUser = true;
+                    return;
+                end
+                selectedChannels = channelIndicesWithData(selectedPos);
+            else
+                selectedChannels = storedChannels;
+            end
+
+            spksData = spksData(selectedChannels);
+
+            tCells = {spksData.tStamp};
+            if isfield(spksData, 'ampl')
+                aCells = {spksData.ampl};
+            else
+                aCells = repmat({[]}, size(tCells));
+            end
+
+            hasDataMask = ~cellfun(@isempty, tCells);
+            if ~any(hasDataMask)
+                return;
+            end
+
+            tCells = cellfun(@(v) double(v(:)), tCells(hasDataMask), 'UniformOutput', false);
+            aCells = cellfun(@(v) double(v(:)), aCells(hasDataMask), 'UniformOutput', false);
+            lenT = cellfun(@numel, tCells);
+            lenA = cellfun(@numel, aCells);
+            nEach = min(lenT, lenA);
+
+            validMask = nEach > 0;
+            if ~any(validMask)
+                return;
+            end
+
+            tCells = tCells(validMask);
+            aCells = aCells(validMask);
+            nEach = nEach(validMask);
+            tCells = cellfun(@(v, n) v(1:n), tCells, num2cell(nEach), 'UniformOutput', false);
+            aCells = cellfun(@(v, n) v(1:n), aCells, num2cell(nEach), 'UniformOutput', false);
+
+            eventTimesSec = vertcat(tCells{:}) / 1000;
+            amplitudes = vertcat(aCells{:});
+            return;
+        end
+
+        if ~isfield(loadedData, 'manlDet') || isempty(loadedData.manlDet)
+            return;
+        end
+        if isempty(time)
+            warndlg('Time axis is not loaded. Open a .mat file first.', 'Load Events');
+            return;
+        end
+
+        indices = round([loadedData.manlDet.t]);
+        indices = max(1, min(indices, length(time)));
+        eventTimesSec = time(indices)';
+
+        if isfield(loadedData.manlDet, 'amplitude')
+            amplitudes = [loadedData.manlDet.amplitude]';
+        else
+            amplitudes = NaN(size(indices(:)));
+        end
+
+        amplitudes = amplitudes(:);
+        if numel(amplitudes) ~= numel(eventTimesSec)
+            amplitudes = NaN(size(eventTimesSec));
+        end
     end
 
     function updateRangeText(eventNum)
@@ -382,14 +538,22 @@ function eventCrossCorrelationGUI()
         lagTimes_scaled = lagTimes_scaled(validIndices);
         crossCorr = crossCorr(validIndices);
 
+        if normalize
+            crossCorrToPlot = crossCorr * 100;
+            crossCorrYLabel = 'Cross-Correlation (%)';
+        else
+            crossCorrToPlot = crossCorr;
+            crossCorrYLabel = 'Cross-Correlation';
+        end
+
         % Plot the cross-correlation result on ax1 (столбиками по бинам)
         axes(ax1);
         set(ax1, 'visible', 'on');
         cla; hold on;
-        bar(lagTimes_scaled, crossCorr, 1, 'FaceColor', [0 0 0.8], 'EdgeColor', [0 0 0.6]);
+        bar(lagTimes_scaled, crossCorrToPlot, 1, 'FaceColor', [0 0 0.8], 'EdgeColor', [0 0 0.6]);
         xline(0, 'r:');
         xlabel(xAxisLabel);
-        ylabel('Cross-Correlation');
+        ylabel(crossCorrYLabel);
         title(sprintf('Cross-Corr. %s rel. %s', labelA, labelB));
         xlim(Xlims);
         grid on;
@@ -451,7 +615,8 @@ function eventCrossCorrelationGUI()
         xLeft = min(xlimCandidate);
         xRight = max(xlimCandidate);
         xPad = max(eps(max(abs(xlimCandidate))), binSize * timeUnitFactor);
-        xlim(ax3, [xLeft, xRight + (xRight == xLeft) * xPad]);
+        boxplotXLim = [xLeft, xRight + (xRight == xLeft) * xPad];
+        xlim(ax3, boxplotXLim);
         grid on;
         set(ax3, 'XColor', [1 0 0]);
         hold off;
@@ -469,7 +634,7 @@ function eventCrossCorrelationGUI()
         xlabel(xAxisLabel);
         ylabel('Probability');
         title('Distr. of rel. event times');
-        xlim(Xlims);
+        xlim(ax4, boxplotXLim);
         grid on;
         set(ax4, 'XColor', [1 0 0]);
         hold off;
