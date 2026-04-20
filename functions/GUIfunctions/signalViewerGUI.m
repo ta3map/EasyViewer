@@ -868,6 +868,13 @@ function signalViewerGUI(filePath)
             delete(channelUpdateDebounceTimer);
         end
 
+        % Фиксируем текущий MUA coef в настройках записи перед закрытием
+        try
+            saveChannelSettings('std_coef');
+        catch
+            % Игнорируем ошибки сохранения при закрытии
+        end
+
         % Сохраняем настройки перед закрытием
         try
             saveSettings();
@@ -1550,6 +1557,7 @@ function signalViewerGUI(filePath)
     function ShowSpikesButtonCallback(~, ~)
         visualSettings.show_spikes = ~visualSettings.show_spikes;
         set(showSpikesButton, 'Value', visualSettings.show_spikes);
+        saveChannelSettings('visualSettings');
         updatePlot(); % Обновление графика
     end
 
@@ -1598,6 +1606,7 @@ function signalViewerGUI(filePath)
         end
 
         set(showCSDbutton, 'Value', visualSettings.show_CSD);
+        saveChannelSettings('visualSettings');
         try
             updatePlot(); % Обновление графика
         catch ME
@@ -2935,6 +2944,22 @@ function loadSettingsFile()
             shiftCoeff = loadedSettings.shiftCoeff;
             set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
         end
+        if isfield(loadedSettings, 'visualSettings')
+            loadedVisualSettings = loadedSettings.visualSettings;
+            if isfield(loadedVisualSettings, 'show_spikes')
+                visualSettings.show_spikes = logical(loadedVisualSettings.show_spikes);
+            end
+            if isfield(loadedVisualSettings, 'show_CSD')
+                visualSettings.show_CSD = logical(loadedVisualSettings.show_CSD);
+            end
+            set(showSpikesButton, 'Value', visualSettings.show_spikes);
+            set(showCSDbutton, 'Value', visualSettings.show_CSD);
+        end
+        if isfield(loadedSettings, 'std_coef')
+            std_coef = min(max(double(loadedSettings.std_coef), 0), 10);
+            set(stdCoefEdit, 'String', num2str(std_coef));
+            set(stdCoefSlider, 'Value', std_coef);
+        end
         if isfield(loadedSettings, 'time_back')
             time_back = loadedSettings.time_back; % time window before (s)
             debugState('loadSettingsFileVIEWER', 'time_back=%f', time_back);
@@ -3713,15 +3738,179 @@ end
             end
         end
 
-        saveMUAEventsToFile(spks, Fs, matFilePath, ...
+        spksToSave = spks;
+        [basePath, baseName, ~] = fileparts(matFilePath);
+        defaultMuaPath = fullfile(basePath, [baseName '_mua.mua']);
+        hasEventsForWindowFilter = ~isempty(events);
+        aroundEventsEnabled = hasEventsForWindowFilter;
+        thresholdFilterEnabled = true;
+        windowMs = 600;
+        selectedMuaPath = defaultMuaPath;
+        saveAccepted = false;
+        selectedMuaChannels = 1:numel(spks);
+
+        dlg = dialog('Name', 'Save MUA', 'Position', [400 300 560 240], 'WindowStyle', 'modal');
+        uicontrol(dlg, 'Style', 'text', 'Position', [20 205 520 20], ...
+            'String', 'Save MUA', 'HorizontalAlignment', 'left', 'FontWeight', 'bold');
+
+        thresholdCb = uicontrol(dlg, 'Style', 'checkbox', 'Position', [20 175 240 24], ...
+            'String', 'apply current MUA threshold', 'Value', thresholdFilterEnabled);
+        aroundCb = uicontrol(dlg, 'Style', 'checkbox', 'Position', [20 145 200 24], ...
+            'String', 'around events', 'Value', aroundEventsEnabled);
+        uicontrol(dlg, 'Style', 'pushbutton', 'Position', [240 145 160 24], ...
+            'String', 'Select MUA channels', 'Callback', @selectMuaChannels);
+        windowEdit = uicontrol(dlg, 'Style', 'edit', 'Position', [20 110 80 24], ...
+            'String', num2str(windowMs), 'Visible', onOff(aroundEventsEnabled));
+        uicontrol(dlg, 'Style', 'text', 'Position', [110 110 120 24], ...
+            'String', 'ms window', 'HorizontalAlignment', 'left', 'Visible', onOff(aroundEventsEnabled), 'Tag', 'window_label');
+
+        pathEdit = uicontrol(dlg, 'Style', 'edit', 'Position', [20 70 430 24], ...
+            'String', selectedMuaPath, 'HorizontalAlignment', 'left', ...
+            'BackgroundColor', 'white', 'Enable', 'on');
+        uicontrol(dlg, 'Style', 'pushbutton', 'Position', [460 70 80 24], ...
+            'String', 'Browse', 'Callback', @browseMuaPath);
+
+        uicontrol(dlg, 'Style', 'pushbutton', 'Position', [360 20 80 28], ...
+            'String', 'Save', 'Callback', @confirmSave);
+        uicontrol(dlg, 'Style', 'pushbutton', 'Position', [460 20 80 28], ...
+            'String', 'Cancel', 'Callback', @cancelSave);
+
+        if ~hasEventsForWindowFilter
+            set(aroundCb, 'Value', 0, 'Visible', 'off');
+            set(windowEdit, 'Visible', 'off');
+            set(findobj(dlg, 'Tag', 'window_label'), 'Visible', 'off');
+        end
+        set(aroundCb, 'Callback', @toggleAroundEvents);
+        uiwait(dlg);
+
+        if ~saveAccepted
+            if isvalid(dlg), delete(dlg); end
+            return;
+        end
+
+        keepChannelsMask = false(numel(spksToSave), 1);
+        keepChannelsMask(selectedMuaChannels) = true;
+        for ch = 1:numel(spksToSave)
+            if ~keepChannelsMask(ch)
+                spksToSave(ch).tStamp = [];
+                spksToSave(ch).ampl = [];
+            end
+        end
+
+        if thresholdFilterEnabled
+            for ch = 1:numel(spksToSave)
+                if isempty(spksToSave(ch).tStamp)
+                    continue;
+                end
+                if ch > numel(lfpVar)
+                    continue;
+                end
+                thresholdMask = abs(double(spksToSave(ch).ampl(:))) >= (lfpVar(ch) * std_coef);
+                spksToSave(ch).tStamp = spksToSave(ch).tStamp(thresholdMask);
+                spksToSave(ch).ampl = spksToSave(ch).ampl(thresholdMask);
+            end
+        end
+
+        if aroundEventsEnabled && hasEventsForWindowFilter
+            halfWindowSec = (windowMs / 1000) / 2;
+            windowStarts = events(:) - halfWindowSec;
+            windowEnds = events(:) + halfWindowSec;
+            [windowStarts, order] = sort(windowStarts);
+            windowEnds = windowEnds(order);
+            mergedStarts = windowStarts(1);
+            mergedEnds = windowEnds(1);
+            for iWin = 2:numel(windowStarts)
+                if windowStarts(iWin) <= mergedEnds(end)
+                    mergedEnds(end) = max(mergedEnds(end), windowEnds(iWin));
+                else
+                    mergedStarts(end + 1, 1) = windowStarts(iWin);
+                    mergedEnds(end + 1, 1) = windowEnds(iWin);
+                end
+            end
+
+            for ch = 1:numel(spksToSave)
+                if isempty(spksToSave(ch).tStamp)
+                    continue;
+                end
+                tSec = double(spksToSave(ch).tStamp(:)) / 1000;
+                keepMask = false(size(tSec));
+                for iWin = 1:numel(mergedStarts)
+                    keepMask = keepMask | (tSec >= mergedStarts(iWin) & tSec <= mergedEnds(iWin));
+                end
+                spksToSave(ch).tStamp = spksToSave(ch).tStamp(keepMask);
+                spksToSave(ch).ampl = spksToSave(ch).ampl(keepMask);
+            end
+        end
+
+        saveMUAEventsToFile(spksToSave, Fs, matFilePath, ...
             'dialogTitle', 'Save MUA (.mua)', ...
             'defaultFileNameSuffix', '_mua', ...
+            'filepath', selectedMuaPath, ...
             'max_index', length(time), ...
             'matFileName', matFileName, ...
             'autodetection_settings', autodetection_settings, ...
             'add_event_settings', add_event_settings, ...
             'EV_version', EV_version, ...
             'channel_names', channel_names);
+
+        if isvalid(dlg), delete(dlg); end
+
+        function toggleAroundEvents(~, ~)
+            aroundEventsEnabled = get(aroundCb, 'Value') == 1;
+            set(windowEdit, 'Visible', onOff(aroundEventsEnabled));
+            set(findobj(dlg, 'Tag', 'window_label'), 'Visible', onOff(aroundEventsEnabled));
+        end
+
+        function browseMuaPath(~, ~)
+            [file, path] = uiputfile('*.mua', 'Save MUA (.mua)', get(pathEdit, 'String'));
+            if isequal(file, 0)
+                return;
+            end
+            selectedMuaPath = fullfile(path, file);
+            set(pathEdit, 'String', selectedMuaPath);
+        end
+
+        function selectMuaChannels(~, ~)
+            channelLabels = arrayfun(@(ch) sprintf('Channel %d', ch), 1:numel(spks), 'UniformOutput', false);
+            [chosenIdx, ok] = listdlg( ...
+                'ListString', channelLabels, ...
+                'SelectionMode', 'multiple', ...
+                'InitialValue', selectedMuaChannels, ...
+                'PromptString', 'Select channels for MUA save:', ...
+                'ListSize', [260 320]);
+            if ok && ~isempty(chosenIdx)
+                selectedMuaChannels = chosenIdx(:)';
+            end
+        end
+
+        function confirmSave(~, ~)
+            selectedMuaPath = strtrim(get(pathEdit, 'String'));
+            if isempty(selectedMuaPath)
+                return;
+            end
+            [~, ~, ext] = fileparts(selectedMuaPath);
+            if isempty(ext)
+                selectedMuaPath = [selectedMuaPath '.mua'];
+            end
+            aroundEventsEnabled = get(aroundCb, 'Value') == 1;
+            thresholdFilterEnabled = get(thresholdCb, 'Value') == 1;
+            windowMs = str2double(get(windowEdit, 'String'));
+            if ~isfinite(windowMs) || windowMs <= 0
+                windowMs = 600;
+            end
+            saveAccepted = true;
+            uiresume(dlg);
+        end
+
+        function cancelSave(~, ~)
+            saveAccepted = false;
+            uiresume(dlg);
+        end
+
+        function state = onOff(flag)
+            options = {'off', 'on'};
+            state = options{1 + (flag ~= 0)};
+        end
     end
 
     set(eventTable, 'CellEditCallback', @updateEventTable);

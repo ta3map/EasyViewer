@@ -7,6 +7,8 @@ function saveChannelSettings(varargin)
     global channelNames channelEnabled scalingCoefficients colorsIn lineCoefficients
     global mean_group_ch csd_avaliable filter_avaliable baseline_subtract_available filterSettings
     global stims EV_version csd_smooth_coef csd_contrast_coef
+    global std_coef
+    global visualSettings
     global axes_background_color
     
     if exist(matFilePath, 'file') ~= 2
@@ -26,6 +28,8 @@ function saveChannelSettings(varargin)
             'filterSettings'
             'csd_smooth_coef'
             'csd_contrast_coef'
+            'std_coef'
+            'visualSettings'
             'channelNames'
             'channelEnabled'
             'scalingCoefficients'

@@ -62,8 +62,8 @@ function eventCrossCorrelationGUI()
               'String', 'Select Event File A:');
     uicontrol(hFig, 'Style', 'pushbutton', 'Position', [160, ypos(1), 130, 20], ...
               'String', 'Load Event A', 'Callback', @(~,~) loadEventFile(1), 'ForegroundColor', [0 0 1]);
-    uicontrol(hFig, 'Style', 'pushbutton', 'Position', [370, ypos(1)-22, 200, 18], ...
-              'String', 'Change MUA Ch A', 'Callback', @(~,~) changeMuaChannels(1));
+    changeMuaButtonA = uicontrol(hFig, 'Style', 'pushbutton', 'Position', [370, ypos(1)-22, 200, 18], ...
+              'String', 'Change MUA Ch A', 'Callback', @(~,~) changeMuaChannels(1), 'Visible', 'off');
     eventA_filename_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(1)-20, 260, 20], ...
               'String', '', 'HorizontalAlignment', 'left');
     eventA_range_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(1)-40, 260, 18], ...
@@ -73,8 +73,8 @@ function eventCrossCorrelationGUI()
               'String', 'Select Event File B:');
     uicontrol(hFig, 'Style', 'pushbutton', 'Position', [160, ypos(2), 130, 20], ...
               'String', 'Load Event B', 'Callback', @(~,~) loadEventFile(2), 'ForegroundColor', [1 0 0]);
-    uicontrol(hFig, 'Style', 'pushbutton', 'Position', [370, ypos(2)-22, 200, 18], ...
-              'String', 'Change MUA Ch B', 'Callback', @(~,~) changeMuaChannels(2));
+    changeMuaButtonB = uicontrol(hFig, 'Style', 'pushbutton', 'Position', [370, ypos(2)-22, 200, 18], ...
+              'String', 'Change MUA Ch B', 'Callback', @(~,~) changeMuaChannels(2), 'Visible', 'off');
     eventB_filename_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(2)-20, 260, 20], ...
               'String', '', 'HorizontalAlignment', 'left');
     eventB_range_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(2)-40, 260, 18], ...
@@ -95,6 +95,18 @@ function eventCrossCorrelationGUI()
 
     normalizeCheckbox = uicontrol(hFig, 'Style', 'checkbox', 'Position', [10, ypos(3), 150, 20], ...
                                   'String', 'Normalize');
+    plotModeOptions = {'Cross-Correlation', 'Timing Boxplot', 'Timing Histogram', 'Amplitude Comparison'};
+    uicontrol(hFig, 'Style', 'text', 'Position', [300, ypos(3), 90, 20], ...
+              'String', 'Show plots:');
+    plotModeCheckboxes = gobjects(numel(plotModeOptions), 1);
+    plotModeCheckboxes(1) = uicontrol(hFig, 'Style', 'checkbox', 'Position', [390, ypos(3), 180, 20], ...
+        'String', plotModeOptions{1}, 'Value', 1);
+    plotModeCheckboxes(2) = uicontrol(hFig, 'Style', 'checkbox', 'Position', [390, ypos(3)-22, 180, 20], ...
+        'String', plotModeOptions{2}, 'Value', 0);
+    plotModeCheckboxes(3) = uicontrol(hFig, 'Style', 'checkbox', 'Position', [390, ypos(3)-44, 180, 20], ...
+        'String', plotModeOptions{3}, 'Value', 0);
+    plotModeCheckboxes(4) = uicontrol(hFig, 'Style', 'checkbox', 'Position', [390, ypos(3)-66, 180, 20], ...
+        'String', plotModeOptions{4}, 'Value', 0);
 
     windowEdit_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(4), 150, 20], ...
               'String', ['Window Size (' selectedUnit '):']);
@@ -156,6 +168,17 @@ function eventCrossCorrelationGUI()
         if isfield(eventcorrelation_settings, 'LabelB')
             set(labelBEdit, 'String', eventcorrelation_settings.LabelB);
         end
+        if isfield(eventcorrelation_settings, 'PlotModes')
+            for iMode = 1:numel(plotModeOptions)
+                set(plotModeCheckboxes(iMode), 'Value', any(strcmp(eventcorrelation_settings.PlotModes, plotModeOptions{iMode})));
+            end
+        elseif isfield(eventcorrelation_settings, 'PlotMode')
+            storedPlotMode = find(strcmp(plotModeOptions, eventcorrelation_settings.PlotMode), 1);
+            if ~isempty(storedPlotMode)
+                set(plotModeCheckboxes, 'Value', 0);
+                set(plotModeCheckboxes(storedPlotMode), 'Value', 1);
+            end
+        end
     end
     timeRangeCallback();
     % Попытка открыть последние использованные эвенты
@@ -199,6 +222,7 @@ function eventCrossCorrelationGUI()
         [~, nB, ~] = fileparts(eventB_filepath); set(eventB_filename_text, 'String', nB);
         updateRangeText(1);
         updateRangeText(2);
+        updateMuaButtonsVisibility();
     end
 
     function loadEventFile(eventNum)
@@ -239,6 +263,7 @@ function eventCrossCorrelationGUI()
             set(eventB_filename_text, 'String', filename_only);
             updateRangeText(2);
         end
+        updateMuaButtonsVisibility();
         if eventNum == 1
             eventcorrelation_settings.EventA_filepath = eventA_filepath;
             if ~isempty(selectedChannels)
@@ -429,35 +454,25 @@ function eventCrossCorrelationGUI()
     end
 
     function analyzeData(~, ~)
-        % Показываем "Analyzing ..." на осях
-        axes(ax1);
-        set(ax1, 'visible', 'on');
-        cla;
-        text(0.5, 0.5, 'Analyzing ...', 'HorizontalAlignment', 'center', ...
-             'VerticalAlignment', 'middle', 'FontSize', 14, 'Units', 'normalized');
-        axis off;
-        
-        axes(ax3);
-        set(ax3, 'visible', 'on');
-        cla;
-        text(0.5, 0.5, 'Analyzing ...', 'HorizontalAlignment', 'center', ...
-             'VerticalAlignment', 'middle', 'FontSize', 14, 'Units', 'normalized');
-        axis off;
-        
-        axes(ax4);
-        set(ax4, 'visible', 'on');
-        cla;
-        text(0.5, 0.5, 'Analyzing ...', 'HorizontalAlignment', 'center', ...
-             'VerticalAlignment', 'middle', 'FontSize', 14, 'Units', 'normalized');
-        axis off;
-
-        axes(ax5);
-        set(ax5, 'visible', 'on');
-        cla;
-        text(0.5, 0.5, 'Analyzing ...', 'HorizontalAlignment', 'center', ...
-             'VerticalAlignment', 'middle', 'FontSize', 14, 'Units', 'normalized');
-        axis off;
-        
+        selectedPlotMask = false(size(plotModeOptions));
+        for iMode = 1:numel(plotModeOptions)
+            selectedPlotMask(iMode) = get(plotModeCheckboxes(iMode), 'Value') == 1;
+        end
+        selectedPlotModes = plotModeOptions(selectedPlotMask);
+        if isempty(selectedPlotModes)
+            errordlg('Select at least one plot.', 'Error');
+            return;
+        end
+        clearPlotAxes();
+        for iMode = 1:numel(selectedPlotModes)
+            targetAxis = getAxisByPlotMode(selectedPlotModes{iMode});
+            axes(targetAxis);
+            set(targetAxis, 'visible', 'on');
+            cla;
+            text(0.5, 0.5, 'Analyzing ...', 'HorizontalAlignment', 'center', ...
+                 'VerticalAlignment', 'middle', 'FontSize', 14, 'Units', 'normalized');
+            axis off;
+        end
         drawnow;
         
         normalize = get(normalizeCheckbox, 'Value');
@@ -503,245 +518,181 @@ function eventCrossCorrelationGUI()
             end
         end
 
-        % Compute histograms of events with common edges
-        minTime = min([min(ev1), min(ev2)]);
-        maxTime = max([max(ev1), max(ev2)]);
-        fprintf('[eventCrossCorrelationGUI debug] binSize=%g, minTime=%g, maxTime=%g\n', binSize, minTime, maxTime);
-        maxTimeForEdges = max(maxTime, minTime + binSize);
-        edges = minTime:binSize:maxTimeForEdges;
-        fprintf('[eventCrossCorrelationGUI debug] edgesCount=%d\n', numel(edges));
-        eventHist1 = histcounts(ev1, edges, 'Normalization', 'count');
-        eventHist2 = histcounts(ev2, edges, 'Normalization', 'count');
-
-        % Compute cross-correlation
-        if normalize
-            [crossCorr, lags] = xcorr(eventHist1, eventHist2, 'normalized');
-        else
-            [crossCorr, lags] = xcorr(eventHist1, eventHist2);
-        end
-
-        % Convert lags to time in seconds
-        sampleRate = 1 / binSize;
-        lagTimes = lags / sampleRate;
-
         % Единое ограничение оси X для всех графиков (в секундах)
         Xlims_seconds = [-windowSize/2, windowSize/2];
         
         % Конвертируем в единицы отображения
         Xlims = Xlims_seconds * timeUnitFactor;
-        lagTimes_scaled = lagTimes * timeUnitFactor;
         % Ноль оси = события B (время A относительно B)
         xAxisLabel = ['Time ' labelB ' (' selectedUnit ')'];
+        amplitudeTest = struct('nA', NaN, 'nB', NaN, 'pvalue', NaN, 'tstat', NaN);
+        rel_times = [];
+        rel_times_scaled = [];
+        lagTimes_scaled = [];
+        crossCorr = [];
 
-        % Trim the cross-correlation result to the specified window size
-        validIndices = abs(lagTimes) <= windowSize / 2;
-        lagTimes_scaled = lagTimes_scaled(validIndices);
-        crossCorr = crossCorr(validIndices);
-
-        if normalize
-            crossCorrToPlot = crossCorr * 100;
-            crossCorrYLabel = 'Cross-Correlation (%)';
-        else
+        if any(strcmp(selectedPlotModes, 'Cross-Correlation'))
+            minTime = min([min(ev1), min(ev2)]);
+            maxTime = max([max(ev1), max(ev2)]);
+            maxTimeForEdges = max(maxTime, minTime + binSize);
+            edges = minTime:binSize:maxTimeForEdges;
+            eventHist1 = histcounts(ev1, edges, 'Normalization', 'count');
+            eventHist2 = histcounts(ev2, edges, 'Normalization', 'count');
+            if normalize
+                [crossCorrRaw, lags] = xcorr(eventHist1, eventHist2, 'normalized');
+            else
+                [crossCorrRaw, lags] = xcorr(eventHist1, eventHist2);
+            end
+            lagTimes = lags * binSize;
+            lagTimes_scaled = lagTimes * timeUnitFactor;
+            validIndices = abs(lagTimes) <= windowSize / 2;
+            lagTimes_scaled = lagTimes_scaled(validIndices);
+            crossCorr = crossCorrRaw(validIndices);
             crossCorrToPlot = crossCorr;
             crossCorrYLabel = 'Cross-Correlation';
-        end
-
-        % Plot the cross-correlation result on ax1 (столбиками по бинам)
-        axes(ax1);
-        set(ax1, 'visible', 'on');
-        cla; hold on;
-        bar(lagTimes_scaled, crossCorrToPlot, 1, 'FaceColor', [0 0 0.8], 'EdgeColor', [0 0 0.6]);
-        xline(0, 'r:');
-        xlabel(xAxisLabel);
-        ylabel(crossCorrYLabel);
-        title(sprintf('Cross-Corr. %s rel. %s', labelA, labelB));
-        xlim(Xlims);
-        grid on;
-        set(ax1, 'XColor', [1 0 0]);
-        hold off;
-        
-        % Вычисляем относительное время событий (ev1 относительно ближайших ev2)
-        rel_times = [];
-        for i = 1:length(ev1)
-            event_time = ev1(i);
-            [~, closest_idx] = min(abs(ev2 - event_time));
-            closest_event2 = ev2(closest_idx);
-            rel_time = event_time - closest_event2;
-            rel_times = [rel_times; rel_time];
-        end
-        
-        % Конвертируем относительные времена в единицы отображения
-        rel_times_scaled = rel_times * timeUnitFactor;
-        
-        % Debug: диапазон данных и ограничение по окну (ev1 относительно ev2 = имена файлов A/B)
-        rel_min = min(rel_times_scaled);
-        rel_max = max(rel_times_scaled);
-        nInWindow = sum(rel_times_scaled >= Xlims(1) & rel_times_scaled <= Xlims(2));
-        nBelow = sum(rel_times_scaled < Xlims(1));
-        nAbove = sum(rel_times_scaled > Xlims(2));
-        [~, name1, ~] = fileparts(eventA_filepath);
-        [~, name2, ~] = fileparts(eventB_filepath);
-        fprintf('[eventCrossCorrelation] %s relative to %s: n=%d, rel_times range [%.2f, %.2f] %s\n', name1, name2, length(rel_times_scaled), rel_min, rel_max, selectedUnit);
-        fprintf('  Window Xlims [%.2f, %.2f] %s: inside=%d, below=%d, above=%d\n', Xlims(1), Xlims(2), selectedUnit, nInWindow, nBelow, nAbove);
-        
-        % Строим боксплот на ax3
-        axes(ax3);
-        set(ax3, 'visible', 'on');
-        cla; hold on;
-
-        % Outlier markers прячем, а данные для boxplot оставляем оригинальные
-        boxplot(rel_times_scaled, 'Orientation', 'horizontal', 'Symbol', '');
-        hBox = findobj(gca, 'Tag', 'Box');
-        set(hBox, 'Color', [0 0 0.8]);
-        hold on;
-        
-        % Добавляем точки данных с небольшим jitter по вертикали, смещенные ниже боксплота (A — синий)
-        y_jitter = 0.5 + 0.15 * (rand(size(rel_times_scaled)) - 0.5);
-        scatter(rel_times_scaled, y_jitter, 20, [0 0 0.8], '.', 'MarkerFaceAlpha', 0.6);
-        
-        xlabel(xAxisLabel);
-        ylabel('Events');
-        title(sprintf('Event %s timing rel. %s (n=%d)', labelA, labelB, length(rel_times)));
-        
-        % Ограничиваем X по adjacent (whisker) значениям, чтобы outliers не влияли на масштаб
-        q1 = prctile(rel_times_scaled, 25);
-        q3 = prctile(rel_times_scaled, 75);
-        iqr = q3 - q1;
-        lowBound = q1 - 1.5 * iqr;
-        highBound = q3 + 1.5 * iqr;
-        lowAdj = min([rel_times_scaled(rel_times_scaled >= lowBound); lowBound]);
-        highAdj = max([rel_times_scaled(rel_times_scaled <= highBound); highBound]);
-        xlimCandidate = [max(Xlims(1), lowAdj), min(Xlims(2), highAdj)];
-        xLeft = min(xlimCandidate);
-        xRight = max(xlimCandidate);
-        xPad = max(eps(max(abs(xlimCandidate))), binSize * timeUnitFactor);
-        boxplotXLim = [xLeft, xRight + (xRight == xLeft) * xPad];
-        xlim(ax3, boxplotXLim);
-        grid on;
-        set(ax3, 'XColor', [1 0 0]);
-        hold off;
-        
-        % Строим гистограмму на ax4 с использованием BinSize
-        axes(ax4);
-        set(ax4, 'visible', 'on');
-        cla; hold on;
-        
-        % Используем BinSize для создания edges гистограммы
-        binSize_scaled = binSize * timeUnitFactor; % BinSize в единицах отображения
-        edges_hist = Xlims(1):binSize_scaled:Xlims(2);
-        histogram(rel_times_scaled, edges_hist, 'Normalization', 'probability', 'FaceColor', [0 0 0.8], 'EdgeColor', [0 0 0.6]);
-        
-        xlabel(xAxisLabel);
-        ylabel('Probability');
-        title('Distr. of rel. event times');
-        xlim(ax4, boxplotXLim);
-        grid on;
-        set(ax4, 'XColor', [1 0 0]);
-        hold off;
-
-        % Сравнение амплитуд A vs B (если амплитуды есть в событиях)
-        axes(ax5);
-        set(ax5, 'visible', 'on');
-        cla;
-        hold on;
-        
-        ampA = amp1(:);
-        ampB = amp2(:);
-        validAmpA = ampA(~isnan(ampA) & ~isinf(ampA));
-        validAmpB = ampB(~isnan(ampB) & ~isinf(ampB));
-        
-        amplitudeTest = struct('nA', numel(validAmpA), 'nB', numel(validAmpB), ...
-            'pvalue', NaN, 'tstat', NaN);
-        
-        ampColorA = [0 0 0.8];
-        ampColorB = [1 0 0];
-        
-        if ~isempty(validAmpA) && ~isempty(validAmpB)
-            % Данные для boxplot оставляем исходные (без клиппинга)
-            ampData = [validAmpA; validAmpB];
-            ampGroups = [ones(numel(validAmpA), 1); 2 * ones(numel(validAmpB), 1)];
-            
-            % Outlier markers прячем, но масштаб ограничим отдельно по whisker-границам
-            boxplot(ampData, ampGroups, 'Labels', {labelA, labelB}, 'Symbol', '');
-
-            % Точки наблюдений поверх боксов (с jitter по X)
-            jitterX = 0.12 * (rand(size(ampData)) - 0.5);
-            xPoints = ampGroups + jitterX;
-            pointColors = zeros(numel(ampData), 3);
-            pointColors(ampGroups == 1, :) = repmat(ampColorA, sum(ampGroups == 1), 1);
-            pointColors(ampGroups == 2, :) = repmat(ampColorB, sum(ampGroups == 2), 1);
-            for iPt = 1:numel(ampData)
-                scatter(xPoints(iPt), ampData(iPt), 20, pointColors(iPt, :), '.', ...
-                    'MarkerFaceAlpha', 0.6, 'MarkerEdgeAlpha', 0.9);
+            if normalize
+                crossCorrToPlot = crossCorr * 100;
+                crossCorrYLabel = 'Cross-Correlation (%)';
             end
-            
-            % Раскрашиваем боксы в соответствующие цвета A/B
-            hBoxes = findobj(gca, 'Tag', 'Box');
-            if numel(hBoxes) >= 2
-                xMeans = zeros(numel(hBoxes), 1);
-                for i = 1:numel(hBoxes)
-                    xData = get(hBoxes(i), 'XData');
-                    if isempty(xData)
-                        vertices = get(hBoxes(i), 'Vertices');
-                        if ~isempty(vertices)
-                            xMeans(i) = mean(vertices(:, 1));
-                        else
-                            xMeans(i) = NaN;
-                        end
-                    else
-                        xMeans(i) = mean(xData);
-                    end
-                end
-                [~, order] = sort(xMeans);
-                hBoxes = hBoxes(order);
-                
-                set(hBoxes(1), 'Color', ampColorA, 'LineWidth', 1.2);
-                set(hBoxes(2), 'Color', ampColorB, 'LineWidth', 1.2);
-            end
-            
-            % Ограничиваем Y по adjacent (whisker) значениям, чтобы outliers не влияли на масштаб
-            q1A = prctile(validAmpA, 25);
-            q3A = prctile(validAmpA, 75);
-            iqrA = q3A - q1A;
-            lowBoundA = q1A - 1.5 * iqrA;
-            highBoundA = q3A + 1.5 * iqrA;
-            lowAdjA = min([validAmpA(validAmpA >= lowBoundA); lowBoundA]);
-            highAdjA = max([validAmpA(validAmpA <= highBoundA); highBoundA]);
-            
-            q1B = prctile(validAmpB, 25);
-            q3B = prctile(validAmpB, 75);
-            iqrB = q3B - q1B;
-            lowBoundB = q1B - 1.5 * iqrB;
-            highBoundB = q3B + 1.5 * iqrB;
-            lowAdjB = min([validAmpB(validAmpB >= lowBoundB); lowBoundB]);
-            highAdjB = max([validAmpB(validAmpB <= highBoundB); highBoundB]);
-            
-            ylim(ax5, [min([lowAdjA lowAdjB]) max([highAdjA highAdjB])]);
 
-            xlabel('Group');
-            ylabel('Amplitude');
-            title(sprintf('Amplitude comparison %s vs %s', labelA, labelB));
+            axes(ax1);
+            set(ax1, 'visible', 'on');
+            cla; hold on;
+            bar(lagTimes_scaled, crossCorrToPlot, 1, 'FaceColor', [0 0 0.8], 'EdgeColor', [0 0 0.6]);
+            xline(0, 'r:');
+            xlabel(xAxisLabel);
+            ylabel(crossCorrYLabel);
+            title(sprintf('Cross-Corr. %s rel. %s', labelA, labelB));
+            xlim(Xlims);
             grid on;
-            
-            % Статистика: независимый t-test2
-            try
-                [~, pvalue, ~, stats] = ttest2(validAmpA, validAmpB);
-                amplitudeTest.pvalue = pvalue;
-                if isfield(stats, 'tstat')
-                    amplitudeTest.tstat = stats.tstat;
-                end
-            catch
-            end
-            
-            txt = sprintf('p=%.4g, t=%.3f', amplitudeTest.pvalue, amplitudeTest.tstat);
-            text(0.5, 0.98, txt, 'Units', 'normalized', ...
-                'HorizontalAlignment', 'center', 'VerticalAlignment', 'top', ...
-                'FontSize', 9, 'BackgroundColor', 'w');
-        else
-            set(ax5, 'visible', 'off');
+            set(ax1, 'XColor', [1 0 0]);
+            hold off;
         end
-        
-        hold off;
+
+        if any(strcmp(selectedPlotModes, 'Timing Boxplot')) || any(strcmp(selectedPlotModes, 'Timing Histogram'))
+            rel_times = computeRelativeTimes(ev1, ev2);
+            rel_times_scaled = rel_times * timeUnitFactor;
+            boxplotXLim = computeWhiskerLimitedXLim(rel_times_scaled, Xlims, binSize * timeUnitFactor);
+
+            if any(strcmp(selectedPlotModes, 'Timing Boxplot'))
+                axes(ax3);
+                set(ax3, 'visible', 'on');
+                cla; hold on;
+                boxplot(rel_times_scaled, 'Orientation', 'horizontal', 'Symbol', '');
+                hBox = findobj(gca, 'Tag', 'Box');
+                set(hBox, 'Color', [0 0 0.8]);
+                y_jitter = 0.5 + 0.15 * (rand(size(rel_times_scaled)) - 0.5);
+                scatter(rel_times_scaled, y_jitter, 20, [0 0 0.8], '.', 'MarkerFaceAlpha', 0.6);
+                xlabel(xAxisLabel);
+                ylabel('Events');
+                title(sprintf('Event %s timing rel. %s (n=%d)', labelA, labelB, length(rel_times)));
+                xlim(ax3, boxplotXLim);
+                grid on;
+                set(ax3, 'XColor', [1 0 0]);
+                hold off;
+            end
+
+            if any(strcmp(selectedPlotModes, 'Timing Histogram'))
+                axes(ax4);
+                set(ax4, 'visible', 'on');
+                cla; hold on;
+                binSize_scaled = binSize * timeUnitFactor;
+                edges_hist = Xlims(1):binSize_scaled:Xlims(2);
+                histogram(rel_times_scaled, edges_hist, 'Normalization', 'probability', 'FaceColor', [0 0 0.8], 'EdgeColor', [0 0 0.6]);
+                xlabel(xAxisLabel);
+                ylabel('Probability');
+                title('Distr. of rel. event times');
+                xlim(ax4, boxplotXLim);
+                grid on;
+                set(ax4, 'XColor', [1 0 0]);
+                hold off;
+            end
+        end
+
+        if any(strcmp(selectedPlotModes, 'Amplitude Comparison'))
+            axes(ax5);
+            set(ax5, 'visible', 'on');
+            cla;
+            hold on;
+
+            ampA = amp1(:);
+            ampB = amp2(:);
+            validAmpA = ampA(~isnan(ampA) & ~isinf(ampA));
+            validAmpB = ampB(~isnan(ampB) & ~isinf(ampB));
+            amplitudeTest.nA = numel(validAmpA);
+            amplitudeTest.nB = numel(validAmpB);
+            ampColorA = [0 0 0.8];
+            ampColorB = [1 0 0];
+
+            hasAmplitudeData = ~isempty(validAmpA) && ~isempty(validAmpB);
+            if hasAmplitudeData
+                ampData = [validAmpA; validAmpB];
+                ampGroups = [ones(numel(validAmpA), 1); 2 * ones(numel(validAmpB), 1)];
+                boxplot(ampData, ampGroups, 'Labels', {labelA, labelB}, 'Symbol', '');
+
+                hBoxes = findobj(gca, 'Tag', 'Box');
+                if numel(hBoxes) >= 2
+                    xMeans = zeros(numel(hBoxes), 1);
+                    for i = 1:numel(hBoxes)
+                        xData = get(hBoxes(i), 'XData');
+                        if isempty(xData)
+                            vertices = get(hBoxes(i), 'Vertices');
+                            if ~isempty(vertices)
+                                xMeans(i) = mean(vertices(:, 1));
+                            else
+                                xMeans(i) = NaN;
+                            end
+                        else
+                            xMeans(i) = mean(xData);
+                        end
+                    end
+                    [~, order] = sort(xMeans);
+                    hBoxes = hBoxes(order);
+                    set(hBoxes(1), 'Color', ampColorA, 'LineWidth', 1.2);
+                    set(hBoxes(2), 'Color', ampColorB, 'LineWidth', 1.2);
+                end
+
+                q1A = prctile(validAmpA, 25);
+                q3A = prctile(validAmpA, 75);
+                iqrA = q3A - q1A;
+                lowBoundA = q1A - 1.5 * iqrA;
+                highBoundA = q3A + 1.5 * iqrA;
+                lowAdjA = min([validAmpA(validAmpA >= lowBoundA); lowBoundA]);
+                highAdjA = max([validAmpA(validAmpA <= highBoundA); highBoundA]);
+
+                q1B = prctile(validAmpB, 25);
+                q3B = prctile(validAmpB, 75);
+                iqrB = q3B - q1B;
+                lowBoundB = q1B - 1.5 * iqrB;
+                highBoundB = q3B + 1.5 * iqrB;
+                lowAdjB = min([validAmpB(validAmpB >= lowBoundB); lowBoundB]);
+                highAdjB = max([validAmpB(validAmpB <= highBoundB); highBoundB]);
+                ylim(ax5, [min([lowAdjA lowAdjB]) max([highAdjA highAdjB])]);
+
+                xlabel('Group');
+                ylabel('Amplitude');
+                title(sprintf('Amplitude comparison %s vs %s', labelA, labelB));
+                grid on;
+
+                try
+                    [~, pvalue, ~, stats] = ttest2(validAmpA, validAmpB);
+                    amplitudeTest.pvalue = pvalue;
+                    if isfield(stats, 'tstat')
+                        amplitudeTest.tstat = stats.tstat;
+                    end
+                catch
+                end
+
+                txt = sprintf('p=%.4g, t=%.3f', amplitudeTest.pvalue, amplitudeTest.tstat);
+                text(0.5, 0.98, txt, 'Units', 'normalized', ...
+                    'HorizontalAlignment', 'center', 'VerticalAlignment', 'top', ...
+                    'FontSize', 9, 'BackgroundColor', 'w');
+            else
+                set(ax5, 'visible', 'off');
+            end
+
+            hold off;
+        end
         
         % Сохранение настроек после анализа (в секундах)
         eventcorrelation_settings.Normalize = get(normalizeCheckbox, 'Value');
@@ -756,9 +707,14 @@ function eventCrossCorrelationGUI()
         eventcorrelation_settings.EventB_filepath = eventB_filepath;
         eventcorrelation_settings.LabelA = labelA;
         eventcorrelation_settings.LabelB = labelB;
+        eventcorrelation_settings.PlotModes = selectedPlotModes;
+        eventcorrelation_settings.PlotMode = selectedPlotModes{1};
         save(SettingsFilepath, 'eventcorrelation_settings', '-append');
         
         % Сохраняем результаты для возможности сохранения
+        correlation_result = struct();
+        correlation_result.plotModes = selectedPlotModes;
+        correlation_result.plotMode = selectedPlotModes{1};
         correlation_result.crossCorr = crossCorr;
         correlation_result.lagTimes = lagTimes_scaled;
         correlation_result.rel_times = rel_times_scaled;
@@ -790,6 +746,61 @@ function eventCrossCorrelationGUI()
         
         % Создаем кнопки сохранения после анализа
         createSaveButtons();
+    end
+
+    function targetAxis = getAxisByPlotMode(plotMode)
+        switch plotMode
+            case 'Cross-Correlation'
+                targetAxis = ax1;
+            case 'Timing Boxplot'
+                targetAxis = ax3;
+            case 'Timing Histogram'
+                targetAxis = ax4;
+            case 'Amplitude Comparison'
+                targetAxis = ax5;
+        end
+    end
+
+    function clearPlotAxes()
+        axesList = [ax1, ax3, ax4, ax5];
+        for iAx = 1:numel(axesList)
+            cla(axesList(iAx));
+            axis(axesList(iAx), 'on');
+            set(axesList(iAx), 'visible', 'off');
+        end
+    end
+
+    function rel_times = computeRelativeTimes(ev1Input, ev2Input)
+        rel_times = zeros(length(ev1Input), 1);
+        for i = 1:length(ev1Input)
+            [~, closest_idx] = min(abs(ev2Input - ev1Input(i)));
+            rel_times(i) = ev1Input(i) - ev2Input(closest_idx);
+        end
+    end
+
+    function xLimResult = computeWhiskerLimitedXLim(dataScaled, xLimBase, padStep)
+        q1 = prctile(dataScaled, 25);
+        q3 = prctile(dataScaled, 75);
+        iqrValue = q3 - q1;
+        lowBound = q1 - 1.5 * iqrValue;
+        highBound = q3 + 1.5 * iqrValue;
+        lowAdj = min([dataScaled(dataScaled >= lowBound); lowBound]);
+        highAdj = max([dataScaled(dataScaled <= highBound); highBound]);
+        xlimCandidate = [max(xLimBase(1), lowAdj), min(xLimBase(2), highAdj)];
+        xLeft = min(xlimCandidate);
+        xRight = max(xlimCandidate);
+        xPad = max(eps(max(abs(xlimCandidate))), padStep);
+        xLimResult = [xLeft, xRight + (xRight == xLeft) * xPad];
+    end
+
+    function updateMuaButtonsVisibility()
+        set(changeMuaButtonA, 'Visible', onOff(isMuaFile(eventA_filepath)));
+        set(changeMuaButtonB, 'Visible', onOff(isMuaFile(eventB_filepath)));
+    end
+
+    function result = isMuaFile(filepath)
+        [~, ~, ext] = fileparts(filepath);
+        result = strcmpi(ext, '.mua');
     end
     
     function createSaveButtons()
