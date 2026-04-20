@@ -82,6 +82,27 @@ function nlx_to_zav_streaming(recordPath, zavFilePath, channels_list, ncsFilePat
     end
 
     hd.chNumList = channels_list(:)';
+    hd.nADCNumChannels = channels_n;
+
+    hd.recChNames = reshape(hd.recChNames, 1, []);
+    hd.recChUnits = reshape(hd.recChUnits, 1, []);
+    hd.adBitVolts = hd.adBitVolts(:);
+    hd.dspDelay_mks = hd.dspDelay_mks(:);
+    hd.adBitVoltsSpk = hd.adBitVoltsSpk(:);
+    hd.dspDelay_mksSpk = hd.dspDelay_mksSpk(:);
+    hd.alignmentPt = hd.alignmentPt(:);
+    hd.inverted = hd.inverted(:);
+    hd.ch_si = hd.ch_si(:);
+
+    hd.recChNames = hd.recChNames(1:channels_n);
+    hd.recChUnits = hd.recChUnits(1:channels_n);
+    hd.adBitVolts = hd.adBitVolts(1:channels_n);
+    hd.dspDelay_mks = hd.dspDelay_mks(1:channels_n);
+    hd.adBitVoltsSpk = hd.adBitVoltsSpk(1:channels_n);
+    hd.dspDelay_mksSpk = hd.dspDelay_mksSpk(1:channels_n);
+    hd.alignmentPt = hd.alignmentPt(1:channels_n);
+    hd.inverted = hd.inverted(1:channels_n);
+    hd.ch_si = hd.ch_si(1:channels_n);
 
     updateWaitbar(0.95, 'Finalizing data...');
     lfpVar = np_flatten(lfpVar)';

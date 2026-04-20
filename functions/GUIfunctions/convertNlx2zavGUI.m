@@ -271,7 +271,7 @@ function convertNlx2zavGUI
     end
 
     function deselectEmptyChannels(~, ~)
-        % Снимает выделение с каналов, у которых файл 16 КБ (пустой)
+        % Снимает выделение с каналов, у которых файл <= 128 КБ (пустой)
         if isempty(channelBytes)
             return;
         end
@@ -279,7 +279,7 @@ function convertNlx2zavGUI
         if isempty(channelData)
             return;
         end
-        emptyThreshold = 16 * 1024;
+        emptyThreshold = 128 * 1024;
         for i = 1:min(size(channelData, 1), numel(channelBytes))
             if channelBytes(i) <= emptyThreshold
                 channelData{i, 1} = false;

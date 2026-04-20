@@ -179,6 +179,9 @@ if length(lfp_dims) >= 3
     p = lfp_dims(3);
 end
 
+% Приводим метаданные каналов к фактическому числу каналов в lfp
+hd = normalize_channel_metadata(hd, n);
+
 % Обработка свипов и создание lfp_file
 if p > 1 % случай со свипами
     waitbar(0.3, hWaitBar, sprintf('Processing %d sweeps...', p));
@@ -306,7 +309,7 @@ end
 % Вывод информации о каналах
 fprintf('Number of channels: %d\n', n);
 fprintf('Channel names: ');
-for i = 1:min(5, n)
+for i = 1:min(5, numel(hd.recChNames))
     fprintf('%s ', hd.recChNames{i});
 end
 if n > 5
@@ -363,6 +366,39 @@ if condition
 else
     result = false_value;
 end
+end
+
+function hd = normalize_channel_metadata(hd, n)
+if ~isfield(hd, 'recChNames') || isempty(hd.recChNames)
+    hd.recChNames = cell(1, n);
+else
+    if iscell(hd.recChNames)
+        hd.recChNames = reshape(hd.recChNames, 1, []);
+    else
+        hd.recChNames = reshape(cellstr(hd.recChNames), 1, []);
+    end
+end
+
+names_count = numel(hd.recChNames);
+if names_count < n
+    if isfield(hd, 'chNumList') && ~isempty(hd.chNumList)
+        ch_numbers = reshape(hd.chNumList, 1, []);
+    else
+        ch_numbers = 1:n;
+    end
+    for idx = (names_count + 1):n
+        if idx <= numel(ch_numbers)
+            hd.recChNames{idx} = sprintf('CSC%d', ch_numbers(idx));
+        else
+            hd.recChNames{idx} = sprintf('Channel_%d', idx);
+        end
+    end
+end
+if numel(hd.recChNames) > n
+    hd.recChNames = hd.recChNames(1:n);
+end
+
+hd.nADCNumChannels = n;
 end
 
 function [events, event_comments, event_amplitudes, event_channels, event_widths, event_prominences, event_metadata, event_indices] = load_events_from_file(filepath, time)

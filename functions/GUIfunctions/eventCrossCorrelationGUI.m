@@ -350,7 +350,10 @@ function eventCrossCorrelationGUI()
         % Compute histograms of events with common edges
         minTime = min([min(ev1), min(ev2)]);
         maxTime = max([max(ev1), max(ev2)]);
-        edges = minTime:binSize:maxTime;
+        fprintf('[eventCrossCorrelationGUI debug] binSize=%g, minTime=%g, maxTime=%g\n', binSize, minTime, maxTime);
+        maxTimeForEdges = max(maxTime, minTime + binSize);
+        edges = minTime:binSize:maxTimeForEdges;
+        fprintf('[eventCrossCorrelationGUI debug] edgesCount=%d\n', numel(edges));
         eventHist1 = histcounts(ev1, edges, 'Normalization', 'count');
         eventHist2 = histcounts(ev2, edges, 'Normalization', 'count');
 
@@ -444,7 +447,11 @@ function eventCrossCorrelationGUI()
         highBound = q3 + 1.5 * iqr;
         lowAdj = min([rel_times_scaled(rel_times_scaled >= lowBound); lowBound]);
         highAdj = max([rel_times_scaled(rel_times_scaled <= highBound); highBound]);
-        xlim(ax3, [max(Xlims(1), lowAdj) min(Xlims(2), highAdj)]);
+        xlimCandidate = [max(Xlims(1), lowAdj), min(Xlims(2), highAdj)];
+        xLeft = min(xlimCandidate);
+        xRight = max(xlimCandidate);
+        xPad = max(eps(max(abs(xlimCandidate))), binSize * timeUnitFactor);
+        xlim(ax3, [xLeft, xRight + (xRight == xLeft) * xPad]);
         grid on;
         set(ax3, 'XColor', [1 0 0]);
         hold off;
