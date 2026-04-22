@@ -151,12 +151,16 @@ end
 if isfield(opts, 'csd_hp_cutoff_hz')
     params.csd_hp_cutoff_hz = max(0, double(opts.csd_hp_cutoff_hz));
 else
-    params.csd_hp_cutoff_hz = 0;
+    params.csd_hp_cutoff_hz = 100;
 end
 if isfield(opts, 'csd_baseline_boundary')
     params.csd_baseline_boundary = double(opts.csd_baseline_boundary);
 else
-    params.csd_baseline_boundary = 0;
+    if ~isempty(params.customXLimits) && numel(params.customXLimits) == 2
+        params.csd_baseline_boundary = params.customXLimits(1) / 2;
+    else
+        params.csd_baseline_boundary = (-time_back * timeUnitFactor) / 2;
+    end
 end
 
 % Убираем артефакт стимуляции в окне усреднения
@@ -368,19 +372,21 @@ savebutton = uicontrol('Parent', figureHandleOut, 'Style', 'pushbutton', 'String
 btnIcon(savebutton, fullfile(getAssetsPath(), 'data-storage.png'), false)
 contrast_text_coords = [55, 7, 40, 20];
 contrast_edit_coords = [95, 7, 50, 20];
-contrast_slider_coords = [150, 9, 120, 18];
+contrast_slider_coords = [150, 9, 105, 18];
 hp_text_coords = [280, 7, 38, 20];
 hp_edit_coords = [318, 7, 45, 20];
-hp_slider_coords = [365, 9, 105, 18];
+hp_slider_coords = [365, 9, 86, 18];
+hp_active_checkbox_coords = [455, 9, 16, 18];
 baseline_text_coords = [475, 7, 55, 20];
 baseline_edit_coords = [530, 7, 50, 20];
-baseline_slider_coords = [582, 9, 105, 18];
+baseline_slider_coords = [582, 9, 95, 18];
 xmin_text_coords = [690, 7, 40, 20];
 xmin_edit_coords = [730, 7, 55, 20];
 xmax_text_coords = [790, 7, 40, 20];
 xmax_edit_coords = [830, 7, 55, 20];
-contrastCoefMin = 0.1;
-contrastCoefMax = 10;
+mua_trace_checkbox_coords = [890, 7, 120, 20];
+contrastCoefMin = 10;
+contrastCoefMax = 1000;
 contrastSliderMax = 100;
 hpSliderMax = 100;
 minHpCutoff = 0.01;
@@ -391,6 +397,8 @@ contrastSlider = [];
 hpLabel = [];
 hpEdit = [];
 hpSlider = [];
+hpActiveCheckbox = [];
+hpFilterEnabled = true;
 baselineLabel = [];
 baselineEdit = [];
 baselineSlider = [];
@@ -398,18 +406,20 @@ xMinLabel = [];
 xMinEdit = [];
 xMaxLabel = [];
 xMaxEdit = [];
+muaTraceWhiteCheckbox = [];
+useWhiteTracesInMua = true;
 refreshDebounceTimer = [];
 refreshDebounceDelay = 0.18;
 currentXlims = Xlims;
-currentHpCutoff = minHpCutoff;
-currentBaselineBoundary = 0;
+currentHpCutoff = 100;
+currentBaselineBoundary = currentXlims(1) / 2;
 if isfield(calculationResultOut, 'csd_hp_cutoff_hz')
     currentHpCutoff = calculationResultOut.csd_hp_cutoff_hz;
 end
 if isfield(calculationResultOut, 'csd_baseline_boundary')
     currentBaselineBoundary = calculationResultOut.csd_baseline_boundary;
 end
-maxHpCutoff = 10;
+maxHpCutoff = 500;
 [contrastCenter, contrastHalfSpan] = resolveContrastBaseline();
 createContrastControls();
 createPreCsdControls();
@@ -482,9 +492,9 @@ function createContrastControls()
 if contrastHalfSpan <= 0
     return
 end
-initialCoef = 1;
+initialCoef = defaultContrastPercent();
 initialSliderValue = sliderFromCoef(initialCoef);
-contrastLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'Contrast', ...
+contrastLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'Contrast, %', ...
     'Position', contrast_text_coords, 'HorizontalAlignment', 'left');
 contrastEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', 'String', num2str(initialCoef, '%.3g'), ...
     'BackgroundColor', 'white', 'Position', contrast_edit_coords, 'Callback', @ContrastEditClb);
@@ -519,6 +529,9 @@ hpEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', ...
 hpSlider = uicontrol('Parent', figureHandleOut, 'Style', 'slider', ...
     'Min', 0, 'Max', hpSliderMax, 'Value', hpSliderFromValue(currentHpCutoff), ...
     'Position', hp_slider_coords, 'Callback', @HpSliderClb);
+hpActiveCheckbox = uicontrol('Parent', figureHandleOut, 'Style', 'checkbox', ...
+    'String', '', 'Value', double(hpFilterEnabled), ...
+    'Position', hp_active_checkbox_coords, 'Callback', @HpActiveCheckboxClb);
 
 baselineLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'Base to', ...
     'Position', baseline_text_coords, 'HorizontalAlignment', 'left');
@@ -539,6 +552,11 @@ xMaxLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'X m
 xMaxEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', ...
     'String', num2str(currentXlims(2), '%.6g'), 'BackgroundColor', 'white', ...
     'Position', xmax_edit_coords, 'Callback', @XlimEditClb);
+muaTraceWhiteCheckbox = uicontrol('Parent', figureHandleOut, 'Style', 'checkbox', ...
+    'String', 'white traces', 'Value', double(useWhiteTracesInMua), ...
+    'Position', mua_trace_checkbox_coords, 'Callback', @MuaTraceWhiteCheckboxClb);
+set(muaTraceWhiteCheckbox, 'Visible', ternaryVisibility(isfield(calculationResultOut, 'show_spikes') && calculationResultOut.show_spikes && ...
+    (~isfield(calculationResultOut, 'show_CSD') || ~calculationResultOut.show_CSD)));
 
 syncPreCsdControls();
 applyXlimToAxes();
@@ -547,7 +565,7 @@ end
 
 function deletePreCsdControls()
 cancelDebouncedRefresh();
-handles = {hpLabel, hpEdit, hpSlider, baselineLabel, baselineEdit, baselineSlider, xMinLabel, xMinEdit, xMaxLabel, xMaxEdit};
+handles = {hpLabel, hpEdit, hpSlider, baselineLabel, baselineEdit, baselineSlider, xMinLabel, xMinEdit, xMaxLabel, xMaxEdit, muaTraceWhiteCheckbox};
 for idx = 1:numel(handles)
     h = handles{idx};
     if ~isempty(h) && isgraphics(h, 'uicontrol')
@@ -557,6 +575,7 @@ end
 hpLabel = [];
 hpEdit = [];
 hpSlider = [];
+hpActiveCheckbox = [];
 baselineLabel = [];
 baselineEdit = [];
 baselineSlider = [];
@@ -564,10 +583,17 @@ xMinLabel = [];
 xMinEdit = [];
 xMaxLabel = [];
 xMaxEdit = [];
+muaTraceWhiteCheckbox = [];
 end
 
 function HpSliderClb(~, ~)
 currentHpCutoff = hpValueFromSlider(get(hpSlider, 'Value'));
+syncPreCsdControls();
+requestDebouncedRefresh();
+end
+
+function HpActiveCheckboxClb(src, ~)
+hpFilterEnabled = logical(get(src, 'Value'));
 syncPreCsdControls();
 requestDebouncedRefresh();
 end
@@ -617,10 +643,12 @@ applyXlimToAxes();
 requestDebouncedRefresh();
 end
 
-function requestDebouncedRefresh()
-if ~isfield(calculationResultOut, 'show_CSD') || ~calculationResultOut.show_CSD
-    return
+function MuaTraceWhiteCheckboxClb(src, ~)
+useWhiteTracesInMua = logical(get(src, 'Value'));
+requestDebouncedRefresh();
 end
+
+function requestDebouncedRefresh()
 try
     if isempty(refreshDebounceTimer) || ~isvalid(refreshDebounceTimer)
         refreshDebounceTimer = timer('ExecutionMode', 'singleShot', ...
@@ -648,16 +676,24 @@ refreshDebounceTimer = [];
 end
 
 function syncPreCsdControls()
+if ~isempty(hpActiveCheckbox) && isgraphics(hpActiveCheckbox, 'uicontrol')
+    set(hpActiveCheckbox, 'Value', double(hpFilterEnabled));
+end
+enabledState = ternaryEnable(hpFilterEnabled);
 if ~isempty(hpEdit) && isgraphics(hpEdit, 'uicontrol')
+    set(hpEdit, 'Enable', enabledState);
     set(hpEdit, 'String', sprintf('%.2f', currentHpCutoff));
 end
 if ~isempty(hpSlider) && isgraphics(hpSlider, 'uicontrol')
+    set(hpSlider, 'Enable', enabledState);
     set(hpSlider, 'Value', hpSliderFromValue(currentHpCutoff));
 end
 if ~isempty(baselineEdit) && isgraphics(baselineEdit, 'uicontrol')
+    set(baselineEdit, 'Enable', enabledState);
     set(baselineEdit, 'String', num2str(currentBaselineBoundary, '%.3g'));
 end
 if ~isempty(baselineSlider) && isgraphics(baselineSlider, 'uicontrol')
+    set(baselineSlider, 'Enable', enabledState);
     set(baselineSlider, 'Value', baselineSliderFromValue(currentBaselineBoundary));
 end
 if ~isempty(xMinEdit) && isgraphics(xMinEdit, 'uicontrol')
@@ -716,9 +752,6 @@ calculationResultOut.xLimits = currentXlims;
 end
 
 function refreshCsdWithPreprocessing()
-if ~isfield(calculationResultOut, 'show_CSD') || ~calculationResultOut.show_CSD
-    return
-end
 currentHpCutoff = clampHp(currentHpCutoff);
 mainAxes = findobj(figureHandleOut, 'Type', 'axes', 'Tag', 'mean_main_axis');
 if isempty(mainAxes) || ~isgraphics(mainAxes(1))
@@ -726,11 +759,73 @@ if isempty(mainAxes) || ~isgraphics(mainAxes(1))
 end
 mainAxLocal = mainAxes(1);
 timeAxis = calculationResultOut.timeAxisScaled;
+plMeanData = prepareLfpForCsd(timeAxis);
+
+numChannelsLocal = numel(calculationResultOut.ch_inxs);
+offsetsLocal = zeros(1, numChannelsLocal);
+for p = 1:numChannelsLocal
+    offsetsLocal(p) = -(p-1) * calculationResultOut.shiftCoeff;
+end
+
+axes(mainAxLocal);
+currentYlim = ylim(mainAxLocal);
+cla(mainAxLocal);
+hold(mainAxLocal, 'on');
+set(mainAxLocal, 'Color', 'none');
+
+if isfield(calculationResultOut, 'show_CSD') && calculationResultOut.show_CSD
+    csdParams.time_in_csd = timeAxis;
+    csdParams.data_in_csd = plMeanData;
+    csdParams.Fs = calculationResultOut.Fs;
+    csdParams.offsets = offsetsLocal;
+    csdParams.csd_smooth_coef = calculationResultOut.csd_smooth_coef;
+    csdParams.csd_active = calculationResultOut.csd_active;
+    csdParams.ch_inxs_original = calculationResultOut.ch_inxs;
+    csdParams.csd_split_by_channel_gaps = true;
+    [csdImage, csdTime, csdCh] = csdCalc(csdParams);
+    csdPlotting(csdImage, csdTime, csdCh, calculationResultOut.csd_contrast_coef);
+    imageHandles = findobj(mainAxLocal, 'Type', 'image', '-depth', 1);
+    if ~isempty(imageHandles)
+        calculationResultOut.heatmap_handle = imageHandles(1);
+        uistack(calculationResultOut.heatmap_handle, 'bottom');
+    end
+    calculationResultOut.heatmap_base_clim = get(mainAxLocal, 'CLim');
+    currentContrast = str2double(get(contrastEdit, 'String'));
+    if isnan(currentContrast) || ~isfinite(currentContrast)
+        currentContrast = defaultContrastPercent();
+    end
+    applyContrast(currentContrast);
+elseif isfield(calculationResultOut, 'show_spikes') && calculationResultOut.show_spikes && ...
+        isfield(calculationResultOut, 'ev_hists') && ~isempty(calculationResultOut.ev_hists)
+    evHists = calculationResultOut.ev_hists;
+    evHists = evHists - median(evHists, 2);
+    muaX = linspace(timeAxis(1), timeAxis(end), size(evHists, 2));
+    muaImage = imagesc(mainAxLocal, muaX, offsetsLocal, evHists);
+    calculationResultOut.heatmap_handle = muaImage;
+    uistack(calculationResultOut.heatmap_handle, 'bottom');
+    calculationResultOut.heatmap_base_clim = get(mainAxLocal, 'CLim');
+    currentContrast = str2double(get(contrastEdit, 'String'));
+    if isnan(currentContrast) || ~isfinite(currentContrast)
+        currentContrast = defaultContrastPercent();
+    end
+    applyContrast(currentContrast);
+else
+    calculationResultOut.heatmap_handle = [];
+end
+
+drawMeanTrace(mainAxLocal, timeAxis, plMeanData, offsetsLocal);
+ylim(mainAxLocal, currentYlim);
+hold(mainAxLocal, 'off');
+calculationResultOut.csd_hp_cutoff_hz = currentHpCutoff;
+calculationResultOut.csd_baseline_boundary = currentBaselineBoundary;
+applyXlimToAxes();
+end
+
+function plMeanData = prepareLfpForCsd(timeAxis)
 plMeanData = calculationResultOut.meanData(:, calculationResultOut.ch_inxs) .* ...
     calculationResultOut.scalingCoefficients(calculationResultOut.ch_inxs);
 plMeanData = double(plMeanData);
-
-if currentHpCutoff > 0
+if hpFilterEnabled && currentHpCutoff > 0
     nyquistFreq = calculationResultOut.Fs / 2;
     hpCutoff = min(currentHpCutoff, nyquistFreq * 0.99);
     processingMask = timeAxis >= currentXlims(1) & timeAxis <= currentBaselineBoundary;
@@ -747,44 +842,22 @@ if currentHpCutoff > 0
         end
     end
 end
-
-baselineMask = timeAxis >= currentXlims(1) & timeAxis <= currentBaselineBoundary;
-baselineMedian = median(plMeanData(baselineMask, :), 1);
-plMeanData = plMeanData - baselineMedian;
-
-numChannelsLocal = numel(calculationResultOut.ch_inxs);
-offsetsLocal = zeros(1, numChannelsLocal);
-for p = 1:numChannelsLocal
-    offsetsLocal(p) = -(p-1) * calculationResultOut.shiftCoeff;
+if hpFilterEnabled
+    baselineMask = timeAxis >= currentXlims(1) & timeAxis <= currentBaselineBoundary;
+    baselineMedian = median(plMeanData(baselineMask, :), 1);
+    plMeanData = plMeanData - baselineMedian;
+end
 end
 
-csdParams.time_in_csd = timeAxis;
-csdParams.data_in_csd = plMeanData;
-csdParams.Fs = calculationResultOut.Fs;
-csdParams.offsets = offsetsLocal;
-csdParams.csd_smooth_coef = calculationResultOut.csd_smooth_coef;
-csdParams.csd_active = calculationResultOut.csd_active;
-csdParams.ch_inxs_original = calculationResultOut.ch_inxs;
-csdParams.csd_split_by_channel_gaps = true;
-
-[csdImage, csdTime, csdCh] = csdCalc(csdParams);
-
-if isfield(calculationResultOut, 'heatmap_handle') && isgraphics(calculationResultOut.heatmap_handle)
-    delete(calculationResultOut.heatmap_handle);
-end
-axes(mainAxLocal);
-currentYlim = ylim(mainAxLocal);
-cla(mainAxLocal);
-hold(mainAxLocal, 'on');
-csdPlotting(csdImage, csdTime, csdCh, calculationResultOut.csd_contrast_coef);
-imageHandles = findobj(mainAxLocal, 'Type', 'image', '-depth', 1);
-if ~isempty(imageHandles)
-    calculationResultOut.heatmap_handle = imageHandles(1);
-    uistack(calculationResultOut.heatmap_handle, 'bottom');
-end
+function drawMeanTrace(mainAxLocal, timeAxis, plMeanData, offsetsLocal)
 channelLabels = calculationResultOut.ch_labels(calculationResultOut.ch_inxs);
 channelWidths = calculationResultOut.widths_in(calculationResultOut.ch_inxs);
 channelColors = calculationResultOut.colors_in(calculationResultOut.ch_inxs);
+isMuaMode = isfield(calculationResultOut, 'show_spikes') && calculationResultOut.show_spikes && ...
+    (~isfield(calculationResultOut, 'show_CSD') || ~calculationResultOut.show_CSD);
+if isMuaMode && useWhiteTracesInMua
+    channelColors = repmat({[1 1 1]}, 1, numel(channelColors));
+end
 multiplot(timeAxis, plMeanData, ...
     'ChannelLabels', channelLabels, ...
     'shiftCoeff', calculationResultOut.shiftCoeff, ...
@@ -802,17 +875,20 @@ if ~isempty(gapIdx)
 end
 xline(mainAxLocal, currentBaselineBoundary, '--', 'Color', [0.5 0.5 0.5], 'LineWidth', 1);
 xline(mainAxLocal, 0, 'r:');
-ylim(mainAxLocal, currentYlim);
-hold(mainAxLocal, 'off');
-calculationResultOut.heatmap_base_clim = get(mainAxLocal, 'CLim');
-calculationResultOut.csd_hp_cutoff_hz = currentHpCutoff;
-calculationResultOut.csd_baseline_boundary = currentBaselineBoundary;
-currentContrast = str2double(get(contrastEdit, 'String'));
-if isnan(currentContrast) || ~isfinite(currentContrast)
-    currentContrast = 1;
 end
-applyContrast(currentContrast);
-applyXlimToAxes();
+
+function visibleValue = ternaryVisibility(isVisible)
+visibleValue = 'off';
+if isVisible
+    visibleValue = 'on';
+end
+end
+
+function enableValue = ternaryEnable(isEnabled)
+enableValue = 'off';
+if isEnabled
+    enableValue = 'on';
+end
 end
 
 function ContrastSliderClb(~, ~)
@@ -824,7 +900,7 @@ end
 function ContrastEditClb(~, ~)
 coef = str2double(get(contrastEdit, 'String'));
 if isnan(coef) || ~isfinite(coef)
-    coef = 1;
+    coef = defaultContrastPercent();
 end
 coef = min(max(coef, contrastCoefMin), contrastCoefMax);
 set(contrastEdit, 'String', num2str(coef, '%.3g'));
@@ -848,9 +924,14 @@ end
 if isempty(heatmapHandle) || ~isgraphics(heatmapHandle)
     return
 end
-halfSpan = contrastHalfSpan / coef;
+contrastScale = max(coef / 100, eps);
+halfSpan = contrastHalfSpan / contrastScale;
 newClim = contrastCenter + [-halfSpan, halfSpan];
 set(get(heatmapHandle, 'Parent'), 'CLim', newClim);
+end
+
+function coef = defaultContrastPercent()
+coef = 100 - 40 * double(isfield(calculationResultOut, 'show_CSD') && calculationResultOut.show_CSD);
 end
 
 function [climCenterOut, halfSpanOut] = resolveContrastBaseline()

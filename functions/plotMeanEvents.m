@@ -277,7 +277,7 @@ function [f, calculation_result] = plotMeanEvents(params)
     heatmap_handle = [];
     heatmap_base_clim = [];
     pl_meanDataToPlot = pl_meanData;
-    hpCutoffHz = min(max(csdHpCutoffHz, 0.01), 10);
+    hpCutoffHz = min(max(csdHpCutoffHz, 0.01), 500);
     if isempty(customXLimits)
         xlimLeft = start_time * timeUnitFactor;
         xlimRight = end_time * timeUnitFactor;
