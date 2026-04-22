@@ -148,6 +148,16 @@ if isfield(opts, 'SubtractMean')
 else
     params.SubtractMean = false;
 end
+if isfield(opts, 'csd_hp_cutoff_hz')
+    params.csd_hp_cutoff_hz = max(0, double(opts.csd_hp_cutoff_hz));
+else
+    params.csd_hp_cutoff_hz = 0;
+end
+if isfield(opts, 'csd_baseline_boundary')
+    params.csd_baseline_boundary = double(opts.csd_baseline_boundary);
+else
+    params.csd_baseline_boundary = 0;
+end
 
 % Убираем артефакт стимуляции в окне усреднения
 if params.remove_artifact
@@ -195,21 +205,21 @@ if renderBothModes
     params_csd = params;
     params_csd.show_CSD = true;
     params_csd.show_spikes = false;
-    params_csd = createRenderParams(params_csd);
+    params_csd = createRenderParams(params_csd, [0, 0]);
     [mean_f_csd, calculation_result_csd] = plotMeanEvents(params_csd);
     [mean_f_csd, calculation_result_csd] = finalizeMeanFigure(mean_f_csd, calculation_result_csd, ' [CSD]', false);
 
     params_mua = params;
     params_mua.show_CSD = false;
     params_mua.show_spikes = true;
-    params_mua = createRenderParams(params_mua);
+    params_mua = createRenderParams(params_mua, [36, -36]);
     [mean_f_mua, calculation_result_mua] = plotMeanEvents(params_mua);
     [mean_f_mua, calculation_result_mua] = finalizeMeanFigure(mean_f_mua, calculation_result_mua, ' [MUA]', false);
 
     mean_f = [mean_f_csd, mean_f_mua];
     calculation_result = struct('csd', calculation_result_csd, 'mua', calculation_result_mua);
 else
-    params = createRenderParams(params);
+    params = createRenderParams(params, [0, 0]);
     [mean_f, calculation_result] = plotMeanEvents(params);
     [mean_f, calculation_result] = finalizeMeanFigure(mean_f, calculation_result, '', true);
 end
@@ -226,7 +236,7 @@ if ~buildFigure
     return
 end
 
-function paramsOut = createRenderParams(paramsIn)
+function paramsOut = createRenderParams(paramsIn, positionShift)
 paramsOut = paramsIn;
 if buildFigure
     paramsOut.figure = figure('Name', figureName, 'Tag', 'meanSignalResult', ...
@@ -235,7 +245,8 @@ else
     paramsOut.figure = figure('Name', figureName, 'Tag', 'meanSignalResult', 'Visible', 'off', ...
         'MenuBar', 'none', 'ToolBar', 'figure');
 end
-paramsOut.figure.Position = [32, 64, 1024, 768];
+basePosition = [32, 64, 1024, 768];
+paramsOut.figure.Position = basePosition + [positionShift(1), positionShift(2), 0, 0];
 set(paramsOut.figure, 'WindowButtonMotionFcn', []);
 
 hToolbar = findall(paramsOut.figure, 'Type', 'uitoolbar');
@@ -355,6 +366,53 @@ save_btn_coords = [5, 5, 40, 25];
 savebutton = uicontrol('Parent', figureHandleOut, 'Style', 'pushbutton', 'String', 'Save', ...
     'Visible', 'on', 'Position', save_btn_coords, 'Callback', @SaveClb);
 btnIcon(savebutton, fullfile(getAssetsPath(), 'data-storage.png'), false)
+contrast_text_coords = [55, 7, 40, 20];
+contrast_edit_coords = [95, 7, 50, 20];
+contrast_slider_coords = [150, 9, 120, 18];
+hp_text_coords = [280, 7, 38, 20];
+hp_edit_coords = [318, 7, 45, 20];
+hp_slider_coords = [365, 9, 105, 18];
+baseline_text_coords = [475, 7, 55, 20];
+baseline_edit_coords = [530, 7, 50, 20];
+baseline_slider_coords = [582, 9, 105, 18];
+xmin_text_coords = [690, 7, 40, 20];
+xmin_edit_coords = [730, 7, 55, 20];
+xmax_text_coords = [790, 7, 40, 20];
+xmax_edit_coords = [830, 7, 55, 20];
+contrastCoefMin = 0.1;
+contrastCoefMax = 10;
+contrastSliderMax = 100;
+hpSliderMax = 100;
+minHpCutoff = 0.01;
+baselineSliderMax = 100;
+contrastLabel = [];
+contrastEdit = [];
+contrastSlider = [];
+hpLabel = [];
+hpEdit = [];
+hpSlider = [];
+baselineLabel = [];
+baselineEdit = [];
+baselineSlider = [];
+xMinLabel = [];
+xMinEdit = [];
+xMaxLabel = [];
+xMaxEdit = [];
+refreshDebounceTimer = [];
+refreshDebounceDelay = 0.18;
+currentXlims = Xlims;
+currentHpCutoff = minHpCutoff;
+currentBaselineBoundary = 0;
+if isfield(calculationResultOut, 'csd_hp_cutoff_hz')
+    currentHpCutoff = calculationResultOut.csd_hp_cutoff_hz;
+end
+if isfield(calculationResultOut, 'csd_baseline_boundary')
+    currentBaselineBoundary = calculationResultOut.csd_baseline_boundary;
+end
+maxHpCutoff = 10;
+[contrastCenter, contrastHalfSpan] = resolveContrastBaseline();
+createContrastControls();
+createPreCsdControls();
 
 function SaveClb(~,~)
     [file, path] = uiputfile(...
@@ -405,6 +463,8 @@ function deleteSaveButton_meanEvents()
 if ~isempty(savebutton) && isgraphics(savebutton, 'uicontrol')
     delete(savebutton);
 end
+deleteContrastControls();
+deletePreCsdControls();
 end
 
 function createSaveButton_meanEvents()
@@ -414,6 +474,397 @@ end
 savebutton = uicontrol('Parent', figureHandleOut, 'Style', 'pushbutton', 'String', 'Save', ...
     'Visible', 'on', 'Position', save_btn_coords, 'Callback', @SaveClb);
 btnIcon(savebutton, fullfile(getAssetsPath(), 'data-storage.png'), false)
+createContrastControls();
+createPreCsdControls();
+end
+
+function createContrastControls()
+if contrastHalfSpan <= 0
+    return
+end
+initialCoef = 1;
+initialSliderValue = sliderFromCoef(initialCoef);
+contrastLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'Contrast', ...
+    'Position', contrast_text_coords, 'HorizontalAlignment', 'left');
+contrastEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', 'String', num2str(initialCoef, '%.3g'), ...
+    'BackgroundColor', 'white', 'Position', contrast_edit_coords, 'Callback', @ContrastEditClb);
+contrastSlider = uicontrol('Parent', figureHandleOut, 'Style', 'slider', 'Min', 0, 'Max', contrastSliderMax, ...
+    'Value', initialSliderValue, 'Position', contrast_slider_coords, 'Callback', @ContrastSliderClb);
+applyContrast(initialCoef);
+end
+
+function deleteContrastControls()
+if ~isempty(contrastLabel) && isgraphics(contrastLabel, 'uicontrol')
+    delete(contrastLabel);
+end
+if ~isempty(contrastEdit) && isgraphics(contrastEdit, 'uicontrol')
+    delete(contrastEdit);
+end
+if ~isempty(contrastSlider) && isgraphics(contrastSlider, 'uicontrol')
+    delete(contrastSlider);
+end
+contrastLabel = [];
+contrastEdit = [];
+contrastSlider = [];
+end
+
+function createPreCsdControls()
+currentHpCutoff = clampHp(currentHpCutoff);
+currentBaselineBoundary = clampBaselineBoundary(currentBaselineBoundary);
+hpLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'HP, Hz', ...
+    'Position', hp_text_coords, 'HorizontalAlignment', 'left');
+hpEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', ...
+    'String', sprintf('%.2f', currentHpCutoff), 'BackgroundColor', 'white', ...
+    'Position', hp_edit_coords, 'Callback', @HpEditClb);
+hpSlider = uicontrol('Parent', figureHandleOut, 'Style', 'slider', ...
+    'Min', 0, 'Max', hpSliderMax, 'Value', hpSliderFromValue(currentHpCutoff), ...
+    'Position', hp_slider_coords, 'Callback', @HpSliderClb);
+
+baselineLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'Base to', ...
+    'Position', baseline_text_coords, 'HorizontalAlignment', 'left');
+baselineEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', ...
+    'String', num2str(currentBaselineBoundary, '%.3g'), 'BackgroundColor', 'white', ...
+    'Position', baseline_edit_coords, 'Callback', @BaselineEditClb);
+baselineSlider = uicontrol('Parent', figureHandleOut, 'Style', 'slider', ...
+    'Min', 0, 'Max', baselineSliderMax, 'Value', baselineSliderFromValue(currentBaselineBoundary), ...
+    'Position', baseline_slider_coords, 'Callback', @BaselineSliderClb);
+
+xMinLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'X min', ...
+    'Position', xmin_text_coords, 'HorizontalAlignment', 'left');
+xMinEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', ...
+    'String', num2str(currentXlims(1), '%.6g'), 'BackgroundColor', 'white', ...
+    'Position', xmin_edit_coords, 'Callback', @XlimEditClb);
+xMaxLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'X max', ...
+    'Position', xmax_text_coords, 'HorizontalAlignment', 'left');
+xMaxEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', ...
+    'String', num2str(currentXlims(2), '%.6g'), 'BackgroundColor', 'white', ...
+    'Position', xmax_edit_coords, 'Callback', @XlimEditClb);
+
+syncPreCsdControls();
+applyXlimToAxes();
+refreshCsdWithPreprocessing();
+end
+
+function deletePreCsdControls()
+cancelDebouncedRefresh();
+handles = {hpLabel, hpEdit, hpSlider, baselineLabel, baselineEdit, baselineSlider, xMinLabel, xMinEdit, xMaxLabel, xMaxEdit};
+for idx = 1:numel(handles)
+    h = handles{idx};
+    if ~isempty(h) && isgraphics(h, 'uicontrol')
+        delete(h);
+    end
+end
+hpLabel = [];
+hpEdit = [];
+hpSlider = [];
+baselineLabel = [];
+baselineEdit = [];
+baselineSlider = [];
+xMinLabel = [];
+xMinEdit = [];
+xMaxLabel = [];
+xMaxEdit = [];
+end
+
+function HpSliderClb(~, ~)
+currentHpCutoff = hpValueFromSlider(get(hpSlider, 'Value'));
+syncPreCsdControls();
+requestDebouncedRefresh();
+end
+
+function HpEditClb(~, ~)
+inputValue = str2double(strrep(get(hpEdit, 'String'), ',', '.'));
+if isnan(inputValue) || ~isfinite(inputValue)
+    inputValue = currentHpCutoff;
+end
+currentHpCutoff = clampHp(inputValue);
+syncPreCsdControls();
+requestDebouncedRefresh();
+end
+
+function BaselineSliderClb(~, ~)
+currentBaselineBoundary = baselineValueFromSlider(get(baselineSlider, 'Value'));
+syncPreCsdControls();
+requestDebouncedRefresh();
+end
+
+function BaselineEditClb(~, ~)
+inputValue = str2double(strrep(get(baselineEdit, 'String'), ',', '.'));
+if isnan(inputValue) || ~isfinite(inputValue)
+    inputValue = currentBaselineBoundary;
+end
+currentBaselineBoundary = clampBaselineBoundary(inputValue);
+syncPreCsdControls();
+requestDebouncedRefresh();
+end
+
+function XlimEditClb(~, ~)
+xMinValue = str2double(strrep(get(xMinEdit, 'String'), ',', '.'));
+xMaxValue = str2double(strrep(get(xMaxEdit, 'String'), ',', '.'));
+if isnan(xMinValue) || ~isfinite(xMinValue)
+    xMinValue = currentXlims(1);
+end
+if isnan(xMaxValue) || ~isfinite(xMaxValue)
+    xMaxValue = currentXlims(2);
+end
+if xMinValue >= xMaxValue
+    xMaxValue = xMinValue + max(1e-6, abs(xMinValue) * 1e-6);
+end
+currentXlims = [xMinValue, xMaxValue];
+currentBaselineBoundary = clampBaselineBoundary(currentBaselineBoundary);
+syncPreCsdControls();
+applyXlimToAxes();
+requestDebouncedRefresh();
+end
+
+function requestDebouncedRefresh()
+if ~isfield(calculationResultOut, 'show_CSD') || ~calculationResultOut.show_CSD
+    return
+end
+try
+    if isempty(refreshDebounceTimer) || ~isvalid(refreshDebounceTimer)
+        refreshDebounceTimer = timer('ExecutionMode', 'singleShot', ...
+            'StartDelay', refreshDebounceDelay, ...
+            'TimerFcn', @DebouncedRefreshTimerFcn);
+    else
+        stop(refreshDebounceTimer);
+    end
+    start(refreshDebounceTimer);
+catch
+    refreshCsdWithPreprocessing();
+end
+end
+
+function DebouncedRefreshTimerFcn(~, ~)
+refreshCsdWithPreprocessing();
+end
+
+function cancelDebouncedRefresh()
+if ~isempty(refreshDebounceTimer) && isvalid(refreshDebounceTimer)
+    stop(refreshDebounceTimer);
+    delete(refreshDebounceTimer);
+end
+refreshDebounceTimer = [];
+end
+
+function syncPreCsdControls()
+if ~isempty(hpEdit) && isgraphics(hpEdit, 'uicontrol')
+    set(hpEdit, 'String', sprintf('%.2f', currentHpCutoff));
+end
+if ~isempty(hpSlider) && isgraphics(hpSlider, 'uicontrol')
+    set(hpSlider, 'Value', hpSliderFromValue(currentHpCutoff));
+end
+if ~isempty(baselineEdit) && isgraphics(baselineEdit, 'uicontrol')
+    set(baselineEdit, 'String', num2str(currentBaselineBoundary, '%.3g'));
+end
+if ~isempty(baselineSlider) && isgraphics(baselineSlider, 'uicontrol')
+    set(baselineSlider, 'Value', baselineSliderFromValue(currentBaselineBoundary));
+end
+if ~isempty(xMinEdit) && isgraphics(xMinEdit, 'uicontrol')
+    set(xMinEdit, 'String', num2str(currentXlims(1), '%.6g'));
+end
+if ~isempty(xMaxEdit) && isgraphics(xMaxEdit, 'uicontrol')
+    set(xMaxEdit, 'String', num2str(currentXlims(2), '%.6g'));
+end
+end
+
+function value = clampHp(valueIn)
+value = min(max(valueIn, minHpCutoff), maxHpCutoff);
+end
+
+function value = clampBaselineBoundary(valueIn)
+baselineUpper = currentXlims(2);
+baselineLower = currentXlims(1);
+value = min(max(valueIn, baselineLower), baselineUpper);
+end
+
+function sliderValue = hpSliderFromValue(hpValue)
+sliderValue = hpSliderMax * (hpValue - minHpCutoff) / (maxHpCutoff - minHpCutoff);
+end
+
+function hpValue = hpValueFromSlider(sliderValue)
+hpValue = minHpCutoff + (maxHpCutoff - minHpCutoff) * sliderValue / hpSliderMax;
+end
+
+function sliderValue = baselineSliderFromValue(boundaryValue)
+span = currentXlims(2) - currentXlims(1);
+if span <= 0
+    sliderValue = 0;
+    return
+end
+sliderValue = baselineSliderMax * (boundaryValue - currentXlims(1)) / span;
+sliderValue = min(max(sliderValue, 0), baselineSliderMax);
+end
+
+function boundaryValue = baselineValueFromSlider(sliderValue)
+span = currentXlims(2) - currentXlims(1);
+if span <= 0
+    boundaryValue = currentXlims(1);
+    return
+end
+boundaryValue = currentXlims(1) + span * sliderValue / baselineSliderMax;
+boundaryValue = clampBaselineBoundary(boundaryValue);
+end
+
+function applyXlimToAxes()
+mainAxes = findobj(figureHandleOut, 'Type', 'axes', 'Tag', 'mean_main_axis');
+if isempty(mainAxes) || ~isgraphics(mainAxes(1))
+    return
+end
+xlim(mainAxes(1), currentXlims);
+calculationResultOut.xLimits = currentXlims;
+end
+
+function refreshCsdWithPreprocessing()
+if ~isfield(calculationResultOut, 'show_CSD') || ~calculationResultOut.show_CSD
+    return
+end
+currentHpCutoff = clampHp(currentHpCutoff);
+mainAxes = findobj(figureHandleOut, 'Type', 'axes', 'Tag', 'mean_main_axis');
+if isempty(mainAxes) || ~isgraphics(mainAxes(1))
+    return
+end
+mainAxLocal = mainAxes(1);
+timeAxis = calculationResultOut.timeAxisScaled;
+plMeanData = calculationResultOut.meanData(:, calculationResultOut.ch_inxs) .* ...
+    calculationResultOut.scalingCoefficients(calculationResultOut.ch_inxs);
+plMeanData = double(plMeanData);
+
+if currentHpCutoff > 0
+    nyquistFreq = calculationResultOut.Fs / 2;
+    hpCutoff = min(currentHpCutoff, nyquistFreq * 0.99);
+    processingMask = timeAxis >= currentXlims(1) & timeAxis <= currentBaselineBoundary;
+    processIdx = find(processingMask);
+    if numel(processIdx) >= 9
+        dataBeforeFilter = plMeanData;
+        [bHp, aHp] = butter(2, hpCutoff / nyquistFreq, 'high');
+        plMeanData(processIdx, :) = filtfilt(bHp, aHp, plMeanData(processIdx, :));
+        joinIdx = processIdx(end);
+        if joinIdx < size(plMeanData, 1)
+            rightIdx = (joinIdx + 1):size(plMeanData, 1);
+            joinShift = plMeanData(joinIdx, :) - dataBeforeFilter(joinIdx, :);
+            plMeanData(rightIdx, :) = plMeanData(rightIdx, :) + joinShift;
+        end
+    end
+end
+
+baselineMask = timeAxis >= currentXlims(1) & timeAxis <= currentBaselineBoundary;
+baselineMedian = median(plMeanData(baselineMask, :), 1);
+plMeanData = plMeanData - baselineMedian;
+
+numChannelsLocal = numel(calculationResultOut.ch_inxs);
+offsetsLocal = zeros(1, numChannelsLocal);
+for p = 1:numChannelsLocal
+    offsetsLocal(p) = -(p-1) * calculationResultOut.shiftCoeff;
+end
+
+csdParams.time_in_csd = timeAxis;
+csdParams.data_in_csd = plMeanData;
+csdParams.Fs = calculationResultOut.Fs;
+csdParams.offsets = offsetsLocal;
+csdParams.csd_smooth_coef = calculationResultOut.csd_smooth_coef;
+csdParams.csd_active = calculationResultOut.csd_active;
+csdParams.ch_inxs_original = calculationResultOut.ch_inxs;
+csdParams.csd_split_by_channel_gaps = true;
+
+[csdImage, csdTime, csdCh] = csdCalc(csdParams);
+
+if isfield(calculationResultOut, 'heatmap_handle') && isgraphics(calculationResultOut.heatmap_handle)
+    delete(calculationResultOut.heatmap_handle);
+end
+axes(mainAxLocal);
+currentYlim = ylim(mainAxLocal);
+cla(mainAxLocal);
+hold(mainAxLocal, 'on');
+csdPlotting(csdImage, csdTime, csdCh, calculationResultOut.csd_contrast_coef);
+imageHandles = findobj(mainAxLocal, 'Type', 'image', '-depth', 1);
+if ~isempty(imageHandles)
+    calculationResultOut.heatmap_handle = imageHandles(1);
+    uistack(calculationResultOut.heatmap_handle, 'bottom');
+end
+channelLabels = calculationResultOut.ch_labels(calculationResultOut.ch_inxs);
+channelWidths = calculationResultOut.widths_in(calculationResultOut.ch_inxs);
+channelColors = calculationResultOut.colors_in(calculationResultOut.ch_inxs);
+multiplot(timeAxis, plMeanData, ...
+    'ChannelLabels', channelLabels, ...
+    'shiftCoeff', calculationResultOut.shiftCoeff, ...
+    'linewidth', channelWidths, ...
+    'color', channelColors);
+[~, gapIdx] = splitConsecutiveChannels(calculationResultOut.ch_inxs);
+if ~isempty(gapIdx)
+    x1 = timeAxis(1);
+    x2 = timeAxis(end);
+    for k = 1:numel(gapIdx)
+        i = gapIdx(k);
+        y = (offsetsLocal(i) + offsetsLocal(i+1)) / 2;
+        plot(mainAxLocal, [x1, x2], [y, y], '--', 'Color', [0.6 0.6 0.6], 'LineWidth', 1);
+    end
+end
+xline(mainAxLocal, currentBaselineBoundary, '--', 'Color', [0.5 0.5 0.5], 'LineWidth', 1);
+xline(mainAxLocal, 0, 'r:');
+ylim(mainAxLocal, currentYlim);
+hold(mainAxLocal, 'off');
+calculationResultOut.heatmap_base_clim = get(mainAxLocal, 'CLim');
+calculationResultOut.csd_hp_cutoff_hz = currentHpCutoff;
+calculationResultOut.csd_baseline_boundary = currentBaselineBoundary;
+currentContrast = str2double(get(contrastEdit, 'String'));
+if isnan(currentContrast) || ~isfinite(currentContrast)
+    currentContrast = 1;
+end
+applyContrast(currentContrast);
+applyXlimToAxes();
+end
+
+function ContrastSliderClb(~, ~)
+coef = coefFromSlider(get(contrastSlider, 'Value'));
+set(contrastEdit, 'String', num2str(coef, '%.3g'));
+applyContrast(coef);
+end
+
+function ContrastEditClb(~, ~)
+coef = str2double(get(contrastEdit, 'String'));
+if isnan(coef) || ~isfinite(coef)
+    coef = 1;
+end
+coef = min(max(coef, contrastCoefMin), contrastCoefMax);
+set(contrastEdit, 'String', num2str(coef, '%.3g'));
+set(contrastSlider, 'Value', sliderFromCoef(coef));
+applyContrast(coef);
+end
+
+function sliderValue = sliderFromCoef(coef)
+sliderValue = contrastSliderMax * (coef - contrastCoefMin) / (contrastCoefMax - contrastCoefMin);
+end
+
+function coef = coefFromSlider(sliderValue)
+coef = contrastCoefMin + (contrastCoefMax - contrastCoefMin) * sliderValue / contrastSliderMax;
+end
+
+function applyContrast(coef)
+heatmapHandle = [];
+if isfield(calculationResultOut, 'heatmap_handle')
+    heatmapHandle = calculationResultOut.heatmap_handle;
+end
+if isempty(heatmapHandle) || ~isgraphics(heatmapHandle)
+    return
+end
+halfSpan = contrastHalfSpan / coef;
+newClim = contrastCenter + [-halfSpan, halfSpan];
+set(get(heatmapHandle, 'Parent'), 'CLim', newClim);
+end
+
+function [climCenterOut, halfSpanOut] = resolveContrastBaseline()
+climCenterOut = 0;
+halfSpanOut = 0;
+baseClim = [];
+if isfield(calculationResultOut, 'heatmap_base_clim')
+    baseClim = calculationResultOut.heatmap_base_clim;
+end
+if isempty(baseClim) || numel(baseClim) ~= 2 || any(~isfinite(baseClim))
+    return
+end
+climCenterOut = mean(baseClim);
+halfSpanOut = (baseClim(2) - baseClim(1)) / 2;
 end
 end
 

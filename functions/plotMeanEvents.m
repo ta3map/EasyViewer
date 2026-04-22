@@ -35,6 +35,21 @@ function [f, calculation_result] = plotMeanEvents(params)
     else
         timeUnitFactor = 1;
     end
+    if isfield(params, 'customXLimits') && numel(params.customXLimits) == 2
+        customXLimits = params.customXLimits;
+    else
+        customXLimits = [];
+    end
+    if isfield(params, 'csd_hp_cutoff_hz')
+        csdHpCutoffHz = params.csd_hp_cutoff_hz;
+    else
+        csdHpCutoffHz = 0;
+    end
+    if isfield(params, 'csd_baseline_boundary')
+        csdBaselineBoundary = params.csd_baseline_boundary;
+    else
+        csdBaselineBoundary = 0;
+    end
     
     % Получение данных событий и настроек каналов
     ch_labels = hd.recChNames(:);
@@ -259,10 +274,44 @@ function [f, calculation_result] = plotMeanEvents(params)
         end
     end
     
+    heatmap_handle = [];
+    heatmap_base_clim = [];
+    pl_meanDataToPlot = pl_meanData;
+    hpCutoffHz = min(max(csdHpCutoffHz, 0.01), 10);
+    if isempty(customXLimits)
+        xlimLeft = start_time * timeUnitFactor;
+        xlimRight = end_time * timeUnitFactor;
+    else
+        xlimLeft = customXLimits(1);
+        xlimRight = customXLimits(2);
+    end
+    baselineRight = min(max(csdBaselineBoundary, xlimLeft), xlimRight);
     if show_CSD        % режим показа CSD
+        pl_meanDataForCsd = double(pl_meanData);
+        nyquistFreq = Fs / 2;
+        hpCutoffHz = min(hpCutoffHz, nyquistFreq * 0.99);
+        processingMask = timeAxis >= xlimLeft & timeAxis <= baselineRight;
+        if hpCutoffHz >= 0.01
+            processIdx = find(processingMask);
+            if numel(processIdx) >= 9
+                dataBeforeFilter = pl_meanDataForCsd;
+                [bHp, aHp] = butter(2, hpCutoffHz / nyquistFreq, 'high');
+                pl_meanDataForCsd(processIdx, :) = filtfilt(bHp, aHp, pl_meanDataForCsd(processIdx, :));
+                joinIdx = processIdx(end);
+                if joinIdx < size(pl_meanDataForCsd, 1)
+                    rightIdx = (joinIdx + 1):size(pl_meanDataForCsd, 1);
+                    joinShift = pl_meanDataForCsd(joinIdx, :) - dataBeforeFilter(joinIdx, :);
+                    pl_meanDataForCsd(rightIdx, :) = pl_meanDataForCsd(rightIdx, :) + joinShift;
+                end
+            end
+        end
+        baselineMask = timeAxis >= xlimLeft & timeAxis <= baselineRight;
+        baselineMedian = median(pl_meanDataForCsd(baselineMask, :), 1);
+        pl_meanDataForCsd = pl_meanDataForCsd - baselineMedian;
+        pl_meanDataToPlot = pl_meanDataForCsd;
         
         params.time_in_csd = timeAxis;
-        params.data_in_csd = pl_meanData;
+        params.data_in_csd = pl_meanDataForCsd;
         params.Fs = Fs;
         params.offsets = offsets;
         params.csd_smooth_coef = csd_smooth_coef;
@@ -274,6 +323,12 @@ function [f, calculation_result] = plotMeanEvents(params)
         
       
         csdPlotting(csd_image, csd_trange, csd_ch_range, csd_contrast_coef);
+        imageHandles = findobj(ax, 'Type', 'image', '-depth', 1);
+        if ~isempty(imageHandles)
+            heatmap_handle = imageHandles(1);
+            uistack(heatmap_handle, 'bottom');
+            heatmap_base_clim = get(ax, 'CLim');
+        end
         
         % Построение профиля CSD
         smoothCoef = double(csd_smooth_coef);
@@ -312,6 +367,8 @@ if not(isempty(ev_hists))  && not(show_CSD)
     ev_hists = ev_hists - median(ev_hists, 2);
     mua_x = linspace(start_time*timeUnitFactor, end_time*timeUnitFactor, size(ev_hists, 2));
     im = imagesc(mua_x, offsets, ev_hists);
+    heatmap_handle = im;
+    heatmap_base_clim = get(ax, 'CLim');
     
     % Построение профиля MUA
     mua_time_profile_idx = round(ClosestIndex(t_profile, mua_x)); % находим индекс данных, соответствующий времени профиля
@@ -343,11 +400,14 @@ end
 
      
 
-    multiplot(timeAxis, pl_meanData, ...
+    multiplot(timeAxis, pl_meanDataToPlot, ...
     'ChannelLabels', pl_ch_labels, ...
     'shiftCoeff',pl_shiftCoeff, ...
     'linewidth', pl_widths_in, ...
     'color', pl_colors_in);
+    if show_CSD
+        xline(baselineRight, '--', 'Color', [0.5 0.5 0.5], 'LineWidth', 1);
+    end
 
     [~, gapIdx] = splitConsecutiveChannels(ch_inxs);
     if ~isempty(gapIdx)
@@ -370,7 +430,7 @@ end
 
     if autoScale
         debugState('plotMeanEvents', 'Auto scale enabled');
-        shiftedData = pl_meanData + offsets;
+        shiftedData = pl_meanDataToPlot + offsets;
         if showOriginalTraces && not(isempty(allOriginalData))
             shiftedOriginalData = allOriginalData + repmat(offsets, size(allOriginalData, 1), 1);
             dataRange = [min([shiftedData(:); shiftedOriginalData(:)]), max([shiftedData(:); shiftedOriginalData(:)])];
@@ -390,7 +450,11 @@ end
     else
         ylim([offsets(end)-pl_shiftCoeff, offsets(1)+pl_shiftCoeff]);
     end
-    xlim([start_time, end_time]*timeUnitFactor)
+    if isempty(customXLimits)
+        xlim([start_time, end_time]*timeUnitFactor)
+    else
+        xlim(customXLimits)
+    end
     
     calculation_result = struct();
 
@@ -404,6 +468,7 @@ end
     calculation_result.N = N;
 %     calculation_result.time = time;
     calculation_result.show_spikes = show_spikes;
+    calculation_result.show_CSD = show_CSD;
     calculation_result.binsize = binsize;
     calculation_result.std_coef = prg;
     calculation_result.ch_inxs = ch_inxs;
@@ -423,5 +488,12 @@ end
         baseline_medians(ch) = median(pl_meanData(:, ch));
     end
     calculation_result.baseline_medians = baseline_medians;
+    calculation_result.heatmap_handle = heatmap_handle;
+    calculation_result.heatmap_base_clim = heatmap_base_clim;
+    calculation_result.csd_smooth_coef = csd_smooth_coef;
+    calculation_result.csd_contrast_coef = csd_contrast_coef;
+    calculation_result.csd_active = csd_active;
+    calculation_result.csd_hp_cutoff_hz = hpCutoffHz;
+    calculation_result.csd_baseline_boundary = baselineRight;
 
 end
