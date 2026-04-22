@@ -70,8 +70,10 @@ function signalViewerGUI(filePath)
     global saveChannelSettingsFunc
     global updateTableFunc updateLocalCoefsFunc updatePlotFunc
     global event_label_click_callback stim_label_click_callback
+    global meanControlsState
 
     debugState('signalViewerGUI', 'Signal Viewer Started')
+    meanControlsState = struct();
 
     if nargin < 1
         filePath = [];
@@ -2881,6 +2883,7 @@ function signalViewerGUI(filePath)
 function loadSettingsFile()
     try
         loadedSettings = load(channelSettingsFilePath, '-mat');
+        meanControlsState = struct();
         if isfield(loadedSettings, 'EV_version') % работает с 1.10.00  
             channelNames = np_flatten(loadedSettings.channelNames);
             channelEnabled  = np_flatten(loadedSettings.channelEnabled);
@@ -2960,6 +2963,9 @@ function loadSettingsFile()
             end
             set(showSpikesButton, 'Value', visualSettings.show_spikes);
             set(showCSDbutton, 'Value', visualSettings.show_CSD);
+        end
+        if isfield(loadedSettings, 'meanControlsState') && isstruct(loadedSettings.meanControlsState)
+            meanControlsState = loadedSettings.meanControlsState;
         end
         if isfield(loadedSettings, 'std_coef')
             std_coef = min(max(double(loadedSettings.std_coef), 0), 10);

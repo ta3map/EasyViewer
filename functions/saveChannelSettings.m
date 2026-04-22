@@ -11,6 +11,7 @@ function saveChannelSettings(varargin)
     global visualSettings
     global axes_background_color
     global lastEventsFilePath
+    global meanControlsState
     
     if exist(matFilePath, 'file') ~= 2
         return;
@@ -43,6 +44,7 @@ function saveChannelSettings(varargin)
             'axes_background_color'
             'stims'
             'lastEventsFilePath'
+            'meanControlsState'
             'EV_version'
         };
     end

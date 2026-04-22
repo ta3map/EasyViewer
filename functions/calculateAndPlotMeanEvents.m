@@ -30,6 +30,7 @@ global t_mean_profile
 global wb
 global matFileName
 global axes_background_color
+global meanControlsState
 
 wbCreatedHere = isempty(wb) || ~isvalid(wb);
 if wbCreatedHere
@@ -370,23 +371,23 @@ save_btn_coords = [5, 5, 40, 25];
 savebutton = uicontrol('Parent', figureHandleOut, 'Style', 'pushbutton', 'String', 'Save', ...
     'Visible', 'on', 'Position', save_btn_coords, 'Callback', @SaveClb);
 btnIcon(savebutton, fullfile(getAssetsPath(), 'data-storage.png'), false)
-contrast_text_coords = [55, 7, 40, 20];
-contrast_edit_coords = [95, 7, 50, 20];
-contrast_slider_coords = [150, 9, 105, 18];
-hp_text_coords = [280, 7, 38, 20];
-hp_edit_coords = [318, 7, 45, 20];
-hp_slider_coords = [365, 9, 86, 18];
-hp_active_checkbox_coords = [455, 9, 16, 18];
-baseline_text_coords = [475, 7, 55, 20];
-baseline_edit_coords = [530, 7, 50, 20];
-baseline_slider_coords = [582, 9, 95, 18];
-xmin_text_coords = [690, 7, 40, 20];
-xmin_edit_coords = [730, 7, 55, 20];
-xmax_text_coords = [790, 7, 40, 20];
-xmax_edit_coords = [830, 7, 55, 20];
-mua_trace_checkbox_coords = [890, 7, 120, 20];
+contrast_text_coords = [55, 7, 70, 20];
+contrast_edit_coords = [120, 7, 40, 20];
+contrast_slider_coords = [162, 9, 105, 18];
+hp_text_coords = [300, 7, 38, 20];
+hp_edit_coords = [338, 7, 45, 20];
+hp_slider_coords = [385, 9, 86, 18];
+hp_active_checkbox_coords = [282, 9, 16, 18];
+baseline_text_coords = [495, 7, 55, 20];
+baseline_edit_coords = [550, 7, 50, 20];
+baseline_slider_coords = [602, 9, 95, 18];
+xmin_text_coords = [710, 7, 40, 20];
+xmin_edit_coords = [750, 7, 55, 20];
+xmax_text_coords = [810, 7, 40, 20];
+xmax_edit_coords = [850, 7, 55, 20];
+mua_trace_checkbox_coords = [910, 7, 120, 20];
 contrastCoefMin = 10;
-contrastCoefMax = 1000;
+contrastCoefMax = 250;
 contrastSliderMax = 100;
 hpSliderMax = 100;
 minHpCutoff = 0.01;
@@ -413,6 +414,7 @@ refreshDebounceDelay = 0.18;
 currentXlims = Xlims;
 currentHpCutoff = 100;
 currentBaselineBoundary = currentXlims(1) / 2;
+currentContrastPercent = defaultContrastPercent();
 if isfield(calculationResultOut, 'csd_hp_cutoff_hz')
     currentHpCutoff = calculationResultOut.csd_hp_cutoff_hz;
 end
@@ -420,6 +422,7 @@ if isfield(calculationResultOut, 'csd_baseline_boundary')
     currentBaselineBoundary = calculationResultOut.csd_baseline_boundary;
 end
 maxHpCutoff = 500;
+restoreMeanControlsState();
 [contrastCenter, contrastHalfSpan] = resolveContrastBaseline();
 createContrastControls();
 createPreCsdControls();
@@ -492,7 +495,7 @@ function createContrastControls()
 if contrastHalfSpan <= 0
     return
 end
-initialCoef = defaultContrastPercent();
+initialCoef = currentContrastPercent;
 initialSliderValue = sliderFromCoef(initialCoef);
 contrastLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'Contrast, %', ...
     'Position', contrast_text_coords, 'HorizontalAlignment', 'left');
@@ -589,12 +592,14 @@ end
 function HpSliderClb(~, ~)
 currentHpCutoff = hpValueFromSlider(get(hpSlider, 'Value'));
 syncPreCsdControls();
+saveMeanControlsState();
 requestDebouncedRefresh();
 end
 
 function HpActiveCheckboxClb(src, ~)
 hpFilterEnabled = logical(get(src, 'Value'));
 syncPreCsdControls();
+saveMeanControlsState();
 requestDebouncedRefresh();
 end
 
@@ -605,12 +610,14 @@ if isnan(inputValue) || ~isfinite(inputValue)
 end
 currentHpCutoff = clampHp(inputValue);
 syncPreCsdControls();
+saveMeanControlsState();
 requestDebouncedRefresh();
 end
 
 function BaselineSliderClb(~, ~)
 currentBaselineBoundary = baselineValueFromSlider(get(baselineSlider, 'Value'));
 syncPreCsdControls();
+saveMeanControlsState();
 requestDebouncedRefresh();
 end
 
@@ -621,6 +628,7 @@ if isnan(inputValue) || ~isfinite(inputValue)
 end
 currentBaselineBoundary = clampBaselineBoundary(inputValue);
 syncPreCsdControls();
+saveMeanControlsState();
 requestDebouncedRefresh();
 end
 
@@ -640,11 +648,13 @@ currentXlims = [xMinValue, xMaxValue];
 currentBaselineBoundary = clampBaselineBoundary(currentBaselineBoundary);
 syncPreCsdControls();
 applyXlimToAxes();
+saveMeanControlsState();
 requestDebouncedRefresh();
 end
 
 function MuaTraceWhiteCheckboxClb(src, ~)
 useWhiteTracesInMua = logical(get(src, 'Value'));
+saveMeanControlsState();
 requestDebouncedRefresh();
 end
 
@@ -894,6 +904,8 @@ end
 function ContrastSliderClb(~, ~)
 coef = coefFromSlider(get(contrastSlider, 'Value'));
 set(contrastEdit, 'String', num2str(coef, '%.3g'));
+currentContrastPercent = coef;
+saveMeanControlsState();
 applyContrast(coef);
 end
 
@@ -905,6 +917,8 @@ end
 coef = min(max(coef, contrastCoefMin), contrastCoefMax);
 set(contrastEdit, 'String', num2str(coef, '%.3g'));
 set(contrastSlider, 'Value', sliderFromCoef(coef));
+currentContrastPercent = coef;
+saveMeanControlsState();
 applyContrast(coef);
 end
 
@@ -932,6 +946,64 @@ end
 
 function coef = defaultContrastPercent()
 coef = 100 - 40 * double(isfield(calculationResultOut, 'show_CSD') && calculationResultOut.show_CSD);
+end
+
+function restoreMeanControlsState()
+if ~isstruct(meanControlsState)
+    return
+end
+modeKey = currentMeanModeKey();
+stateForMode = struct();
+if isfield(meanControlsState, modeKey) && isstruct(meanControlsState.(modeKey))
+    stateForMode = meanControlsState.(modeKey);
+elseif isfield(meanControlsState, 'contrastPercent') || isfield(meanControlsState, 'hpCutoffHz')
+    stateForMode = meanControlsState; % обратная совместимость со старым форматом
+end
+if isfield(stateForMode, 'contrastPercent')
+    currentContrastPercent = stateForMode.contrastPercent;
+end
+if isfield(stateForMode, 'hpCutoffHz')
+    currentHpCutoff = stateForMode.hpCutoffHz;
+end
+if isfield(stateForMode, 'baselineBoundary')
+    currentBaselineBoundary = stateForMode.baselineBoundary;
+end
+if isfield(stateForMode, 'xLim') && isnumeric(stateForMode.xLim) && numel(stateForMode.xLim) == 2
+    currentXlims = stateForMode.xLim(:).';
+end
+if isfield(stateForMode, 'hpFilterEnabled')
+    hpFilterEnabled = logical(stateForMode.hpFilterEnabled);
+end
+if isfield(stateForMode, 'muaWhiteTraces')
+    useWhiteTracesInMua = logical(stateForMode.muaWhiteTraces);
+end
+if currentXlims(1) >= currentXlims(2)
+    currentXlims = Xlims;
+end
+currentContrastPercent = min(max(currentContrastPercent, contrastCoefMin), contrastCoefMax);
+currentHpCutoff = clampHp(currentHpCutoff);
+currentBaselineBoundary = clampBaselineBoundary(currentBaselineBoundary);
+end
+
+function saveMeanControlsState()
+modeKey = currentMeanModeKey();
+stateForMode = struct( ...
+    'contrastPercent', currentContrastPercent, ...
+    'hpCutoffHz', currentHpCutoff, ...
+    'baselineBoundary', currentBaselineBoundary, ...
+    'xLim', currentXlims, ...
+    'hpFilterEnabled', logical(hpFilterEnabled), ...
+    'muaWhiteTraces', logical(useWhiteTracesInMua));
+if ~isstruct(meanControlsState)
+    meanControlsState = struct();
+end
+meanControlsState.(modeKey) = stateForMode;
+saveChannelSettings('meanControlsState');
+end
+
+function modeKey = currentMeanModeKey()
+modeKeys = {'mua', 'csd'};
+modeKey = modeKeys{1 + double(isfield(calculationResultOut, 'show_CSD') && calculationResultOut.show_CSD)};
 end
 
 function [climCenterOut, halfSpanOut] = resolveContrastBaseline()
