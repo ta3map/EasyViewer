@@ -243,9 +243,12 @@ function signalViewerGUI(filePath)
     event_label_click_callback = @selectEventByIndex;
     stim_label_click_callback = @selectStimulusByIndex;
 
-    binsize = 0.001;%s
+    binsize = 0.005;%s
     visualSettings.show_spikes = false;
     visualSettings.show_CSD = false;
+    visualSettings.mua_use_mask = true;
+    visualSettings.mua_color = '#FF0000';
+    visualSettings.mua_alpha = 0.9;
     if ~isfield(visualSettings, 'events_show')
         visualSettings.events_show = true;
     end
@@ -572,31 +575,25 @@ function signalViewerGUI(filePath)
         'Position', getElementPosition('file_btn'),...
         'Callback', @showFileMenu, 'Tag', 'file_btn');
                 
-    view_functions = {'Close all windows', ...
-        '', ...
-        'Hide Channel Settings', ...
+    view_functions = {'Hide Channel Settings', ...
         '', ...
         'Hide stimulus', ...
         '', ...
         'Hide full signal', ...
         '', ...
         'Manual channel shift', ...
-        '', ...
-        'Lines and styles', ...
-        '', ...
-        'CSD displaying', ...
-        '', ...
-        'Built-in Zoom', ...
-        '', ...
-        'Built-in Pan', ...
-        '', ...
-        'Data Cursor', ...
-        '', ...
+        '----------', ...
         'Full channel trace', ...
         '', ...
-        'Channel color palette', ...
+        '----------', ...
+        'Channels', ...
+        'Background', ...
         '', ...
-        'Background color palette'};
+        '----------', ...
+        'CSD', ...
+        'MUA', ...
+        'Stimulus', ...
+        'Events'};
           
     % Создание выпадающего списка
     view_menu = uicontrol('Style', 'listbox',...
@@ -707,19 +704,19 @@ function signalViewerGUI(filePath)
     
     % Обновляем текст в меню View в соответствии с состоянием
     if visualSettings.side_panel_visible
-        view_functions{3} = 'Hide Channel Settings';
+        view_functions{1} = 'Hide Channel Settings';
     else
-        view_functions{3} = 'View Channel Settings';
+        view_functions{1} = 'View Channel Settings';
     end
     if visualSettings.show_full_signal
-        view_functions{7} = 'Hide full signal';
+        view_functions{5} = 'Hide full signal';
     else
-        view_functions{7} = 'Show full signal';
+        view_functions{5} = 'Show full signal';
     end
     if visualSettings.auto_shift
-        view_functions{9} = 'Manual channel shift';
+        view_functions{7} = 'Manual channel shift';
     else
-        view_functions{9} = 'Auto channel shift';
+        view_functions{7} = 'Auto channel shift';
     end
     set(view_menu, 'String', view_functions);
     
@@ -1099,33 +1096,34 @@ function signalViewerGUI(filePath)
         dont_close_menu = false;
         switch selectedOption
             case view_functions{1}
-                % закрыть все окна кроме основного
-                % Убрано - теперь это делает главное окно app.m
-            case view_functions{3}
                 showHideSidePanel();
-            case view_functions{5}
+            case view_functions{3}
                 showHideStimulus()
-            case view_functions{7}
+            case view_functions{5}
                 toggleFullSignal()
-            case view_functions{9}
+            case view_functions{7}
                 toggleAutoShift()
+            case view_functions{8}
+                % separator
+            case view_functions{9}
+                viewFullChannelGUI();
             case view_functions{11}
-                lineStyleGUI()
-            case view_functions{13}%'CSD ...'
+                % separator
+            case view_functions{12}
+                openChannelColorPalette();
+            case view_functions{13}
+                openBackgroundColorPalette();
+            case view_functions{15}
+                % separator
+            case view_functions{16}
                 CSDSettingsGUI();
                 updateTable();
-            case view_functions{15}%'Built-in Zoom'
-                activateBuiltInZoom();
-            case view_functions{17}%'Built-in Pan'
-                activateBuiltInPan();
-            case view_functions{19}%'Data Cursor'
-                activateDataCursor();
-            case view_functions{21}
-                viewFullChannelGUI();
-            case view_functions{23}
-                openChannelColorPalette();
-            case view_functions{25}
-                openBackgroundColorPalette();
+            case view_functions{17}
+                openMUASettingsGUI();
+            case view_functions{18}
+                lineStyleGUI('stimulus_lines')
+            case view_functions{19}
+                lineStyleGUI('events_lines')
             case ''
             dont_close_menu = true;
         end
@@ -1188,7 +1186,7 @@ function signalViewerGUI(filePath)
             str_out = 'Hide Channel Settings';
         end
         
-        view_functions{3} = str_out;
+        view_functions{1} = str_out;
         set(view_menu, 'String', view_functions);
             
         visualSettings.side_panel_visible = ~visualSettings.side_panel_visible;
@@ -1220,7 +1218,7 @@ function signalViewerGUI(filePath)
             str_out = 'Hide stimulus';
         end
         
-        view_functions{5} = str_out;
+        view_functions{3} = str_out;
         set(view_menu, 'String', view_functions);
         visualSettings.stim_show = ~visualSettings.stim_show;
         set(showStimButton, 'Value', visualSettings.stim_show);
@@ -1237,7 +1235,7 @@ function signalViewerGUI(filePath)
             str_out = 'Show full signal';
         end
         
-        view_functions{7} = str_out;
+        view_functions{5} = str_out;
         set(view_menu, 'String', view_functions);
         set(showFullSignalCheckbox, 'Value', visualSettings.show_full_signal);
         
@@ -1258,11 +1256,18 @@ function signalViewerGUI(filePath)
             set(shiftCoeffEdit, 'Visible', 'on');
         end
         
-        view_functions{9} = str_out;
+        view_functions{7} = str_out;
         set(view_menu, 'String', view_functions);
         
         save(SettingsFilepath, 'visualSettings', '-append');
         updatePlot()
+    end
+
+    function openMUASettingsGUI()
+        MUASettingsGUI();
+        set(showSpikesButton, 'Value', visualSettings.show_spikes);
+        set(stdCoefEdit, 'String', num2str(std_coef));
+        set(stdCoefSlider, 'Value', std_coef);
     end
 
     function activateBuiltInZoom()
@@ -1301,7 +1306,7 @@ function signalViewerGUI(filePath)
             set(multiax,'Position', multiax_position_a);
             str_out = 'Hide Channel Settings';
 
-            view_functions{3} = str_out;
+            view_functions{1} = str_out;
             set(view_menu, 'String', view_functions);
 
             visualSettings.side_panel_visible = true;
@@ -1583,7 +1588,7 @@ function signalViewerGUI(filePath)
     function fullSignalCheckboxCallback(src, ~)
         visualSettings.show_full_signal = logical(get(src, 'Value'));
         viewMenuLabels = {'Show full signal', 'Hide full signal'};
-        view_functions{7} = viewMenuLabels{visualSettings.show_full_signal + 1};
+        view_functions{5} = viewMenuLabels{visualSettings.show_full_signal + 1};
         set(view_menu, 'String', view_functions);
         save(SettingsFilepath, 'visualSettings', '-append');
         updatePlot();
@@ -2961,8 +2966,20 @@ function loadSettingsFile()
             if isfield(loadedVisualSettings, 'show_CSD')
                 visualSettings.show_CSD = logical(loadedVisualSettings.show_CSD);
             end
+            if isfield(loadedVisualSettings, 'mua_use_mask')
+                visualSettings.mua_use_mask = logical(loadedVisualSettings.mua_use_mask);
+            end
+            if isfield(loadedVisualSettings, 'mua_color') && ~isempty(loadedVisualSettings.mua_color)
+                visualSettings.mua_color = loadedVisualSettings.mua_color;
+            end
+            if isfield(loadedVisualSettings, 'mua_alpha')
+                visualSettings.mua_alpha = min(max(double(loadedVisualSettings.mua_alpha), 0), 1);
+            end
             set(showSpikesButton, 'Value', visualSettings.show_spikes);
             set(showCSDbutton, 'Value', visualSettings.show_CSD);
+        end
+        if isfield(loadedSettings, 'binsize')
+            binsize = loadedSettings.binsize;
         end
         if isfield(loadedSettings, 'meanControlsState') && isstruct(loadedSettings.meanControlsState)
             meanControlsState = loadedSettings.meanControlsState;

@@ -17,7 +17,9 @@ function updatePlot()
 global event_amplitudes
 global event_channels
 global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
-global event_title_string
+    global event_title_string
+    global binsize
+    global timeCenterPopup
     
     show_events = true;
     if isfield(visualSettings, 'events_show')
@@ -257,6 +259,53 @@ global event_title_string
     % show spikes
     if visualSettings.show_spikes && not(isempty(spks))
         prg = std_coef;        
+        use_mua_mask = isfield(visualSettings, 'mua_use_mask') && visualSettings.mua_use_mask;
+        mua_alpha = 0.8;
+        if isfield(visualSettings, 'mua_alpha')
+            mua_alpha = min(max(double(visualSettings.mua_alpha), 0), 1);
+        end
+        mua_color_rgb = [1, 0, 0];
+        if isfield(visualSettings, 'mua_color')
+            mua_color_raw = visualSettings.mua_color;
+            if ischar(mua_color_raw) || isstring(mua_color_raw)
+                mua_color_str = char(mua_color_raw);
+                if startsWith(mua_color_str, '#') && numel(mua_color_str) == 7
+                    mua_color_rgb = [ ...
+                        hex2dec(mua_color_str(2:3)), ...
+                        hex2dec(mua_color_str(4:5)), ...
+                        hex2dec(mua_color_str(6:7))] / 255;
+                elseif numel(mua_color_str) == 1
+                    switch lower(mua_color_str)
+                        case 'r'
+                            mua_color_rgb = [1, 0, 0];
+                        case 'g'
+                            mua_color_rgb = [0, 1, 0];
+                        case 'b'
+                            mua_color_rgb = [0, 0, 1];
+                        case 'c'
+                            mua_color_rgb = [0, 1, 1];
+                        case 'm'
+                            mua_color_rgb = [1, 0, 1];
+                        case 'y'
+                            mua_color_rgb = [1, 1, 0];
+                        case 'k'
+                            mua_color_rgb = [0, 0, 0];
+                        case 'w'
+                            mua_color_rgb = [1, 1, 1];
+                    end
+                end
+            elseif isnumeric(mua_color_raw) && numel(mua_color_raw) == 3
+                mua_color_rgb = max(0, min(1, double(mua_color_raw(:).')));
+            end
+        end
+        local_binsize = binsize;
+        if isempty(local_binsize) || ~isfinite(local_binsize) || local_binsize <= 0
+            local_binsize = 0.001;
+        end
+        n_bins = ceil((plot_time_interval(2) - plot_time_interval(1)) / local_binsize);
+        if use_mua_mask
+            mua_counts = zeros(numel(ch_inxs), n_bins);
+        end
             
         c = 0;
         x_coord = [];
@@ -271,32 +320,88 @@ global event_title_string
             spks_in(ch_inx).ampl = spks(ch_inx).ampl(ii);
             
             spk = spks_in(ch_inx).tStamp/1000;% переводим из мс в сек формат
-            ampl = abs(spks_in(ch_inx).ampl);
             
-            x_coord = [x_coord, spk'];
-            y_coord = [y_coord, zeros(1, numel(spk)) + offset];
+            if use_mua_mask
+                cond4 = spk >= plot_time_interval(1) & spk < plot_time_interval(2);
+                spk = spk(cond4);
+                if isempty(spk)
+                    continue;
+                end
+                
+                if not(isempty(stims)) && visualSettings.stim_show
+                    stims_in = stims(cond3);
+                    stim_inxs = ClosestIndex(stims_in, time_in); % Индекс стимулов
+                    win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
+                    for i = 1:length(stim_inxs)
+                        start_inx = stim_inxs(i) - win_r;
+                        start_inx = max(start_inx, 1);
+                        end_inx = stim_inxs(i) + win_r;
+                        end_inx = min(end_inx, numel(time_in));
+                        cond5 = spk >= time_in(start_inx) & spk < time_in(end_inx);
+                        spk = spk(~cond5);
+                    end
+                end
+                
+                if isempty(spk)
+                    continue;
+                end
+                
+                bin_idx = floor((spk - plot_time_interval(1)) ./ local_binsize) + 1;
+                bin_idx = bin_idx(bin_idx >= 1 & bin_idx <= n_bins);
+                if isempty(bin_idx)
+                    continue;
+                end
+                mua_counts(c, :) = accumarray(bin_idx(:), 1, [n_bins, 1], @sum, 0).';
+            else
+                x_coord = [x_coord, spk'];
+                y_coord = [y_coord, zeros(1, numel(spk)) + offset];
+            end
         end
-        cond4 = x_coord >= plot_time_interval(1) & x_coord < plot_time_interval(2);
-        x_coord = x_coord(cond4);
-        y_coord = y_coord(cond4);
-        
-        if not(isempty(stims)) && visualSettings.stim_show
-            stims_in = stims(cond3);
-            stim_inxs = ClosestIndex(stims_in, time_in); % Индекс стимулов
-            win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
-            for i = 1:length(stim_inxs) 
-                start_inx = stim_inxs(i) - win_r;
-                start_inx = max(start_inx, 1);
-                end_inx = stim_inxs(i) + win_r;
-                end_inx = min(end_inx, numel(time_in));
-                cond5 = x_coord >= time_in(start_inx) & x_coord < time_in(end_inx);
-                x_coord = x_coord(~cond5);
-                y_coord = y_coord(~cond5);
+        if use_mua_mask
+            max_count = max(mua_counts(:));
+            if max_count > 0
+                x_start = (plot_time_interval(1) - time_origin) * timeUnitFactor;
+                x_end = (plot_time_interval(2) - time_origin) * timeUnitFactor;
+                y_half = max(shiftCoeff * 0.18, eps);
+                for iCh = 1:numel(ch_inxs)
+                    row_counts = mua_counts(iCh, :);
+                    if ~any(row_counts)
+                        continue;
+                    end
+                    row_norm = row_counts / max_count;
+                    row_rgb = zeros(1, n_bins, 3);
+                    row_rgb(1, :, 1) = row_norm * mua_color_rgb(1);
+                    row_rgb(1, :, 2) = row_norm * mua_color_rgb(2);
+                    row_rgb(1, :, 3) = row_norm * mua_color_rgb(3);
+                    y0 = offsets(iCh);
+                    h = image(multiax, [x_start, x_end], [y0 - y_half, y0 + y_half], row_rgb);
+                    set(h, 'AlphaData', mua_alpha * row_norm, 'AlphaDataMapping', 'none');
+                end
+            end
+        end
+        if ~use_mua_mask
+            cond4 = x_coord >= plot_time_interval(1) & x_coord < plot_time_interval(2);
+            x_coord = x_coord(cond4);
+            y_coord = y_coord(cond4);
+            
+            if not(isempty(stims)) && visualSettings.stim_show
+                stims_in = stims(cond3);
+                stim_inxs = ClosestIndex(stims_in, time_in); % Индекс стимулов
+                win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
+                for i = 1:length(stim_inxs) 
+                    start_inx = stim_inxs(i) - win_r;
+                    start_inx = max(start_inx, 1);
+                    end_inx = stim_inxs(i) + win_r;
+                    end_inx = min(end_inx, numel(time_in));
+                    cond5 = x_coord >= time_in(start_inx) & x_coord < time_in(end_inx);
+                    x_coord = x_coord(~cond5);
+                    y_coord = y_coord(~cond5);
+                end
+                
             end
             
+            scatter((x_coord - time_origin)*timeUnitFactor, y_coord, 'MarkerEdgeColor', mua_color_rgb, 'Marker', '|')
         end
-        
-        scatter((x_coord - time_origin)*timeUnitFactor, y_coord, 'r|')
     end
     
     Xlims = (plot_time_interval - time_origin) * timeUnitFactor;
@@ -364,18 +469,34 @@ global event_title_string
     if ~isempty(eventFileLabel) && ~strcmp(eventFileLabel, 'Events')
         titleLabel = sprintf('%s | %s', name, eventFileLabel);
     end
+    centerModes = {'stimulus', 'event', 'sweep', 'time'};
+    centerLabels = {'Stimuli', 'Events', 'Sweep', 'Continuos'};
+    centerStyleNames = {'stimulus_lines', 'events_lines', 'stimulus_lines', ''};
+    centerLabel = centerLabels{find(strcmp(centerModes, selectedCenter), 1)};
+    centerLabel = ['Mode: ', centerLabel];
 %     title(name, 'interpreter', 'none')
     hylabel_ax(Xlims(1), multiax, titleLabel);
-    centerModes = {'stimulus', 'event', 'sweep', 'time'};
-    centerLabels = {'Stimuli', 'Event', 'Sweep', 'ContinuousTime'};
-    centerStyleNames = {'stimulus_lines', 'events_lines', 'stimulus_lines', 'stimulus_lines'};
-    labelHeightFractions = [0.05, 0.10]; % [stimulus, event]
-    centerLabel = centerLabels{find(strcmp(centerModes, selectedCenter), 1)};
     centerStyleName = centerStyleNames{find(strcmp(centerModes, selectedCenter), 1)};
-    yTop = multiax.YLim(2);
-    centerLabelHeightFraction = labelHeightFractions(1 + strcmp(centerStyleName, 'events_lines'));
-    yPad = diff(multiax.YLim) * centerLabelHeightFraction;
-    drawLabelWithBg(multiax, 0, yTop - yPad, centerLabel, lines_and_styles.(centerStyleName), [], 'right');
+    modeLabelColor = [0 0.4 0];
+    modeLabelBgColor = [1 1 1];
+    if ~isempty(centerStyleName) && isfield(lines_and_styles, centerStyleName)
+        modeLabelColor = localColorToRgb(lines_and_styles.(centerStyleName).LabelColor, [0 0 0]);
+        modeLabelBgColor = localColorToRgb(lines_and_styles.(centerStyleName).LabelBackgroundColor, [1 1 1]);
+    end
+    modeLabelX = mean(Xlims);
+    modeLabelY = multiax.YLim(2) + diff(multiax.YLim) * 0.04;
+    modeLabel = text(multiax, modeLabelX, modeLabelY, centerLabel, ...
+        'Color', modeLabelColor, ...
+        'BackgroundColor', modeLabelBgColor, ...
+        'FontSize', 12, ...
+        'FontWeight', 'bold', ...
+        'HorizontalAlignment', 'center', ...
+        'VerticalAlignment', 'middle', ...
+        'Clipping', 'off', ...
+        'HitTest', 'on', ...
+        'PickableParts', 'all', ...
+        'ButtonDownFcn', @modeLabelClickCallback);
+    labelHeightFractions = [0.05, 0.10]; % [stimulus, event]
 
     % Дальше рисуем события/стимулы (в т.ч. scatter). Должен быть hold on,
     % иначе новые вызовы могут перерисовать оси и стереть трейсы.
@@ -455,7 +576,11 @@ global event_title_string
         text_text = cellfun(@(b, a) [b a], baseText, ampText, 'UniformOutput', false);
     end
     if show_events
-        if isempty(evets_x)
+        eventLabelsVisible = true;
+        if isfield(lines_and_styles.events_lines, 'LabelVisible')
+            eventLabelsVisible = logical(lines_and_styles.events_lines.LabelVisible);
+        end
+        if ~eventLabelsVisible || isempty(evets_x)
             % nothing to draw
         elseif ~isempty(event_label_click_callback)
             lineStyle = lines_and_styles.events_lines;
@@ -479,7 +604,11 @@ global event_title_string
         text_text = arrayfun(@(i) sprintf('%d', stim_ix(i)), 1:numel(stim_ix), 'UniformOutput', false);
     end
 %     text(text_x, text_y, text_text, 'color', stims_color);    
-    if isempty(stims_x)
+    stimLabelsVisible = true;
+    if isfield(lines_and_styles.stimulus_lines, 'LabelVisible')
+        stimLabelsVisible = logical(lines_and_styles.stimulus_lines.LabelVisible);
+    end
+    if ~stimLabelsVisible || isempty(stims_x)
         % nothing to draw
     elseif ~isempty(stim_label_click_callback)
         lineStyle = lines_and_styles.stimulus_lines;
@@ -510,4 +639,64 @@ global event_title_string
     % очищаем память 
     clear local_lfp time_in_transformed data_res
     
+    function modeLabelClickCallback(~, ~)
+        if isempty(timeCenterPopup) || ~isgraphics(timeCenterPopup)
+            return;
+        end
+        popupItems = get(timeCenterPopup, 'String');
+        if isempty(popupItems)
+            return;
+        end
+        if ischar(popupItems)
+            popupItems = cellstr(popupItems);
+        end
+        currentIdx = find(strcmp(popupItems, selectedCenter), 1, 'first');
+        if isempty(currentIdx)
+            currentIdx = 1;
+        end
+        nextIdx = mod(currentIdx, numel(popupItems)) + 1;
+        set(timeCenterPopup, 'Value', nextIdx);
+        popupCallback = get(timeCenterPopup, 'Callback');
+        if isa(popupCallback, 'function_handle')
+            popupCallback(timeCenterPopup, []);
+        end
+    end
+
+    function rgb = localColorToRgb(colorSpec, defaultRgb)
+        if nargin < 2
+            defaultRgb = [0 0 0];
+        end
+        rgb = defaultRgb;
+        if isnumeric(colorSpec) && numel(colorSpec) == 3
+            rgb = max(0, min(1, double(colorSpec(:).')));
+            return;
+        end
+        if ~(ischar(colorSpec) || isstring(colorSpec))
+            return;
+        end
+        colorSpec = char(colorSpec);
+        switch lower(colorSpec)
+            case 'r'
+                rgb = [1 0 0];
+            case 'g'
+                rgb = [0 1 0];
+            case 'b'
+                rgb = [0 0 1];
+            case 'c'
+                rgb = [0 1 1];
+            case 'm'
+                rgb = [1 0 1];
+            case 'y'
+                rgb = [1 1 0];
+            case 'k'
+                rgb = [0 0 0];
+            case 'w'
+                rgb = [1 1 1];
+            otherwise
+                if startsWith(colorSpec, '#') && numel(colorSpec) == 7
+                    rgb = hex2rgb(colorSpec);
+                end
+        end
+    end
+
 end

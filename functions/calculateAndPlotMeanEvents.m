@@ -368,27 +368,30 @@ end
 
 xline(0, 'r:');
 save_btn_coords = [5, 5, 40, 25];
+reset_btn_coords = [5, 33, 40, 25];
 savebutton = uicontrol('Parent', figureHandleOut, 'Style', 'pushbutton', 'String', 'Save', ...
     'Visible', 'on', 'Position', save_btn_coords, 'Callback', @SaveClb);
+resetbutton = uicontrol('Parent', figureHandleOut, 'Style', 'pushbutton', 'String', 'Reset', ...
+    'Visible', 'on', 'Position', reset_btn_coords, 'Callback', @ResetClb);
 btnIcon(savebutton, fullfile(getAssetsPath(), 'data-storage.png'), false)
 contrast_text_coords = [55, 7, 70, 20];
 contrast_edit_coords = [120, 7, 40, 20];
-contrast_slider_coords = [162, 9, 105, 18];
-hp_text_coords = [300, 7, 38, 20];
-hp_edit_coords = [338, 7, 45, 20];
-hp_slider_coords = [385, 9, 86, 18];
-hp_active_checkbox_coords = [282, 9, 16, 18];
-baseline_text_coords = [495, 7, 55, 20];
-baseline_edit_coords = [550, 7, 50, 20];
-baseline_slider_coords = [602, 9, 95, 18];
-smooth_text_coords = [700, 7, 45, 20];
-smooth_edit_coords = [742, 7, 45, 20];
-smooth_slider_coords = [790, 9, 85, 18];
-xmin_text_coords = [880, 7, 35, 20];
-xmin_edit_coords = [913, 7, 48, 20];
-xmax_text_coords = [964, 7, 35, 20];
-xmax_edit_coords = [997, 7, 48, 20];
-mua_trace_checkbox_coords = [1050, 7, 105, 20];
+contrast_slider_coords = [162, 9, 70, 18];
+hp_text_coords = [280, 7, 38, 20];
+hp_edit_coords = [318, 7, 45, 20];
+hp_slider_coords = [365, 9, 70, 18];
+hp_active_checkbox_coords = [262, 9, 16, 18];
+baseline_text_coords = [450, 7, 55, 20];
+baseline_edit_coords = [490, 7, 50, 20];
+baseline_slider_coords = [543, 9, 70, 18];
+smooth_text_coords = [618, 7, 41, 20];
+smooth_edit_coords = [657, 7, 41, 20];
+smooth_slider_coords = [705, 9, 70, 18];
+xmin_text_coords = [787, 7, 32, 20];
+xmin_edit_coords = [817, 7, 38, 20];
+xmax_text_coords = [857, 7, 32, 20];
+xmax_edit_coords = [893, 7, 38, 20];
+mua_trace_checkbox_coords = [940, 7, 95, 20];
 contrastCoefMin = 10;
 contrastCoefMax = 250;
 contrastSliderMax = 100;
@@ -420,6 +423,7 @@ muaTraceWhiteCheckbox = [];
 useWhiteTracesInMua = true;
 refreshDebounceTimer = [];
 refreshDebounceDelay = 0.18;
+defaultXlims = Xlims;
 currentXlims = Xlims;
 currentHpCutoff = 100;
 currentBaselineBoundary = currentXlims(1) / 2;
@@ -482,7 +486,28 @@ function SaveClb(~,~)
     end
 end
 
+function ResetClb(~, ~)
+    userChoice = questdlg('Reset Mean controls to defaults?', 'Reset controls', 'Yes', 'No', 'No');
+    if ~strcmp(userChoice, 'Yes')
+        return
+    end
+    currentXlims = defaultXlims;
+    currentContrastPercent = defaultContrastPercent();
+    currentHpCutoff = 100;
+    currentBaselineBoundary = defaultXlims(1) / 2;
+    hpFilterEnabled = true;
+    useWhiteTracesInMua = true;
+    currentHeatmapSmoothSigma = defaultHeatmapSmoothSigma();
+    syncPreCsdControls();
+    applyXlimToAxes();
+    saveMeanControlsState();
+    requestDebouncedRefresh();
+end
+
 function deleteSaveButton_meanEvents()
+if ~isempty(resetbutton) && isgraphics(resetbutton, 'uicontrol')
+    delete(resetbutton);
+end
 if ~isempty(savebutton) && isgraphics(savebutton, 'uicontrol')
     delete(savebutton);
 end
@@ -496,6 +521,8 @@ if ~isgraphics(figureHandleOut, 'figure')
 end
 savebutton = uicontrol('Parent', figureHandleOut, 'Style', 'pushbutton', 'String', 'Save', ...
     'Visible', 'on', 'Position', save_btn_coords, 'Callback', @SaveClb);
+resetbutton = uicontrol('Parent', figureHandleOut, 'Style', 'pushbutton', 'String', 'Reset', ...
+    'Visible', 'on', 'Position', reset_btn_coords, 'Callback', @ResetClb);
 btnIcon(savebutton, fullfile(getAssetsPath(), 'data-storage.png'), false)
 createContrastControls();
 createPreCsdControls();
@@ -533,7 +560,6 @@ end
 
 function createPreCsdControls()
 currentHpCutoff = clampHp(currentHpCutoff);
-currentBaselineBoundary = clampBaselineBoundary(currentBaselineBoundary);
 hpLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'HP, Hz', ...
     'Position', hp_text_coords, 'HorizontalAlignment', 'left');
 hpEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', ...
@@ -647,7 +673,7 @@ inputValue = str2double(strrep(get(baselineEdit, 'String'), ',', '.'));
 if isnan(inputValue) || ~isfinite(inputValue)
     inputValue = currentBaselineBoundary;
 end
-currentBaselineBoundary = clampBaselineBoundary(inputValue);
+currentBaselineBoundary = inputValue;
 syncPreCsdControls();
 saveMeanControlsState();
 requestDebouncedRefresh();
@@ -666,7 +692,6 @@ if xMinValue >= xMaxValue
     xMaxValue = xMinValue + max(1e-6, abs(xMinValue) * 1e-6);
 end
 currentXlims = [xMinValue, xMaxValue];
-currentBaselineBoundary = clampBaselineBoundary(currentBaselineBoundary);
 syncPreCsdControls();
 applyXlimToAxes();
 saveMeanControlsState();
@@ -729,6 +754,16 @@ if ~isempty(hpActiveCheckbox) && isgraphics(hpActiveCheckbox, 'uicontrol')
     set(hpActiveCheckbox, 'Value', double(hpFilterEnabled));
 end
 enabledState = ternaryEnable(hpFilterEnabled);
+labelColor = [0 0 0];
+if ~hpFilterEnabled
+    labelColor = [0.5 0.5 0.5];
+end
+if ~isempty(hpLabel) && isgraphics(hpLabel, 'uicontrol')
+    set(hpLabel, 'ForegroundColor', labelColor);
+end
+if ~isempty(baselineLabel) && isgraphics(baselineLabel, 'uicontrol')
+    set(baselineLabel, 'ForegroundColor', labelColor);
+end
 if ~isempty(hpEdit) && isgraphics(hpEdit, 'uicontrol')
     set(hpEdit, 'Enable', enabledState);
     set(hpEdit, 'String', sprintf('%.2f', currentHpCutoff));
@@ -912,9 +947,14 @@ if hpFilterEnabled && currentHpCutoff > 0
     end
 end
 if hpFilterEnabled
-    baselineMask = timeAxis >= currentXlims(1) & timeAxis <= currentBaselineBoundary;
-    baselineMedian = median(plMeanData(baselineMask, :), 1);
-    plMeanData = plMeanData - baselineMedian;
+    baselineBoundaryInRange = currentBaselineBoundary >= currentXlims(1) && currentBaselineBoundary <= currentXlims(2);
+    if baselineBoundaryInRange
+        baselineMask = timeAxis >= currentXlims(1) & timeAxis <= currentBaselineBoundary;
+        if any(baselineMask)
+            baselineMedian = median(plMeanData(baselineMask, :), 1);
+            plMeanData = plMeanData - baselineMedian;
+        end
+    end
 end
 end
 
@@ -1048,7 +1088,6 @@ if currentXlims(1) >= currentXlims(2)
 end
 currentContrastPercent = min(max(currentContrastPercent, contrastCoefMin), contrastCoefMax);
 currentHpCutoff = clampHp(currentHpCutoff);
-currentBaselineBoundary = clampBaselineBoundary(currentBaselineBoundary);
 currentHeatmapSmoothSigma = clampSmoothSigma(currentHeatmapSmoothSigma);
 end
 
