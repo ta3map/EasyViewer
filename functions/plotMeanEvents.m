@@ -25,11 +25,7 @@ function [f, calculation_result] = plotMeanEvents(params)
     csd_smooth_coef = params.csd_smooth_coef;
     csd_contrast_coef = params.csd_contrast_coef;
     csd_active = params.csd_active;
-    if isfield(params, 'csd_split_by_channel_gaps')
-        csd_split_by_channel_gaps = logical(params.csd_split_by_channel_gaps);
-    else
-        csd_split_by_channel_gaps = false;
-    end
+    csd_split_by_channel_gaps = true;
     lfpVar = params.lfpVar;
     mean_group_ch = params.mean_group_ch;
     t_profile = params.t_profile;
@@ -153,7 +149,7 @@ function [f, calculation_result] = plotMeanEvents(params)
 
     % show spikes
     ev_hists = [];
-    if show_spikes && not(isempty(spks)) && not(show_CSD)
+    if show_spikes && not(isempty(spks))
         clear evs
         for i = 1:numEvents
             % Вычисление индексов окна вокруг временной точки
@@ -311,7 +307,7 @@ function [f, calculation_result] = plotMeanEvents(params)
     
 
 
-if not(isempty(ev_hists))  && not(show_CSD)      % режим показа MUA (не работает если выбран CSD)
+if not(isempty(ev_hists))  && not(show_CSD)
     % Перед отрисовкой центрируем каждый канал по своей медиане.
     ev_hists = ev_hists - median(ev_hists, 2);
     mua_x = linspace(start_time*timeUnitFactor, end_time*timeUnitFactor, size(ev_hists, 2));

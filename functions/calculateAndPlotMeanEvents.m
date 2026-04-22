@@ -62,26 +62,8 @@ end
 channelSettings = get(channelTable, 'Data');
 
 params.sourceType = sourceType;
-params.csd_split_by_channel_gaps = logical(csd_split_by_channel_gaps);
+params.csd_split_by_channel_gaps = true;
 buildFigure = ~isfield(opts, 'buildFigure') || logical(opts.buildFigure);
-if buildFigure
-    params.figure = figure('Name', figureName, 'Tag', 'meanSignalResult', ...
-        'MenuBar', 'none', 'ToolBar', 'figure');
-else
-    params.figure = figure('Name', figureName, 'Tag', 'meanSignalResult', 'Visible', 'off', ...
-        'MenuBar', 'none', 'ToolBar', 'figure');
-end
-params.figure.Position = [32, 64, 1024, 768];
-set(params.figure, 'WindowButtonMotionFcn', []);
-
-% Тулбар создаём для доступа к инструментам (zoom и т.д.), затем скрываем
-hToolbar = findall(params.figure, 'Type', 'uitoolbar');
-if ~isempty(hToolbar)
-    set(hToolbar, 'Visible', 'off');
-end
-
-% Создаем tiledlayout с опциональным размером через opts
-% По умолчанию 1x1, но можно задать больше для таблиц и scatter-графиков
 if isfield(opts, 'tiledlayoutSize') && ~isempty(opts.tiledlayoutSize)
     tiledRows = opts.tiledlayoutSize(1);
     tiledCols = opts.tiledlayoutSize(2);
@@ -89,8 +71,6 @@ else
     tiledRows = 1;
     tiledCols = 1;
 end
-t = tiledlayout(params.figure, tiledRows, tiledCols, 'TileSpacing', 'compact', 'Padding', 'compact');
-params.tiledlayout = t;
 % Определяем временное окно для усреднения на основе xLimits
 if isfield(opts, 'meanWindow')
     params.meanWindow = opts.meanWindow;
@@ -209,38 +189,32 @@ if ~isempty(wb) && isvalid(wb)
     drawnow;
 end
 
-[mean_f, calculation_result] = plotMeanEvents(params);
+renderBothModes = params.show_CSD && params.show_spikes;
 numEvents = numel(params.timePoints);
-if strcmp(sourceType, 'stimuli')
-    mean_f.Name = [figureName, ': ', local_evfilename, ' (', num2str(numEvents), ' stimuli)'];
-else
-    mean_f.Name = [figureName, ': ', local_evfilename, ' (', num2str(numEvents), ' events)'];
-end
+if renderBothModes
+    params_csd = params;
+    params_csd.show_CSD = true;
+    params_csd.show_spikes = false;
+    params_csd = createRenderParams(params_csd);
+    [mean_f_csd, calculation_result_csd] = plotMeanEvents(params_csd);
+    [mean_f_csd, calculation_result_csd] = finalizeMeanFigure(mean_f_csd, calculation_result_csd, ' [CSD]', false);
 
-bgHex = axes_background_color;
-if isempty(bgHex)
-    bgHex = '#FFFFFF';
-end
-bgRgb = hex2rgb_meanEvents(bgHex);
-axesHandles = findobj(mean_f, 'Type', 'axes');
-for iAx = 1:numel(axesHandles)
-    axh = axesHandles(iAx);
-    if isprop(axh, 'Color')
-        set(axh, 'Color', bgRgb);
-    end
-end
-if ~isempty(params.customXLimits)
-    Xlims = params.customXLimits;
+    params_mua = params;
+    params_mua.show_CSD = false;
+    params_mua.show_spikes = true;
+    params_mua = createRenderParams(params_mua);
+    [mean_f_mua, calculation_result_mua] = plotMeanEvents(params_mua);
+    [mean_f_mua, calculation_result_mua] = finalizeMeanFigure(mean_f_mua, calculation_result_mua, ' [MUA]', false);
+
+    mean_f = [mean_f_csd, mean_f_mua];
+    calculation_result = struct('csd', calculation_result_csd, 'mua', calculation_result_mua);
 else
-    Xlims = [-time_back, time_forward]*timeUnitFactor;
+    params = createRenderParams(params);
+    [mean_f, calculation_result] = plotMeanEvents(params);
+    [mean_f, calculation_result] = finalizeMeanFigure(mean_f, calculation_result, '', true);
 end
-xlim(Xlims)
-% Сохраняем пределы X в calcResult для использования в других функциях
-calculation_result.xLimits = Xlims;
 
 if ~buildFigure
-    close(mean_f);
-    mean_f = [];
     fprintf('Mean events calculated.\n');
     if ~isempty(wb) && isvalid(wb)
         waitbar(1.0, wb, 'Complete');
@@ -252,28 +226,82 @@ if ~buildFigure
     return
 end
 
-numChannels = numel(ch_inxs);
-y_pixel_size = 768;             % Размер по Y в пикселях
-y_tick_min_pixel_size = 32;     % Минимальный размер тиков по Y в пикселях
-[chRanges, chRangesOffsets, chRangeIndexes] = calculateChRanges(offsets, shiftCoeff, calculation_result.meanData, ...
-    numChannels, calculation_result.scalingCoefficients(ch_inxs), y_pixel_size, y_tick_min_pixel_size);
+function paramsOut = createRenderParams(paramsIn)
+paramsOut = paramsIn;
+if buildFigure
+    paramsOut.figure = figure('Name', figureName, 'Tag', 'meanSignalResult', ...
+        'MenuBar', 'none', 'ToolBar', 'figure');
+else
+    paramsOut.figure = figure('Name', figureName, 'Tag', 'meanSignalResult', 'Visible', 'off', ...
+        'MenuBar', 'none', 'ToolBar', 'figure');
+end
+paramsOut.figure.Position = [32, 64, 1024, 768];
+set(paramsOut.figure, 'WindowButtonMotionFcn', []);
 
-% Корректируем значения chRanges и смещаем обозначения к базовой линии (медиане) каждого канала
-if isfield(calculation_result, 'baseline_medians')
-    baseline_medians = calculation_result.baseline_medians;
+hToolbar = findall(paramsOut.figure, 'Type', 'uitoolbar');
+if ~isempty(hToolbar)
+    set(hToolbar, 'Visible', 'off');
+end
+paramsOut.tiledlayout = tiledlayout(paramsOut.figure, tiledRows, tiledCols, 'TileSpacing', 'compact', 'Padding', 'compact');
+end
+
+function [figureHandleOut, calculationResultOut] = finalizeMeanFigure(meanFigureIn, calculationResultIn, nameSuffix, drawRangeLabels)
+figureHandleOut = meanFigureIn;
+calculationResultOut = calculationResultIn;
+
+if strcmp(sourceType, 'stimuli')
+    figureHandleOut.Name = [figureName, ': ', local_evfilename, ' (', num2str(numEvents), ' stimuli)', nameSuffix];
+else
+    figureHandleOut.Name = [figureName, ': ', local_evfilename, ' (', num2str(numEvents), ' events)', nameSuffix];
+end
+
+bgHex = axes_background_color;
+if isempty(bgHex)
+    bgHex = '#FFFFFF';
+end
+bgRgb = hex2rgb_meanEvents(bgHex);
+axesHandles = findobj(figureHandleOut, 'Type', 'axes');
+for iAx = 1:numel(axesHandles)
+    axh = axesHandles(iAx);
+    if isprop(axh, 'Color')
+        set(axh, 'Color', bgRgb);
+    end
+end
+
+if ~isempty(params.customXLimits)
+    Xlims = params.customXLimits;
+else
+    Xlims = [-time_back, time_forward]*timeUnitFactor;
+end
+xlim(Xlims)
+calculationResultOut.xLimits = Xlims;
+
+if ~buildFigure
+    close(figureHandleOut);
+    figureHandleOut = [];
+    return
+end
+
+numChannels = numel(ch_inxs);
+y_pixel_size = 768;
+y_tick_min_pixel_size = 32;
+[chRanges, chRangesOffsets, chRangeIndexes] = calculateChRanges(offsets, shiftCoeff, calculationResultOut.meanData, ...
+    numChannels, calculationResultOut.scalingCoefficients(ch_inxs), y_pixel_size, y_tick_min_pixel_size);
+
+if isfield(calculationResultOut, 'baseline_medians')
+    baseline_medians = calculationResultOut.baseline_medians;
     for ch_inx = 1:numChannels
         ch_mask = chRangeIndexes == ch_inx;
-        % baseline_medians уже в масштабе данных, нужно добавить обратно с учетом m_coef
-        chRanges(ch_mask) = chRanges(ch_mask) + baseline_medians(ch_inx) / calculation_result.scalingCoefficients(ch_inxs(ch_inx));
-        % Смещаем обозначения по Y к медиане канала
+        chRanges(ch_mask) = chRanges(ch_mask) + baseline_medians(ch_inx) / calculationResultOut.scalingCoefficients(ch_inxs(ch_inx));
         chRangesOffsets(ch_mask) = chRangesOffsets(ch_mask) + baseline_medians(ch_inx);
     end
 end
 
-rangesTimeTicks = Xlims(1)+zeros(size(chRangesOffsets)) + 0.02*(Xlims(end) - Xlims(1));    
-rangesTimeLabels = Xlims(1)+zeros(size(chRangesOffsets)) + 0.005*(Xlims(end) - Xlims(1)); 
-colors_in = channelSettings(:, 4)';
-colors_in_selected = colors_in(ch_inxs);
+if drawRangeLabels
+    rangesTimeTicks = Xlims(1)+zeros(size(chRangesOffsets)) + 0.02*(Xlims(end) - Xlims(1));
+    rangesTimeLabels = Xlims(1)+zeros(size(chRangesOffsets)) + 0.005*(Xlims(end) - Xlims(1));
+    colors_in = channelSettings(:, 4)';
+    colors_in_selected = colors_in(ch_inxs);
     ch_inx = 0;
     for color = colors_in_selected
         ch_inx = ch_inx+1;
@@ -281,9 +309,9 @@ colors_in_selected = colors_in(ch_inxs);
         text(rangesTimeTicks(group_index), chRangesOffsets(group_index), num2str(chRanges(group_index)', '%.2f'), 'color', color{:}, 'BackgroundColor', 'none')
         scatter(rangesTimeLabels(group_index), chRangesOffsets(group_index), [], 'Marker', '_', 'MarkerEdgeColor', color{:})
     end
+end
 
-% Вычисляем и применяем пределы Y
-ax = findobj(mean_f, 'Type', 'axes', '-not', 'Tag', 'legend');
+ax = findobj(figureHandleOut, 'Type', 'axes', '-not', 'Tag', 'legend');
 if ~isempty(ax)
     mainAx = [];
     for iAx = 1:numel(ax)
@@ -297,14 +325,14 @@ if ~isempty(ax)
         mainAx = ax(1);
     end
     if visualSettings.show_full_signal
-        pl_meanData = calculation_result.meanData(:, ch_inxs) .* calculation_result.scalingCoefficients(ch_inxs);
+        pl_meanData = calculationResultOut.meanData(:, ch_inxs) .* calculationResultOut.scalingCoefficients(ch_inxs);
         data_with_offsets = pl_meanData + offsets;
         yMin = min(data_with_offsets(:));
         yMax = max(data_with_offsets(:));
         margin = (yMax - yMin) * 0.05;
         Ylims = [yMin - margin, yMax + margin];
-    elseif isfield(calculation_result, 'baseline_medians')
-        baseline_medians = calculation_result.baseline_medians;
+    elseif isfield(calculationResultOut, 'baseline_medians')
+        baseline_medians = calculationResultOut.baseline_medians;
         minOffset = min(offsets);
         maxOffset = max(offsets);
         minBaseline = min(baseline_medians);
@@ -322,15 +350,11 @@ if ~isempty(ax)
     end
 end
 
-
-
 xline(0, 'r:');
-
-% Кнопка для сохранения (по расширению файла определяется: данные или картинка)
 save_btn_coords = [5, 5, 40, 25];
-savebutton = uicontrol('Parent', mean_f, 'Style', 'pushbutton', 'String', 'Save', ...
+savebutton = uicontrol('Parent', figureHandleOut, 'Style', 'pushbutton', 'String', 'Save', ...
     'Visible', 'on', 'Position', save_btn_coords, 'Callback', @SaveClb);
-btnIcon(savebutton, fullfile(getAssetsPath(), 'data-storage.png'), false) % ставим иконку для кнопки
+btnIcon(savebutton, fullfile(getAssetsPath(), 'data-storage.png'), false)
 
 function SaveClb(~,~)
     [file, path] = uiputfile(...
@@ -351,7 +375,8 @@ function SaveClb(~,~)
 
     switch lower(ext)
         case '.mean'
-            save(filename, '-struct', 'calculation_result');
+            data_to_save = calculationResultOut;
+            save(filename, '-struct', 'data_to_save');
             save(filename, 'original_filename', '-append');
             disp(['Data saved to ', filename]);
         case '.fig'
@@ -359,19 +384,19 @@ function SaveClb(~,~)
             drawnow;
             deleteSaveButton_meanEvents();
             restoreSaveBtn = onCleanup(@() createSaveButton_meanEvents());
-            savefig(mean_f, filename, 'compact');
+            savefig(figureHandleOut, filename, 'compact');
             disp(['Figure saved to ', filename]);
         case '.pdf'
-            print(mean_f, filename, '-dpdf', '-bestfit');
+            print(figureHandleOut, filename, '-dpdf', '-bestfit');
             disp(['Image saved to ', filename]);
         case '.eps'
-            print(mean_f, filename, '-depsc');
+            print(figureHandleOut, filename, '-depsc');
             disp(['Image saved to ', filename]);
         case '.png'
-            saveas(mean_f, filename, 'png');
+            saveas(figureHandleOut, filename, 'png');
             disp(['Image saved to ', filename]);
         otherwise
-            saveas(mean_f, filename);
+            saveas(figureHandleOut, filename);
             disp(['Saved to ', filename]);
     end
 end
@@ -383,12 +408,13 @@ end
 end
 
 function createSaveButton_meanEvents()
-if ~isgraphics(mean_f, 'figure')
+if ~isgraphics(figureHandleOut, 'figure')
     return
 end
-savebutton = uicontrol('Parent', mean_f, 'Style', 'pushbutton', 'String', 'Save', ...
+savebutton = uicontrol('Parent', figureHandleOut, 'Style', 'pushbutton', 'String', 'Save', ...
     'Visible', 'on', 'Position', save_btn_coords, 'Callback', @SaveClb);
 btnIcon(savebutton, fullfile(getAssetsPath(), 'data-storage.png'), false)
+end
 end
 
 fprintf('Mean events calculated.\n');

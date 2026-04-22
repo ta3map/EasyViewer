@@ -1,5 +1,5 @@
 function saveMUAEventsToFile(spks, ~, matFilePath, varargin)
-% saveMUAEventsToFile - Сохраняет MUA в .mua
+% saveMUAEventsToFile - Сохраняет MUA в .mua (плоский spks или spks_events + event_times_sec)
 
     wb = waitbar(0, 'Preparing MUA save...', 'Name', 'Save MUA');
     p = inputParser;
@@ -8,15 +8,29 @@ function saveMUAEventsToFile(spks, ~, matFilePath, varargin)
     addParameter(p, 'defaultFileNameSuffix', '_mua');
     addParameter(p, 'channel_names', {});
     addParameter(p, 'filepath', '');
+    addParameter(p, 'spks_events', {});
+    addParameter(p, 'event_times_sec', []);
+    addParameter(p, 'events', []);
+    addParameter(p, 'events_index', []);
+    addParameter(p, 'events_filepath', '');
+    addParameter(p, 'original_filepath', '');
+    addParameter(p, 'fileExtension', '.mua');
     parse(p, varargin{:});
     params = p.Results;
+    fileExtension = params.fileExtension;
+    if isempty(fileExtension)
+        fileExtension = '.mua';
+    end
+    if fileExtension(1) ~= '.'
+        fileExtension = ['.' fileExtension];
+    end
 
     [basePath, baseName, ~] = fileparts(matFilePath);
-    defaultFileName = fullfile(basePath, [baseName params.defaultFileNameSuffix '.mua']);
+    defaultFileName = fullfile(basePath, [baseName params.defaultFileNameSuffix fileExtension]);
     filepath = params.filepath;
     waitbar(0.2, wb, 'Selecting output path...');
     if isempty(filepath)
-        [file, path] = uiputfile('*.mua', params.dialogTitle, defaultFileName);
+        [file, path] = uiputfile(['*' fileExtension], params.dialogTitle, defaultFileName);
         if isequal(file, 0)
             close(wb);
             disp('File save canceled.');
@@ -26,7 +40,7 @@ function saveMUAEventsToFile(spks, ~, matFilePath, varargin)
     else
         [~, file, ext] = fileparts(filepath);
         if isempty(ext)
-            filepath = [filepath '.mua'];
+            filepath = [filepath fileExtension];
             [~, file, ~] = fileparts(filepath);
         end
     end
@@ -45,10 +59,27 @@ function saveMUAEventsToFile(spks, ~, matFilePath, varargin)
 
     waitbar(0.6, wb, 'Saving file...');
     channel_names = params.channel_names;
+    spks_events = params.spks_events;
+    event_times_sec = params.event_times_sec(:);
+    events = params.events(:);
+    events_index = params.events_index(:);
+    events_filepath = params.events_filepath;
+    original_filepath = params.original_filepath;
 
-    save(filepath, 'spks', 'channel_names');
+    if ~isempty(spks_events)
+        if isempty(events)
+            events = event_times_sec;
+        end
+        save(filepath, 'spks_events', 'event_times_sec', 'channel_names', 'events', ...
+            'events_index', 'events_filepath', 'original_filepath');
+        waitbar(1.0, wb, 'Done');
+        close(wb);
+        fprintf('Saved MUA spks_events (%d trials) to %s\n', numel(spks_events), file);
+        return;
+    end
+
+    save(filepath, 'spks', 'channel_names', 'events', 'events_index', 'events_filepath', 'original_filepath');
     waitbar(1.0, wb, 'Done');
     close(wb);
     fprintf('Saved MUA spks to %s\n', file);
 end
-

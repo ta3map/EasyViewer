@@ -10,6 +10,7 @@ function saveChannelSettings(varargin)
     global std_coef
     global visualSettings
     global axes_background_color
+    global lastEventsFilePath
     
     if exist(matFilePath, 'file') ~= 2
         return;
@@ -41,6 +42,7 @@ function saveChannelSettings(varargin)
             'baseline_subtract_available'
             'axes_background_color'
             'stims'
+            'lastEventsFilePath'
             'EV_version'
         };
     end

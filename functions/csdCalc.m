@@ -7,11 +7,6 @@ function [csd_image, csd_t_range, csd_ch_range] = csdCalc(params)
     csd_smooth_coef = params.csd_smooth_coef;
     csd_active = params.csd_active;
     
-    csd_split_by_channel_gaps = false;
-    if isfield(params, 'csd_split_by_channel_gaps')
-        csd_split_by_channel_gaps = logical(params.csd_split_by_channel_gaps);
-    end
-    
     ch_inxs_original = [];
     if isfield(params, 'ch_inxs_original')
         ch_inxs_original = params.ch_inxs_original;
@@ -22,27 +17,19 @@ function [csd_image, csd_t_range, csd_ch_range] = csdCalc(params)
          
     time_res = time_in_csd;
     
-    if csd_split_by_channel_gaps
-        [csd_image, csd_t_range, csd_ch_range] = csdCalcSplitByGaps(double(data_in_csd), time_res, offsets, csd_active, ch_inxs_original);
-    else
-        % убираем информацию от ненужных каналов
-        data_res = cleanData(double(data_in_csd), csd_active');
-        
-        % определяем CSD для данных выбранных каналов
-        [csd_image, csd_t_range, ~] = CurSrcDnsAz(data_res, time_res, 1);
-        csd_image = flip(csd_image');
-        csd_ch_range = linspace(offsets(end-1), offsets(2), size(csd_image, 1));
-    end
+    [csd_image, csd_t_range, csd_ch_range] = csdCalcSplitByGaps(double(data_in_csd), time_res, offsets, csd_active, ch_inxs_original);
     
     if csd_smooth_coef>0
         
         raw_frq = Fs;
         new_frq = round(Fs/csd_smooth_coef);
-        numRawPoints = size(csd_image, 2); % количество точек в исходных данных  
-        numPoints = ceil(numRawPoints * new_frq / raw_frq); % вычисляем количество точек после ресемплинга
-        csd_image_res = zeros(numPoints, size(csd_image, 1)); % предварительное выделение памяти
+        numChannels = size(csd_image, 1);
+        firstResampled = resample1(csd_image(1, :)', new_frq, raw_frq);
+        numPoints = numel(firstResampled);
+        csd_image_res = zeros(numPoints, numChannels);
+        csd_image_res(:, 1) = firstResampled;
         
-        for ch = 1:size(csd_image, 1)
+        for ch = 2:numChannels
             csd_image_res(:, ch) = resample1(csd_image(ch, :)', new_frq, raw_frq);            
         end
         
@@ -102,6 +89,11 @@ function [csd_image_full, csd_t_range, csd_ch_range_full] = csdCalcSplitByGaps(d
         segData = data_in_csd(:, segStart:segEnd);
         [csd_seg, t_seg, ch_seg] = CurSrcDnsAz(segData, time_res, 1);
         csd_seg = flip(csd_seg');
+        csd_seg(~isfinite(csd_seg)) = 0;
+        segMedian = median(csd_seg(:));
+        segIqr = iqr(csd_seg(:));
+        segScale = segIqr * (isfinite(segIqr) & (segIqr > 0)) + ~(isfinite(segIqr) & (segIqr > 0));
+        csd_seg = (csd_seg - segMedian) / segScale;
         
         mappedCh = (segStart - 1) + flipud(ch_seg(:));
         idxUnflipped = round((mappedCh - 2) * 3) + 1;

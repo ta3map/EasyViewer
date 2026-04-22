@@ -5,7 +5,7 @@ function signalViewerGUI(filePath)
    
     global Fs N time chosen_time_interval ch_inxs m_coef
     global shiftCoeff eventTable
-    global lfp_file hd spks multiax chnlGrp
+    global lfp_file hd spks spks_events multiax chnlGrp
     
     global matFilePath matFileName channelSettingsFilePath
     global timeUnitFactor selectedUnit
@@ -32,6 +32,7 @@ function signalViewerGUI(filePath)
     global lfpVar windowSize
     global timeCenterPopup
     global event_title_string evfilename eventDeleteEdit StimuliTitle
+    global lastEventsFilePath
     global art_rem_settings
     global lines_and_styles
     global auto_open_last_file
@@ -174,12 +175,13 @@ function signalViewerGUI(filePath)
 
     
     matFileName = '';
+    lastEventsFilePath = '';
     
     visualSettings.stim_show = true;
     
     
     csd_smooth_coef = 5;
-    csd_split_by_channel_gaps = false;
+    csd_split_by_channel_gaps = true;
     
     event_title_string = 'Events';
     csd_contrast_coef = 99.9;
@@ -2574,6 +2576,7 @@ function signalViewerGUI(filePath)
             'auto_set_time_windows', autoSetTimeWindowsFromSweeps, ...
             'auto_set_fs', autoSetNewFsFromFs);
         [lfp_file, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
+        spks_events = {};
 
         N = length(time);
         Fs = zavp.dwnSmplFrq;
@@ -2652,7 +2655,7 @@ function signalViewerGUI(filePath)
    end
 
     function resetToNoFileState()
-        lfp_file = []; spks = []; hd = []; zavp = []; lfpVar = []; chnlGrp = []; time = []; stims = [];
+        lfp_file = []; spks = []; spks_events = {}; hd = []; zavp = []; lfpVar = []; chnlGrp = []; time = []; stims = [];
         ch_inxs = [];
         sweep_info = struct('is_sweep_data', false, 'sweep_count', 0, 'sweep_times', []);
         time_forward = []; time_back = []; matFilePath = ''; matFileName = ''; stims_exist = false;
@@ -2940,6 +2943,9 @@ function loadSettingsFile()
             newFs = loadedSettings.newFs;
             set(FsCoeffEdit, 'String', num2str(newFs));
         end
+        if isfield(loadedSettings, 'lastEventsFilePath')
+            lastEventsFilePath = loadedSettings.lastEventsFilePath;
+        end
         if isfield(loadedSettings, 'shiftCoeff')
             shiftCoeff = loadedSettings.shiftCoeff;
             set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
@@ -2983,11 +2989,7 @@ function loadSettingsFile()
             debugState('loadSettingsFile', 'settings were without CSD contrast coef');
         end
         
-        if isfield(loadedSettings, 'csd_split_by_channel_gaps')
-            csd_split_by_channel_gaps = logical(loadedSettings.csd_split_by_channel_gaps);
-        else
-            csd_split_by_channel_gaps = false;
-        end
+        csd_split_by_channel_gaps = true;
         
         % Загружаем смещенные стимулы если они есть
         if isfield(loadedSettings, 'stims')
@@ -3447,7 +3449,7 @@ function loadEvents(~, ~)
             initialDir = fileparts(lastOpenedFiles{end});
         end
 
-        [file, path] = uigetfile({'*.ev;*.mua;*.mean;*.xlsx;*.xls', 'Events / Excel files (*.ev, *.mua, *.mean, *.xlsx, *.xls)'}, 'Load Events', initialDir);
+        [file, path] = uigetfile({'*.ev;*.mean;*.xlsx;*.xls', 'Events / Excel files (*.ev, *.mean, *.xlsx, *.xls)'}, 'Load Events', initialDir);
         if isequal(file, 0)
             debugState('loadEvents', 'File selection canceled.');
             return;
@@ -3486,7 +3488,7 @@ function loadEvents(~, ~)
 
     
     [~, ~, loadedExt] = fileparts(filepath);
-    if strcmpi(loadedExt, '.mua') || isfield(loadedData, 'spks')
+    if strcmpi(loadedExt, '.mua')
         loadMUAFromEvData(loadedData, file);
         return;
     end
@@ -3553,6 +3555,8 @@ function loadEvents(~, ~)
         end
         
         event_title_string = file;
+        lastEventsFilePath = filepath;
+        saveChannelSettings('lastEventsFilePath');
         UpdateEventTable();
         events_exist = true;
         event_inx = 1;
@@ -3563,7 +3567,55 @@ function loadEvents(~, ~)
 end
 
     function loadMUAFromEvData(loadedData, file)
+        if isfield(loadedData, 'spks_events') && ~isempty(loadedData.spks_events)
+            if ~isfield(loadedData, 'event_times_sec') || numel(loadedData.event_times_sec) ~= numel(loadedData.spks_events)
+                debugState('loadMUAFromEvData', 'spks_events requires event_times_sec of same length.');
+                return;
+            end
+            spks_events = loadedData.spks_events(:);
+            evtSec = loadedData.event_times_sec(:);
+            nT = numel(spks_events);
+            numCh = numel(spks_events{1});
+            spks = repmat(struct('tStamp', [], 'ampl', []), numCh, 1);
+            for ch = 1:numCh
+                ta = [];
+                aa = [];
+                for k = 1:nT
+                    ts = spks_events{k}(ch).tStamp;
+                    if isempty(ts)
+                        continue;
+                    end
+                    ta = [ta; double(ts(:)) + evtSec(k) * 1000];
+                    aa = [aa; double(spks_events{k}(ch).ampl(:))];
+                end
+                spks(ch).tStamp = ta;
+                spks(ch).ampl = aa;
+            end
+            events = evtSec;
+            event_indices = [];
+            event_comments = {};
+            event_amplitudes = [];
+            event_channels = [];
+            event_widths = [];
+            event_prominences = [];
+            event_metadata = [];
+            events_exist = true;
+            event_inx = 1;
+            event_title_string = [file ' (MUA trials)'];
+            lastEventsFilePath = filepath;
+            saveChannelSettings('lastEventsFilePath');
+            visualSettings.show_spikes = true;
+            set(showSpikesButton, 'Value', 1);
+            UpdateEventTable();
+            applyEventsLoadedState();
+            updateMUAControlsVisibility();
+            updatePlot();
+            debugState('loadMUAFromEvData', sprintf('Loaded MUA trials n=%d from %s', nT, file));
+            return;
+        end
+
         if isfield(loadedData, 'spks') && ~isempty(loadedData.spks)
+            spks_events = {};
             spks = loadedData.spks;
             loadedCount = sum(cellfun(@numel, {spks.tStamp}));
             events = [];
@@ -3577,6 +3629,8 @@ end
             events_exist = false;
             event_inx = 1;
             event_title_string = [file ' (MUA)'];
+            lastEventsFilePath = filepath;
+            saveChannelSettings('lastEventsFilePath');
             visualSettings.show_spikes = true;
             set(showSpikesButton, 'Value', 1);
             UpdateEventTable();
@@ -3636,6 +3690,7 @@ end
         end
 
         spks = newSpks;
+        spks_events = {};
         events = [];
         event_indices = [];
         event_comments = {};
@@ -3647,6 +3702,8 @@ end
         events_exist = false;
         event_inx = 1;
         event_title_string = [file ' (MUA)'];
+        lastEventsFilePath = filepath;
+        saveChannelSettings('lastEventsFilePath');
 
         visualSettings.show_spikes = true;
         set(showSpikesButton, 'Value', 1);
@@ -3685,6 +3742,8 @@ end
         event_metadata = createDefaultEventMetadata('excel', n);
 
         event_title_string = file;
+        lastEventsFilePath = filepath;
+        saveChannelSettings('lastEventsFilePath');
         UpdateEventTable();
         events_exist = true;
         event_inx = 1;
@@ -3729,188 +3788,8 @@ end
     end
 
     function saveMUA(~, ~)
-        channel_names = {};
-        if isstruct(hd) && isfield(hd, 'recChNames') && ~isempty(hd.recChNames)
-            if iscell(hd.recChNames)
-                channel_names = hd.recChNames(:)';
-            else
-                channel_names = cellstr(hd.recChNames);
-            end
-        end
-
-        spksToSave = spks;
-        [basePath, baseName, ~] = fileparts(matFilePath);
-        defaultMuaPath = fullfile(basePath, [baseName '_mua.mua']);
-        hasEventsForWindowFilter = ~isempty(events);
-        aroundEventsEnabled = hasEventsForWindowFilter;
-        thresholdFilterEnabled = true;
-        windowMs = 600;
-        selectedMuaPath = defaultMuaPath;
-        saveAccepted = false;
-        selectedMuaChannels = 1:numel(spks);
-
-        dlg = dialog('Name', 'Save MUA', 'Position', [400 300 560 240], 'WindowStyle', 'modal');
-        uicontrol(dlg, 'Style', 'text', 'Position', [20 205 520 20], ...
-            'String', 'Save MUA', 'HorizontalAlignment', 'left', 'FontWeight', 'bold');
-
-        thresholdCb = uicontrol(dlg, 'Style', 'checkbox', 'Position', [20 175 240 24], ...
-            'String', 'apply current MUA threshold', 'Value', thresholdFilterEnabled);
-        aroundCb = uicontrol(dlg, 'Style', 'checkbox', 'Position', [20 145 200 24], ...
-            'String', 'around events', 'Value', aroundEventsEnabled);
-        uicontrol(dlg, 'Style', 'pushbutton', 'Position', [240 145 160 24], ...
-            'String', 'Select MUA channels', 'Callback', @selectMuaChannels);
-        windowEdit = uicontrol(dlg, 'Style', 'edit', 'Position', [20 110 80 24], ...
-            'String', num2str(windowMs), 'Visible', onOff(aroundEventsEnabled));
-        uicontrol(dlg, 'Style', 'text', 'Position', [110 110 120 24], ...
-            'String', 'ms window', 'HorizontalAlignment', 'left', 'Visible', onOff(aroundEventsEnabled), 'Tag', 'window_label');
-
-        pathEdit = uicontrol(dlg, 'Style', 'edit', 'Position', [20 70 430 24], ...
-            'String', selectedMuaPath, 'HorizontalAlignment', 'left', ...
-            'BackgroundColor', 'white', 'Enable', 'on');
-        uicontrol(dlg, 'Style', 'pushbutton', 'Position', [460 70 80 24], ...
-            'String', 'Browse', 'Callback', @browseMuaPath);
-
-        uicontrol(dlg, 'Style', 'pushbutton', 'Position', [360 20 80 28], ...
-            'String', 'Save', 'Callback', @confirmSave);
-        uicontrol(dlg, 'Style', 'pushbutton', 'Position', [460 20 80 28], ...
-            'String', 'Cancel', 'Callback', @cancelSave);
-
-        if ~hasEventsForWindowFilter
-            set(aroundCb, 'Value', 0, 'Visible', 'off');
-            set(windowEdit, 'Visible', 'off');
-            set(findobj(dlg, 'Tag', 'window_label'), 'Visible', 'off');
-        end
-        set(aroundCb, 'Callback', @toggleAroundEvents);
-        uiwait(dlg);
-
-        if ~saveAccepted
-            if isvalid(dlg), delete(dlg); end
-            return;
-        end
-
-        keepChannelsMask = false(numel(spksToSave), 1);
-        keepChannelsMask(selectedMuaChannels) = true;
-        for ch = 1:numel(spksToSave)
-            if ~keepChannelsMask(ch)
-                spksToSave(ch).tStamp = [];
-                spksToSave(ch).ampl = [];
-            end
-        end
-
-        if thresholdFilterEnabled
-            for ch = 1:numel(spksToSave)
-                if isempty(spksToSave(ch).tStamp)
-                    continue;
-                end
-                if ch > numel(lfpVar)
-                    continue;
-                end
-                thresholdMask = abs(double(spksToSave(ch).ampl(:))) >= (lfpVar(ch) * std_coef);
-                spksToSave(ch).tStamp = spksToSave(ch).tStamp(thresholdMask);
-                spksToSave(ch).ampl = spksToSave(ch).ampl(thresholdMask);
-            end
-        end
-
-        if aroundEventsEnabled && hasEventsForWindowFilter
-            halfWindowSec = (windowMs / 1000) / 2;
-            windowStarts = events(:) - halfWindowSec;
-            windowEnds = events(:) + halfWindowSec;
-            [windowStarts, order] = sort(windowStarts);
-            windowEnds = windowEnds(order);
-            mergedStarts = windowStarts(1);
-            mergedEnds = windowEnds(1);
-            for iWin = 2:numel(windowStarts)
-                if windowStarts(iWin) <= mergedEnds(end)
-                    mergedEnds(end) = max(mergedEnds(end), windowEnds(iWin));
-                else
-                    mergedStarts(end + 1, 1) = windowStarts(iWin);
-                    mergedEnds(end + 1, 1) = windowEnds(iWin);
-                end
-            end
-
-            for ch = 1:numel(spksToSave)
-                if isempty(spksToSave(ch).tStamp)
-                    continue;
-                end
-                tSec = double(spksToSave(ch).tStamp(:)) / 1000;
-                keepMask = false(size(tSec));
-                for iWin = 1:numel(mergedStarts)
-                    keepMask = keepMask | (tSec >= mergedStarts(iWin) & tSec <= mergedEnds(iWin));
-                end
-                spksToSave(ch).tStamp = spksToSave(ch).tStamp(keepMask);
-                spksToSave(ch).ampl = spksToSave(ch).ampl(keepMask);
-            end
-        end
-
-        saveMUAEventsToFile(spksToSave, Fs, matFilePath, ...
-            'dialogTitle', 'Save MUA (.mua)', ...
-            'defaultFileNameSuffix', '_mua', ...
-            'filepath', selectedMuaPath, ...
-            'max_index', length(time), ...
-            'matFileName', matFileName, ...
-            'autodetection_settings', autodetection_settings, ...
-            'add_event_settings', add_event_settings, ...
-            'EV_version', EV_version, ...
-            'channel_names', channel_names);
-
-        if isvalid(dlg), delete(dlg); end
-
-        function toggleAroundEvents(~, ~)
-            aroundEventsEnabled = get(aroundCb, 'Value') == 1;
-            set(windowEdit, 'Visible', onOff(aroundEventsEnabled));
-            set(findobj(dlg, 'Tag', 'window_label'), 'Visible', onOff(aroundEventsEnabled));
-        end
-
-        function browseMuaPath(~, ~)
-            [file, path] = uiputfile('*.mua', 'Save MUA (.mua)', get(pathEdit, 'String'));
-            if isequal(file, 0)
-                return;
-            end
-            selectedMuaPath = fullfile(path, file);
-            set(pathEdit, 'String', selectedMuaPath);
-        end
-
-        function selectMuaChannels(~, ~)
-            channelLabels = arrayfun(@(ch) sprintf('Channel %d', ch), 1:numel(spks), 'UniformOutput', false);
-            [chosenIdx, ok] = listdlg( ...
-                'ListString', channelLabels, ...
-                'SelectionMode', 'multiple', ...
-                'InitialValue', selectedMuaChannels, ...
-                'PromptString', 'Select channels for MUA save:', ...
-                'ListSize', [260 320]);
-            if ok && ~isempty(chosenIdx)
-                selectedMuaChannels = chosenIdx(:)';
-            end
-        end
-
-        function confirmSave(~, ~)
-            selectedMuaPath = strtrim(get(pathEdit, 'String'));
-            if isempty(selectedMuaPath)
-                return;
-            end
-            [~, ~, ext] = fileparts(selectedMuaPath);
-            if isempty(ext)
-                selectedMuaPath = [selectedMuaPath '.mua'];
-            end
-            aroundEventsEnabled = get(aroundCb, 'Value') == 1;
-            thresholdFilterEnabled = get(thresholdCb, 'Value') == 1;
-            windowMs = str2double(get(windowEdit, 'String'));
-            if ~isfinite(windowMs) || windowMs <= 0
-                windowMs = 600;
-            end
-            saveAccepted = true;
-            uiresume(dlg);
-        end
-
-        function cancelSave(~, ~)
-            saveAccepted = false;
-            uiresume(dlg);
-        end
-
-        function state = onOff(flag)
-            options = {'off', 'on'};
-            state = options{1 + (flag ~= 0)};
-        end
+        saveMUADialog(spks, hd, matFilePath, events, lfpVar, std_coef, Fs, time, ...
+            matFileName, autodetection_settings, add_event_settings, EV_version, lastEventsFilePath, matFilePath);
     end
 
     set(eventTable, 'CellEditCallback', @updateEventTable);
@@ -3961,6 +3840,10 @@ end
             
             % Загружаем файл
             loadMatFile(lastFile);
+            if ~isempty(lastEventsFilePath) && exist(lastEventsFilePath, 'file')
+                outside_calling_filepath = lastEventsFilePath;
+                loadEvents();
+            end
         catch ME
             % Игнорируем ошибки при автоматической загрузке
         end

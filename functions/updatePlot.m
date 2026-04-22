@@ -17,6 +17,7 @@ function updatePlot()
 global event_amplitudes
 global event_channels
 global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
+global event_title_string
     
     show_events = true;
     if isfield(visualSettings, 'events_show')
@@ -185,7 +186,7 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
         params.csd_smooth_coef = csd_smooth_coef;
         params.csd_active = csd_active;
         params.ch_inxs_original = ch_inxs;
-        params.csd_split_by_channel_gaps = csd_split_by_channel_gaps;
+        params.csd_split_by_channel_gaps = true;
         
         [csd_image, csd_t_range, csd_ch_range] = csdCalc(params);
         csdPlotting(csd_image, csd_t_range, csd_ch_range, csd_contrast_coef);
@@ -358,8 +359,13 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
     hold off;
 
     [~, name, ~] = fileparts(matFilePath);
+    titleLabel = name;
+    eventFileLabel = strtrim(event_title_string);
+    if ~isempty(eventFileLabel) && ~strcmp(eventFileLabel, 'Events')
+        titleLabel = sprintf('%s | %s', name, eventFileLabel);
+    end
 %     title(name, 'interpreter', 'none')
-    hylabel_ax(Xlims(1), multiax, name);
+    hylabel_ax(Xlims(1), multiax, titleLabel);
     centerModes = {'stimulus', 'event', 'sweep', 'time'};
     centerLabels = {'Stimuli', 'Event', 'Sweep', 'ContinuousTime'};
     centerStyleNames = {'stimulus_lines', 'events_lines', 'stimulus_lines', 'stimulus_lines'};
