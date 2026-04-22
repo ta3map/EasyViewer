@@ -381,17 +381,23 @@ hp_active_checkbox_coords = [282, 9, 16, 18];
 baseline_text_coords = [495, 7, 55, 20];
 baseline_edit_coords = [550, 7, 50, 20];
 baseline_slider_coords = [602, 9, 95, 18];
-xmin_text_coords = [710, 7, 40, 20];
-xmin_edit_coords = [750, 7, 55, 20];
-xmax_text_coords = [810, 7, 40, 20];
-xmax_edit_coords = [850, 7, 55, 20];
-mua_trace_checkbox_coords = [910, 7, 120, 20];
+smooth_text_coords = [700, 7, 45, 20];
+smooth_edit_coords = [742, 7, 45, 20];
+smooth_slider_coords = [790, 9, 85, 18];
+xmin_text_coords = [880, 7, 35, 20];
+xmin_edit_coords = [913, 7, 48, 20];
+xmax_text_coords = [964, 7, 35, 20];
+xmax_edit_coords = [997, 7, 48, 20];
+mua_trace_checkbox_coords = [1050, 7, 105, 20];
 contrastCoefMin = 10;
 contrastCoefMax = 250;
 contrastSliderMax = 100;
 hpSliderMax = 100;
 minHpCutoff = 0.01;
 baselineSliderMax = 100;
+smoothSigmaMin = 0;
+smoothSigmaMax = 5;
+smoothSliderMax = 100;
 contrastLabel = [];
 contrastEdit = [];
 contrastSlider = [];
@@ -403,6 +409,9 @@ hpFilterEnabled = true;
 baselineLabel = [];
 baselineEdit = [];
 baselineSlider = [];
+smoothLabel = [];
+smoothEdit = [];
+smoothSlider = [];
 xMinLabel = [];
 xMinEdit = [];
 xMaxLabel = [];
@@ -415,6 +424,7 @@ currentXlims = Xlims;
 currentHpCutoff = 100;
 currentBaselineBoundary = currentXlims(1) / 2;
 currentContrastPercent = defaultContrastPercent();
+currentHeatmapSmoothSigma = defaultHeatmapSmoothSigma();
 if isfield(calculationResultOut, 'csd_hp_cutoff_hz')
     currentHpCutoff = calculationResultOut.csd_hp_cutoff_hz;
 end
@@ -544,6 +554,14 @@ baselineEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', ...
 baselineSlider = uicontrol('Parent', figureHandleOut, 'Style', 'slider', ...
     'Min', 0, 'Max', baselineSliderMax, 'Value', baselineSliderFromValue(currentBaselineBoundary), ...
     'Position', baseline_slider_coords, 'Callback', @BaselineSliderClb);
+smoothLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'Smooth', ...
+    'Position', smooth_text_coords, 'HorizontalAlignment', 'left');
+smoothEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', ...
+    'String', num2str(currentHeatmapSmoothSigma, '%.3g'), 'BackgroundColor', 'white', ...
+    'Position', smooth_edit_coords, 'Callback', @SmoothEditClb);
+smoothSlider = uicontrol('Parent', figureHandleOut, 'Style', 'slider', ...
+    'Min', 0, 'Max', smoothSliderMax, 'Value', smoothSliderFromValue(currentHeatmapSmoothSigma), ...
+    'Position', smooth_slider_coords, 'Callback', @SmoothSliderClb);
 
 xMinLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'X min', ...
     'Position', xmin_text_coords, 'HorizontalAlignment', 'left');
@@ -568,7 +586,7 @@ end
 
 function deletePreCsdControls()
 cancelDebouncedRefresh();
-handles = {hpLabel, hpEdit, hpSlider, baselineLabel, baselineEdit, baselineSlider, xMinLabel, xMinEdit, xMaxLabel, xMaxEdit, muaTraceWhiteCheckbox};
+handles = {hpLabel, hpEdit, hpSlider, baselineLabel, baselineEdit, baselineSlider, smoothLabel, smoothEdit, smoothSlider, xMinLabel, xMinEdit, xMaxLabel, xMaxEdit, muaTraceWhiteCheckbox};
 for idx = 1:numel(handles)
     h = handles{idx};
     if ~isempty(h) && isgraphics(h, 'uicontrol')
@@ -582,6 +600,9 @@ hpActiveCheckbox = [];
 baselineLabel = [];
 baselineEdit = [];
 baselineSlider = [];
+smoothLabel = [];
+smoothEdit = [];
+smoothSlider = [];
 xMinLabel = [];
 xMinEdit = [];
 xMaxLabel = [];
@@ -658,6 +679,24 @@ saveMeanControlsState();
 requestDebouncedRefresh();
 end
 
+function SmoothSliderClb(~, ~)
+currentHeatmapSmoothSigma = smoothValueFromSlider(get(smoothSlider, 'Value'));
+syncPreCsdControls();
+saveMeanControlsState();
+requestDebouncedRefresh();
+end
+
+function SmoothEditClb(~, ~)
+inputValue = str2double(strrep(get(smoothEdit, 'String'), ',', '.'));
+if isnan(inputValue) || ~isfinite(inputValue)
+    inputValue = currentHeatmapSmoothSigma;
+end
+currentHeatmapSmoothSigma = clampSmoothSigma(inputValue);
+syncPreCsdControls();
+saveMeanControlsState();
+requestDebouncedRefresh();
+end
+
 function requestDebouncedRefresh()
 try
     if isempty(refreshDebounceTimer) || ~isvalid(refreshDebounceTimer)
@@ -712,6 +751,12 @@ end
 if ~isempty(xMaxEdit) && isgraphics(xMaxEdit, 'uicontrol')
     set(xMaxEdit, 'String', num2str(currentXlims(2), '%.6g'));
 end
+if ~isempty(smoothEdit) && isgraphics(smoothEdit, 'uicontrol')
+    set(smoothEdit, 'String', num2str(currentHeatmapSmoothSigma, '%.3g'));
+end
+if ~isempty(smoothSlider) && isgraphics(smoothSlider, 'uicontrol')
+    set(smoothSlider, 'Value', smoothSliderFromValue(currentHeatmapSmoothSigma));
+end
 end
 
 function value = clampHp(valueIn)
@@ -722,6 +767,10 @@ function value = clampBaselineBoundary(valueIn)
 baselineUpper = currentXlims(2);
 baselineLower = currentXlims(1);
 value = min(max(valueIn, baselineLower), baselineUpper);
+end
+
+function value = clampSmoothSigma(valueIn)
+value = min(max(valueIn, smoothSigmaMin), smoothSigmaMax);
 end
 
 function sliderValue = hpSliderFromValue(hpValue)
@@ -750,6 +799,14 @@ if span <= 0
 end
 boundaryValue = currentXlims(1) + span * sliderValue / baselineSliderMax;
 boundaryValue = clampBaselineBoundary(boundaryValue);
+end
+
+function sliderValue = smoothSliderFromValue(sigmaValue)
+sliderValue = smoothSliderMax * (sigmaValue - smoothSigmaMin) / (smoothSigmaMax - smoothSigmaMin);
+end
+
+function sigmaValue = smoothValueFromSlider(sliderValue)
+sigmaValue = smoothSigmaMin + (smoothSigmaMax - smoothSigmaMin) * sliderValue / smoothSliderMax;
 end
 
 function applyXlimToAxes()
@@ -793,6 +850,7 @@ if isfield(calculationResultOut, 'show_CSD') && calculationResultOut.show_CSD
     csdParams.ch_inxs_original = calculationResultOut.ch_inxs;
     csdParams.csd_split_by_channel_gaps = true;
     [csdImage, csdTime, csdCh] = csdCalc(csdParams);
+    [csdImage, csdTime, csdCh] = applyHeatmapResampling(csdImage, csdTime, csdCh, currentHeatmapSmoothSigma);
     csdPlotting(csdImage, csdTime, csdCh, calculationResultOut.csd_contrast_coef);
     imageHandles = findobj(mainAxLocal, 'Type', 'image', '-depth', 1);
     if ~isempty(imageHandles)
@@ -810,7 +868,8 @@ elseif isfield(calculationResultOut, 'show_spikes') && calculationResultOut.show
     evHists = calculationResultOut.ev_hists;
     evHists = evHists - median(evHists, 2);
     muaX = linspace(timeAxis(1), timeAxis(end), size(evHists, 2));
-    muaImage = imagesc(mainAxLocal, muaX, offsetsLocal, evHists);
+    [evHists, muaX, muaY] = applyHeatmapResampling(evHists, muaX, offsetsLocal, currentHeatmapSmoothSigma);
+    muaImage = imagesc(mainAxLocal, muaX, muaY, evHists);
     calculationResultOut.heatmap_handle = muaImage;
     uistack(calculationResultOut.heatmap_handle, 'bottom');
     calculationResultOut.heatmap_base_clim = get(mainAxLocal, 'CLim');
@@ -948,6 +1007,10 @@ function coef = defaultContrastPercent()
 coef = 100 - 40 * double(isfield(calculationResultOut, 'show_CSD') && calculationResultOut.show_CSD);
 end
 
+function sigma = defaultHeatmapSmoothSigma()
+sigma = 0.1 + 1.9 * double(isfield(calculationResultOut, 'show_CSD') && calculationResultOut.show_CSD);
+end
+
 function restoreMeanControlsState()
 if ~isstruct(meanControlsState)
     return
@@ -977,12 +1040,16 @@ end
 if isfield(stateForMode, 'muaWhiteTraces')
     useWhiteTracesInMua = logical(stateForMode.muaWhiteTraces);
 end
+if isfield(stateForMode, 'heatmapSmoothSigma')
+    currentHeatmapSmoothSigma = stateForMode.heatmapSmoothSigma;
+end
 if currentXlims(1) >= currentXlims(2)
     currentXlims = Xlims;
 end
 currentContrastPercent = min(max(currentContrastPercent, contrastCoefMin), contrastCoefMax);
 currentHpCutoff = clampHp(currentHpCutoff);
 currentBaselineBoundary = clampBaselineBoundary(currentBaselineBoundary);
+currentHeatmapSmoothSigma = clampSmoothSigma(currentHeatmapSmoothSigma);
 end
 
 function saveMeanControlsState()
@@ -993,7 +1060,8 @@ stateForMode = struct( ...
     'baselineBoundary', currentBaselineBoundary, ...
     'xLim', currentXlims, ...
     'hpFilterEnabled', logical(hpFilterEnabled), ...
-    'muaWhiteTraces', logical(useWhiteTracesInMua));
+    'muaWhiteTraces', logical(useWhiteTracesInMua), ...
+    'heatmapSmoothSigma', currentHeatmapSmoothSigma);
 if ~isstruct(meanControlsState)
     meanControlsState = struct();
 end
@@ -1004,6 +1072,26 @@ end
 function modeKey = currentMeanModeKey()
 modeKeys = {'mua', 'csd'};
 modeKey = modeKeys{1 + double(isfield(calculationResultOut, 'show_CSD') && calculationResultOut.show_CSD)};
+end
+
+function [imageOut, xOut, yOut] = applyHeatmapResampling(imageIn, xIn, yIn, sigma)
+imageOut = imageIn;
+xOut = xIn;
+yOut = yIn;
+sigma = clampSmoothSigma(sigma);
+if sigma <= 0
+    return
+end
+scaleFactor = 1 + sigma;
+numRows = size(imageIn, 1);
+numCols = size(imageIn, 2);
+newRows = max(numRows, round(numRows * scaleFactor));
+newCols = max(numCols, round(numCols * scaleFactor));
+[xGrid, yGrid] = meshgrid(1:numCols, 1:numRows);
+[xQuery, yQuery] = meshgrid(linspace(1, numCols, newCols), linspace(1, numRows, newRows));
+imageOut = interp2(xGrid, yGrid, double(imageIn), xQuery, yQuery, 'linear');
+xOut = linspace(xIn(1), xIn(end), newCols);
+yOut = linspace(yIn(1), yIn(end), newRows);
 end
 
 function [climCenterOut, halfSpanOut] = resolveContrastBaseline()
