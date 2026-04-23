@@ -1,5 +1,9 @@
-function viewFullChannelGUI()
+function viewFullChannelGUI(applyCallback)
     global lfp_file time channelNames zavp
+
+    if nargin < 1
+        return;
+    end
 
     if isempty(lfp_file) || isempty(time)
         errordlg('Load a file first.', 'Full channel trace');
@@ -30,7 +34,7 @@ function viewFullChannelGUI()
 
     uicontrol('Parent', dlg, 'Style', 'text', 'String', 'Resampling, Hz:', ...
         'Position', [10, dlgHeight - 70, 80, 20], 'HorizontalAlignment', 'left');
-    resampleEdit = uicontrol('Parent', dlg, 'Style', 'edit', 'String', '10', ...
+    resampleEdit = uicontrol('Parent', dlg, 'Style', 'edit', 'String', '100', ...
         'Position', [100, dlgHeight - 73, 80, 22], 'BackgroundColor', 'white');
 
     uicontrol('Parent', dlg, 'Style', 'pushbutton', 'String', 'Apply', ...
@@ -45,22 +49,46 @@ function viewFullChannelGUI()
             return;
         end
 
-        Fs = zavp.dwnSmplFrq;
-        sig = lfp_file.lfp(:, chIdx);
+        progressBar = waitbar(0, 'Preparing full channel trace...', ...
+            'Name', 'Full channel trace', ...
+            'WindowStyle', 'modal');
+        progressCleanup = onCleanup(@() closeProgressBar(progressBar)); %#ok<NASGU>
 
-        if targetFs >= Fs
-            t_res = time;
-            sig_res = double(sig);
-        else
-            sig_res = resample1(double(sig), targetFs, Fs);
-            t_res = linspace(time(1), time(end), length(sig_res));
+        try
+            waitbar(0.2, progressBar, 'Reading channel data...');
+            Fs = zavp.dwnSmplFrq;
+            sig = lfp_file.lfp(:, chIdx);
+
+            if targetFs >= Fs
+                waitbar(0.5, progressBar, 'Resampling skipped (target >= source Fs)...');
+                t_res = time;
+                sig_res = double(sig);
+            else
+                waitbar(0.5, progressBar, 'Resampling signal...');
+                sig_res = resample1(double(sig), targetFs, Fs);
+                t_res = linspace(time(1), time(end), length(sig_res));
+            end
+
+            waitbar(0.8, progressBar, 'Preparing data for plot...');
+            traceData = struct( ...
+                'channel_index', chIdx, ...
+                'channel_name', channelNames{chIdx}, ...
+                'target_fs', targetFs, ...
+                'time', t_res, ...
+                'signal', sig_res);
+
+            waitbar(0.95, progressBar, 'Rendering in main axes...');
+            applyCallback(traceData);
+            waitbar(1, progressBar, 'Done');
+            close(dlg);
+        catch ME
+            errordlg(ME.message, 'Full channel trace');
         end
+    end
 
-        close(dlg);
-        fig = figure('Name', ['Full trace: ', channelNames{chIdx}], 'NumberTitle', 'off');
-        plot(t_res, sig_res);
-        xlabel('Time, s');
-        ylabel('Signal');
-        title(channelNames{chIdx});
+    function closeProgressBar(progressBarHandle)
+        if isgraphics(progressBarHandle)
+            close(progressBarHandle);
+        end
     end
 end

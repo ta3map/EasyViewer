@@ -71,6 +71,7 @@ function signalViewerGUI(filePath)
     global updateTableFunc updateLocalCoefsFunc updatePlotFunc
     global event_label_click_callback stim_label_click_callback
     global meanControlsState
+    global full_channel_trace_state
 
     debugState('signalViewerGUI', 'Signal Viewer Started')
     meanControlsState = struct();
@@ -125,6 +126,7 @@ function signalViewerGUI(filePath)
     plot_updating = false;
     loading_text_handle = [];
     previousSliderValue = 0; % инициализация предыдущего значения слайдера
+    full_channel_trace_state = struct('active', false, 'channel_index', 1, 'target_fs', 10);
     add_event_pending = false;
     manualEventChannelIdx = 1;
     eventsChannelPopupChIdxs = 1;
@@ -475,15 +477,9 @@ function signalViewerGUI(filePath)
     timeBackEdit = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', num2str(time_back*timeUnitFactor), 'Position', getElementPosition('time_back_edit'), 'Callback', @timeBackEditCallback, 'Tag', 'time_back_edit');
     timeForwardEdit = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', num2str(time_forward*timeUnitFactor), 'Position', getElementPosition('time_forward_edit'), 'Callback', @timeForwardEditCallback, 'Tag', 'time_forward_edit');
 
-    % Spikes
-    % STD
-    stdCoefValue = min(max(std_coef, 0), 10);
-    std_coef = stdCoefValue;
-    stdCoefEdit = uicontrol('Parent', mainPanel, 'Style', 'edit', 'String', num2str(stdCoefValue), 'Position', getElementPosition('std_coef_edit'), 'Callback', @StdCoefCallback, 'Tag', 'std_coef_edit');
-    stdCoefText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'MUA coef:', 'Position', getElementPosition('std_coef_text'), 'Tag', 'std_coef_text');
-    stdCoefSlider = uicontrol('Parent', mainPanel, 'Style', 'slider', 'Min', 0, 'Max', 10, 'Value', stdCoefValue, 'Position', getElementPosition('std_coef_slider'), 'Callback', @StdCoefSliderCallback, 'Tag', 'std_coef_slider');
-    
-    showSpikesButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'MUA', 'Position', getElementPosition('show_spikes_button'), 'Callback', @ShowSpikesButtonCallback, 'Tag', 'show_spikes_button');
+    % MUA
+    muaSettingsBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'MUA Settings', ...
+        'Position', getElementPosition('mua_settings_btn'), 'Callback', @(~,~)openMUASettingsGUI(), 'Tag', 'mua_settings_btn');
     showCSDbutton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'CSD', 'Position', getElementPosition('show_csd_button'), 'Callback', @ShowCSDButtonCallback, 'Tag', 'show_csd_button');
     showEventsButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Events', 'Position', getElementPosition('show_events_button'), 'Value', visualSettings.events_show, 'Callback', @ShowEventsButtonCallback, 'Tag', 'show_events_button');
     showStimButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Stim', 'Position', getElementPosition('show_stim_button'), 'Value', visualSettings.stim_show, 'Callback', @ShowStimButtonCallback, 'Tag', 'show_stim_button');
@@ -496,11 +492,12 @@ function signalViewerGUI(filePath)
     nextbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Next', 'Position', getElementPosition('next_button'), 'Callback', {@shiftTime, 1, timeForwardEdit}, 'Tag', 'next_button');
     btnIcon(nextbutton, fullfile(assetsPath, 'next_button.png'), false);
 
-    yLimMinText = uicontrol('Parent', f, 'Style', 'text', 'String', 'Y min:', 'Position', getElementPosition('y_lim_min_text'), 'HorizontalAlignment', 'left', 'Tag', 'y_lim_min_text');
+    yLimMinText = uicontrol('Parent', f, 'Style', 'text', 'String', 'Y min', 'Position', getElementPosition('y_lim_min_text'), 'HorizontalAlignment', 'center', 'Tag', 'y_lim_min_text');
     yLimMinEdit = uicontrol('Parent', f, 'Style', 'edit', 'String', '0', 'Position', getElementPosition('y_lim_min_edit'), 'Callback', @yLimEditCallback, 'Tag', 'y_lim_min_edit');
-    yLimMaxText = uicontrol('Parent', f, 'Style', 'text', 'String', 'Y max:', 'Position', getElementPosition('y_lim_max_text'), 'HorizontalAlignment', 'left', 'Tag', 'y_lim_max_text');
+    yLimMaxText = uicontrol('Parent', f, 'Style', 'text', 'String', 'Y max', 'Position', getElementPosition('y_lim_max_text'), 'HorizontalAlignment', 'center', 'Tag', 'y_lim_max_text');
     yLimMaxEdit = uicontrol('Parent', f, 'Style', 'edit', 'String', '1', 'Position', getElementPosition('y_lim_max_edit'), 'Callback', @yLimEditCallback, 'Tag', 'y_lim_max_edit');
     yLimResetBtn = uicontrol('Parent', f, 'Style', 'pushbutton', 'String', 'Reset graph', 'Position', getElementPosition('y_lim_reset_btn'), 'Callback', @yLimResetCallback, 'Tag', 'y_lim_reset_btn');
+    fullTraceBtn = uicontrol('Parent', f, 'Style', 'pushbutton', 'String', 'Full trace', 'Position', getElementPosition('full_trace_btn'), 'Callback', @(~,~)toggleFullChannelTraceMode(), 'Tag', 'full_trace_btn');
 
     % Окошко для выбора размера shiftCoeff
     shiftCoefText = uicontrol('Parent', mainPanel, 'Style', 'text', 'String', 'Ch. Shift:', 'Position', getElementPosition('shift_coef_text'), 'Tag', 'shift_coef_text');
@@ -559,7 +556,7 @@ function signalViewerGUI(filePath)
         'Open figure', ...
         '', ...
         'Convert to MAT File', ...
-        '', ...
+        '----------', ...
         'Save figure snapshot'};
         
     % Создание выпадающего списка
@@ -730,7 +727,7 @@ function signalViewerGUI(filePath)
     set(viewBtn, 'Enable', 'off');
     set(analysisBtn, 'Enable', 'off');
     setUIControlsEnable({sidePanel, mainPanel} , 'off')
-    set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit, yLimResetBtn], 'Enable', 'off');
+    set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit, yLimResetBtn, fullTraceBtn], 'Enable', 'off');
     set(LoadMatFileBtn, 'Enable', 'on');
     set(FMbutton, 'Enable', 'on');
     set(loadEventsBtn, 'Enable', 'on');
@@ -1060,10 +1057,10 @@ function signalViewerGUI(filePath)
 
     function saveMainAxisAs()
         
-        [mat_file_folder, figure_name, ~] = fileparts(matFilePath);
-        defaultName = evfilename;
+        [mat_file_folder, original_filename, ~] = fileparts(matFilePath);
+        defaultName = [original_filename '_snapshot'];
         
-        [file, path, filterindex] = uiputfile(...
+        [file, path] = uiputfile(...
             {'*.pdf', 'PDF files (*.pdf)';...
              '*.eps', 'EPS files (*.eps)';...
              '*.png', 'PNG files (*.png)';...
@@ -1072,16 +1069,15 @@ function signalViewerGUI(filePath)
         if isequal(file,0) || isequal(path,0)
            debugState('saveMainAxisAs', 'User pressed cancel');
         else
-           filename = fullfile(path, file);      
-           switch filterindex
-               case 1
-                   print(f, filename, '-dpdf', '-bestfit');
-               case 2
-                   print(f, filename, '-depsc');
-               case 3
-                   saveas(f, filename, 'png');
+           filename = fullfile(path, file);
+           [~, ~, ext] = fileparts(filename);
+           switch lower(ext)
+               case {'.pdf', '.eps'}
+                   exportgraphics(multiax, filename, 'ContentType', 'vector');
+               case '.png'
+                   exportgraphics(multiax, filename, 'Resolution', 300);
                otherwise
-                   saveas(f, filename);
+                   exportgraphics(multiax, filename);
            end
            debugState('saveMainAxisAs', 'Image saved to %s', filename);
         end
@@ -1106,7 +1102,7 @@ function signalViewerGUI(filePath)
             case view_functions{8}
                 % separator
             case view_functions{9}
-                viewFullChannelGUI();
+                toggleFullChannelTraceMode();
             case view_functions{11}
                 % separator
             case view_functions{12}
@@ -1148,8 +1144,11 @@ function signalViewerGUI(filePath)
                 SubMeanSettingsGUI();
                 updateTable();
             case options{7}%'Filtering ...'
-                setupSignalFilteringGUI(); 
-                updateTable();            
+                wasApplied = setupSignalFilteringGUI();
+                if wasApplied
+                    updateTable();
+                    updatePlot();
+                end
             case options{9}%'Edit events'
                 editEventsGUI();
             case options{11}
@@ -1263,11 +1262,49 @@ function signalViewerGUI(filePath)
         updatePlot()
     end
 
+    function toggleFullChannelTraceMode()
+        if full_channel_trace_state.active
+            full_channel_trace_state.active = false;
+            setUIControlsEnable({sidePanel, mainPanel}, 'on');
+            set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit, yLimResetBtn, fullTraceBtn], 'Enable', 'on');
+            set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit], 'Visible', 'on');
+            updatePlot();
+            return;
+        end
+        viewFullChannelGUI(@applyFullChannelTraceToMainAxes);
+    end
+
+    function applyFullChannelTraceToMainAxes(traceData)
+        full_channel_trace_state.active = true;
+        full_channel_trace_state.channel_index = traceData.channel_index;
+        full_channel_trace_state.target_fs = traceData.target_fs;
+
+        cla(multiax);
+        plot(multiax, traceData.time, traceData.signal, 'Color', [0 0 0], 'LineWidth', 1);
+        setUIControlsEnable({sidePanel, mainPanel}, 'off');
+        set(yLimResetBtn, 'Enable', 'on');
+        set(fullTraceBtn, 'Visible', 'off');
+        set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit], 'Visible', 'off');
+        set(multiax, ...
+            'XTickMode', 'auto', ...
+            'YTickMode', 'auto', ...
+            'XTickLabelMode', 'auto', ...
+            'YTickLabelMode', 'auto');
+        xlim(multiax, [traceData.time(1), traceData.time(end)]);
+        signalMin = min(traceData.signal);
+        signalMax = max(traceData.signal);
+        signalSpan = max(signalMax - signalMin, eps);
+        ylim(multiax, [signalMin - 0.02 * signalSpan, signalMax + 0.02 * signalSpan]);
+        xlabel(multiax, 'Time, s');
+        ylabel(multiax, traceData.channel_name, 'Interpreter', 'none');
+        grid(multiax, 'off');
+    end
+
     function openMUASettingsGUI()
-        MUASettingsGUI();
-        set(showSpikesButton, 'Value', visualSettings.show_spikes);
-        set(stdCoefEdit, 'String', num2str(std_coef));
-        set(stdCoefSlider, 'Value', std_coef);
+        wasApplied = MUASettingsGUI();
+        if wasApplied
+            updatePlot();
+        end
     end
 
     function activateBuiltInZoom()
@@ -1541,35 +1578,6 @@ function signalViewerGUI(filePath)
         updatePlot(); % Обновление графика с новым shiftCoeff
     end
     
-    % std coef
-    function StdCoefCallback(src, ~)
-        newStdCoef = str2double(get(src, 'String'));
-        if isnan(newStdCoef)
-            return;
-        end
-        std_coef = min(max(newStdCoef, 0), 10);
-        set(stdCoefEdit, 'String', num2str(std_coef));
-        set(stdCoefSlider, 'Value', std_coef);
-        visualSettings.show_spikes = true;
-        set(showSpikesButton, 'Value', 1);
-        updatePlot(); % Обновление графика
-    end
-
-    function StdCoefSliderCallback(src, ~)
-        std_coef = get(src, 'Value');
-        set(stdCoefEdit, 'String', num2str(std_coef));
-        visualSettings.show_spikes = true;
-        set(showSpikesButton, 'Value', 1);
-        updatePlot(); % Обновление графика
-    end
-
-    function ShowSpikesButtonCallback(~, ~)
-        visualSettings.show_spikes = ~visualSettings.show_spikes;
-        set(showSpikesButton, 'Value', visualSettings.show_spikes);
-        saveChannelSettings('visualSettings');
-        updatePlot(); % Обновление графика
-    end
-
     function ShowEventsButtonCallback(~, ~)
         if ~isfield(visualSettings, 'events_show')
             visualSettings.events_show = true;
@@ -1999,6 +2007,10 @@ function signalViewerGUI(filePath)
 
     function yLimResetCallback(~, ~)
         viewerYlimManual = false;
+        setUIControlsEnable({sidePanel, mainPanel}, 'on');
+        set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit, yLimResetBtn, fullTraceBtn], 'Enable', 'on');
+        set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit], 'Visible', 'on');
+        set(fullTraceBtn, 'Visible', 'on');
         updatePlot();
     end
 
@@ -2683,7 +2695,7 @@ function signalViewerGUI(filePath)
         set(viewBtn, 'Enable', 'off');
         set(analysisBtn, 'Enable', 'off');
         setUIControlsEnable({sidePanel, mainPanel}, 'off');
-        set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit, yLimResetBtn], 'Enable', 'off');
+        set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit, yLimResetBtn, fullTraceBtn], 'Enable', 'off');
         set(LoadMatFileBtn, 'Enable', 'on');
         set(FMbutton, 'Enable', 'on');
         set(loadEventsBtn, 'Enable', 'on');
@@ -2751,7 +2763,6 @@ function signalViewerGUI(filePath)
         set(viewBtn, 'Enable', 'on');
         set(analysisBtn, 'Enable', 'on');
         
-        set(showSpikesButton, 'Value', visualSettings.show_spikes);
         set(showCSDbutton, 'Value', visualSettings.show_CSD);
         set(showEventsButton, 'Value', visualSettings.events_show);
         set(showStimButton, 'Value', visualSettings.stim_show);
@@ -2791,7 +2802,7 @@ function signalViewerGUI(filePath)
         % раз
         if ~data_loaded
             setUIControlsEnable({sidePanel, mainPanel} , 'on')
-            set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit, yLimResetBtn], 'Enable', 'on');
+            set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit, yLimResetBtn, fullTraceBtn], 'Enable', 'on');
             data_loaded = true;
         end
         
@@ -2800,13 +2811,7 @@ function signalViewerGUI(filePath)
     end
 
     function updateMUAControlsVisibility()
-        hasMUA = ~isempty(spks);
-        visibilityStates = {'off', 'on'};
-        visibilityValue = visibilityStates{hasMUA + 1};
-        set(showSpikesButton, 'Visible', visibilityValue);
-        set(stdCoefText, 'Visible', visibilityValue);
-        set(stdCoefEdit, 'Visible', visibilityValue);
-        set(stdCoefSlider, 'Visible', visibilityValue);
+        set(muaSettingsBtn, 'Visible', 'on');
     end
 
     function updateCSDControlsVisibility()
@@ -2975,7 +2980,6 @@ function loadSettingsFile()
             if isfield(loadedVisualSettings, 'mua_alpha')
                 visualSettings.mua_alpha = min(max(double(loadedVisualSettings.mua_alpha), 0), 1);
             end
-            set(showSpikesButton, 'Value', visualSettings.show_spikes);
             set(showCSDbutton, 'Value', visualSettings.show_CSD);
         end
         if isfield(loadedSettings, 'binsize')
@@ -2986,8 +2990,6 @@ function loadSettingsFile()
         end
         if isfield(loadedSettings, 'std_coef')
             std_coef = min(max(double(loadedSettings.std_coef), 0), 10);
-            set(stdCoefEdit, 'String', num2str(std_coef));
-            set(stdCoefSlider, 'Value', std_coef);
         end
         if isfield(loadedSettings, 'time_back')
             time_back = loadedSettings.time_back; % time window before (s)
@@ -3628,7 +3630,6 @@ end
             lastEventsFilePath = filepath;
             saveChannelSettings('lastEventsFilePath');
             visualSettings.show_spikes = true;
-            set(showSpikesButton, 'Value', 1);
             UpdateEventTable();
             applyEventsLoadedState();
             updateMUAControlsVisibility();
@@ -3655,7 +3656,6 @@ end
             lastEventsFilePath = filepath;
             saveChannelSettings('lastEventsFilePath');
             visualSettings.show_spikes = true;
-            set(showSpikesButton, 'Value', 1);
             UpdateEventTable();
             updateMUAControlsVisibility();
             updatePlot();
@@ -3729,7 +3729,6 @@ end
         saveChannelSettings('lastEventsFilePath');
 
         visualSettings.show_spikes = true;
-        set(showSpikesButton, 'Value', 1);
         UpdateEventTable();
         updateMUAControlsVisibility();
         updatePlot();
@@ -3863,13 +3862,46 @@ end
             
             % Загружаем файл
             loadMatFile(lastFile);
-            if ~isempty(lastEventsFilePath) && exist(lastEventsFilePath, 'file')
+            if isLastEventsFileMatchingCurrentMat(lastEventsFilePath, matFilePath)
                 outside_calling_filepath = lastEventsFilePath;
                 loadEvents();
             end
         catch ME
             % Игнорируем ошибки при автоматической загрузке
         end
+    end
+
+    function isMatch = isLastEventsFileMatchingCurrentMat(eventsFilePath, currentMatPath)
+        isMatch = false;
+        if isempty(eventsFilePath) || isempty(currentMatPath)
+            return;
+        end
+        if ~exist(eventsFilePath, 'file')
+            return;
+        end
+
+        try
+            eventsData = load(eventsFilePath, '-mat');
+        catch
+            return;
+        end
+
+        if ~isfield(eventsData, 'viewer_data')
+            return;
+        end
+        if ~isstruct(eventsData.viewer_data)
+            return;
+        end
+        if ~isfield(eventsData.viewer_data, 'matFilePath')
+            return;
+        end
+        if isempty(eventsData.viewer_data.matFilePath)
+            return;
+        end
+
+        [~, currentMatName, ~] = fileparts(currentMatPath);
+        [~, linkedMatName, ~] = fileparts(eventsData.viewer_data.matFilePath);
+        isMatch = strcmp(linkedMatName, currentMatName);
     end
     
     function updateAndRunInstaller()

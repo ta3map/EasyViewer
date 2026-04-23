@@ -1,4 +1,4 @@
-function setupSignalFilteringGUI()
+function wasApplied = setupSignalFilteringGUI()
     % Глобальные переменные
     global newFs data time chosen_time_interval time_back lfp_file m_coef
     global ch_inxs channelNames filter_avaliable numChannels matFilePath local_settings
@@ -7,6 +7,7 @@ function setupSignalFilteringGUI()
 
     % Идентификатор (tag) для GUI фигуры
     figTag = 'SignalFiltering';
+    wasApplied = false;
     if activateOrCreateFigure(figTag)
         return
     end
@@ -40,7 +41,7 @@ function setupSignalFilteringGUI()
     end
 
     % Чекбокс: фильтрация по частотам (вкл/выкл)
-    hFilterEnabled = uicontrol('Style', 'checkbox', 'String', 'Фильтрация по частотам', ...
+    hFilterEnabled = uicontrol('Style', 'checkbox', 'String', 'Frequency filtering', ...
         'Position', [320, 572, 200, 22], 'Value', filterEnabledVal, 'Callback', @filterEnabledCallback);
 
     % Выбор типа фильтра
@@ -69,7 +70,7 @@ function setupSignalFilteringGUI()
         smoothMethodVal = filterSettings.smoothMethod;
     end
     % Чекбокс: сглаживание
-    hSmoothEnabled = uicontrol('Style', 'checkbox', 'String', 'Сглаживание', ...
+    hSmoothEnabled = uicontrol('Style', 'checkbox', 'String', 'Smoothing', ...
         'Position', [320, 422, 120, 22], 'Value', smoothEnabledVal, 'Callback', @smoothEnabledCallback);
     uicontrol('Style', 'text', 'Position', [320, 397, 140, 15], 'String', 'Smooth (samples):', 'HorizontalAlignment', 'left');
     hSmoothSpan = uicontrol('Style', 'edit', 'Position', [320, 372, 50, 25], 'String', num2str(smoothSpanVal));
@@ -96,6 +97,7 @@ function setupSignalFilteringGUI()
     uicontrol('Style', 'pushbutton', 'String', 'Apply', 'Position', [320, 182, 70, 25], 'Enable', 'on', 'Callback', @applySettings);
     uicontrol('Style', 'pushbutton', 'String', 'Cancel', 'Position', [320, 152, 70, 25], 'Enable', 'on', 'Callback', @cancelSettings);
 
+    updateControlsBySelectedChannels();
     filterTypeCallback(hFilterType);
     filterEnabledCallback(hFilterEnabled, []);
     smoothEnabledCallback(hSmoothEnabled, []);
@@ -105,11 +107,13 @@ function setupSignalFilteringGUI()
     % Функции обратного вызова
     function selectAll(~, ~)
         hTable.Data(:,2) = num2cell(true(size(hTable.Data(:,2))));
+        updateControlsBySelectedChannels();
         set(checkfiltbtn, 'Enable', 'on');
     end
     
     function deselectAll(~, ~)
         hTable.Data(:,2) = num2cell(false(size(hTable.Data(:,2))));
+        updateControlsBySelectedChannels();
         axes(ax); cla(ax);
         set(ax, 'Visible', 'off');
 %         set(applybtn, 'Enable', 'on');
@@ -117,6 +121,7 @@ function setupSignalFilteringGUI()
     end
     
     function checkbtns(~, ~)
+        updateControlsBySelectedChannels();
         if sum(cell2mat(hTable.Data(:, 2)))>0
             set(checkfiltbtn, 'Enable', 'on');
         else
@@ -124,12 +129,26 @@ function setupSignalFilteringGUI()
         end
     end
 
+    function updateControlsBySelectedChannels()
+        hasSelectedChannels = sum(cell2mat(hTable.Data(:, 2))) > 0;
+        enableStates = {'off', 'on'};
+        enableValue = enableStates{hasSelectedChannels + 1};
+        set(hFilterEnabled, 'Enable', enableValue);
+        set(hSmoothEnabled, 'Enable', enableValue);
+        if ~hasSelectedChannels
+            set(hFilterEnabled, 'Value', 0);
+            set(hSmoothEnabled, 'Value', 0);
+        end
+    end
+
     function filterEnabledCallback(~, ~)
         on = get(hFilterEnabled, 'Value');
-        set(hFilterType, 'Enable', on);
-        set(hFreqLow, 'Enable', on);
-        set(hFreqHigh, 'Enable', on);
-        set(hOrder, 'Enable', on);
+        enableStates = {'off', 'on'};
+        enableValue = enableStates{on + 1};
+        set(hFilterType, 'Enable', enableValue);
+        set(hFreqLow, 'Enable', enableValue);
+        set(hFreqHigh, 'Enable', enableValue);
+        set(hOrder, 'Enable', enableValue);
         if on
             filterTypeCallback(hFilterType);
         else
@@ -140,8 +159,10 @@ function setupSignalFilteringGUI()
 
     function smoothEnabledCallback(~, ~)
         on = get(hSmoothEnabled, 'Value');
-        set(hSmoothSpan, 'Enable', on);
-        set(hSmoothMethod, 'Enable', on);
+        enableStates = {'off', 'on'};
+        enableValue = enableStates{on + 1};
+        set(hSmoothSpan, 'Enable', enableValue);
+        set(hSmoothMethod, 'Enable', enableValue);
     end
 
     function filterTypeCallback(src, ~)
@@ -255,7 +276,7 @@ function setupSignalFilteringGUI()
         channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
         save(channelSettingsFilePath, 'filter_avaliable', 'filterSettings', '-append');
         
-        updatePlot(); % функция для обновления графика
+        wasApplied = true;
         uiresume(fig);
         close(fig); % закрытие GUI
     end

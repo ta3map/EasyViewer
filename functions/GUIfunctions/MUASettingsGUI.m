@@ -1,6 +1,7 @@
-function MUASettingsGUI()
+function wasApplied = MUASettingsGUI()
     figTag = 'MUASettingsGUI';
     guiFig = findobj('Type', 'figure', 'Tag', figTag);
+    wasApplied = false;
     if ~isempty(guiFig)
         figure(guiFig);
         return
@@ -175,7 +176,7 @@ function MUASettingsGUI()
         visualSettings.mua_alpha = newAlphaPercent / 100;
 
         saveChannelSettings('std_coef', 'binsize', 'visualSettings');
-        updatePlot();
+        wasApplied = true;
 
         uiresume(MUASettingsFig);
         close(MUASettingsFig);

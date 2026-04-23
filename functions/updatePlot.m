@@ -10,6 +10,7 @@ function updatePlot()
     global art_rem_settings lines_and_styles
     global visualSettings
     global selectedCenter sweep_info sweep_inx % для работы со свипами
+    global event_inx stim_inx
     global baseline_subtract_available % каналы с вычитанием базовой линии
     global plot_updating loading_text_handle % флаг обновления и handle текста
     global previousSliderValue % сохраняем предыдущее значение слайдера
@@ -20,6 +21,11 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
     global event_title_string
     global binsize
     global timeCenterPopup
+    global full_channel_trace_state
+
+    if ~isempty(full_channel_trace_state) && isstruct(full_channel_trace_state)
+        full_channel_trace_state.active = false;
+    end
     
     show_events = true;
     if isfield(visualSettings, 'events_show')
@@ -473,7 +479,19 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
     centerLabels = {'Stimuli', 'Events', 'Sweep', 'Continuos'};
     centerStyleNames = {'stimulus_lines', 'events_lines', 'stimulus_lines', ''};
     centerLabel = centerLabels{find(strcmp(centerModes, selectedCenter), 1)};
-    centerLabel = ['Mode: ', centerLabel];
+    timeFmtOpts = {'%.3f', '%.0f'};
+    timeFmt = timeFmtOpts{1 + strcmp(selectedUnit, 'ms')};
+    centerLabelParts = { ...
+        ['Mode: ', centerLabel], ...
+        sprintf([timeFmt, ' %s'], time_origin * timeUnitFactor, selectedUnit) ...
+    };
+    switch selectedCenter
+        case 'event'
+            centerLabelParts{end + 1} = sprintf('%d/%d', event_inx, numel(events));
+        case 'stimulus'
+            centerLabelParts{end + 1} = sprintf('%d/%d', stim_inx, numel(stims));
+    end
+    centerLabel = strjoin(centerLabelParts, ' | ');
 %     title(name, 'interpreter', 'none')
     hylabel_ax(Xlims(1), multiax, titleLabel);
     centerStyleName = centerStyleNames{find(strcmp(centerModes, selectedCenter), 1)};
