@@ -179,7 +179,7 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
     end
     
     if visualSettings.show_CSD
-        
+        csdChildrenBefore = get(multiax, 'Children');
         offsets = zeros(1, numChannels);
         % Plot each column with specified parameters
         for p = 1:numChannels
@@ -198,8 +198,16 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
         
         [csd_image, csd_t_range, csd_ch_range] = csdCalc(params);
         csdPlotting(csd_image, csd_t_range, csd_ch_range, csd_contrast_coef);
+        csdChildrenAfter = get(multiax, 'Children');
+        csdLayerHandles = setdiff(csdChildrenAfter, csdChildrenBefore, 'stable');
+        for iHandle = 1:numel(csdLayerHandles)
+            if strcmp(get(csdLayerHandles(iHandle), 'Type'), 'image')
+                set(csdLayerHandles(iHandle), 'Tag', 'csd_layer');
+            end
+        end
     end
     
+    traceChildrenBefore = get(multiax, 'Children');
     if visualSettings.auto_shift
         [offsets, shiftCoeff] = multiplot(time_in_transformed, data_res, ...
             'ChannelLabels', ch_labels_l, ...
@@ -212,6 +220,13 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
             'linewidth', widths_in_l, ...
             'color', colors_in_l);
     end
+    traceChildrenAfter = get(multiax, 'Children');
+    traceLayerHandles = setdiff(traceChildrenAfter, traceChildrenBefore, 'stable');
+    for iHandle = 1:numel(traceLayerHandles)
+        if strcmp(get(traceLayerHandles(iHandle), 'Type'), 'line')
+            set(traceLayerHandles(iHandle), 'Tag', 'trace_layer');
+        end
+    end
 
     [~, gapIdx] = splitConsecutiveChannels(ch_inxs);
     if ~isempty(gapIdx)
@@ -220,7 +235,8 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
         for k = 1:numel(gapIdx)
             i = gapIdx(k);
             y = (offsets(i) + offsets(i+1)) / 2;
-            plot([x1, x2], [y, y], '--', 'Color', [0.6 0.6 0.6], 'LineWidth', 1);
+            hGap = plot([x1, x2], [y, y], '--', 'Color', [0.6 0.6 0.6], 'LineWidth', 1);
+            set(hGap, 'Tag', 'trace_layer');
         end
     end
     
@@ -369,20 +385,20 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
                 x_start = (plot_time_interval(1) - time_origin) * timeUnitFactor;
                 x_end = (plot_time_interval(2) - time_origin) * timeUnitFactor;
                 y_half = max(shiftCoeff * 0.18, eps);
-                for iCh = 1:numel(ch_inxs)
-                    row_counts = mua_counts(iCh, :);
-                    if ~any(row_counts)
-                        continue;
-                    end
-                    row_norm = row_counts / max_count;
-                    row_rgb = zeros(1, n_bins, 3);
-                    row_rgb(1, :, 1) = row_norm * mua_color_rgb(1);
-                    row_rgb(1, :, 2) = row_norm * mua_color_rgb(2);
-                    row_rgb(1, :, 3) = row_norm * mua_color_rgb(3);
-                    y0 = offsets(iCh);
-                    h = image(multiax, [x_start, x_end], [y0 - y_half, y0 + y_half], row_rgb);
-                    set(h, 'AlphaData', mua_alpha * row_norm, 'AlphaDataMapping', 'none');
-                end
+                tone_denom = max(1 - 0.5 * mua_alpha, eps);
+                mua_tone = min(1, (mua_counts / max_count) / tone_denom);
+                mua_alpha_map = mua_alpha * mua_tone;
+
+                mua_rgb = zeros(numel(ch_inxs), n_bins, 3);
+                mua_rgb(:, :, 1) = mua_tone * mua_color_rgb(1);
+                mua_rgb(:, :, 2) = mua_tone * mua_color_rgb(2);
+                mua_rgb(:, :, 3) = mua_tone * mua_color_rgb(3);
+
+                y_start = offsets(1) + y_half;
+                y_end = offsets(end) - y_half;
+                h = image(multiax, [x_start, x_end], [y_start, y_end], mua_rgb);
+                set(h, 'AlphaData', mua_alpha_map, 'AlphaDataMapping', 'none');
+                set(h, 'Tag', 'mua_layer');
             end
         end
         if ~use_mua_mask
@@ -409,6 +425,7 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
             scatter((x_coord - time_origin)*timeUnitFactor, y_coord, 'MarkerEdgeColor', mua_color_rgb, 'Marker', '|')
         end
     end
+    applySignalLayerOrder(multiax);
     
     Xlims = (plot_time_interval - time_origin) * timeUnitFactor;
     
@@ -714,6 +731,22 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
                 if startsWith(colorSpec, '#') && numel(colorSpec) == 7
                     rgb = hex2rgb(colorSpec);
                 end
+        end
+    end
+
+    function applySignalLayerOrder(axHandle)
+        muaLayer = findobj(axHandle, '-depth', 1, 'Tag', 'mua_layer');
+        csdLayer = findobj(axHandle, '-depth', 1, 'Tag', 'csd_layer');
+        traceLayer = findobj(axHandle, '-depth', 1, 'Tag', 'trace_layer');
+
+        if ~isempty(muaLayer)
+            uistack(muaLayer, 'bottom');
+        end
+        if ~isempty(csdLayer)
+            uistack(csdLayer, 'bottom');
+        end
+        if ~isempty(traceLayer)
+            uistack(traceLayer, 'top');
         end
     end
 
