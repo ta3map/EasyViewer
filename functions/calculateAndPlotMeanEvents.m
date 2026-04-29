@@ -57,6 +57,22 @@ else
     local_evfilename = evfilename;
     figureName = 'Mean Event Data';
 end
+totalTimePoints = numel(params.timePoints);
+if isfield(opts, 'startIndex') || isfield(opts, 'endIndex')
+    startIndex = 1;
+    endIndex = totalTimePoints;
+    if isfield(opts, 'startIndex')
+        startIndex = round(double(opts.startIndex));
+    end
+    if isfield(opts, 'endIndex')
+        endIndex = round(double(opts.endIndex));
+    end
+    validRange = totalTimePoints >= 1 && startIndex >= 1 && endIndex <= totalTimePoints && startIndex <= endIndex;
+    if ~validRange
+        error('Invalid mean index range [%d, %d]. Available range: [1, %d].', startIndex, endIndex, totalTimePoints);
+    end
+    params.timePoints = params.timePoints(startIndex:endIndex);
+end
 
 [mat_file_folder, original_filename, ~] = fileparts(matFilePath);
 
@@ -92,11 +108,23 @@ params.time = time;
 params.binsize = binsize;
 params.spk_threshold = std_coef;
 params.spks = spks;
-params.shiftCoeff = shiftCoeff;
+if isfield(opts, 'shiftCoeff')
+    params.shiftCoeff = double(opts.shiftCoeff);
+else
+    params.shiftCoeff = shiftCoeff;
+end
 params.titlename = local_evfilename;
-params.show_spikes = visualSettings.show_spikes;
+if isfield(opts, 'show_spikes')
+    params.show_spikes = logical(opts.show_spikes);
+else
+    params.show_spikes = visualSettings.show_spikes;
+end
 params.ch_inxs = ch_inxs; % Индексы активированных каналов
-params.show_CSD = visualSettings.show_CSD;
+if isfield(opts, 'show_CSD')
+    params.show_CSD = logical(opts.show_CSD);
+else
+    params.show_CSD = visualSettings.show_CSD;
+end
 params.csd_smooth_coef = csd_smooth_coef;
 params.csd_contrast_coef = csd_contrast_coef;
 params.csd_active = csd_avaliable(ch_inxs);
@@ -250,7 +278,7 @@ else
     paramsOut.figure = figure('Name', figureName, 'Tag', 'meanSignalResult', 'Visible', 'off', ...
         'MenuBar', 'none', 'ToolBar', 'figure');
 end
-basePosition = [32, 64, 1024, 768];
+basePosition = [32, 64, 1024, 820];
 paramsOut.figure.Position = basePosition + [positionShift(1), positionShift(2), 0, 0];
 set(paramsOut.figure, 'WindowButtonMotionFcn', []);
 
@@ -258,7 +286,21 @@ hToolbar = findall(paramsOut.figure, 'Type', 'uitoolbar');
 if ~isempty(hToolbar)
     set(hToolbar, 'Visible', 'off');
 end
-paramsOut.tiledlayout = tiledlayout(paramsOut.figure, tiledRows, tiledCols, 'TileSpacing', 'compact', 'Padding', 'compact');
+plotContainerBottom = 0.06;
+paramsOut.plotContainer = uipanel('Parent', paramsOut.figure, ...
+    'Tag', 'mean_plot_container', ...
+    'Units', 'normalized', ...
+    'Position', [0, plotContainerBottom, 1, 1 - plotContainerBottom], ...
+    'BorderType', 'none');
+setappdata(paramsOut.figure, 'meanPlotContainer', paramsOut.plotContainer);
+paramsOut.axesContainer = uipanel('Parent', paramsOut.plotContainer, ...
+    'Tag', 'mean_axes_container', ...
+    'Units', 'normalized', ...
+    'Position', [0.02, 0.08, 0.96, 0.90], ...
+    'BorderType', 'none');
+setappdata(paramsOut.figure, 'meanAxesContainer', paramsOut.axesContainer);
+paramsOut.tiledlayout = tiledlayout(paramsOut.plotContainer, tiledRows, tiledCols, 'TileSpacing', 'compact', 'Padding', 'compact');
+set(paramsOut.tiledlayout, 'Visible', 'off');
 end
 
 function [figureHandleOut, calculationResultOut] = finalizeMeanFigure(meanFigureIn, calculationResultIn, nameSuffix, drawRangeLabels)
@@ -299,9 +341,13 @@ if ~buildFigure
 end
 
 numChannels = numel(ch_inxs);
+plotOffsets = zeros(1, numChannels);
+for p = 1:numChannels
+    plotOffsets(p) = -(p-1) * params.shiftCoeff;
+end
 y_pixel_size = 768;
 y_tick_min_pixel_size = 32;
-[chRanges, chRangesOffsets, chRangeIndexes] = calculateChRanges(offsets, shiftCoeff, calculationResultOut.meanData, ...
+[chRanges, chRangesOffsets, chRangeIndexes] = calculateChRanges(plotOffsets, params.shiftCoeff, calculationResultOut.meanData, ...
     numChannels, calculationResultOut.scalingCoefficients(ch_inxs), y_pixel_size, y_tick_min_pixel_size);
 
 if isfield(calculationResultOut, 'baseline_medians')
@@ -342,21 +388,21 @@ if ~isempty(ax)
     end
     if visualSettings.show_full_signal
         pl_meanData = calculationResultOut.meanData(:, ch_inxs) .* calculationResultOut.scalingCoefficients(ch_inxs);
-        data_with_offsets = pl_meanData + offsets;
+        data_with_offsets = pl_meanData + plotOffsets;
         yMin = min(data_with_offsets(:));
         yMax = max(data_with_offsets(:));
         margin = (yMax - yMin) * 0.05;
         Ylims = [yMin - margin, yMax + margin];
     elseif isfield(calculationResultOut, 'baseline_medians')
         baseline_medians = calculationResultOut.baseline_medians;
-        minOffset = min(offsets);
-        maxOffset = max(offsets);
+        minOffset = min(plotOffsets);
+        maxOffset = max(plotOffsets);
         minBaseline = min(baseline_medians);
         maxBaseline = max(baseline_medians);
-        Ylims = [min([chRangesOffsets(:); minOffset + minBaseline]) - shiftCoeff*0.2, ...
-                 max([chRangesOffsets(:); maxOffset + maxBaseline]) + shiftCoeff*0.2];
+        Ylims = [min([chRangesOffsets(:); minOffset + minBaseline]) - params.shiftCoeff*0.2, ...
+                 max([chRangesOffsets(:); maxOffset + maxBaseline]) + params.shiftCoeff*0.2];
     else
-        Ylims = [min(chRangesOffsets)-shiftCoeff*0.5, max(chRangesOffsets)+shiftCoeff*0.5];
+        Ylims = [min(chRangesOffsets)-params.shiftCoeff*0.5, max(chRangesOffsets)+params.shiftCoeff*0.5];
     end
     ylim(mainAx, Ylims);
     for iAx = 1:numel(ax)
@@ -392,6 +438,12 @@ xmin_edit_coords = [817, 7, 38, 20];
 xmax_text_coords = [857, 7, 32, 20];
 xmax_edit_coords = [893, 7, 38, 20];
 mua_trace_checkbox_coords = [940, 7, 95, 20];
+colormap_text_coords = [55, 33, 62, 20];
+colormap_popup_coords = [117, 33, 118, 22];
+lfp_spacing_text_coords = [250, 33, 78, 20];
+lfp_spacing_edit_coords = [326, 33, 44, 20];
+lfp_spacing_slider_coords = [372, 35, 86, 18];
+secondary_axes_checkbox_coords = [468, 33, 120, 20];
 contrastCoefMin = 10;
 contrastCoefMax = 250;
 contrastSliderMax = 100;
@@ -401,6 +453,9 @@ baselineSliderMax = 100;
 smoothSigmaMin = 0;
 smoothSigmaMax = 5;
 smoothSliderMax = 100;
+shiftSliderMax = 100;
+minShiftSpacing = 1;
+maxShiftSpacing = max(1000, params.shiftCoeff * 4);
 contrastLabel = [];
 contrastEdit = [];
 contrastSlider = [];
@@ -415,6 +470,14 @@ baselineSlider = [];
 smoothLabel = [];
 smoothEdit = [];
 smoothSlider = [];
+colormapLabel = [];
+colormapPopup = [];
+lfpSpacingLabel = [];
+lfpSpacingEdit = [];
+lfpSpacingSlider = [];
+secondaryAxesCheckbox = [];
+colormapNames = {'parula', 'turbo', 'jet', 'gray'};
+currentColormapName = colormapNames{1};
 xMinLabel = [];
 xMinEdit = [];
 xMaxLabel = [];
@@ -425,6 +488,8 @@ refreshDebounceTimer = [];
 refreshDebounceDelay = 0.18;
 defaultXlims = Xlims;
 currentXlims = Xlims;
+currentShiftSpacing = params.shiftCoeff;
+showSecondaryAxes = true;
 currentHpCutoff = 100;
 currentBaselineBoundary = currentXlims(1) / 2;
 currentContrastPercent = defaultContrastPercent();
@@ -472,18 +537,47 @@ function SaveClb(~,~)
             savefig(figureHandleOut, filename, 'compact');
             disp(['Figure saved to ', filename]);
         case '.pdf'
-            print(figureHandleOut, filename, '-dpdf', '-bestfit');
+            exportPlotContainerOnly(filename, '.pdf');
             disp(['Image saved to ', filename]);
         case '.eps'
-            print(figureHandleOut, filename, '-depsc');
+            exportPlotContainerOnly(filename, '.eps');
             disp(['Image saved to ', filename]);
         case '.png'
-            saveas(figureHandleOut, filename, 'png');
+            exportPlotContainerOnly(filename, '.png');
             disp(['Image saved to ', filename]);
         otherwise
             saveas(figureHandleOut, filename);
             disp(['Saved to ', filename]);
     end
+end
+
+function exportPlotContainerOnly(filename, ext)
+plotContainerHandle = getappdata(figureHandleOut, 'meanPlotContainer');
+if isempty(plotContainerHandle) || ~isgraphics(plotContainerHandle, 'uipanel')
+    saveas(figureHandleOut, filename);
+    return
+end
+tempFig = figure('Visible', 'off', 'Color', [1 1 1], 'MenuBar', 'none', 'ToolBar', 'none');
+cleanupTempFigure = onCleanup(@() deleteIfGraphic(tempFig));
+set(tempFig, 'Units', get(figureHandleOut, 'Units'), 'Position', get(figureHandleOut, 'Position'));
+plotContainerCopy = copyobj(plotContainerHandle, tempFig);
+set(plotContainerCopy, 'Units', 'normalized', 'Position', [0 0 1 1], 'BorderType', 'none');
+switch lower(ext)
+    case '.pdf'
+        print(tempFig, filename, '-dpdf', '-bestfit');
+    case '.eps'
+        print(tempFig, filename, '-depsc');
+    case '.png'
+        saveas(tempFig, filename, 'png');
+    otherwise
+        saveas(tempFig, filename);
+end
+end
+
+function deleteIfGraphic(h)
+if ~isempty(h) && isgraphics(h)
+    delete(h);
+end
 end
 
 function ResetClb(~, ~)
@@ -498,7 +592,10 @@ function ResetClb(~, ~)
     hpFilterEnabled = true;
     useWhiteTracesInMua = true;
     currentHeatmapSmoothSigma = defaultHeatmapSmoothSigma();
+    currentColormapName = colormapNames{1};
+    currentShiftSpacing = params.shiftCoeff;
     syncPreCsdControls();
+    applyCurrentColormap();
     applyXlimToAxes();
     saveMeanControlsState();
     requestDebouncedRefresh();
@@ -560,6 +657,7 @@ end
 
 function createPreCsdControls()
 currentHpCutoff = clampHp(currentHpCutoff);
+currentShiftSpacing = clampShiftSpacing(currentShiftSpacing);
 hpLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'HP, Hz', ...
     'Position', hp_text_coords, 'HorizontalAlignment', 'left');
 hpEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', ...
@@ -602,17 +700,34 @@ xMaxEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', ...
 muaTraceWhiteCheckbox = uicontrol('Parent', figureHandleOut, 'Style', 'checkbox', ...
     'String', 'white traces', 'Value', double(useWhiteTracesInMua), ...
     'Position', mua_trace_checkbox_coords, 'Callback', @MuaTraceWhiteCheckboxClb);
+colormapLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'Colormap', ...
+    'Position', colormap_text_coords, 'HorizontalAlignment', 'left');
+colormapPopup = uicontrol('Parent', figureHandleOut, 'Style', 'popupmenu', ...
+    'String', colormapNames, 'BackgroundColor', 'white', ...
+    'Position', colormap_popup_coords, 'Callback', @ColormapPopupClb);
+lfpSpacingLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'LFP gap', ...
+    'Position', lfp_spacing_text_coords, 'HorizontalAlignment', 'left');
+lfpSpacingEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', ...
+    'String', num2str(currentShiftSpacing, '%.6g'), 'BackgroundColor', 'white', ...
+    'Position', lfp_spacing_edit_coords, 'Callback', @LfpSpacingEditClb);
+lfpSpacingSlider = uicontrol('Parent', figureHandleOut, 'Style', 'slider', ...
+    'Min', 0, 'Max', shiftSliderMax, 'Value', shiftSliderFromValue(currentShiftSpacing), ...
+    'Position', lfp_spacing_slider_coords, 'Callback', @LfpSpacingSliderClb);
+secondaryAxesCheckbox = uicontrol('Parent', figureHandleOut, 'Style', 'checkbox', ...
+    'String', 'Profile', 'Value', double(showSecondaryAxes), ...
+    'Position', secondary_axes_checkbox_coords, 'Callback', @SecondaryAxesCheckboxClb);
 set(muaTraceWhiteCheckbox, 'Visible', ternaryVisibility(isfield(calculationResultOut, 'show_spikes') && calculationResultOut.show_spikes && ...
     (~isfield(calculationResultOut, 'show_CSD') || ~calculationResultOut.show_CSD)));
 
 syncPreCsdControls();
+applyCurrentColormap();
 applyXlimToAxes();
 refreshCsdWithPreprocessing();
 end
 
 function deletePreCsdControls()
 cancelDebouncedRefresh();
-handles = {hpLabel, hpEdit, hpSlider, baselineLabel, baselineEdit, baselineSlider, smoothLabel, smoothEdit, smoothSlider, xMinLabel, xMinEdit, xMaxLabel, xMaxEdit, muaTraceWhiteCheckbox};
+handles = {hpLabel, hpEdit, hpSlider, baselineLabel, baselineEdit, baselineSlider, smoothLabel, smoothEdit, smoothSlider, xMinLabel, xMinEdit, xMaxLabel, xMaxEdit, muaTraceWhiteCheckbox, colormapLabel, colormapPopup, lfpSpacingLabel, lfpSpacingEdit, lfpSpacingSlider, secondaryAxesCheckbox};
 for idx = 1:numel(handles)
     h = handles{idx};
     if ~isempty(h) && isgraphics(h, 'uicontrol')
@@ -629,11 +744,17 @@ baselineSlider = [];
 smoothLabel = [];
 smoothEdit = [];
 smoothSlider = [];
+colormapLabel = [];
+colormapPopup = [];
 xMinLabel = [];
 xMinEdit = [];
 xMaxLabel = [];
 xMaxEdit = [];
 muaTraceWhiteCheckbox = [];
+lfpSpacingLabel = [];
+lfpSpacingEdit = [];
+lfpSpacingSlider = [];
+secondaryAxesCheckbox = [];
 end
 
 function HpSliderClb(~, ~)
@@ -722,6 +843,30 @@ saveMeanControlsState();
 requestDebouncedRefresh();
 end
 
+function LfpSpacingSliderClb(~, ~)
+currentShiftSpacing = shiftValueFromSlider(get(lfpSpacingSlider, 'Value'));
+syncPreCsdControls();
+saveMeanControlsState();
+refreshShiftLayout();
+end
+
+function LfpSpacingEditClb(~, ~)
+inputValue = str2double(strrep(get(lfpSpacingEdit, 'String'), ',', '.'));
+if isnan(inputValue) || ~isfinite(inputValue)
+    inputValue = currentShiftSpacing;
+end
+currentShiftSpacing = clampShiftSpacing(inputValue);
+syncPreCsdControls();
+saveMeanControlsState();
+refreshShiftLayout();
+end
+
+function SecondaryAxesCheckboxClb(src, ~)
+showSecondaryAxes = logical(get(src, 'Value'));
+applySecondaryAxesVisibility();
+saveMeanControlsState();
+end
+
 function requestDebouncedRefresh()
 try
     if isempty(refreshDebounceTimer) || ~isvalid(refreshDebounceTimer)
@@ -739,6 +884,126 @@ end
 
 function DebouncedRefreshTimerFcn(~, ~)
 refreshCsdWithPreprocessing();
+end
+
+function refreshShiftLayout()
+mainAxes = findobj(figureHandleOut, 'Type', 'axes', 'Tag', 'mean_main_axis');
+if isempty(mainAxes) || ~isgraphics(mainAxes(1))
+    return
+end
+mainAxLocal = mainAxes(1);
+timeAxis = calculationResultOut.timeAxisScaled;
+plMeanData = prepareLfpForCsd(timeAxis);
+numChannelsLocal = numel(calculationResultOut.ch_inxs);
+offsetsLocal = zeros(1, numChannelsLocal);
+for p = 1:numChannelsLocal
+    offsetsLocal(p) = -(p-1) * currentShiftSpacing;
+end
+climValue = get(mainAxLocal, 'CLim');
+heatmapData = [];
+heatmapX = [];
+heatmapY = [];
+if isfield(calculationResultOut, 'heatmap_handle') && ~isempty(calculationResultOut.heatmap_handle) && isgraphics(calculationResultOut.heatmap_handle)
+    heatmapData = get(calculationResultOut.heatmap_handle, 'CData');
+    heatmapX = get(calculationResultOut.heatmap_handle, 'XData');
+    heatmapY = get(calculationResultOut.heatmap_handle, 'YData');
+end
+axes(mainAxLocal);
+cla(mainAxLocal);
+hold(mainAxLocal, 'on');
+set(mainAxLocal, 'Color', 'none');
+if ~isempty(heatmapData)
+    yMin = min(offsetsLocal);
+    yMax = max(offsetsLocal);
+    heatmapYScaled = heatmapY;
+    if numel(heatmapYScaled) >= 2
+        srcMin = min(heatmapYScaled(:));
+        srcMax = max(heatmapYScaled(:));
+        if srcMax > srcMin
+            heatmapYScaled = yMin + (heatmapYScaled - srcMin) * (yMax - yMin) / (srcMax - srcMin);
+        else
+            heatmapYScaled = heatmapYScaled * 0 + yMin;
+        end
+    end
+    calculationResultOut.heatmap_handle = imagesc(mainAxLocal, heatmapX, heatmapYScaled, heatmapData);
+    uistack(calculationResultOut.heatmap_handle, 'bottom');
+    set(mainAxLocal, 'CLim', climValue);
+else
+    calculationResultOut.heatmap_handle = [];
+end
+calculationResultOut.shiftCoeff = currentShiftSpacing;
+drawMeanTrace(mainAxLocal, timeAxis, plMeanData, offsetsLocal);
+if visualSettings.show_full_signal
+    dataWithOffsets = plMeanData + offsetsLocal;
+    yMin = min(dataWithOffsets(:));
+    yMax = max(dataWithOffsets(:));
+    margin = (yMax - yMin) * 0.05;
+    Ylims = [yMin - margin, yMax + margin];
+elseif isfield(calculationResultOut, 'baseline_medians')
+    baselineMedians = calculationResultOut.baseline_medians;
+    minOffset = min(offsetsLocal);
+    maxOffset = max(offsetsLocal);
+    minBaseline = min(baselineMedians);
+    maxBaseline = max(baselineMedians);
+    Ylims = [minOffset + minBaseline - currentShiftSpacing*0.2, maxOffset + maxBaseline + currentShiftSpacing*0.2];
+else
+    Ylims = [min(offsetsLocal)-currentShiftSpacing*0.5, max(offsetsLocal)+currentShiftSpacing*0.5];
+end
+ylim(mainAxLocal, Ylims);
+secondaryAxes = findobj(figureHandleOut, 'Type', 'axes', '-not', 'Tag', 'legend');
+for iAx = 1:numel(secondaryAxes)
+    if secondaryAxes(iAx) ~= mainAxLocal
+        ylim(secondaryAxes(iAx), Ylims);
+    end
+end
+applyCurrentColormap();
+hold(mainAxLocal, 'off');
+applyXlimToAxes();
+applySecondaryAxesVisibility();
+end
+
+function applySecondaryAxesVisibility()
+mainAxes = findobj(figureHandleOut, 'Type', 'axes', 'Tag', 'mean_main_axis');
+if isempty(mainAxes) || ~isgraphics(mainAxes(1))
+    return
+end
+mainAxLocal = mainAxes(1);
+secondaryAxes = findobj(figureHandleOut, 'Type', 'axes', 'Tag', 'mean_secondary_axis');
+if isempty(secondaryAxes)
+    updateAxesLayout(mainAxLocal, []);
+    return
+end
+secondaryAxLocal = secondaryAxes(1);
+visibleState = ternaryVisibility(showSecondaryAxes);
+set(secondaryAxLocal, 'Visible', visibleState);
+updateAxesLayout(mainAxLocal, secondaryAxLocal);
+end
+
+function updateAxesLayout(mainAxLocal, secondaryAxLocal)
+if nargin < 1 || isempty(mainAxLocal) || ~isgraphics(mainAxLocal, 'axes')
+    return
+end
+axesContainer = getappdata(figureHandleOut, 'meanAxesContainer');
+if isempty(axesContainer) || ~isgraphics(axesContainer, 'uipanel')
+    return
+end
+set(mainAxLocal, 'Parent', axesContainer, 'Units', 'normalized');
+if nargin >= 2 && ~isempty(secondaryAxLocal) && isgraphics(secondaryAxLocal, 'axes')
+    set(secondaryAxLocal, 'Parent', axesContainer, 'Units', 'normalized');
+end
+outerPad = 0.02;
+topBottomPad = 0.06;
+gap = 0.02;
+fullHeight = 1 - 2 * topBottomPad;
+if nargin < 2 || isempty(secondaryAxLocal) || ~isgraphics(secondaryAxLocal, 'axes') || ~showSecondaryAxes
+    set(mainAxLocal, 'Position', [outerPad, topBottomPad, 1 - 2*outerPad, fullHeight]);
+    return
+end
+availableWidth = 1 - 2*outerPad - gap;
+mainWidth = availableWidth * 4 / 5;
+secondaryWidth = availableWidth - mainWidth;
+set(mainAxLocal, 'Position', [outerPad, topBottomPad, mainWidth, fullHeight]);
+set(secondaryAxLocal, 'Position', [outerPad + mainWidth + gap, topBottomPad, secondaryWidth, fullHeight]);
 end
 
 function cancelDebouncedRefresh()
@@ -792,6 +1057,31 @@ end
 if ~isempty(smoothSlider) && isgraphics(smoothSlider, 'uicontrol')
     set(smoothSlider, 'Value', smoothSliderFromValue(currentHeatmapSmoothSigma));
 end
+if ~isempty(colormapPopup) && isgraphics(colormapPopup, 'uicontrol')
+    activeColormapIndex = find(strcmp(colormapNames, currentColormapName), 1);
+    if isempty(activeColormapIndex)
+        activeColormapIndex = 1;
+        currentColormapName = colormapNames{activeColormapIndex};
+    end
+    set(colormapPopup, 'Value', activeColormapIndex);
+end
+if ~isempty(lfpSpacingEdit) && isgraphics(lfpSpacingEdit, 'uicontrol')
+    set(lfpSpacingEdit, 'String', num2str(currentShiftSpacing, '%.6g'));
+end
+if ~isempty(lfpSpacingSlider) && isgraphics(lfpSpacingSlider, 'uicontrol')
+    set(lfpSpacingSlider, 'Value', shiftSliderFromValue(currentShiftSpacing));
+end
+if ~isempty(secondaryAxesCheckbox) && isgraphics(secondaryAxesCheckbox, 'uicontrol')
+    set(secondaryAxesCheckbox, 'Value', double(showSecondaryAxes));
+end
+hasHeatmap = (isfield(calculationResultOut, 'show_CSD') && calculationResultOut.show_CSD) || ...
+    (isfield(calculationResultOut, 'show_spikes') && calculationResultOut.show_spikes);
+if ~isempty(colormapLabel) && isgraphics(colormapLabel, 'uicontrol')
+    set(colormapLabel, 'Visible', ternaryVisibility(hasHeatmap));
+end
+if ~isempty(colormapPopup) && isgraphics(colormapPopup, 'uicontrol')
+    set(colormapPopup, 'Visible', ternaryVisibility(hasHeatmap));
+end
 end
 
 function value = clampHp(valueIn)
@@ -806,6 +1096,10 @@ end
 
 function value = clampSmoothSigma(valueIn)
 value = min(max(valueIn, smoothSigmaMin), smoothSigmaMax);
+end
+
+function value = clampShiftSpacing(valueIn)
+value = min(max(valueIn, minShiftSpacing), maxShiftSpacing);
 end
 
 function sliderValue = hpSliderFromValue(hpValue)
@@ -842,6 +1136,14 @@ end
 
 function sigmaValue = smoothValueFromSlider(sliderValue)
 sigmaValue = smoothSigmaMin + (smoothSigmaMax - smoothSigmaMin) * sliderValue / smoothSliderMax;
+end
+
+function sliderValue = shiftSliderFromValue(shiftValue)
+sliderValue = shiftSliderMax * (shiftValue - minShiftSpacing) / (maxShiftSpacing - minShiftSpacing);
+end
+
+function shiftValue = shiftValueFromSlider(sliderValue)
+shiftValue = minShiftSpacing + (maxShiftSpacing - minShiftSpacing) * sliderValue / shiftSliderMax;
 end
 
 function applyXlimToAxes()
@@ -916,6 +1218,7 @@ elseif isfield(calculationResultOut, 'show_spikes') && calculationResultOut.show
 else
     calculationResultOut.heatmap_handle = [];
 end
+applyCurrentColormap();
 
 drawMeanTrace(mainAxLocal, timeAxis, plMeanData, offsetsLocal);
 ylim(mainAxLocal, currentYlim);
@@ -923,6 +1226,7 @@ hold(mainAxLocal, 'off');
 calculationResultOut.csd_hp_cutoff_hz = currentHpCutoff;
 calculationResultOut.csd_baseline_boundary = currentBaselineBoundary;
 applyXlimToAxes();
+applySecondaryAxesVisibility();
 end
 
 function plMeanData = prepareLfpForCsd(timeAxis)
@@ -1043,6 +1347,24 @@ newClim = contrastCenter + [-halfSpan, halfSpan];
 set(get(heatmapHandle, 'Parent'), 'CLim', newClim);
 end
 
+function ColormapPopupClb(src, ~)
+selectedIndex = get(src, 'Value');
+if selectedIndex < 1 || selectedIndex > numel(colormapNames)
+    return
+end
+currentColormapName = colormapNames{selectedIndex};
+applyCurrentColormap();
+saveMeanControlsState();
+end
+
+function applyCurrentColormap()
+mainAxes = findobj(figureHandleOut, 'Type', 'axes', 'Tag', 'mean_main_axis');
+if isempty(mainAxes) || ~isgraphics(mainAxes(1))
+    return
+end
+colormap(mainAxes(1), currentColormapName);
+end
+
 function coef = defaultContrastPercent()
 coef = 100 - 40 * double(isfield(calculationResultOut, 'show_CSD') && calculationResultOut.show_CSD);
 end
@@ -1083,12 +1405,57 @@ end
 if isfield(stateForMode, 'heatmapSmoothSigma')
     currentHeatmapSmoothSigma = stateForMode.heatmapSmoothSigma;
 end
+if isfield(stateForMode, 'colormapName') && ischar(stateForMode.colormapName)
+    currentColormapName = stateForMode.colormapName;
+end
+if isfield(stateForMode, 'lfpSpacing')
+    currentShiftSpacing = double(stateForMode.lfpSpacing);
+end
+if isfield(stateForMode, 'showSecondaryAxes')
+    showSecondaryAxes = logical(stateForMode.showSecondaryAxes);
+end
+if isfield(opts, 'xLimits') && isnumeric(opts.xLimits) && numel(opts.xLimits) == 2
+    currentXlims = reshape(double(opts.xLimits), 1, 2);
+end
+if isfield(opts, 'csd_hp_cutoff_hz')
+    currentHpCutoff = double(opts.csd_hp_cutoff_hz);
+end
+if isfield(opts, 'csd_baseline_boundary')
+    currentBaselineBoundary = double(opts.csd_baseline_boundary);
+end
+if isfield(opts, 'hpFilterEnabled')
+    hpFilterEnabled = logical(opts.hpFilterEnabled);
+end
+if isfield(opts, 'muaWhiteTraces')
+    useWhiteTracesInMua = logical(opts.muaWhiteTraces);
+end
+if isfield(opts, 'heatmapSmoothSigma')
+    currentHeatmapSmoothSigma = double(opts.heatmapSmoothSigma);
+end
+if isfield(opts, 'contrastPercent')
+    currentContrastPercent = double(opts.contrastPercent);
+end
+if isfield(opts, 'colormapName')
+    currentColormapName = char(opts.colormapName);
+end
+if isfield(opts, 'shiftCoeff')
+    currentShiftSpacing = double(opts.shiftCoeff);
+end
+if isfield(opts, 'showSecondaryAxes')
+    showSecondaryAxes = logical(opts.showSecondaryAxes);
+end
+if isempty(find(strcmp(colormapNames, currentColormapName), 1))
+    currentColormapName = colormapNames{1};
+end
 if currentXlims(1) >= currentXlims(2)
     currentXlims = Xlims;
 end
 currentContrastPercent = min(max(currentContrastPercent, contrastCoefMin), contrastCoefMax);
 currentHpCutoff = clampHp(currentHpCutoff);
 currentHeatmapSmoothSigma = clampSmoothSigma(currentHeatmapSmoothSigma);
+currentShiftSpacing = clampShiftSpacing(currentShiftSpacing);
+calculationResultOut.shiftCoeff = currentShiftSpacing;
+saveMeanControlsState();
 end
 
 function saveMeanControlsState()
@@ -1100,7 +1467,10 @@ stateForMode = struct( ...
     'xLim', currentXlims, ...
     'hpFilterEnabled', logical(hpFilterEnabled), ...
     'muaWhiteTraces', logical(useWhiteTracesInMua), ...
-    'heatmapSmoothSigma', currentHeatmapSmoothSigma);
+    'heatmapSmoothSigma', currentHeatmapSmoothSigma, ...
+    'colormapName', currentColormapName, ...
+    'lfpSpacing', currentShiftSpacing, ...
+    'showSecondaryAxes', logical(showSecondaryAxes));
 if ~isstruct(meanControlsState)
     meanControlsState = struct();
 end

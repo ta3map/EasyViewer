@@ -130,6 +130,8 @@ function signalViewerGUI(filePath)
     add_event_pending = false;
     manualEventChannelIdx = 1;
     eventsChannelPopupChIdxs = 1;
+    isRestoringStartupState = false;
+    restorationWaitBar = [];
     channelUpdateDebounceTimer = timer( ...
         'TimerFcn', @debouncedChannelUpdatePlotCallback, ...
         'StartDelay', 1, ...
@@ -201,6 +203,7 @@ function signalViewerGUI(filePath)
     view_menu_visible = false;
     analysis_menu_visible = false;
     help_menu_visible = false;
+    showSpikesButton = [];
     
     min_scale_coef = 0.8;
     base_figure_position = [20 60 1280 650]*min_scale_coef;
@@ -246,11 +249,21 @@ function signalViewerGUI(filePath)
     stim_label_click_callback = @selectStimulusByIndex;
 
     binsize = 0.005;%s
-    visualSettings.show_spikes = false;
-    visualSettings.show_CSD = false;
-    visualSettings.mua_use_mask = true;
-    visualSettings.mua_color = '#FF0000';
-    visualSettings.mua_alpha = 0.9;
+    if ~isfield(visualSettings, 'show_spikes')
+        visualSettings.show_spikes = false;
+    end
+    if ~isfield(visualSettings, 'show_CSD')
+        visualSettings.show_CSD = false;
+    end
+    if ~isfield(visualSettings, 'mua_use_mask')
+        visualSettings.mua_use_mask = true;
+    end
+    if ~isfield(visualSettings, 'mua_color') || isempty(visualSettings.mua_color)
+        visualSettings.mua_color = '#FF0000';
+    end
+    if ~isfield(visualSettings, 'mua_alpha')
+        visualSettings.mua_alpha = 0.9;
+    end
     if ~isfield(visualSettings, 'events_show')
         visualSettings.events_show = true;
     end
@@ -264,6 +277,7 @@ function signalViewerGUI(filePath)
     events = [];
     event_indices = [];
     event_inx = 1;
+    restored_event_inx = [];
     selected_event_rows = [];
     event_comments = {};
     
@@ -480,6 +494,9 @@ function signalViewerGUI(filePath)
     % MUA
     muaSettingsBtn = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'MUA Settings', ...
         'Position', getElementPosition('mua_settings_btn'), 'Callback', @(~,~)openMUASettingsGUI(), 'Tag', 'mua_settings_btn');
+    showSpikesButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'MUA', ...
+        'Position', getElementPosition('show_spikes_button'), 'Value', visualSettings.show_spikes, ...
+        'Callback', @ShowSpikesButtonCallback, 'Tag', 'show_spikes_button');
     showCSDbutton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'CSD', 'Position', getElementPosition('show_csd_button'), 'Callback', @ShowCSDButtonCallback, 'Tag', 'show_csd_button');
     showEventsButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Events', 'Position', getElementPosition('show_events_button'), 'Value', visualSettings.events_show, 'Callback', @ShowEventsButtonCallback, 'Tag', 'show_events_button');
     showStimButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Stim', 'Position', getElementPosition('show_stim_button'), 'Value', visualSettings.stim_show, 'Callback', @ShowStimButtonCallback, 'Tag', 'show_stim_button');
@@ -542,6 +559,8 @@ function signalViewerGUI(filePath)
     
     % Список действий
     file_functions = {'Open File', ...
+        '', ...
+        'Load Last State', ...
         '', ...
         'Open Recent', ...
         '', ...
@@ -868,7 +887,7 @@ function signalViewerGUI(filePath)
 
         % Фиксируем текущий MUA coef в настройках записи перед закрытием
         try
-            saveChannelSettings('std_coef');
+            saveChannelSettings('std_coef', 'event_inx');
         catch
             % Игнорируем ошибки сохранения при закрытии
         end
@@ -1010,20 +1029,22 @@ function signalViewerGUI(filePath)
             case file_functions{1}
                 OpenZavLfpFile([], []);
             case file_functions{3}
-                showRecentFilesDialog(lastOpenedFiles, @loadMatFile);
+                autoOpenLastFile(true);
             case file_functions{5}
-                loadEvents([], []);
+                showRecentFilesDialog(lastOpenedFiles, @loadMatFile);
             case file_functions{7}
-                saveMatFile(matFilePath);
+                loadEvents([], []);
             case file_functions{9}
-                saveMUA();
+                saveMatFile(matFilePath);
             case file_functions{11}
-                fileManagerBtnClb([], []);
+                saveMUA();
             case file_functions{13}
-                openFigureWithFileDialog();
+                fileManagerBtnClb([], []);
             case file_functions{15}
-                showImportFormatDialog();
+                openFigureWithFileDialog();
             case file_functions{17}
+                showImportFormatDialog();
+            case file_functions{19}
                 saveMainAxisAs();
             case ''
                 dont_close_menu = true;
@@ -1302,6 +1323,7 @@ function signalViewerGUI(filePath)
 
     function openMUASettingsGUI()
         wasApplied = MUASettingsGUI();
+        syncMUAControlsState();
         if wasApplied
             updatePlot();
         end
@@ -1535,24 +1557,15 @@ function signalViewerGUI(filePath)
             errordlg('No events or stimuli available. Please load events or a file with stimuli.', 'Error');
             return;
         end
-        
-        if has_events && ~has_stims
-            calculateAndPlotMeanEvents('events', struct('removeBaseline', true));
-        elseif ~has_events && has_stims
-            calculateAndPlotMeanEvents('stimuli', struct('removeBaseline', true));
-        else
-            choice = questdlg('Select data source for mean calculation:', ...
-                'Mean Calculation', ...
-                'Events', 'Stimuli', 'Cancel', 'Events');
-            switch choice
-                case 'Events'
-                    calculateAndPlotMeanEvents('events', struct('removeBaseline', true));
-                case 'Stimuli'
-                    calculateAndPlotMeanEvents('stimuli', struct('removeBaseline', true));
-                case 'Cancel'
-                    return;
-            end
+        [wasApplied, sourceType, meanOpts] = setupMeanEventsGUI(struct( ...
+            'hasEvents', has_events, ...
+            'hasStimuli', has_stims, ...
+            'eventsCount', numel(events), ...
+            'stimuliCount', numel(stims)));
+        if ~wasApplied
+            return;
         end
+        calculateAndPlotMeanEvents(sourceType, meanOpts);
     end
 %%
 
@@ -1590,6 +1603,13 @@ function signalViewerGUI(filePath)
     function ShowStimButtonCallback(~, ~)
         visualSettings.stim_show = ~visualSettings.stim_show;
         set(showStimButton, 'Value', visualSettings.stim_show);
+        updatePlot();
+    end
+
+    function ShowSpikesButtonCallback(~, ~)
+        visualSettings.show_spikes = ~visualSettings.show_spikes;
+        set(showSpikesButton, 'Value', visualSettings.show_spikes);
+        save(SettingsFilepath, 'visualSettings', '-append');
         updatePlot();
     end
 
@@ -2034,6 +2054,12 @@ function signalViewerGUI(filePath)
         updateCSDControlsVisibility();
 
         saveChannelSettings();
+        if isRestoringStartupState
+            if ~isempty(channelUpdateDebounceTimer) && isvalid(channelUpdateDebounceTimer)
+                stop(channelUpdateDebounceTimer);
+            end
+            return;
+        end
 
         if ~exist('channelUpdateDebounceTimer', 'var') || isempty(channelUpdateDebounceTimer) || ~isvalid(channelUpdateDebounceTimer)
             channelUpdateDebounceTimer = timer( ...
@@ -2046,6 +2072,9 @@ function signalViewerGUI(filePath)
     end
 
     function debouncedChannelUpdatePlotCallback(~, ~)
+        if isRestoringStartupState
+            return;
+        end
         updatePlot();
     end
 
@@ -2591,9 +2620,17 @@ function signalViewerGUI(filePath)
         debugState('loadMatFile', '%s', matFileName);       
         
         % Используем универсальную функцию загрузки
-        data = load_zav_file(filepath, ...
-            'auto_set_time_windows', autoSetTimeWindowsFromSweeps, ...
-            'auto_set_fs', autoSetNewFsFromFs);
+        if isRestoringStartupState && ~isempty(restorationWaitBar) && isvalid(restorationWaitBar)
+            data = load_zav_file(filepath, ...
+                'auto_set_time_windows', autoSetTimeWindowsFromSweeps, ...
+                'auto_set_fs', autoSetNewFsFromFs, ...
+                'waitbar_handle', restorationWaitBar, ...
+                'keep_waitbar_open', true);
+        else
+            data = load_zav_file(filepath, ...
+                'auto_set_time_windows', autoSetTimeWindowsFromSweeps, ...
+                'auto_set_fs', autoSetNewFsFromFs);
+        end
         [lfp_file, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
         spks_events = {};
 
@@ -2764,6 +2801,7 @@ function signalViewerGUI(filePath)
         set(analysisBtn, 'Enable', 'on');
         
         set(showCSDbutton, 'Value', visualSettings.show_CSD);
+        syncMUAControlsState();
         set(showEventsButton, 'Value', visualSettings.events_show);
         set(showStimButton, 'Value', visualSettings.stim_show);
         updateMUAControlsVisibility();
@@ -2812,6 +2850,16 @@ function signalViewerGUI(filePath)
 
     function updateMUAControlsVisibility()
         set(muaSettingsBtn, 'Visible', 'on');
+        if ~isempty(showSpikesButton) && isgraphics(showSpikesButton, 'uicontrol')
+            set(showSpikesButton, 'Visible', 'on');
+        end
+        syncMUAControlsState();
+    end
+
+    function syncMUAControlsState()
+        if ~isempty(showSpikesButton) && isgraphics(showSpikesButton, 'uicontrol')
+            set(showSpikesButton, 'Value', visualSettings.show_spikes);
+        end
     end
 
     function updateCSDControlsVisibility()
@@ -2959,6 +3007,13 @@ function loadSettingsFile()
         if isfield(loadedSettings, 'lastEventsFilePath')
             lastEventsFilePath = loadedSettings.lastEventsFilePath;
         end
+        if isfield(loadedSettings, 'event_inx')
+            loaded_event_inx = round(double(loadedSettings.event_inx));
+            if isfinite(loaded_event_inx) && loaded_event_inx >= 1
+                restored_event_inx = loaded_event_inx;
+                event_inx = loaded_event_inx;
+            end
+        end
         if isfield(loadedSettings, 'shiftCoeff')
             shiftCoeff = loadedSettings.shiftCoeff;
             set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
@@ -2981,6 +3036,7 @@ function loadSettingsFile()
                 visualSettings.mua_alpha = min(max(double(loadedVisualSettings.mua_alpha), 0), 1);
             end
             set(showCSDbutton, 'Value', visualSettings.show_CSD);
+            syncMUAControlsState();
         end
         if isfield(loadedSettings, 'binsize')
             binsize = loadedSettings.binsize;
@@ -3092,6 +3148,24 @@ end
         updatePlotFunc();
         
         debugState('createNewSettingsFile', 'Created new settings file');
+    end
+
+    function idx = getRestoredEventIndex(loadedData, eventsCount)
+        idx = 1;
+        if eventsCount < 1
+            return;
+        end
+
+        if nargin > 0 && isstruct(loadedData) && isfield(loadedData, 'viewer_data') && isstruct(loadedData.viewer_data) && isfield(loadedData.viewer_data, 'event_inx')
+            candidate_idx = round(double(loadedData.viewer_data.event_inx));
+            if isfinite(candidate_idx) && candidate_idx >= 1
+                idx = candidate_idx;
+            end
+        elseif ~isempty(restored_event_inx)
+            idx = restored_event_inx;
+        end
+
+        idx = min(max(idx, 1), eventsCount);
     end
 
     % Функция загрузки настроек каналов
@@ -3461,7 +3535,9 @@ end
         updateSliderMaxValue();
         set(timeSlider, 'Value', events(1));
         set(timeSlider, 'Callback', cb);
-        updatePlot();
+        if ~isRestoringStartupState
+            updatePlot();
+        end
     end
 
 % Функция загрузки событий
@@ -3504,8 +3580,6 @@ function loadEvents(~, ~)
                 % Загружаем файл, если путь отличается ИЛИ данные не загружены
                 if ~strcmp(loadedData.viewer_data.matFilePath, matFilePath) || ~exist('time', 'var') || isempty(time)
                     loadMatFile(loadedData.viewer_data.matFilePath);
-                else
-                    updatePlot();
                 end
             end
         end
@@ -3581,10 +3655,10 @@ function loadEvents(~, ~)
         
         event_title_string = file;
         lastEventsFilePath = filepath;
-        saveChannelSettings('lastEventsFilePath');
+        event_inx = getRestoredEventIndex(loadedData, numel(events));
+        saveChannelSettings('lastEventsFilePath', 'event_inx');
         UpdateEventTable();
         events_exist = true;
-        event_inx = 1;
         applyEventsLoadedState();
     else
         debugState('loadEvents', 'No events found in the file.');
@@ -3625,10 +3699,10 @@ end
             event_prominences = [];
             event_metadata = [];
             events_exist = true;
-            event_inx = 1;
+            event_inx = getRestoredEventIndex(loadedData, numel(events));
             event_title_string = [file ' (MUA trials)'];
             lastEventsFilePath = filepath;
-            saveChannelSettings('lastEventsFilePath');
+            saveChannelSettings('lastEventsFilePath', 'event_inx');
             visualSettings.show_spikes = true;
             UpdateEventTable();
             applyEventsLoadedState();
@@ -3654,7 +3728,7 @@ end
             event_inx = 1;
             event_title_string = [file ' (MUA)'];
             lastEventsFilePath = filepath;
-            saveChannelSettings('lastEventsFilePath');
+            saveChannelSettings('lastEventsFilePath', 'event_inx');
             visualSettings.show_spikes = true;
             UpdateEventTable();
             updateMUAControlsVisibility();
@@ -3726,7 +3800,7 @@ end
         event_inx = 1;
         event_title_string = [file ' (MUA)'];
         lastEventsFilePath = filepath;
-        saveChannelSettings('lastEventsFilePath');
+        saveChannelSettings('lastEventsFilePath', 'event_inx');
 
         visualSettings.show_spikes = true;
         UpdateEventTable();
@@ -3765,10 +3839,10 @@ end
 
         event_title_string = file;
         lastEventsFilePath = filepath;
-        saveChannelSettings('lastEventsFilePath');
+        event_inx = getRestoredEventIndex(struct(), numel(events));
+        saveChannelSettings('lastEventsFilePath', 'event_inx');
         UpdateEventTable();
         events_exist = true;
-        event_inx = 1;
         applyEventsLoadedState();
     end
 
@@ -3803,6 +3877,7 @@ end
             'dialogTitle', 'Save Events', ...
             'defaultFileNameSuffix', '_events', ...
             'matFileName', matFileName, ...
+            'event_inx', event_inx, ...
             'autodetection_settings', autodetection_settings, ...
             'add_event_settings', add_event_settings, ...
             'EV_version', EV_version, ...
@@ -3832,42 +3907,77 @@ end
         autoOpenLastFile();
     end
     
-    function autoOpenLastFile()
+    function autoOpenLastFile(forceRestore)
         % Автоматически открывает последний открытый файл при запуске GUI
+        if nargin < 1
+            forceRestore = false;
+        end
         
         % Проверяем настройку автоматического открытия
-        if ~exist('auto_open_last_file', 'var') || isempty(auto_open_last_file)
+        if (~exist('auto_open_last_file', 'var') || isempty(auto_open_last_file)) && ~forceRestore
             return; % Если настройка не загружена - не открываем
         end
         
-        if ~auto_open_last_file
+        if ~auto_open_last_file && ~forceRestore
             return;
         end
         
         try
+            isRestoringStartupState = true;
+            restorationWaitBar = waitbar(0.05, 'Checking recent files...', 'Name', 'Loading file');
             % Проверяем, есть ли список последних файлов
             if isempty(lastOpenedFiles)
+                isRestoringStartupState = false;
+                if ~isempty(restorationWaitBar) && isvalid(restorationWaitBar)
+                    close(restorationWaitBar);
+                end
+                restorationWaitBar = [];
                 return;
             end
             
             % Берем последний файл из списка
             lastFile = lastOpenedFiles{end};
+            waitbar(0.18, restorationWaitBar, 'Validating last MAT file...');
             
             % Проверяем, существует ли файл
             if ~exist(lastFile, 'file')
                 % Удаляем несуществующий файл из списка
                 lastOpenedFiles(end) = [];
+                isRestoringStartupState = false;
+                if ~isempty(restorationWaitBar) && isvalid(restorationWaitBar)
+                    close(restorationWaitBar);
+                end
+                restorationWaitBar = [];
                 return;
             end
             
             % Загружаем файл
+            waitbar(0.22, restorationWaitBar, 'Loading MAT data...');
             loadMatFile(lastFile);
+            waitbar(0.74, restorationWaitBar, 'Checking events file...');
             if isLastEventsFileMatchingCurrentMat(lastEventsFilePath, matFilePath)
                 outside_calling_filepath = lastEventsFilePath;
+                waitbar(0.86, restorationWaitBar, 'Loading events...');
                 loadEvents();
             end
+            if ~isempty(channelUpdateDebounceTimer) && isvalid(channelUpdateDebounceTimer)
+                stop(channelUpdateDebounceTimer);
+            end
+            isRestoringStartupState = false;
+            waitbar(0.95, restorationWaitBar, 'Applying final view...');
+            updatePlot();
+            waitbar(1, restorationWaitBar, 'Done');
+            if ~isempty(restorationWaitBar) && isvalid(restorationWaitBar)
+                close(restorationWaitBar);
+            end
+            restorationWaitBar = [];
         catch ME
             % Игнорируем ошибки при автоматической загрузке
+            isRestoringStartupState = false;
+            if ~isempty(restorationWaitBar) && isvalid(restorationWaitBar)
+                close(restorationWaitBar);
+            end
+            restorationWaitBar = [];
         end
     end
 

@@ -43,6 +43,7 @@ function saveEventsToFile(events, time, matFilePath, varargin)
     addParameter(p, 'EV_version', [], @(x) ischar(x) || isstring(x) || isempty(x));
     addParameter(p, 'saveExcel', false, @islogical);
     addParameter(p, 'event_indices', [], @isnumeric);
+    addParameter(p, 'event_inx', [], @isnumeric);
     
     parse(p, varargin{:});
     params = p.Results;
@@ -173,6 +174,9 @@ function saveEventsToFile(events, time, matFilePath, varargin)
         
         if ~isempty(params.EV_version)
             viewer_data.EV_version = params.EV_version;
+        end
+        if ~isempty(params.event_inx) && isfinite(params.event_inx)
+            viewer_data.event_inx = max(1, round(double(params.event_inx)));
         end
     else
         viewer_data = params.viewer_data;

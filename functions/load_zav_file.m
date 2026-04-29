@@ -43,12 +43,16 @@ addParameter(p, 'load_events', false, @islogical);
 addParameter(p, 'load_settings', false, @islogical);
 addParameter(p, 'auto_set_time_windows', true, @islogical);
 addParameter(p, 'auto_set_fs', true, @islogical);
+addParameter(p, 'waitbar_handle', [], @(x) isempty(x) || ishghandle(x));
+addParameter(p, 'keep_waitbar_open', false, @islogical);
 parse(p, varargin{:});
 
 load_events = p.Results.load_events;
 load_settings = p.Results.load_settings;
 auto_set_time_windows = p.Results.auto_set_time_windows;
 auto_set_fs = p.Results.auto_set_fs;
+waitbar_handle = p.Results.waitbar_handle;
+keep_waitbar_open = p.Results.keep_waitbar_open;
 
 % Проверка существования файла
 if ~exist(filepath, 'file')
@@ -63,8 +67,13 @@ end
 
 fprintf('Loading file: %s\n', filename);
 
-% Создаем waitbar для отображения прогресса загрузки
-hWaitBar = waitbar(0, 'Initializing...', 'Name', 'Loading file');
+% Создаем/используем waitbar для отображения прогресса загрузки
+if ~isempty(waitbar_handle) && isvalid(waitbar_handle)
+    hWaitBar = waitbar_handle;
+    waitbar(0.1, hWaitBar, 'Loading data in ZAV format...');
+else
+    hWaitBar = waitbar(0, 'Initializing...', 'Name', 'Loading file');
+end
 
 % Проверяем, является ли файл Heka форматом
 is_heka = detectHekaFormat(filepath);
@@ -329,7 +338,7 @@ fprintf('File successfully loaded!\n');
 
 % Закрываем waitbar
 waitbar(1, hWaitBar, 'Loading complete!');
-if ~isempty(hWaitBar) && isvalid(hWaitBar)
+if ~keep_waitbar_open && ~isempty(hWaitBar) && isvalid(hWaitBar)
     close(hWaitBar);
 end
 

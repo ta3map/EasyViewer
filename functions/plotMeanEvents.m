@@ -236,21 +236,13 @@ function [f, calculation_result] = plotMeanEvents(params)
     
     numChannels = size(pl_meanData, 2);
     
-    % Используем tiledlayout для основной оси
-    if isfield(params, 'tiledlayout')
-        t = params.tiledlayout;
-        % Проверяем размер tiledlayout и используем соответствующий размер тайла
-        gridSize = t.GridSize;
-        if gridSize(1) >= 2
-            % Если есть минимум 2 строки, используем [2, 1]
-            ax = nexttile(t, [2, 1]);
-        else
-            % Если только 1 строка, используем [1, 1]
-            ax = nexttile(t);
-        end
-    else
-        ax = axes('Position', [0.13,0.11,0.72,0.82]); % fallback для обратной совместимости
+    axesParent = f;
+    if isfield(params, 'axesContainer') && ~isempty(params.axesContainer) && isgraphics(params.axesContainer, 'uipanel')
+        axesParent = params.axesContainer;
+    elseif isfield(params, 'plotContainer') && ~isempty(params.plotContainer) && isgraphics(params.plotContainer, 'uipanel')
+        axesParent = params.plotContainer;
     end
+    ax = axes('Parent', axesParent, 'Units', 'normalized', 'Position', [0.02, 0.06, 0.96, 0.9]);
     set(ax, 'Tag', 'mean_main_axis');
     hold on  
         
@@ -345,7 +337,8 @@ function [f, calculation_result] = plotMeanEvents(params)
         max_csd_profile_channel = csd_ch_range(max_csd_prof_index);
         min_csd_profile_channel = csd_ch_range(min_csd_prof_index);
         
-        csd_profile_ax = axes('Position', [0.86,0.11,0.11,0.82]);
+        csd_profile_ax = axes('Parent', axesParent, 'Units', 'normalized', 'Position', [0.82, 0.06, 0.16, 0.9]);
+        set(csd_profile_ax, 'Tag', 'mean_secondary_axis');
         hold on
         plot(csd_profile, csd_ch_range, 'k');
         text(max_csd_profile, max_csd_profile_channel, num2str(max_csd_profile, 3))
@@ -382,7 +375,8 @@ if not(isempty(ev_hists))  && not(show_CSD)
     max_mua_profile_persec = max_mua_profile / binsize;
     min_mua_profile_persec = min_mua_profile / binsize;
     
-    mua_profile_ax = axes('Position', [0.86,0.11,0.11,0.82]);
+    mua_profile_ax = axes('Parent', axesParent, 'Units', 'normalized', 'Position', [0.82, 0.06, 0.16, 0.9]);
+    set(mua_profile_ax, 'Tag', 'mean_secondary_axis');
     hold on
     plot(mua_profile, offsets, 'k');
     % Подписи с переносом строки для экономии места
@@ -495,5 +489,11 @@ end
     calculation_result.csd_active = csd_active;
     calculation_result.csd_hp_cutoff_hz = hpCutoffHz;
     calculation_result.csd_baseline_boundary = baselineRight;
+    secondaryAxes = findobj(axesParent, 'Type', 'axes', 'Tag', 'mean_secondary_axis');
+    if ~isempty(secondaryAxes)
+        calculation_result.secondary_axes_handle = secondaryAxes(1);
+    else
+        calculation_result.secondary_axes_handle = [];
+    end
 
 end

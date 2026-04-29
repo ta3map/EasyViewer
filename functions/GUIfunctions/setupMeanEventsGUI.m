@@ -1,82 +1,354 @@
-function setupMeanEventsGUI()
-    global t_mean_profile
-    
-    % Set a default value for t_mean_profile if it is not defined
-    if isempty(t_mean_profile)
-        t_mean_profile = 0; % Default averaging time in sec
+function [wasApplied, sourceType, meanOpts] = setupMeanEventsGUI(config)
+global visualSettings shiftCoeff meanControlsState
+global time_back time_forward timeUnitFactor
+
+if nargin < 1 || ~isstruct(config)
+    config = struct();
+end
+if ~isfield(config, 'hasEvents')
+    config.hasEvents = true;
+end
+if ~isfield(config, 'hasStimuli')
+    config.hasStimuli = true;
+end
+if ~isfield(config, 'eventsCount')
+    config.eventsCount = 0;
+end
+if ~isfield(config, 'stimuliCount')
+    config.stimuliCount = 0;
+end
+
+wasApplied = false;
+sourceType = 'events';
+meanOpts = struct();
+
+figTag = 'OptionsMeanEvents';
+if activateOrCreateFigure(figTag)
+    return
+end
+
+sourceItems = {};
+sourceValues = {};
+if config.hasEvents
+    sourceItems{end+1} = 'Events';
+    sourceValues{end+1} = 'events';
+end
+if config.hasStimuli
+    sourceItems{end+1} = 'Stimuli';
+    sourceValues{end+1} = 'stimuli';
+end
+if isempty(sourceItems)
+    return
+end
+
+defaultXlims = [-time_back, time_forward] * timeUnitFactor;
+if numel(defaultXlims) ~= 2 || defaultXlims(1) >= defaultXlims(2)
+    defaultXlims = [-1, 1];
+end
+
+initialState = struct( ...
+    'xLim', defaultXlims, ...
+    'contrastPercent', 100, ...
+    'hpCutoffHz', 100, ...
+    'baselineBoundary', defaultXlims(1) / 2, ...
+    'hpFilterEnabled', true, ...
+    'muaWhiteTraces', true, ...
+    'heatmapSmoothSigma', 0.1, ...
+    'colormapName', 'parula');
+
+initialStartIndex = 1;
+initialEndIndex = 0;
+initialShowMua = false;
+if isfield(visualSettings, 'show_spikes')
+    initialShowMua = logical(visualSettings.show_spikes);
+end
+initialShowCsd = false;
+if isfield(visualSettings, 'show_CSD')
+    initialShowCsd = logical(visualSettings.show_CSD);
+end
+initialShiftSpacing = shiftCoeff;
+initialRemoveBaseline = true;
+if isstruct(meanControlsState) && isfield(meanControlsState, 'preDialog') && isstruct(meanControlsState.preDialog)
+    preDialogState = meanControlsState.preDialog;
+    if isfield(preDialogState, 'sourceType') && any(strcmp(preDialogState.sourceType, sourceValues))
+        defaultSourceIdx = find(strcmp(sourceValues, preDialogState.sourceType), 1);
     end
-
-    % Identifier (tag) for the GUI figure
-    figTag = 'OptionsMeanEvents';
-    if activateOrCreateFigure(figTag)
-        return
+    if isfield(preDialogState, 'startIndex') && isnumeric(preDialogState.startIndex)
+        initialStartIndex = max(1, round(double(preDialogState.startIndex)));
     end
+    if isfield(preDialogState, 'endIndex') && isnumeric(preDialogState.endIndex)
+        initialEndIndex = max(1, round(double(preDialogState.endIndex)));
+    end
+    if isfield(preDialogState, 'show_spikes')
+        initialShowMua = logical(preDialogState.show_spikes);
+    end
+    if isfield(preDialogState, 'show_CSD')
+        initialShowCsd = logical(preDialogState.show_CSD);
+    end
+    if isfield(preDialogState, 'shiftCoeff')
+        initialShiftSpacing = double(preDialogState.shiftCoeff);
+    end
+    if isfield(preDialogState, 'removeBaseline')
+        initialRemoveBaseline = logical(preDialogState.removeBaseline);
+    end
+end
+modeKey = 'mua';
+if initialShowCsd
+    modeKey = 'csd';
+end
+if isstruct(meanControlsState) && isfield(meanControlsState, modeKey) && isstruct(meanControlsState.(modeKey))
+    initialState = mergeState(initialState, meanControlsState.(modeKey));
+end
 
-    % Create and configure the main window
-    fig = figure('Name', 'Options Mean Events', 'Tag', figTag, ...
-        'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', ...
-        'Position', [100, 100, 450, 200], 'Resize', 'off', 'WindowStyle', 'modal');
+if isfield(initialState, 'xLim') && isnumeric(initialState.xLim) && numel(initialState.xLim) == 2
+    if initialState.xLim(1) >= initialState.xLim(2)
+        initialState.xLim = defaultXlims;
+    end
+else
+    initialState.xLim = defaultXlims;
+end
 
-    %-------------------------%
-    % Create UI elements below
-    %-------------------------%
-    
-    % Create a static text label for the averaging time
-    uicontrol('Parent', fig, 'Style', 'text', 'String', 'Profile Time (sec):', ...
-        'Position', [130, 150, 200, 20], 'HorizontalAlignment', 'center', 'FontSize', 11);
-    
-    % Create an edit box to display and modify the current averaging time
-    editPos = [180, 100, 90, 30];  % [x, y, width, height]
-    hEdit = uicontrol('Parent', fig, 'Style', 'edit', 'String', num2str(t_mean_profile, '%.2f'), ...
-        'Position', editPos, 'FontSize', 12, 'Callback', @editCallback);
-    
-    % Create the decrease button "<"
-    decButtonPos = [120, 100, 50, 30];
-    uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', '<', ...
-        'Position', decButtonPos, 'FontSize', 12, 'Callback', @decreaseTime);
-    
-    % Create the increase button ">"
-    incButtonPos = [280, 100, 50, 30];
-    uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', '>', ...
-        'Position', incButtonPos, 'FontSize', 12, 'Callback', @increaseTime);
-    
-    % Create the OK button to close the window
-    okButtonPos = [180, 50, 90, 30];
-    uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'OK', ...
-        'Position', okButtonPos, 'FontSize', 12, 'Callback', @okCallback);
-    
-    %-------------------------%
-    % Nested callback functions
-    %-------------------------%
+figurePos = [120, 120, 620, 460];
+fig = figure('Name', 'Mean Parameters', 'Tag', figTag, ...
+    'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', ...
+    'Position', figurePos, 'Resize', 'off', 'WindowStyle', 'modal', ...
+    'CloseRequestFcn', @cancelCallback);
 
-    % Callback for the edit box: updates t_mean_profile when user enters a value
-    function editCallback(src, ~)
-        % Get the string from the edit box and convert it to a number
-        newVal = str2double(get(src, 'String'));
-        if isnan(newVal)
-            % If conversion fails, revert to the previous value and show an error dialog
-            set(src, 'String', num2str(t_mean_profile, '%.2f'));
-            fprintf('Please enter a valid number\n');
-        else
-            t_mean_profile = newVal;
+basePanel = uipanel('Parent', fig, 'Title', 'Base', 'Units', 'pixels', 'Position', [20, 300, 280, 140]);
+renderPanel = uipanel('Parent', fig, 'Title', 'Render', 'Units', 'pixels', 'Position', [320, 300, 280, 140]);
+preCsdPanel = uipanel('Parent', fig, 'Title', 'Pre-CSD / Heatmap', 'Units', 'pixels', 'Position', [20, 90, 580, 190]);
+
+uicontrol('Parent', basePanel, 'Style', 'text', 'String', 'Source', ...
+    'Position', [12, 86, 90, 20], 'HorizontalAlignment', 'left');
+sourcePopup = uicontrol('Parent', basePanel, 'Style', 'popupmenu', ...
+    'String', sourceItems, 'Position', [98, 84, 160, 24], 'BackgroundColor', 'white');
+if ~exist('defaultSourceIdx', 'var') || isempty(defaultSourceIdx)
+    defaultSourceIdx = find(strcmp(sourceValues, 'events'), 1);
+end
+if isempty(defaultSourceIdx)
+    defaultSourceIdx = 1;
+end
+set(sourcePopup, 'Value', defaultSourceIdx);
+
+showMua = initialShowMua;
+showCsd = initialShowCsd;
+
+showMuaCheckbox = uicontrol('Parent', basePanel, 'Style', 'checkbox', 'String', 'MUA', ...
+    'Position', [12, 54, 80, 24], 'Value', double(showMua));
+showCsdCheckbox = uicontrol('Parent', basePanel, 'Style', 'checkbox', 'String', 'CSD', ...
+    'Position', [98, 54, 80, 24], 'Value', double(showCsd));
+uicontrol('Parent', basePanel, 'Style', 'text', 'String', 'Channel spacing', ...
+    'Position', [12, 22, 90, 20], 'HorizontalAlignment', 'left');
+shiftEdit = uicontrol('Parent', basePanel, 'Style', 'edit', 'BackgroundColor', 'white', ...
+    'String', num2str(initialShiftSpacing, '%.6g'), 'Position', [98, 20, 80, 24]);
+uicontrol('Parent', renderPanel, 'Style', 'text', 'String', 'Start index', ...
+    'Position', [12, 94, 80, 18], 'HorizontalAlignment', 'left');
+startIndexEdit = uicontrol('Parent', renderPanel, 'Style', 'edit', 'BackgroundColor', 'white', ...
+    'String', num2str(initialStartIndex), 'Position', [92, 92, 62, 22]);
+uicontrol('Parent', renderPanel, 'Style', 'text', 'String', 'End index', ...
+    'Position', [162, 94, 70, 18], 'HorizontalAlignment', 'left');
+endIndexEdit = uicontrol('Parent', renderPanel, 'Style', 'edit', 'BackgroundColor', 'white', ...
+    'String', num2str(initialEndIndex), 'Position', [232, 92, 42, 22]);
+rangeHintLabel = uicontrol('Parent', renderPanel, 'Style', 'text', ...
+    'String', '', 'Position', [12, 74, 258, 16], ...
+    'HorizontalAlignment', 'left', 'ForegroundColor', [0.25 0.25 0.25]);
+
+uicontrol('Parent', renderPanel, 'Style', 'text', 'String', 'X min', ...
+    'Position', [12, 52, 60, 18], 'HorizontalAlignment', 'left');
+xMinEdit = uicontrol('Parent', renderPanel, 'Style', 'edit', 'BackgroundColor', 'white', ...
+    'String', num2str(initialState.xLim(1), '%.6g'), 'Position', [62, 50, 92, 22]);
+uicontrol('Parent', renderPanel, 'Style', 'text', 'String', 'X max', ...
+    'Position', [162, 52, 60, 18], 'HorizontalAlignment', 'left');
+xMaxEdit = uicontrol('Parent', renderPanel, 'Style', 'edit', 'BackgroundColor', 'white', ...
+    'String', num2str(initialState.xLim(2), '%.6g'), 'Position', [212, 50, 62, 22]);
+removeBaselineCheckbox = uicontrol('Parent', renderPanel, 'Style', 'checkbox', 'String', 'Remove baseline', ...
+    'Position', [12, 22, 122, 22], 'Value', double(initialRemoveBaseline));
+muaWhiteCheckbox = uicontrol('Parent', renderPanel, 'Style', 'checkbox', 'String', 'MUA white traces', ...
+    'Position', [138, 22, 136, 22], 'Value', double(logical(initialState.muaWhiteTraces)));
+
+hpEnabledCheckbox = uicontrol('Parent', preCsdPanel, 'Style', 'checkbox', ...
+    'String', 'High Pass Filter', 'Position', [12, 130, 120, 24], ...
+    'Value', double(logical(initialState.hpFilterEnabled)));
+uicontrol('Parent', preCsdPanel, 'Style', 'text', 'String', 'High Pass, Hz', ...
+    'Position', [140, 132, 78, 20], 'HorizontalAlignment', 'left');
+hpEdit = uicontrol('Parent', preCsdPanel, 'Style', 'edit', 'BackgroundColor', 'white', ...
+    'String', num2str(initialState.hpCutoffHz, '%.6g'), 'Position', [220, 130, 55, 24]);
+uicontrol('Parent', preCsdPanel, 'Style', 'text', 'String', 'Baseline to', ...
+    'Position', [300, 132, 70, 20], 'HorizontalAlignment', 'left');
+baselineEdit = uicontrol('Parent', preCsdPanel, 'Style', 'edit', 'BackgroundColor', 'white', ...
+    'String', num2str(initialState.baselineBoundary, '%.6g'), 'Position', [372, 130, 85, 24]);
+uicontrol('Parent', preCsdPanel, 'Style', 'text', 'String', 'Smooth', ...
+    'Position', [12, 92, 70, 20], 'HorizontalAlignment', 'left');
+smoothEdit = uicontrol('Parent', preCsdPanel, 'Style', 'edit', 'BackgroundColor', 'white', ...
+    'String', num2str(initialState.heatmapSmoothSigma, '%.6g'), 'Position', [82, 90, 85, 24]);
+uicontrol('Parent', preCsdPanel, 'Style', 'text', 'String', 'Contrast, %', ...
+    'Position', [190, 92, 80, 20], 'HorizontalAlignment', 'left');
+contrastEdit = uicontrol('Parent', preCsdPanel, 'Style', 'edit', 'BackgroundColor', 'white', ...
+    'String', num2str(initialState.contrastPercent, '%.6g'), 'Position', [266, 90, 85, 24]);
+
+colormapNames = {'parula', 'turbo', 'jet', 'gray'};
+uicontrol('Parent', preCsdPanel, 'Style', 'text', 'String', 'Colormap', ...
+    'Position', [372, 92, 70, 20], 'HorizontalAlignment', 'left');
+colormapPopup = uicontrol('Parent', preCsdPanel, 'Style', 'popupmenu', ...
+    'String', colormapNames, 'Position', [442, 90, 120, 24], 'BackgroundColor', 'white');
+colormapIdx = find(strcmp(colormapNames, initialState.colormapName), 1);
+if isempty(colormapIdx)
+    colormapIdx = 1;
+end
+set(colormapPopup, 'Value', colormapIdx);
+set(showMuaCheckbox, 'Callback', @syncMuaWhiteVisibility);
+set(sourcePopup, 'Callback', @sourceChangedCallback);
+syncMuaWhiteVisibility();
+sourceChangedCallback();
+
+uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Apply', ...
+    'Position', [220, 26, 90, 38], 'Callback', @applyCallback);
+uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Cancel', ...
+    'Position', [322, 26, 90, 38], 'Callback', @cancelCallback);
+
+uiwait(fig);
+
+    function out = mergeState(baseState, overrideState)
+        out = baseState;
+        if ~isstruct(overrideState)
+            return
+        end
+        fields = fieldnames(baseState);
+        for k = 1:numel(fields)
+            f = fields{k};
+            if isfield(overrideState, f)
+                out.(f) = overrideState.(f);
+            end
         end
     end
 
-    % Callback for the decrease button: subtracts 0.01 sec from t_mean_profile
-    function decreaseTime(~, ~)
-        t_mean_profile = t_mean_profile - 0.01;
-        set(hEdit, 'String', num2str(t_mean_profile, '%.2f'));
+    function applyCallback(~, ~)
+        sourceType = sourceValues{get(sourcePopup, 'Value')};
+        showMuaVal = logical(get(showMuaCheckbox, 'Value'));
+        showCsdVal = logical(get(showCsdCheckbox, 'Value'));
+        startIndexVal = str2double(strrep(get(startIndexEdit, 'String'), ',', '.'));
+        endIndexVal = str2double(strrep(get(endIndexEdit, 'String'), ',', '.'));
+
+        shiftVal = str2double(strrep(get(shiftEdit, 'String'), ',', '.'));
+        xMinVal = str2double(strrep(get(xMinEdit, 'String'), ',', '.'));
+        xMaxVal = str2double(strrep(get(xMaxEdit, 'String'), ',', '.'));
+        hpVal = str2double(strrep(get(hpEdit, 'String'), ',', '.'));
+        baselineVal = str2double(strrep(get(baselineEdit, 'String'), ',', '.'));
+        smoothVal = str2double(strrep(get(smoothEdit, 'String'), ',', '.'));
+        contrastVal = str2double(strrep(get(contrastEdit, 'String'), ',', '.'));
+
+        numbers = [shiftVal, xMinVal, xMaxVal, hpVal, baselineVal, smoothVal, contrastVal, startIndexVal, endIndexVal];
+        if any(~isfinite(numbers)) || any(isnan(numbers))
+            errordlg('Please fill all numeric fields with valid numbers.', 'Mean Parameters', 'modal');
+            return
+        end
+        if shiftVal <= 0
+            errordlg('Channel spacing must be > 0.', 'Mean Parameters', 'modal');
+            return
+        end
+        if xMinVal >= xMaxVal
+            errordlg('X min must be less than X max.', 'Mean Parameters', 'modal');
+            return
+        end
+        selectedCount = sourceCount(sourceType);
+        rangeMin = 1;
+        rangeMax = max(1, selectedCount);
+        startIndexVal = round(startIndexVal);
+        endIndexVal = round(endIndexVal);
+        if selectedCount < 1
+            errordlg(sprintf('No points available for "%s".', sourceType), 'Mean Parameters', 'modal');
+            return
+        end
+        if startIndexVal < rangeMin || startIndexVal > rangeMax || endIndexVal < rangeMin || endIndexVal > rangeMax || startIndexVal > endIndexVal
+            errordlg(sprintf('Invalid index range [%d, %d]. Available range: [%d, %d].', ...
+                startIndexVal, endIndexVal, rangeMin, rangeMax), ...
+                'Mean Parameters', 'modal');
+            return
+        end
+
+        colormapValue = colormapNames{get(colormapPopup, 'Value')};
+        removeBaselineVal = logical(get(removeBaselineCheckbox, 'Value'));
+        hpEnabledVal = logical(get(hpEnabledCheckbox, 'Value'));
+        muaWhiteVal = logical(get(muaWhiteCheckbox, 'Value'));
+
+        meanOpts = struct();
+        meanOpts.removeBaseline = removeBaselineVal;
+        meanOpts.show_spikes = showMuaVal;
+        meanOpts.show_CSD = showCsdVal;
+        meanOpts.shiftCoeff = shiftVal;
+        meanOpts.xLimits = [xMinVal, xMaxVal];
+        meanOpts.csd_hp_cutoff_hz = hpVal;
+        meanOpts.csd_baseline_boundary = baselineVal;
+        meanOpts.hpFilterEnabled = hpEnabledVal;
+        meanOpts.heatmapSmoothSigma = smoothVal;
+        meanOpts.contrastPercent = contrastVal;
+        meanOpts.colormapName = colormapValue;
+        meanOpts.muaWhiteTraces = muaWhiteVal;
+        meanOpts.startIndex = startIndexVal;
+        meanOpts.endIndex = endIndexVal;
+        if ~isstruct(meanControlsState)
+            meanControlsState = struct();
+        end
+        modeKey = 'mua';
+        if showCsdVal
+            modeKey = 'csd';
+        end
+        meanControlsState.(modeKey) = struct( ...
+            'contrastPercent', contrastVal, ...
+            'hpCutoffHz', hpVal, ...
+            'baselineBoundary', baselineVal, ...
+            'xLim', [xMinVal, xMaxVal], ...
+            'hpFilterEnabled', hpEnabledVal, ...
+            'muaWhiteTraces', muaWhiteVal, ...
+            'heatmapSmoothSigma', smoothVal, ...
+            'colormapName', colormapValue);
+        meanControlsState.preDialog = struct( ...
+            'sourceType', sourceType, ...
+            'startIndex', startIndexVal, ...
+            'endIndex', endIndexVal, ...
+            'show_spikes', showMuaVal, ...
+            'show_CSD', showCsdVal, ...
+            'shiftCoeff', shiftVal, ...
+            'removeBaseline', removeBaselineVal);
+        saveChannelSettings('meanControlsState');
+
+        wasApplied = true;
+        uiresume(fig);
+        delete(fig);
     end
 
-    % Callback for the increase button: adds 0.01 sec to t_mean_profile
-    function increaseTime(~, ~)
-        t_mean_profile = t_mean_profile + 0.01;
-        set(hEdit, 'String', num2str(t_mean_profile, '%.2f'));
+    function cancelCallback(~, ~)
+        wasApplied = false;
+        if isvalid(fig)
+            uiresume(fig);
+            delete(fig);
+        end
     end
 
-    % Callback for the OK button: closes the GUI window
-    function okCallback(~, ~)
-        close(fig);
+    function sourceChangedCallback(~, ~)
+        selectedSourceType = sourceValues{get(sourcePopup, 'Value')};
+        selectedCount = sourceCount(selectedSourceType);
+        maxIndex = max(1, selectedCount);
+        if initialEndIndex < 1
+            initialEndIndex = maxIndex;
+        end
+        set(startIndexEdit, 'String', num2str(min(max(initialStartIndex, 1), maxIndex)));
+        set(endIndexEdit, 'String', num2str(min(max(initialEndIndex, 1), maxIndex)));
+        set(rangeHintLabel, 'String', sprintf('Available range: 1..%d', maxIndex));
     end
 
+    function syncMuaWhiteVisibility(~, ~)
+        visibleState = 'off';
+        if logical(get(showMuaCheckbox, 'Value'))
+            visibleState = 'on';
+        end
+        set(muaWhiteCheckbox, 'Visible', visibleState);
+    end
+
+    function count = sourceCount(sourceTypeIn)
+        count = config.eventsCount;
+        if strcmp(sourceTypeIn, 'stimuli')
+            count = config.stimuliCount;
+        end
+    end
 end
