@@ -535,6 +535,8 @@ function signalViewerGUI(filePath)
         '', ...
         'Cross-Correlation', ...
         '', ...
+        'MUA Cross-Correlation', ...
+        '', ...
         'PCA', ...
         '', ... % 'ICA', ... % в разработке
         'Data Operations', ...
@@ -966,15 +968,17 @@ function signalViewerGUI(filePath)
                 openSignalAnalysisWindow();
             case analysis_functions{9}
                 eventCrossCorrelationGUI();
-            % case analysis_functions{11}% ICA анализ  
+            case analysis_functions{11}
+                muaCrossCorrelationGUI();
+            % case analysis_functions{13}% ICA анализ  
             %     ICAazGUI();
-            case analysis_functions{11}% PCA analysis
+            case analysis_functions{13}% PCA analysis
                 PCAazGUI();
-            case analysis_functions{13}
-                performChannelOperationsGUI();
             case analysis_functions{15}
-                dataComparerGUI();
+                performChannelOperationsGUI();
             case analysis_functions{17}
+                dataComparerGUI();
+            case analysis_functions{19}
                 set(opt_menu, 'Visible', 'off');
                 menu_visible = false;
                 set(file_menu, 'Visible', 'off');
@@ -986,7 +990,7 @@ function signalViewerGUI(filePath)
                 set(help_menu, 'Visible', 'off');
                 help_menu_visible = false;
                 snapshotAllFrames(f, @updatePlot, @shiftTime, timeForwardEdit);
-            case analysis_functions{19}
+            case analysis_functions{21}
                 plotFromTableGUI();
             case ''
                 dont_close_menu = true;
@@ -2751,6 +2755,7 @@ function signalViewerGUI(filePath)
             'spectralDensityGUI', ...
             'chCrossCorrelationGUI', ...
             'eventCrossCorrelationGUI', ...
+            'muaCrossCorrelationGUI', ...
             'ICA', ...
             'PCA', ...
             'performChannelOperationsGUI', ...

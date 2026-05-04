@@ -1,8 +1,13 @@
 function btnIcon(btn, icon_filepath, keep_text)
     try
         [im_orig, ~, alpha] = imread(icon_filepath);  % Загружаем изображение и альфа-канал
-        btnPos = get(btn, 'Position'); % Получаем позицию и размеры кнопки
-        iconHeight = btnPos(4)*0.8; % Высота иконки равна высоте кнопки
+        uOld = get(btn, 'Units');
+        if strcmp(uOld, 'normalized')
+            set(btn, 'Units', 'pixels');
+        end
+        btnPos = get(btn, 'Position');
+        set(btn, 'Units', uOld);
+        iconHeight = max(8, btnPos(4) * 0.8);
         
         im_sized = imresize(im_orig, [iconHeight, NaN]); % Изменяем размер изображения, сохраняя пропорции
         alpha_sized = imresize(alpha, [iconHeight, NaN]); % Аналогично для альфа-канала
