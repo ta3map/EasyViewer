@@ -18,7 +18,6 @@ function muaCrossCorrelationGUI()
     guiFig = findobj('Type', 'figure', 'Tag', figTag);
     if ~isempty(guiFig)
         figure(guiFig);
-        guiFig.WindowState = 'maximized';
         return;
     end
 
@@ -48,63 +47,82 @@ function muaCrossCorrelationGUI()
         'Position', [120, 120, 1040, 540], 'Resize', 'on', ...
         'MenuBar', 'none', 'ToolBar', 'figure', ...
         'Tag', figTag);
-    hFig.WindowState = 'maximized';
     hFig.CloseRequestFcn = @onCloseMuaCcgGui;
 
-    px = 0.37;
-    lx = 0.13;
-    ex = 0.51;
-    ew = 0.12;
-    axL = 0.65;
-    axW = 0.33;
-    plotPanel = uipanel('Parent', hFig, 'Units', 'normalized', 'Position', [axL, 0.10, axW, 0.82], ...
+    lm = 0.02;
+    lw = 0.30;
+    lblW = 0.12;
+    edL = 0.15;
+    edW = 0.16;
+    rowH = 0.032;
+
+    rightWrap = uipanel('Parent', hFig, 'Units', 'normalized', 'Position', [0.33, 0.03, 0.64, 0.94], ...
+        'BorderType', 'none', 'BackgroundColor', get(hFig, 'Color'), 'Tag', 'muaXc_rightWrap');
+    plotPanel = uipanel('Parent', rightWrap, 'Units', 'normalized', 'Position', [0.04, 0.03, 0.92, 0.72], ...
         'BorderType', 'none', 'BackgroundColor', get(hFig, 'Color'), 'Tag', 'muaXc_plotPanel');
     ax = axes('Parent', plotPanel, 'Units', 'normalized', 'Position', [0.08, 0.11, 0.86, 0.82]);
 
-    uicontrol(hFig, 'Style', 'text', 'Units', 'normalized', 'Position', [0.03, 0.92, 0.32, 0.04], ...
+    ccfExplainText = uicontrol('Parent', rightWrap, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.04, 0.84, 0.92, 0.14], 'HorizontalAlignment', 'left', 'FontSize', 9, ...
+        'String', ['Cross-correlogram (CCG): binned pairwise lag histogram between spikes in groups A and B. ' ...
+        'Counts are edge-corrected (divided by T-|tau|). ' ...
+        'With Percent of pairs checked, Y is % of pairs (histogram sums to 100%). ' ...
+        'Optional surrogate: mean CCG after random circular time shifts of group B within the analysis window(s).']);
+
+    peakResultText = uicontrol('Parent', rightWrap, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.04, 0.76, 0.92, 0.06], 'HorizontalAlignment', 'left', 'FontSize', 10, ...
+        'FontWeight', 'bold', 'String', 'Peak: -');
+
+    uicontrol(hFig, 'Style', 'text', 'Units', 'normalized', 'Position', [lm, 0.948, lw, 0.024], ...
         'String', 'Channels A', 'HorizontalAlignment', 'left');
     idxHas = find(hasAny);
     vPickA = idxHas(1);
     vPickB = idxHas(min(2, numel(idxHas)));
 
-    listA = uicontrol(hFig, 'Style', 'listbox', 'Units', 'normalized', 'Position', [0.03, 0.58, 0.32, 0.33], ...
+    listA = uicontrol(hFig, 'Style', 'listbox', 'Units', 'normalized', 'Position', [lm, 0.778, lw, 0.165], ...
         'String', chLabels, 'Min', 0, 'Max', nSpk, 'Value', vPickA);
 
-    uicontrol(hFig, 'Style', 'text', 'Units', 'normalized', 'Position', [0.03, 0.52, 0.32, 0.04], ...
+    uicontrol(hFig, 'Style', 'text', 'Units', 'normalized', 'Position', [lm, 0.748, lw, 0.024], ...
         'String', 'Channels B', 'HorizontalAlignment', 'left');
-    listB = uicontrol(hFig, 'Style', 'listbox', 'Units', 'normalized', 'Position', [0.03, 0.18, 0.32, 0.33], ...
+    listB = uicontrol(hFig, 'Style', 'listbox', 'Units', 'normalized', 'Position', [lm, 0.573, lw, 0.165], ...
         'String', chLabels, 'Min', 0, 'Max', nSpk, 'Value', vPickB);
 
-    y0 = 0.11;
-    dy = 0.052;
-    uicontrol(hFig, 'Style', 'text', 'Units', 'normalized', 'Position', [px, y0 + 4 * dy, lx, 0.038], ...
+    yBin = 0.518;
+    yGap = 0.043;
+    uicontrol(hFig, 'Style', 'text', 'Units', 'normalized', 'Position', [lm, yBin, lblW, rowH], ...
         'String', ['Bin (' selectedUnit ')'], 'HorizontalAlignment', 'left');
-    binEdit = uicontrol(hFig, 'Style', 'edit', 'Units', 'normalized', 'Position', [ex, y0 + 4 * dy, ew, 0.038], ...
+    binEdit = uicontrol(hFig, 'Style', 'edit', 'Units', 'normalized', 'Position', [edL, yBin, edW, rowH], ...
         'String', num2str(0.01 * timeUnitFactor), 'HorizontalAlignment', 'left');
 
-    uicontrol(hFig, 'Style', 'text', 'Units', 'normalized', 'Position', [px, y0 + 3 * dy, lx, 0.038], ...
+    uicontrol(hFig, 'Style', 'text', 'Units', 'normalized', 'Position', [lm, yBin - yGap, lblW, rowH], ...
         'String', ['Max lag (' selectedUnit ')'], 'HorizontalAlignment', 'left');
-    maxLagEdit = uicontrol(hFig, 'Style', 'edit', 'Units', 'normalized', 'Position', [ex, y0 + 3 * dy, ew, 0.038], ...
+    maxLagEdit = uicontrol(hFig, 'Style', 'edit', 'Units', 'normalized', 'Position', [edL, yBin - yGap, edW, rowH], ...
         'String', num2str(1 * timeUnitFactor), 'HorizontalAlignment', 'left');
 
-    uicontrol(hFig, 'Style', 'text', 'Units', 'normalized', 'Position', [px, y0 + 2 * dy, lx, 0.038], ...
-        'String', ['t0 (' selectedUnit ')'], 'HorizontalAlignment', 'left');
-    t0Edit = uicontrol(hFig, 'Style', 'edit', 'Units', 'normalized', 'Position', [ex, y0 + 2 * dy, ew, 0.038], ...
+    uicontrol(hFig, 'Style', 'text', 'Units', 'normalized', 'Position', [lm, yBin - 2 * yGap, lblW, rowH], ...
+        'String', ['t start (' selectedUnit ')'], 'HorizontalAlignment', 'left');
+    t0Edit = uicontrol(hFig, 'Style', 'edit', 'Units', 'normalized', 'Position', [edL, yBin - 2 * yGap, edW, rowH], ...
         'String', num2str(tDef0 * timeUnitFactor), 'HorizontalAlignment', 'left');
 
-    uicontrol(hFig, 'Style', 'text', 'Units', 'normalized', 'Position', [px, y0 + 1 * dy, lx, 0.038], ...
-        'String', ['t1 (' selectedUnit ')'], 'HorizontalAlignment', 'left');
-    t1Edit = uicontrol(hFig, 'Style', 'edit', 'Units', 'normalized', 'Position', [ex, y0 + 1 * dy, ew, 0.038], ...
+    uicontrol(hFig, 'Style', 'text', 'Units', 'normalized', 'Position', [lm, yBin - 3 * yGap, lblW, rowH], ...
+        'String', ['t end (' selectedUnit ')'], 'HorizontalAlignment', 'left');
+    t1Edit = uicontrol(hFig, 'Style', 'edit', 'Units', 'normalized', 'Position', [edL, yBin - 3 * yGap, edW, rowH], ...
         'String', num2str(tDef1 * timeUnitFactor), 'HorizontalAlignment', 'left');
 
-    useEvCb = uicontrol(hFig, 'Style', 'checkbox', 'Units', 'normalized', 'Position', [px, y0 + 0.5 * dy, 0.36, 0.038], ...
+    useEvCb = uicontrol(hFig, 'Style', 'checkbox', 'Units', 'normalized', 'Position', [lm, 0.352, 0.30, 0.032], ...
         'String', 'Event windows (±Max lag, median)', 'Value', double(events_exist), 'Visible', eventVisibility(events_exist));
 
-    normCb = uicontrol(hFig, 'Style', 'checkbox', 'Units', 'normalized', 'Position', [px, y0 - 0.5 * dy, 0.36, 0.038], ...
+    normCb = uicontrol(hFig, 'Style', 'checkbox', 'Units', 'normalized', 'Position', [lm, 0.312, 0.30, 0.032], ...
         'String', 'Percent of pairs (bins sum to 100%)', 'Value', 1);
 
-    uicontrol(hFig, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [ex, 0.02, ew, 0.06], ...
+    surrogateBaselineCb = uicontrol(hFig, 'Style', 'checkbox', 'Units', 'normalized', 'Position', [lm, 0.272, 0.30, 0.034], ...
+        'String', 'Surrogate baseline (mean, circular shift B)', 'Value', 0);
+
+    uicontrol(hFig, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [lm, 0.208, lw, 0.048], ...
         'String', 'Analyze', 'Callback', @runAnalyze);
+
+    uicontrol(hFig, 'Style', 'text', 'Units', 'normalized', 'Position', [lm, 0.188, lw, 0.02], ...
+        'String', '-----', 'HorizontalAlignment', 'center', 'Tag', 'muaXc_sep', 'Visible', 'off');
 
     set(useEvCb, 'Callback', @toggleEvUi);
     applySavedMuaCcgSettings(savedMuaCcg);
@@ -143,36 +161,69 @@ function muaCrossCorrelationGUI()
         t0sec = NaN;
         t1sec = NaN;
 
-        axes(ax);
-        cla(ax);
-        hold(ax, 'on');
+        hWaitFig = waitbar(0, 'MUA CCG: starting...', 'Name', 'MUA Cross-Correlation');
+        figure(hWaitFig);
+        waitbar(0.08, hWaitFig, 'MUA CCG: main histogram...');
 
         if useEv
             if isempty(events)
+                closeMuaWaitbarIfValid(hWaitFig);
                 errordlg('No events array.', 'MUA Cross-Correlation');
                 return;
             end
             modeParam = struct('centers_sec', events(:), 'halfWindow_sec', maxLagSec);
-            [lags_sec, cc] = muaCrossCorrelationFromBins(tA, tB, binSec, maxLagSec, normalize, 'events', modeParam);
-            ccY = yAxisForCcg(cc, normalize);
-            lagX = lags_sec * timeUnitFactor;
-            bar(ax, lagX, ccY, 1, 'FaceColor', [0 0 0.8], 'EdgeColor', [0 0 0.6]);
-            title(ax, sprintf('MUA CCG — median over %d events', numel(events)));
+            modeStr = 'events';
+            [lags_sec, cc] = muaCrossCorrelationFromBins(tA, tB, binSec, maxLagSec, normalize, modeStr, modeParam);
+            plotTitle = sprintf('MUA CCG - median over %d events', numel(events));
+            waitbar(0.22, hWaitFig, 'MUA CCG: main histogram done');
         else
             t0Disp = str2double(get(t0Edit, 'String'));
             t1Disp = str2double(get(t1Edit, 'String'));
             if ~(isfinite(t0Disp) && isfinite(t1Disp) && t1Disp > t0Disp)
-                errordlg('Require t0 < t1 in axis units.', 'MUA Cross-Correlation');
+                closeMuaWaitbarIfValid(hWaitFig);
+                errordlg('Require t start < t end in axis units.', 'MUA Cross-Correlation');
                 return;
             end
             t0sec = t0Disp / timeUnitFactor;
             t1sec = t1Disp / timeUnitFactor;
-            [lags_sec, cc] = muaCrossCorrelationFromBins(tA, tB, binSec, maxLagSec, normalize, 'interval', [t0sec, t1sec]);
-            ccY = yAxisForCcg(cc, normalize);
-            lagX = lags_sec * timeUnitFactor;
-            bar(ax, lagX, ccY, 1, 'FaceColor', [0 0 0.8], 'EdgeColor', [0 0 0.6]);
-            title(ax, 'MUA CCG — pair lag histogram');
+            modeParam = [t0sec, t1sec];
+            modeStr = 'interval';
+            [lags_sec, cc] = muaCrossCorrelationFromBins(tA, tB, binSec, maxLagSec, normalize, modeStr, modeParam);
+            plotTitle = 'MUA CCG - pair lag histogram';
+            waitbar(0.22, hWaitFig, 'MUA CCG: main histogram done');
         end
+        ccY = yAxisForCcg(cc, normalize);
+        lagX = lags_sec * timeUnitFactor;
+        showSur = get(surrogateBaselineCb, 'Value') == 1;
+        surrogateMeanY = [];
+        nSurrogateRep = 50;
+        if showSur
+            surSum = zeros(size(cc));
+            for r = 1:nSurrogateRep
+                if useEv
+                    tBs = surrogateCircularShiftBUnionEvents(tB, events(:), maxLagSec);
+                else
+                    tBs = surrogateCircularShiftBInInterval(tB, t0sec, t1sec);
+                end
+                [~, ccR] = muaCrossCorrelationFromBins(tA, tBs, binSec, maxLagSec, normalize, modeStr, modeParam);
+                surSum = surSum + yAxisForCcg(ccR, normalize);
+                waitbar(0.22 + 0.74 * r / nSurrogateRep, hWaitFig, sprintf('Surrogate baseline %d / %d', r, nSurrogateRep));
+            end
+            surrogateMeanY = surSum(:) / nSurrogateRep;
+        end
+        waitbar(0.97, hWaitFig, 'MUA CCG: drawing...');
+        closeMuaWaitbarIfValid(hWaitFig);
+        figure(hFig);
+        axes(ax);
+        cla(ax);
+        hold(ax, 'on');
+        hBar = bar(ax, lagX(:), ccY(:), 1, 'FaceColor', [0 0 0.8], 'EdgeColor', [0 0 0.6]);
+        hBar.FaceAlpha = 0.92;
+        if showSur
+            hSurBar = bar(ax, lagX(:), surrogateMeanY, 1, 'FaceColor', [0.72 0.72 0.72], 'EdgeColor', [0.5 0.5 0.5]);
+            hSurBar.FaceAlpha = 0.78;
+        end
+        title(ax, plotTitle);
 
         xline(ax, 0, 'r:');
         grid(ax, 'on');
@@ -182,7 +233,19 @@ function muaCrossCorrelationGUI()
             ylab = '% of all pairs (bins sum to 100%)';
         end
         ylabel(ax, ylab);
+
+        [peakVal, ixPeak] = max(ccY(:));
+        peakLagSec = lags_sec(ixPeak);
+        peakLagDisp = peakLagSec * timeUnitFactor;
+        plot(ax, peakLagDisp, peakVal, 'r.', 'MarkerSize', 12, 'LineWidth', 1);
         hold(ax, 'off');
+
+        if normalize
+            peakLine = sprintf('Peak: %.5g %% of pairs at lag %.5g %s', peakVal, peakLagDisp, selectedUnit);
+        else
+            peakLine = sprintf('Peak: %.5g (edge-corrected counts) at lag %.5g %s', peakVal, peakLagDisp, selectedUnit);
+        end
+        set(peakResultText, 'String', peakLine);
 
         correlation_result.lags_sec = lags_sec(:);
         correlation_result.cc = ccY(:);
@@ -198,6 +261,13 @@ function muaCrossCorrelationGUI()
         correlation_result.use_event_windows = useEv;
         correlation_result.method = 'pair_lag_histogram';
         correlation_result.border_correction = 'T_minus_abs_tau';
+        correlation_result.peak_cc = peakVal;
+        correlation_result.peak_lag_sec = peakLagSec;
+        correlation_result.peak_lag_axis = peakLagDisp;
+        correlation_result.surrogate_baseline = showSur;
+        correlation_result.surrogate_n = nSurrogateRep * double(showSur);
+        correlation_result.surrogate_mean_cc = surrogateMeanY;
+        correlation_result.surrogate_method = 'circular_shift_B';
         correlation_result.t0_sec = NaN;
         correlation_result.t1_sec = NaN;
         correlation_result.n_events = 0;
@@ -232,6 +302,9 @@ function muaCrossCorrelationGUI()
         if isfield(s, 'PercentOfPairs')
             set(normCb, 'Value', double(logical(s.PercentOfPairs)));
         end
+        if isfield(s, 'ShowSurrogateBaseline')
+            set(surrogateBaselineCb, 'Value', double(logical(s.ShowSurrogateBaseline)));
+        end
         if isfield(s, 'UseEventWindows') && strcmp(get(useEvCb, 'Visible'), 'on')
             set(useEvCb, 'Value', double(logical(s.UseEventWindows)));
         end
@@ -258,6 +331,7 @@ function muaCrossCorrelationGUI()
         s.t0_sec = str2double(get(t0Edit, 'String')) / timeUnitFactor;
         s.t1_sec = str2double(get(t1Edit, 'String')) / timeUnitFactor;
         s.PercentOfPairs = logical(get(normCb, 'Value'));
+        s.ShowSurrogateBaseline = logical(get(surrogateBaselineCb, 'Value'));
         s.UseEventWindows = logical(get(useEvCb, 'Value'));
         s.channelsA = listA.Value(:)';
         s.channelsB = listB.Value(:)';
@@ -274,6 +348,11 @@ function muaCrossCorrelationGUI()
     end
 
     function createSaveButtons()
+        sepObj = findobj(hFig, 'Type', 'uicontrol', 'Tag', 'muaXc_sep');
+        if ~isempty(sepObj)
+            set(sepObj, 'Visible', 'on');
+        end
+
         [mat_file_folder, original_filename, ~] = fileparts(matFilePath);
         if isempty(mat_file_folder)
             mat_file_folder = pwd;
@@ -294,16 +373,15 @@ function muaCrossCorrelationGUI()
             delete(old_open_checkbox);
         end
 
-        % btnIcon считает высоту кнопки в пикселях (imresize); normalized даёт ~0.06 и иконка пропадает.
         uicontrol('Parent', hFig, 'Style', 'checkbox', ...
             'Tag', 'muaXc_open_after_export_cb', ...
             'String', 'Open after export', ...
-            'Units', 'pixels', 'Position', [10, 48, 220, 20], ...
+            'Units', 'normalized', 'Position', [lm, 0.142, lw, 0.032], ...
             'Value', 0);
 
         savebutton = uicontrol('Parent', hFig, 'Style', 'pushbutton', ...
             'String', 'Save Result', 'Tag', 'muaXc_save_btn', ...
-            'Units', 'pixels', 'Position', [10, 10, 280, 30], ...
+            'Units', 'normalized', 'Position', [lm, 0.048, lw, 0.085], ...
             'Callback', @SaveResultClb);
         btnIcon(savebutton, fullfile(getAssetsPath(), 'data-storage.png'), false);
 
@@ -347,6 +425,43 @@ function muaCrossCorrelationGUI()
     end
 end
 
+function closeMuaWaitbarIfValid(h)
+    if nargin < 1 || isempty(h)
+        return;
+    end
+    if isgraphics(h) && isvalid(h)
+        close(h);
+    end
+end
+
+function tBs = surrogateCircularShiftBInInterval(tB_sec, t0, t1)
+    tBs = tB_sec(:);
+    span = t1 - t0;
+    mask = tBs >= t0 & tBs <= t1;
+    tv = tBs(mask);
+    if numel(tv) < 2
+        return;
+    end
+    off = rand * span;
+    tv2 = mod(tv - t0 + off, span) + t0;
+    tBs(mask) = sort(tv2);
+end
+
+function tBs = surrogateCircularShiftBUnionEvents(tB_sec, centers_sec, halfWindow_sec)
+    tBs = tB_sec(:);
+    u0 = min(centers_sec) - halfWindow_sec;
+    u1 = max(centers_sec) + halfWindow_sec;
+    mask = tBs >= u0 & tBs <= u1;
+    tv = tBs(mask);
+    if numel(tv) < 2
+        return;
+    end
+    span = u1 - u0;
+    off = rand * span;
+    tv2 = mod(tv - u0 + off, span) + u0;
+    tBs(mask) = sort(tv2);
+end
+
 function y = yAxisForCcg(cc, doPercent)
     y = cc;
     if doPercent
@@ -377,13 +492,14 @@ function s = eventOnOff(tf)
 end
 
 function lab = channelLabelForIndex(c, channelNames)
-    lab = sprintf('Ch %d', c);
+    base = sprintf('Ch %d', c);
     if iscell(channelNames) && c >= 1 && c <= numel(channelNames)
         entry = channelNames{c};
         if ischar(entry) || isstring(entry)
-            lab = char(entry);
+            base = char(entry);
         end
     end
+    lab = sprintf('%d: %s', c, base);
 end
 
 function tsec = mergeSpikeTimesSec(spks, chIdx)

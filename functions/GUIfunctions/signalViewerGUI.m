@@ -501,6 +501,10 @@ function signalViewerGUI(filePath)
     showEventsButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Events', 'Position', getElementPosition('show_events_button'), 'Value', visualSettings.events_show, 'Callback', @ShowEventsButtonCallback, 'Tag', 'show_events_button');
     showStimButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Stim', 'Position', getElementPosition('show_stim_button'), 'Value', visualSettings.stim_show, 'Callback', @ShowStimButtonCallback, 'Tag', 'show_stim_button');
     showFullSignalCheckbox = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Full signal', 'Position', getElementPosition('show_full_signal_checkbox'), 'Value', visualSettings.show_full_signal, 'Callback', @fullSignalCheckboxCallback, 'Tag', 'show_full_signal_checkbox');
+    showAmpLabelsCheckbox = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Amp', ...
+        'Position', getElementPosition('show_amplitude_labels_checkbox'), ...
+        'Value', visualSettings.show_amplitude_labels, ...
+        'Callback', @ampLabelsCheckboxCallback, 'Tag', 'show_amplitude_labels_checkbox');
     
     % Кнопки для навигации по времени
     previousbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Previous', 'Position', getElementPosition('previous_button'), 'Callback', {@shiftTime, -1, timeForwardEdit}, 'Tag', 'previous_button');
@@ -1622,6 +1626,12 @@ function signalViewerGUI(filePath)
         viewMenuLabels = {'Show full signal', 'Hide full signal'};
         view_functions{5} = viewMenuLabels{visualSettings.show_full_signal + 1};
         set(view_menu, 'String', view_functions);
+        save(SettingsFilepath, 'visualSettings', '-append');
+        updatePlot();
+    end
+
+    function ampLabelsCheckboxCallback(src, ~)
+        visualSettings.show_amplitude_labels = logical(get(src, 'Value'));
         save(SettingsFilepath, 'visualSettings', '-append');
         updatePlot();
     end

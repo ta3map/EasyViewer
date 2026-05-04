@@ -255,14 +255,16 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
         end
     end
     
-    rangesTimeTicks = time_in_transformed(1)+zeros(size(chRangesOffsets)) + 0.02*(time_in_transformed(end) - time_in_transformed(1));    
-    rangesTimeLabels = time_in_transformed(1)+zeros(size(chRangesOffsets)) + 0.005*(time_in_transformed(end) - time_in_transformed(1)); 
-    ch_inx = 0;
-    for color = np_flatten(colors_in_l)
-        ch_inx = ch_inx+1;
-        group_index = ch_inx == chRangeIndexes;
-        text(rangesTimeTicks(group_index), chRangesOffsets(group_index), num2str(chRanges(group_index)', '%.2f'), 'color', color{:}, 'backgroundcolor', 'w')
-        scatter(rangesTimeLabels(group_index), chRangesOffsets(group_index), [], 'Marker', '_', 'MarkerEdgeColor', color{:})
+    if visualSettings.show_amplitude_labels
+        rangesTimeTicks = time_in_transformed(1)+zeros(size(chRangesOffsets)) + 0.02*(time_in_transformed(end) - time_in_transformed(1));    
+        rangesTimeLabels = time_in_transformed(1)+zeros(size(chRangesOffsets)) + 0.005*(time_in_transformed(end) - time_in_transformed(1)); 
+        ch_inx = 0;
+        for color = np_flatten(colors_in_l)
+            ch_inx = ch_inx+1;
+            group_index = ch_inx == chRangeIndexes;
+            text(rangesTimeTicks(group_index), chRangesOffsets(group_index), num2str(chRanges(group_index)', '%.2f'), 'color', color{:}, 'backgroundcolor', 'w')
+            scatter(rangesTimeLabels(group_index), chRangesOffsets(group_index), [], 'Marker', '_', 'MarkerEdgeColor', color{:})
+        end
     end
 
     
