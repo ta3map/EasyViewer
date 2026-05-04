@@ -62,8 +62,6 @@ function eventCrossCorrelationGUI()
               'String', 'Select Event File A:');
     loadEventButtonA = uicontrol(hFig, 'Style', 'pushbutton', 'Position', [160, ypos(1), 130, 20], ...
               'String', 'Load Event A', 'Callback', @(~,~) loadEventFile(1), 'ForegroundColor', [0 0 1]);
-    changeMuaButtonA = uicontrol(hFig, 'Style', 'pushbutton', 'Position', [370, ypos(1)-22, 200, 18], ...
-              'String', 'Change MUA Ch A', 'Callback', @(~,~) changeMuaChannels(1), 'Visible', 'off');
     eventA_filename_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(1)-20, 260, 20], ...
               'String', '', 'HorizontalAlignment', 'left');
     eventA_range_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(1)-40, 260, 18], ...
@@ -73,8 +71,6 @@ function eventCrossCorrelationGUI()
               'String', 'Select Event File B:');
     loadEventButtonB = uicontrol(hFig, 'Style', 'pushbutton', 'Position', [160, ypos(2), 130, 20], ...
               'String', 'Load Event B', 'Callback', @(~,~) loadEventFile(2), 'ForegroundColor', [1 0 0]);
-    changeMuaButtonB = uicontrol(hFig, 'Style', 'pushbutton', 'Position', [370, ypos(2)-22, 200, 18], ...
-              'String', 'Change MUA Ch B', 'Callback', @(~,~) changeMuaChannels(2), 'Visible', 'off');
     eventB_filename_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(2)-20, 260, 20], ...
               'String', '', 'HorizontalAlignment', 'left');
     eventB_range_text = uicontrol(hFig, 'Style', 'text', 'Position', [10, ypos(2)-40, 260, 18], ...
@@ -141,9 +137,6 @@ function eventCrossCorrelationGUI()
     % Амплитуды детектированных событий (если есть в файле)
     eventAmplitudes1 = [];
     eventAmplitudes2 = [];
-    trialMua1 = struct('isTrialMua', false);
-    trialMua2 = struct('isTrialMua', false);
-    trialLockOwner = 0; % 0 - no lock, 1 - A locked B, 2 - B locked A
     
     % Инициализация значений из настроек, если они существуют
     if ~isempty(eventcorrelation_settings)
@@ -185,16 +178,10 @@ function eventCrossCorrelationGUI()
     end
     timeRangeCallback();
     % Попытка открыть последние использованные эвенты
-    loadedFromA = false;
     if ~isempty(eventcorrelation_settings) && isfield(eventcorrelation_settings, 'EventA_filepath') && ~isempty(eventcorrelation_settings.EventA_filepath) && exist(eventcorrelation_settings.EventA_filepath, 'file')
         loadEventFromPath(eventcorrelation_settings.EventA_filepath, 1);
-        loadedFromA = true;
     end
-    canLoadBFromSettings = ~trialMua1.isTrialMua && ~trialMua2.isTrialMua;
-    if ~loadedFromA
-        canLoadBFromSettings = true;
-    end
-    if canLoadBFromSettings && ~isempty(eventcorrelation_settings) && isfield(eventcorrelation_settings, 'EventB_filepath') && ~isempty(eventcorrelation_settings.EventB_filepath) && exist(eventcorrelation_settings.EventB_filepath, 'file')
+    if ~isempty(eventcorrelation_settings) && isfield(eventcorrelation_settings, 'EventB_filepath') && ~isempty(eventcorrelation_settings.EventB_filepath) && exist(eventcorrelation_settings.EventB_filepath, 'file')
         loadEventFromPath(eventcorrelation_settings.EventB_filepath, 2);
     end
     updateLoadButtonsState();
@@ -225,12 +212,6 @@ function eventCrossCorrelationGUI()
         tmp = events1; events1 = events2; events2 = tmp;
         tmp = eventA_filepath; eventA_filepath = eventB_filepath; eventB_filepath = tmp;
         tmp = eventAmplitudes1; eventAmplitudes1 = eventAmplitudes2; eventAmplitudes2 = tmp;
-        tmp = trialMua1; trialMua1 = trialMua2; trialMua2 = tmp;
-        if trialLockOwner == 1
-            trialLockOwner = 2;
-        elseif trialLockOwner == 2
-            trialLockOwner = 1;
-        end
         tmpLabel = get(labelAEdit, 'String');
         set(labelAEdit, 'String', get(labelBEdit, 'String'));
         set(labelBEdit, 'String', tmpLabel);
@@ -238,7 +219,6 @@ function eventCrossCorrelationGUI()
         [~, nB, ~] = fileparts(eventB_filepath); set(eventB_filename_text, 'String', nB);
         updateRangeText(1);
         updateRangeText(2);
-        updateMuaButtonsVisibility();
         updateLoadButtonsState();
     end
 
@@ -247,7 +227,7 @@ function eventCrossCorrelationGUI()
         if ~isempty(lastOpenedFiles)
             initialDir = fileparts(lastOpenedFiles{end});
         end
-        [file, path] = uigetfile({'*.ev;*.mua;*.mean', 'Event files (*.ev, *.mua, *.mean)'}, 'Load Events', initialDir);
+        [file, path] = uigetfile({'*.ev;*.mean', 'Event files (*.ev, *.mean)'}, 'Load Events', initialDir);
         if isequal(file, 0)
             disp('File selection canceled.');
             return;
@@ -255,35 +235,12 @@ function eventCrossCorrelationGUI()
         loadEventFromPath(fullfile(path, file), eventNum);
     end
 
-    function loadEventFromPath(filepath, eventNum, forceChannelDialog)
-        if nargin < 3
-            forceChannelDialog = false;
-        end
+    function loadEventFromPath(filepath, eventNum)
         loadedData = load(filepath, '-mat');
-        [eventTimesSec, amplitudes, canceledByUser, selectedChannels, trialPayload] = extractEventDataForCorrelation(loadedData, eventNum, filepath, forceChannelDialog);
-        if canceledByUser
-            return;
-        end
+        [eventTimesSec, amplitudes] = extractEventDataForCorrelation(loadedData);
         if isempty(eventTimesSec)
             warndlg('Selected file does not contain supported event data.', 'Load Events');
             return;
-        end
-
-        oppositeNum = 3 - eventNum;
-        oppositeTimesSec = [];
-        oppositeAmplitudes = [];
-        oppositeChannels = [];
-        oppositeTrialPayload = struct('isTrialMua', false);
-        if trialPayload.isTrialMua
-            trialLockOwner = eventNum;
-            [oppositeTimesSec, oppositeAmplitudes, oppositeCanceled, oppositeChannels, oppositeTrialPayload] = extractEventDataForCorrelation(loadedData, oppositeNum, filepath, false);
-            if oppositeCanceled
-                return;
-            end
-            if isempty(oppositeTimesSec)
-                warndlg('Failed to extract trial MUA for the opposite group from the same file.', 'Load Events');
-                return;
-            end
         end
 
         [~, filename_only, ~] = fileparts(filepath);
@@ -291,286 +248,27 @@ function eventCrossCorrelationGUI()
             events1 = eventTimesSec;
             eventAmplitudes1 = amplitudes;
             eventA_filepath = filepath;
-            trialMua1 = trialPayload;
             set(eventA_filename_text, 'String', filename_only);
             updateRangeText(1);
         else
             events2 = eventTimesSec;
             eventAmplitudes2 = amplitudes;
             eventB_filepath = filepath;
-            trialMua2 = trialPayload;
             set(eventB_filename_text, 'String', filename_only);
             updateRangeText(2);
         end
-        if trialPayload.isTrialMua
-            if oppositeNum == 1
-                events1 = oppositeTimesSec;
-                eventAmplitudes1 = oppositeAmplitudes;
-                eventA_filepath = filepath;
-                trialMua1 = oppositeTrialPayload;
-                set(eventA_filename_text, 'String', 'same file');
-                updateRangeText(1);
-            else
-                events2 = oppositeTimesSec;
-                eventAmplitudes2 = oppositeAmplitudes;
-                eventB_filepath = filepath;
-                trialMua2 = oppositeTrialPayload;
-                set(eventB_filename_text, 'String', 'same file');
-                updateRangeText(2);
-            end
-        end
-        updateMuaButtonsVisibility();
         updateLoadButtonsState();
         if eventNum == 1
             eventcorrelation_settings.EventA_filepath = eventA_filepath;
-            if ~isempty(selectedChannels)
-                eventcorrelation_settings.EventA_mua_channels = selectedChannels;
-            end
         else
             eventcorrelation_settings.EventB_filepath = eventB_filepath;
-            if ~isempty(selectedChannels)
-                eventcorrelation_settings.EventB_mua_channels = selectedChannels;
-            end
-        end
-        if trialPayload.isTrialMua
-            if oppositeNum == 1
-                eventcorrelation_settings.EventA_filepath = eventA_filepath;
-                if ~isempty(oppositeChannels)
-                    eventcorrelation_settings.EventA_mua_channels = oppositeChannels;
-                end
-            else
-                eventcorrelation_settings.EventB_filepath = eventB_filepath;
-                if ~isempty(oppositeChannels)
-                    eventcorrelation_settings.EventB_mua_channels = oppositeChannels;
-                end
-            end
         end
         save(SettingsFilepath, 'eventcorrelation_settings', '-append');
     end
 
-    function changeMuaChannels(eventNum)
-        if eventNum == 1
-            targetPath = eventA_filepath;
-            settingsPathField = 'EventA_filepath';
-            settingsChannelsField = 'EventA_mua_channels';
-        else
-            targetPath = eventB_filepath;
-            settingsPathField = 'EventB_filepath';
-            settingsChannelsField = 'EventB_mua_channels';
-        end
-
-        if isempty(targetPath) || ~exist(targetPath, 'file')
-            warndlg('Load event file first.', 'Change MUA channels');
-            return;
-        end
-
-        [~, ~, ext] = fileparts(targetPath);
-        if ~strcmpi(ext, '.mua')
-            warndlg('Channel selection is available for .mua files only.', 'Change MUA channels');
-            return;
-        end
-
-        eventcorrelation_settings.(settingsPathField) = targetPath;
-        save(SettingsFilepath, 'eventcorrelation_settings', '-append');
-        loadEventFromPath(targetPath, eventNum, true);
-        updateLoadButtonsState();
-    end
-
-    function [eventTimesSec, amplitudes, canceledByUser, selectedChannels, trialPayload] = extractEventDataForCorrelation(loadedData, eventNum, filepath, forceChannelDialog)
-        if nargin < 4
-            forceChannelDialog = false;
-        end
+    function [eventTimesSec, amplitudes] = extractEventDataForCorrelation(loadedData)
         eventTimesSec = [];
         amplitudes = [];
-        canceledByUser = false;
-        selectedChannels = [];
-        trialPayload = struct('isTrialMua', false);
-
-        if isfield(loadedData, 'spks_events') && ~isempty(loadedData.spks_events)
-            nTrials = numel(loadedData.spks_events);
-            if ~isfield(loadedData, 'event_times_sec') || numel(loadedData.event_times_sec) ~= nTrials
-                return;
-            end
-            evtSec = loadedData.event_times_sec(:);
-            spEv = loadedData.spks_events(:);
-            firstTrial = spEv{1};
-            if isempty(firstTrial) || ~isfield(firstTrial, 'tStamp')
-                return;
-            end
-            nCh = numel(firstTrial);
-            hasAny = false(nCh, 1);
-            for k = 1:nTrials
-                sk = spEv{k};
-                for ch = 1:nCh
-                    hasAny(ch) = hasAny(ch) || ~isempty(sk(ch).tStamp);
-                end
-            end
-            channelIndicesWithData = find(hasAny)';
-            if isempty(channelIndicesWithData)
-                return;
-            end
-
-            storedChannels = [];
-            if eventNum == 1 && isfield(eventcorrelation_settings, 'EventA_filepath') && strcmp(eventcorrelation_settings.EventA_filepath, filepath) ...
-                    && isfield(eventcorrelation_settings, 'EventA_mua_channels')
-                storedChannels = eventcorrelation_settings.EventA_mua_channels;
-            elseif eventNum == 2 && isfield(eventcorrelation_settings, 'EventB_filepath') && strcmp(eventcorrelation_settings.EventB_filepath, filepath) ...
-                    && isfield(eventcorrelation_settings, 'EventB_mua_channels')
-                storedChannels = eventcorrelation_settings.EventB_mua_channels;
-            end
-
-            storedChannels = storedChannels(:)';
-            storedChannels = storedChannels(ismember(storedChannels, channelIndicesWithData));
-
-            channelNames = arrayfun(@(ch) sprintf('Channel %d', ch), channelIndicesWithData, 'UniformOutput', false);
-            if isfield(loadedData, 'channel_names') && ~isempty(loadedData.channel_names)
-                savedNames = loadedData.channel_names;
-                if isstring(savedNames)
-                    savedNames = cellstr(savedNames);
-                elseif ischar(savedNames)
-                    savedNames = {savedNames};
-                end
-                for idx = 1:numel(channelIndicesWithData)
-                    ch = channelIndicesWithData(idx);
-                    if ch <= numel(savedNames) && ~isempty(savedNames{ch})
-                        channelNames{idx} = sprintf('%d: %s', ch, savedNames{ch});
-                    end
-                end
-            end
-
-            if isempty(storedChannels) || forceChannelDialog
-                promptText = sprintf('Select MUA channels for set %s:', char('A' + (eventNum - 1)));
-                initialPos = [];
-                if ~isempty(storedChannels)
-                    initialPos = find(ismember(channelIndicesWithData, storedChannels));
-                end
-                [selectedPos, ok] = listdlg( ...
-                    'ListString', channelNames, ...
-                    'SelectionMode', 'multiple', ...
-                    'PromptString', promptText, ...
-                    'InitialValue', initialPos, ...
-                    'ListSize', [260, 320]);
-                if ~ok || isempty(selectedPos)
-                    canceledByUser = true;
-                    return;
-                end
-                selectedChannels = channelIndicesWithData(selectedPos);
-            else
-                selectedChannels = storedChannels;
-            end
-
-            filtered = cell(nTrials, 1);
-            for k = 1:nTrials
-                filtered{k} = spEv{k}(selectedChannels);
-            end
-
-            trialPayload.isTrialMua = true;
-            trialPayload.spks_events = filtered;
-            trialPayload.event_times_sec = evtSec;
-            trialPayload.selectedChannels = selectedChannels;
-            eventTimesSec = evtSec;
-            amplitudes = nan(nTrials, 1);
-            return;
-        end
-
-        if isfield(loadedData, 'spks')
-            spksData = loadedData.spks;
-            if isempty(spksData) || ~isfield(spksData, 'tStamp')
-                return;
-            end
-
-            tAllCells = {spksData.tStamp};
-            hasChannelDataMask = ~cellfun(@isempty, tAllCells);
-            channelIndicesWithData = find(hasChannelDataMask);
-            if isempty(channelIndicesWithData)
-                return;
-            end
-
-            storedChannels = [];
-            if eventNum == 1 && isfield(eventcorrelation_settings, 'EventA_filepath') && strcmp(eventcorrelation_settings.EventA_filepath, filepath) ...
-                    && isfield(eventcorrelation_settings, 'EventA_mua_channels')
-                storedChannels = eventcorrelation_settings.EventA_mua_channels;
-            elseif eventNum == 2 && isfield(eventcorrelation_settings, 'EventB_filepath') && strcmp(eventcorrelation_settings.EventB_filepath, filepath) ...
-                    && isfield(eventcorrelation_settings, 'EventB_mua_channels')
-                storedChannels = eventcorrelation_settings.EventB_mua_channels;
-            end
-
-            storedChannels = storedChannels(:)';
-            storedChannels = storedChannels(ismember(storedChannels, channelIndicesWithData));
-
-            channelNames = arrayfun(@(ch) sprintf('Channel %d', ch), channelIndicesWithData, 'UniformOutput', false);
-            if isfield(loadedData, 'channel_names') && ~isempty(loadedData.channel_names)
-                savedNames = loadedData.channel_names;
-                if isstring(savedNames)
-                    savedNames = cellstr(savedNames);
-                elseif ischar(savedNames)
-                    savedNames = {savedNames};
-                end
-                for idx = 1:numel(channelIndicesWithData)
-                    ch = channelIndicesWithData(idx);
-                    if ch <= numel(savedNames) && ~isempty(savedNames{ch})
-                        channelNames{idx} = sprintf('%d: %s', ch, savedNames{ch});
-                    end
-                end
-            end
-
-            if isempty(storedChannels) || forceChannelDialog
-                promptText = sprintf('Select MUA channels for set %s:', char('A' + (eventNum - 1)));
-                initialPos = [];
-                if ~isempty(storedChannels)
-                    initialPos = find(ismember(channelIndicesWithData, storedChannels));
-                end
-                [selectedPos, ok] = listdlg( ...
-                    'ListString', channelNames, ...
-                    'SelectionMode', 'multiple', ...
-                    'PromptString', promptText, ...
-                    'InitialValue', initialPos, ...
-                    'ListSize', [260, 320]);
-                if ~ok || isempty(selectedPos)
-                    canceledByUser = true;
-                    return;
-                end
-                selectedChannels = channelIndicesWithData(selectedPos);
-            else
-                selectedChannels = storedChannels;
-            end
-
-            spksData = spksData(selectedChannels);
-
-            tCells = {spksData.tStamp};
-            if isfield(spksData, 'ampl')
-                aCells = {spksData.ampl};
-            else
-                aCells = repmat({[]}, size(tCells));
-            end
-
-            hasDataMask = ~cellfun(@isempty, tCells);
-            if ~any(hasDataMask)
-                return;
-            end
-
-            tCells = cellfun(@(v) double(v(:)), tCells(hasDataMask), 'UniformOutput', false);
-            aCells = cellfun(@(v) double(v(:)), aCells(hasDataMask), 'UniformOutput', false);
-            lenT = cellfun(@numel, tCells);
-            lenA = cellfun(@numel, aCells);
-            nEach = min(lenT, lenA);
-
-            validMask = nEach > 0;
-            if ~any(validMask)
-                return;
-            end
-
-            tCells = tCells(validMask);
-            aCells = aCells(validMask);
-            nEach = nEach(validMask);
-            tCells = cellfun(@(v, n) v(1:n), tCells, num2cell(nEach), 'UniformOutput', false);
-            aCells = cellfun(@(v, n) v(1:n), aCells, num2cell(nEach), 'UniformOutput', false);
-
-            eventTimesSec = vertcat(tCells{:}) / 1000;
-            amplitudes = vertcat(aCells{:});
-            return;
-        end
-
         if ~isfield(loadedData, 'manlDet') || isempty(loadedData.manlDet)
             return;
         end
@@ -615,27 +313,6 @@ function eventCrossCorrelationGUI()
                     labelB, min(events2)*timeUnitFactor, max(events2)*timeUnitFactor, selectedUnit, length(events2)));
             end
         end
-    end
-
-    function trace = trialMeanRateTrace(trialSpkStruct, edgesRel)
-        nBins = numel(edgesRel) - 1;
-        nCh = numel(trialSpkStruct);
-        h = zeros(nCh, nBins);
-        useCh = false(nCh, 1);
-        for ix = 1:nCh
-            ts = trialSpkStruct(ix).tStamp;
-            if isempty(ts)
-                continue;
-            end
-            useCh(ix) = true;
-            tsec = double(ts(:)) / 1000;
-            h(ix, :) = histcounts(tsec, edgesRel);
-        end
-        if ~any(useCh)
-            trace = zeros(1, nBins);
-            return;
-        end
-        trace = mean(h(useCh, :), 1);
     end
 
     function analyzeData(~, ~)
@@ -684,8 +361,6 @@ function eventCrossCorrelationGUI()
         amp1 = eventAmplitudes1(:);
         amp2 = eventAmplitudes2(:);
         useTimeRange = get(useTimeRangeCheckbox, 'Value');
-        mask1 = true(numel(ev1), 1);
-        mask2 = true(numel(ev2), 1);
         if useTimeRange
             tStart = str2double(get(timeStartEdit, 'String')) / timeUnitFactor;
             tEnd = str2double(get(timeEndEdit, 'String')) / timeUnitFactor;
@@ -693,27 +368,16 @@ function eventCrossCorrelationGUI()
                 errordlg('Time start must be less than time end.', 'Error');
                 return;
             end
-            mask1 = ev1 >= tStart & ev1 <= tEnd;
-            mask2 = ev2 >= tStart & ev2 <= tEnd;
-            ev1 = ev1(mask1);
-            ev2 = ev2(mask2);
-            amp1 = amp1(mask1);
-            amp2 = amp2(mask2);
+            sel1 = ev1 >= tStart & ev1 <= tEnd;
+            sel2 = ev2 >= tStart & ev2 <= tEnd;
+            ev1 = ev1(sel1);
+            ev2 = ev2(sel2);
+            amp1 = amp1(sel1);
+            amp2 = amp2(sel2);
             if isempty(ev1) || isempty(ev2)
                 errordlg('No events in the selected time range for one or both event sets.', 'Error');
                 return;
             end
-        end
-
-        wantCrossCorr = any(strcmp(selectedPlotModes, 'Cross-Correlation'));
-        if wantCrossCorr && xor(trialMua1.isTrialMua, trialMua2.isTrialMua)
-            errordlg('Cross-Correlation: оба файла должны быть .mua с spks_events.', 'Error');
-            return;
-        end
-        trialPairXcorr = wantCrossCorr && trialMua1.isTrialMua && trialMua2.isTrialMua;
-        if trialPairXcorr && numel(ev1) ~= numel(ev2)
-            errordlg('Cross-Correlation (spks_events): число триалов A и B должно совпадать.', 'Error');
-            return;
         end
 
         % Единое ограничение оси X для всех графиков (в секундах)
@@ -730,58 +394,22 @@ function eventCrossCorrelationGUI()
         crossCorr = [];
 
         if any(strcmp(selectedPlotModes, 'Cross-Correlation'))
-            if trialPairXcorr
-                spEvF1 = trialMua1.spks_events(mask1);
-                spEvF2 = trialMua2.spks_events(mask2);
-                nTr = numel(ev1);
-                edgesRel = (-windowSize/2):binSize:(windowSize/2 + binSize);
-                stackXc = [];
-                stackProb = [];
-                lags = [];
-                for k = 1:nTr
-                    traceA = trialMeanRateTrace(spEvF1{k}, edgesRel);
-                    traceB = trialMeanRateTrace(spEvF2{k}, edgesRel);
-                    [xcRow, lags_k] = xcorr(traceA, traceB);
-                    if isempty(lags)
-                        lags = lags_k;
-                        stackXc = zeros(nTr, numel(xcRow));
-                        stackProb = zeros(nTr, numel(xcRow));
-                    end
-                    stackXc(k, :) = xcRow;
-                    mass = sum(traceA) * sum(traceB);
-                    stackProb(k, :) = xcRow / max(mass, eps);
-                end
-                crossCorrRaw = median(stackXc, 1);
-                crossCorrRawProb = median(stackProb, 1);
-                lagTimes = lags * binSize;
-                lagTimes_scaled = lagTimes * timeUnitFactor;
-                validIndices = abs(lagTimes) <= windowSize / 2;
-                lagTimes_scaled = lagTimes_scaled(validIndices);
-                medTrim = crossCorrRaw(validIndices);
-                medTrimProb = crossCorrRawProb(validIndices);
-                if normalize
-                    crossCorr = medTrimProb;
-                else
-                    crossCorr = medTrim;
-                end
+            minTime = min([min(ev1), min(ev2)]);
+            maxTime = max([max(ev1), max(ev2)]);
+            maxTimeForEdges = max(maxTime, minTime + binSize);
+            edges = minTime:binSize:maxTimeForEdges;
+            eventHist1 = histcounts(ev1, edges, 'Normalization', 'count');
+            eventHist2 = histcounts(ev2, edges, 'Normalization', 'count');
+            if normalize
+                [crossCorrRaw, lags] = xcorr(eventHist1, eventHist2, 'normalized');
             else
-                minTime = min([min(ev1), min(ev2)]);
-                maxTime = max([max(ev1), max(ev2)]);
-                maxTimeForEdges = max(maxTime, minTime + binSize);
-                edges = minTime:binSize:maxTimeForEdges;
-                eventHist1 = histcounts(ev1, edges, 'Normalization', 'count');
-                eventHist2 = histcounts(ev2, edges, 'Normalization', 'count');
-                if normalize
-                    [crossCorrRaw, lags] = xcorr(eventHist1, eventHist2, 'normalized');
-                else
-                    [crossCorrRaw, lags] = xcorr(eventHist1, eventHist2);
-                end
-                lagTimes = lags * binSize;
-                lagTimes_scaled = lagTimes * timeUnitFactor;
-                validIndices = abs(lagTimes) <= windowSize / 2;
-                lagTimes_scaled = lagTimes_scaled(validIndices);
-                crossCorr = crossCorrRaw(validIndices);
+                [crossCorrRaw, lags] = xcorr(eventHist1, eventHist2);
             end
+            lagTimes = lags * binSize;
+            lagTimes_scaled = lagTimes * timeUnitFactor;
+            validIndices = abs(lagTimes) <= windowSize / 2;
+            lagTimes_scaled = lagTimes_scaled(validIndices);
+            crossCorr = crossCorrRaw(validIndices);
             crossCorrToPlot = crossCorr;
             crossCorrYLabel = 'Cross-Correlation';
             if normalize
@@ -792,22 +420,7 @@ function eventCrossCorrelationGUI()
             axes(ax1);
             set(ax1, 'visible', 'on');
             cla; hold on;
-            if trialPairXcorr
-                if normalize
-                    trialY = stackProb(:, validIndices) * 100;
-                else
-                    trialY = stackXc(:, validIndices);
-                end
-                qLo = prctile(trialY, 25, 1);
-                qHi = prctile(trialY, 75, 1);
-                lagCol = lagTimes_scaled(:);
-                [xU, yU] = stairs(lagCol, qHi(:));
-                [xL, yL] = stairs(lagCol, qLo(:));
-                fill([xU; flipud(xL)], [yU; flipud(yL)], [0.78 0.78 0.78], 'FaceAlpha', 0.42, 'EdgeColor', 'none');
-                stairs(lagCol, crossCorrToPlot(:), 'Color', [0 0 0], 'LineWidth', 2);
-            else
-                bar(lagTimes_scaled, crossCorrToPlot, 1, 'FaceColor', [0 0 0.8], 'EdgeColor', [0 0 0.6]);
-            end
+            bar(lagTimes_scaled, crossCorrToPlot, 1, 'FaceColor', [0 0 0.8], 'EdgeColor', [0 0 0.6]);
             xline(0, 'r:');
             xlabel(xAxisLabel);
             ylabel(crossCorrYLabel);
@@ -1042,11 +655,6 @@ function eventCrossCorrelationGUI()
         xLimResult = [xLeft, xRight + (xRight == xLeft) * xPad];
     end
 
-    function updateMuaButtonsVisibility()
-        set(changeMuaButtonA, 'Visible', onOff(isMuaFile(eventA_filepath)));
-        set(changeMuaButtonB, 'Visible', onOff(isMuaFile(eventB_filepath)));
-    end
-
     function updateLoadButtonsState()
         set(loadEventButtonA, 'Enable', 'on');
         set(loadEventButtonB, 'Enable', 'on');
@@ -1055,33 +663,6 @@ function eventCrossCorrelationGUI()
         set(selectEventLabelB, 'ForegroundColor', [0 0 0]);
         updateRangeText(1);
         updateRangeText(2);
-        if trialLockOwner == 1
-            set(loadEventButtonB, 'Enable', 'off');
-            set(swapButton, 'Enable', 'off');
-            set(selectEventLabelB, 'ForegroundColor', [0.55 0.55 0.55]);
-            set(eventB_range_text, 'String', '');
-        elseif trialLockOwner == 2
-            set(loadEventButtonA, 'Enable', 'off');
-            set(swapButton, 'Enable', 'off');
-            set(selectEventLabelA, 'ForegroundColor', [0.55 0.55 0.55]);
-            set(eventA_range_text, 'String', '');
-        end
-        tipA = '';
-        tipB = '';
-        commonTip = 'the same .mua file';
-        if trialLockOwner == 2
-            tipA = commonTip;
-        end
-        if trialLockOwner == 1
-            tipB = commonTip;
-        end
-        set(loadEventButtonA, 'TooltipString', tipA);
-        set(loadEventButtonB, 'TooltipString', tipB);
-    end
-
-    function result = isMuaFile(filepath)
-        [~, ~, ext] = fileparts(filepath);
-        result = strcmpi(ext, '.mua');
     end
     
     function createSaveButtons()

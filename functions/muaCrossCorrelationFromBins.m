@@ -1,7 +1,8 @@
 function [lags_sec, cc] = muaCrossCorrelationFromBins(tA_sec, tB_sec, binSize_sec, maxLag_sec, normalize, mode, modeParam)
-% Cross-correlogram as a lag histogram of spike pairs (tB - tA), not xcorr on binned rates.
-% mode 'interval': modeParam = [t0_sec, t1_sec] — only spikes inside [t0,t1].
-% mode 'events': modeParam struct .centers_sec, .halfWindow_sec — per-event windows, median across events.
+% Pair lag histogram (CCG). Raw counts taper at large |lag| on a finite segment (triangle artefact);
+% divide by (T - |tau|) with T = segment length (Geiger-style border correction).
+% mode 'interval': modeParam = [t0_sec, t1_sec].
+% mode 'events': modeParam .centers_sec, .halfWindow_sec — window length 2*halfW, median across events.
 
     assert(binSize_sec > 0 && maxLag_sec > 0, 'muaCrossCorrelationFromBins: binSize and maxLag must be positive.');
 
@@ -22,6 +23,8 @@ function [lags_sec, cc] = muaCrossCorrelationFromBins(tA_sec, tB_sec, binSize_se
             tA = tA(tA >= t0 & tA <= t1);
             tB = tB(tB >= t0 & tB <= t1);
             counts = pairLagCounts(tA, tB, lagEdges, maxLag_sec);
+            Tspan = t1 - t0;
+            counts = counts ./ finiteWindowLagWeight(lags_sec, Tspan);
         case 'events'
             centers = modeParam.centers_sec(:);
             halfW = modeParam.halfWindow_sec;
@@ -29,6 +32,8 @@ function [lags_sec, cc] = muaCrossCorrelationFromBins(tA_sec, tB_sec, binSize_se
             assert(~isempty(centers), 'muaCrossCorrelationFromBins: no event centers.');
             nTr = numel(centers);
             nb = numel(lagEdges) - 1;
+            Tspan = 2 * halfW;
+            w = finiteWindowLagWeight(lags_sec, Tspan);
             stack = zeros(nTr, nb);
             for k = 1:nTr
                 c = centers(k);
@@ -36,7 +41,7 @@ function [lags_sec, cc] = muaCrossCorrelationFromBins(tA_sec, tB_sec, binSize_se
                 tw1 = c + halfW;
                 tAw = tA(tA >= tw0 & tA <= tw1);
                 tBw = tB(tB >= tw0 & tB <= tw1);
-                stack(k, :) = pairLagCounts(tAw, tBw, lagEdges, maxLag_sec);
+                stack(k, :) = pairLagCounts(tAw, tBw, lagEdges, maxLag_sec) ./ w;
             end
             counts = median(stack, 1, 'omitnan');
         otherwise
@@ -46,8 +51,14 @@ function [lags_sec, cc] = muaCrossCorrelationFromBins(tA_sec, tB_sec, binSize_se
     cc = counts;
     if normalize
         s = sum(cc);
-        cc = cc / max(s, eps);
+        if s > 0
+            cc = cc / s;
+        end
     end
+end
+
+function w = finiteWindowLagWeight(lags_sec, Tspan)
+    w = max(Tspan - abs(lags_sec(:).'), eps);
 end
 
 function counts = pairLagCounts(tA, tB, lagEdges, maxLag)

@@ -1,12 +1,24 @@
 function muaCrossCorrelationGUI()
-    global spks events events_exist channelNames timeUnitFactor selectedUnit matFilePath
+    global spks events events_exist channelNames timeUnitFactor selectedUnit matFilePath SettingsFilepath
 
     correlation_result = struct();
+
+    if isempty(SettingsFilepath)
+        SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
+    end
+    savedMuaCcg = struct();
+    if exist(SettingsFilepath, 'file')
+        d = load(SettingsFilepath);
+        if isfield(d, 'mua_ccg_settings')
+            savedMuaCcg = d.mua_ccg_settings;
+        end
+    end
 
     figTag = 'muaCrossCorrelationGUI';
     guiFig = findobj('Type', 'figure', 'Tag', figTag);
     if ~isempty(guiFig)
         figure(guiFig);
+        guiFig.WindowState = 'maximized';
         return;
     end
 
@@ -36,6 +48,8 @@ function muaCrossCorrelationGUI()
         'Position', [120, 120, 1040, 540], 'Resize', 'on', ...
         'MenuBar', 'none', 'ToolBar', 'figure', ...
         'Tag', figTag);
+    hFig.WindowState = 'maximized';
+    hFig.CloseRequestFcn = @onCloseMuaCcgGui;
 
     px = 0.37;
     lx = 0.13;
@@ -87,13 +101,14 @@ function muaCrossCorrelationGUI()
         'String', 'Event windows (±Max lag, median)', 'Value', double(events_exist), 'Visible', eventVisibility(events_exist));
 
     normCb = uicontrol(hFig, 'Style', 'checkbox', 'Units', 'normalized', 'Position', [px, y0 - 0.5 * dy, 0.36, 0.038], ...
-        'String', 'Normalize (mean firing removed)', 'Value', 1);
+        'String', 'Percent of pairs (bins sum to 100%)', 'Value', 1);
 
     uicontrol(hFig, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [ex, 0.02, ew, 0.06], ...
         'String', 'Analyze', 'Callback', @runAnalyze);
 
     set(useEvCb, 'Callback', @toggleEvUi);
-    set([t0Edit, t1Edit], 'Enable', eventOnOff(~events_exist));
+    applySavedMuaCcgSettings(savedMuaCcg);
+    toggleEvUi();
 
     function toggleEvUi(~, ~)
         on = get(useEvCb, 'Value') == 1;
@@ -139,8 +154,10 @@ function muaCrossCorrelationGUI()
             end
             modeParam = struct('centers_sec', events(:), 'halfWindow_sec', maxLagSec);
             [lags_sec, cc] = muaCrossCorrelationFromBins(tA, tB, binSec, maxLagSec, normalize, 'events', modeParam);
-            plot(ax, lags_sec * timeUnitFactor, cc, 'LineWidth', 1.2);
-            title(ax, sprintf('MUA cross-corr (median over %d events)', numel(events)));
+            ccY = yAxisForCcg(cc, normalize);
+            lagX = lags_sec * timeUnitFactor;
+            bar(ax, lagX, ccY, 1, 'FaceColor', [0 0 0.8], 'EdgeColor', [0 0 0.6]);
+            title(ax, sprintf('MUA CCG — median over %d events', numel(events)));
         else
             t0Disp = str2double(get(t0Edit, 'String'));
             t1Disp = str2double(get(t1Edit, 'String'));
@@ -151,24 +168,27 @@ function muaCrossCorrelationGUI()
             t0sec = t0Disp / timeUnitFactor;
             t1sec = t1Disp / timeUnitFactor;
             [lags_sec, cc] = muaCrossCorrelationFromBins(tA, tB, binSec, maxLagSec, normalize, 'interval', [t0sec, t1sec]);
-            plot(ax, lags_sec * timeUnitFactor, cc, 'LineWidth', 1.2);
-            title(ax, 'MUA cross-corr (single interval)');
+            ccY = yAxisForCcg(cc, normalize);
+            lagX = lags_sec * timeUnitFactor;
+            bar(ax, lagX, ccY, 1, 'FaceColor', [0 0 0.8], 'EdgeColor', [0 0 0.6]);
+            title(ax, 'MUA CCG — pair lag histogram');
         end
 
         xline(ax, 0, 'r:');
         grid(ax, 'on');
         xlabel(ax, ['Lag (' selectedUnit ')']);
-        ylab = 'Cross-correlation';
+        ylab = 'Pairs (after edge correction)';
         if normalize
-            ylab = 'Norm. cross-corr. (r-scale)';
+            ylab = '% of all pairs (bins sum to 100%)';
         end
         ylabel(ax, ylab);
         hold(ax, 'off');
 
         correlation_result.lags_sec = lags_sec(:);
-        correlation_result.cc = cc(:);
+        correlation_result.cc = ccY(:);
         correlation_result.lags_axis = lags_sec(:) * timeUnitFactor;
         correlation_result.normalize = normalize;
+        correlation_result.cc_y_unit = yAxisUnitLabel(normalize);
         correlation_result.bin_sec = binSec;
         correlation_result.max_lag_sec = maxLagSec;
         correlation_result.channelsA = selA(:)';
@@ -176,6 +196,8 @@ function muaCrossCorrelationGUI()
         correlation_result.selectedUnit = selectedUnit;
         correlation_result.timeUnitFactor = timeUnitFactor;
         correlation_result.use_event_windows = useEv;
+        correlation_result.method = 'pair_lag_histogram';
+        correlation_result.border_correction = 'T_minus_abs_tau';
         correlation_result.t0_sec = NaN;
         correlation_result.t1_sec = NaN;
         correlation_result.n_events = 0;
@@ -188,6 +210,67 @@ function muaCrossCorrelationGUI()
             correlation_result.t1_sec = t1sec;
         end
         createSaveButtons();
+        saveMuaCcgSettingsToDisk();
+    end
+
+    function applySavedMuaCcgSettings(s)
+        if isempty(fieldnames(s))
+            return;
+        end
+        if isfield(s, 'BinSize_sec') && isnumeric(s.BinSize_sec) && isscalar(s.BinSize_sec) && isfinite(s.BinSize_sec) && s.BinSize_sec > 0
+            set(binEdit, 'String', num2str(s.BinSize_sec * timeUnitFactor));
+        end
+        if isfield(s, 'MaxLag_sec') && isnumeric(s.MaxLag_sec) && isscalar(s.MaxLag_sec) && isfinite(s.MaxLag_sec) && s.MaxLag_sec > 0
+            set(maxLagEdit, 'String', num2str(s.MaxLag_sec * timeUnitFactor));
+        end
+        if isfield(s, 't0_sec') && isnumeric(s.t0_sec) && isscalar(s.t0_sec) && isfinite(s.t0_sec)
+            set(t0Edit, 'String', num2str(s.t0_sec * timeUnitFactor));
+        end
+        if isfield(s, 't1_sec') && isnumeric(s.t1_sec) && isscalar(s.t1_sec) && isfinite(s.t1_sec)
+            set(t1Edit, 'String', num2str(s.t1_sec * timeUnitFactor));
+        end
+        if isfield(s, 'PercentOfPairs')
+            set(normCb, 'Value', double(logical(s.PercentOfPairs)));
+        end
+        if isfield(s, 'UseEventWindows') && strcmp(get(useEvCb, 'Visible'), 'on')
+            set(useEvCb, 'Value', double(logical(s.UseEventWindows)));
+        end
+        if isfield(s, 'channelsA') && isnumeric(s.channelsA)
+            ch = unique(s.channelsA(:)');
+            ch = ch(ch >= 1 & ch <= nSpk);
+            if ~isempty(ch)
+                set(listA, 'Value', ch);
+            end
+        end
+        if isfield(s, 'channelsB') && isnumeric(s.channelsB)
+            ch = unique(s.channelsB(:)');
+            ch = ch(ch >= 1 & ch <= nSpk);
+            if ~isempty(ch)
+                set(listB, 'Value', ch);
+            end
+        end
+    end
+
+    function s = packMuaCcgSettingsStruct()
+        s = struct();
+        s.BinSize_sec = str2double(get(binEdit, 'String')) / timeUnitFactor;
+        s.MaxLag_sec = str2double(get(maxLagEdit, 'String')) / timeUnitFactor;
+        s.t0_sec = str2double(get(t0Edit, 'String')) / timeUnitFactor;
+        s.t1_sec = str2double(get(t1Edit, 'String')) / timeUnitFactor;
+        s.PercentOfPairs = logical(get(normCb, 'Value'));
+        s.UseEventWindows = logical(get(useEvCb, 'Value'));
+        s.channelsA = listA.Value(:)';
+        s.channelsB = listB.Value(:)';
+    end
+
+    function saveMuaCcgSettingsToDisk()
+        mua_ccg_settings = packMuaCcgSettingsStruct();
+        save(SettingsFilepath, 'mua_ccg_settings', '-append');
+    end
+
+    function onCloseMuaCcgGui(~, ~)
+        saveMuaCcgSettingsToDisk();
+        delete(hFig);
     end
 
     function createSaveButtons()
@@ -261,6 +344,20 @@ function muaCrossCorrelationGUI()
             save(filename_meta, 'original_filename', '-append');
             disp(['Data saved to ', filename_meta]);
         end
+    end
+end
+
+function y = yAxisForCcg(cc, doPercent)
+    y = cc;
+    if doPercent
+        y = cc * 100;
+    end
+end
+
+function s = yAxisUnitLabel(doPercent)
+    s = 'pair_counts_edge_corrected';
+    if doPercent
+        s = 'percent_of_pairs_sum100';
     end
 end
 
