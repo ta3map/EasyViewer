@@ -35,7 +35,7 @@ function lineStyleGUI(selectedLineArg)
     axis off
     
     % The start of element position
-    x_ground = 50;
+    x_ground = 30;
 
     % Create UI controls for selecting line
     x_pos = x_ground + 350;
@@ -48,57 +48,57 @@ function lineStyleGUI(selectedLineArg)
     end
     
     % Create UI controls for line style
-    x_pos = x_ground+300;
+    x_pos = x_ground+375;
     uicontrol('Style', 'text', 'Position', [20, x_pos, 80, 20], 'String', 'Line Color');
     colorList = uicontrol('Style', 'popupmenu', 'Position', [20, x_pos-20, 100, 20], ...
         'String', {'Red', 'Green', 'Blue', 'Black', 'Yellow'}, 'Callback', @onLineColorListChanged);
     lineColorPreview = uicontrol('Style', 'text', 'Position', [125, x_pos-20, 20, 20], 'String', '', 'BackgroundColor', [1 0 0]);
     uicontrol('Style', 'pushbutton', 'Position', [150, x_pos-20, 70, 20], 'String', 'Palette...', 'Callback', @chooseLineColorFromPalette);
     
-    x_pos = x_ground+250;
+    x_pos = x_ground+325;
     uicontrol('Style', 'text', 'Position', [20, x_pos, 80, 20], 'String', 'Line Style');
     styleList = uicontrol('Style', 'popupmenu', 'Position', [20, x_pos-20, 100, 20], ...
         'String', {'-', '--', ':', '-.'}, 'Callback', @updateLine);
     
-    x_pos = x_ground+200;
+    x_pos = x_ground+275;
     uicontrol('Style', 'text', 'Position', [20, x_pos, 80, 20], 'String', 'Line Width');
     widthList = uicontrol('Style', 'popupmenu', 'Position', [20, x_pos-20, 100, 20], ...
         'String', {'1', '2', '3', '4', '5'}, 'Callback', @updateLine);
     
     % Create UI controls for text label style
-    x_pos = x_ground+150;
+    x_pos = x_ground+225;
     uicontrol('Style', 'text', 'Position', [20, x_pos, 80, 20], 'String', 'Text Color');
     textColorList = uicontrol('Style', 'popupmenu', 'Position', [20, x_pos-20, 100, 20], ...
         'String', {'Red', 'Green', 'Blue', 'Black', 'Yellow'}, 'Callback', @onTextColorListChanged);
     textColorPreview = uicontrol('Style', 'text', 'Position', [125, x_pos-20, 20, 20], 'String', '', 'BackgroundColor', [0 0 0]);
     uicontrol('Style', 'pushbutton', 'Position', [150, x_pos-20, 70, 20], 'String', 'Palette...', 'Callback', @chooseTextColorFromPalette);
     
-    x_pos = x_ground+100;
+    x_pos = x_ground+175;
     uicontrol('Style', 'text', 'Position', [20, x_pos, 80, 20], 'String', 'Font Size');
     fontSizeList = uicontrol('Style', 'popupmenu', 'Position', [20, x_pos-20, 100, 20], ...
         'String', {'8', '10', '12', '14', '16'}, 'Callback', @updateText);
 
-    x_pos = x_ground+75;
+    x_pos = x_ground+125;
     labelVisibleCheckbox = uicontrol('Style', 'checkbox', ...
-        'Position', [20, x_pos-20, 200, 20], ...
-        'String', 'Show labels', ...
+        'Position', [20, x_pos, 200, 20], ...
+        'String', 'Logo', ...
         'Value', 1, ...
         'Callback', @updateText);
     
-    x_pos = x_ground+50;
+    x_pos = x_ground+100;
     uicontrol('Style', 'text', 'Position', [20, x_pos, 100, 20], 'String', 'Background Color');
     bgColorList = uicontrol('Style', 'popupmenu', 'Position', [20, x_pos-20, 100, 20], ...
         'String', {'None', 'Red', 'Green', 'Blue', 'Yellow'}, 'Callback', @onBgColorListChanged);
     bgColorPreview = uicontrol('Style', 'text', 'Position', [125, x_pos-20, 20, 20], 'String', '', 'BackgroundColor', [1 1 1]);
     uicontrol('Style', 'pushbutton', 'Position', [150, x_pos-20, 70, 20], 'String', 'Palette...', 'Callback', @chooseBgColorFromPalette);
     
-    x_pos = x_ground;
+    x_pos = x_ground+50;
     uicontrol('Style', 'text', 'Position', [20, x_pos, 80, 20], 'String', 'Font Weight');
     fontWeightList = uicontrol('Style', 'popupmenu', 'Position', [20, x_pos-20, 100, 20], ...
         'String', {'Normal', 'Bold'}, 'Callback', @updateText);
     
     % Button to save changes to the structure
-    x_pos = x_ground;
+    x_pos = x_ground+25;
     uicontrol('Style', 'pushbutton', 'Position', [270, x_pos-25, 100, 30], 'String', 'Reset', 'Callback', @resetSelectedLineDefaults);
     uicontrol('Style', 'pushbutton', 'Position', [380, x_pos-25, 100, 30], 'String', 'Apply', 'Callback', @applyChanges);
     
@@ -356,6 +356,7 @@ function lineStyleGUI(selectedLineArg)
         
         save(SettingsFilepath, 'lines_and_styles', '-append')
         updatePlot()
+        syncSignalViewerLogoCheckboxes()
         close(fig)
     end
 
@@ -419,4 +420,32 @@ function lineStyleGUI(selectedLineArg)
     end
     selectLine(lineSelectList); % Initialize the GUI with current line settings
     
+end
+
+function syncSignalViewerLogoCheckboxes()
+    global lines_and_styles
+    viewerFig = findobj('Type', 'figure', 'Tag', 'SignalViewerGUI');
+    if isempty(viewerFig)
+        return;
+    end
+    eventsLogoBtn = findobj(viewerFig, 'Tag', 'show_events_logo_button');
+    stimLogoBtn = findobj(viewerFig, 'Tag', 'show_stim_logo_button');
+    if isempty(lines_and_styles) || ~isfield(lines_and_styles, 'events_lines')
+        return;
+    end
+    if ~isfield(lines_and_styles.events_lines, 'LabelVisible')
+        lines_and_styles.events_lines.LabelVisible = true;
+    end
+    if ~isempty(eventsLogoBtn)
+        set(eventsLogoBtn, 'Value', logical(lines_and_styles.events_lines.LabelVisible));
+    end
+    if isempty(lines_and_styles) || ~isfield(lines_and_styles, 'stimulus_lines')
+        return;
+    end
+    if ~isfield(lines_and_styles.stimulus_lines, 'LabelVisible')
+        lines_and_styles.stimulus_lines.LabelVisible = true;
+    end
+    if ~isempty(stimLogoBtn)
+        set(stimLogoBtn, 'Value', logical(lines_and_styles.stimulus_lines.LabelVisible));
+    end
 end

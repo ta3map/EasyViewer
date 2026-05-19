@@ -161,7 +161,8 @@ function signalViewerGUI(filePath)
                 'LabelColor', 'b', ...
                 'LabelFontSize', 10, ...
                 'LabelBackgroundColor', 'y', ...
-                'LabelFontWeight', 'normal' ...
+                'LabelFontWeight', 'normal', ...
+                'LabelVisible', true ...
             ), ...
             'events_lines', struct(...
                 'Name', 'Line 2', ...
@@ -173,11 +174,12 @@ function signalViewerGUI(filePath)
                 'LabelColor', 'r', ...
                 'LabelFontSize', 10, ...
                 'LabelBackgroundColor', 'y', ...
-                'LabelFontWeight', 'bold' ...
+                'LabelFontWeight', 'bold', ...
+                'LabelVisible', true ...
             )...
         );
     end
-
+    ensureLinesAndStylesLabelVisible();
 
     
     matFileName = '';
@@ -496,16 +498,21 @@ function signalViewerGUI(filePath)
         'Position', getElementPosition('mua_settings_btn'), 'Callback', @(~,~)openMUASettingsGUI(), 'Tag', 'mua_settings_btn');
     showSpikesButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'MUA', ...
         'Position', getElementPosition('show_spikes_button'), 'Value', visualSettings.show_spikes, ...
-        'Callback', @ShowSpikesButtonCallback, 'Tag', 'show_spikes_button');
-    showCSDbutton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'CSD', 'Position', getElementPosition('show_csd_button'), 'Callback', @ShowCSDButtonCallback, 'Tag', 'show_csd_button');
+        'Callback', @ShowSpikesButtonCallback, 'Tag', 'show_spikes_button', 'Visible', 'on');
+    showCSDbutton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'CSD', ...
+        'Position', getElementPosition('show_csd_button'), ...
+        'Callback', @ShowCSDButtonCallback, 'Tag', 'show_csd_button', 'Visible', 'on');
     showEventsButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Events', 'Position', getElementPosition('show_events_button'), 'Value', visualSettings.events_show, 'Callback', @ShowEventsButtonCallback, 'Tag', 'show_events_button');
+    showEventsLogoButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Logo', 'Position', getElementPosition('show_events_logo_button'), 'Value', lines_and_styles.events_lines.LabelVisible, 'Callback', @ShowEventsLogoButtonCallback, 'Tag', 'show_events_logo_button');
     showStimButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Stim', 'Position', getElementPosition('show_stim_button'), 'Value', visualSettings.stim_show, 'Callback', @ShowStimButtonCallback, 'Tag', 'show_stim_button');
+    showStimLogoButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Logo', 'Position', getElementPosition('show_stim_logo_button'), 'Value', lines_and_styles.stimulus_lines.LabelVisible, 'Callback', @ShowStimLogoButtonCallback, 'Tag', 'show_stim_logo_button');
     showFullSignalCheckbox = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Full signal', 'Position', getElementPosition('show_full_signal_checkbox'), 'Value', visualSettings.show_full_signal, 'Callback', @fullSignalCheckboxCallback, 'Tag', 'show_full_signal_checkbox');
     showAmpLabelsCheckbox = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Amp', ...
         'Position', getElementPosition('show_amplitude_labels_checkbox'), ...
         'Value', visualSettings.show_amplitude_labels, ...
         'Callback', @ampLabelsCheckboxCallback, 'Tag', 'show_amplitude_labels_checkbox');
-    
+    disp(getElementPosition('show_stim_button'))
+    disp(getElementPosition('show_stim_logo_button'))
     % Кнопки для навигации по времени
     previousbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Previous', 'Position', getElementPosition('previous_button'), 'Callback', {@shiftTime, -1, timeForwardEdit}, 'Tag', 'previous_button');
     btnIcon(previousbutton, fullfile(assetsPath, 'previous_button.png'), false);
@@ -747,15 +754,7 @@ function signalViewerGUI(filePath)
         set(shiftCoeffEdit, 'Visible', 'off');
     end
     
-    % отключаем все элементы управления кроме начальных
-    set(OptBtn, 'Enable', 'off');
-    set(viewBtn, 'Enable', 'off');
-    set(analysisBtn, 'Enable', 'off');
-    setUIControlsEnable({sidePanel, mainPanel} , 'off')
-    set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit, yLimResetBtn, fullTraceBtn], 'Enable', 'off');
-    set(LoadMatFileBtn, 'Enable', 'on');
-    set(FMbutton, 'Enable', 'on');
-    set(loadEventsBtn, 'Enable', 'on');
+
            
     f.WindowButtonDownFcn = @(src, event)ButtonDownFcn(multiax, f);
     f.WindowButtonMotionFcn = @(src, event)ButtonMotionFcn(multiax, f);
@@ -1506,7 +1505,6 @@ function signalViewerGUI(filePath)
                 ResizeElements(f, coordsFile, base_figure_position);
             end
         catch ME
-            warning('Error scaling elements: %s', ME.message);
         end
     end
 
@@ -1614,6 +1612,39 @@ function signalViewerGUI(filePath)
         updatePlot();
     end
 
+    function ensureLinesAndStylesLabelVisible()
+        if ~isfield(lines_and_styles, 'events_lines')
+            return;
+        end
+        if ~isfield(lines_and_styles.events_lines, 'LabelVisible')
+            lines_and_styles.events_lines.LabelVisible = true;
+        end
+        if ~isfield(lines_and_styles, 'stimulus_lines')
+            return;
+        end
+        if ~isfield(lines_and_styles.stimulus_lines, 'LabelVisible')
+            lines_and_styles.stimulus_lines.LabelVisible = true;
+        end
+    end
+
+    function syncLogoCheckboxesFromLinesAndStyles()
+        ensureLinesAndStylesLabelVisible();
+        set(showEventsLogoButton, 'Value', logical(lines_and_styles.events_lines.LabelVisible));
+        set(showStimLogoButton, 'Value', logical(lines_and_styles.stimulus_lines.LabelVisible));
+    end
+
+    function ShowEventsLogoButtonCallback(src, ~)
+        lines_and_styles.events_lines.LabelVisible = logical(get(src, 'Value'));
+        save(SettingsFilepath, 'lines_and_styles', '-append');
+        updatePlot();
+    end
+
+    function ShowStimLogoButtonCallback(src, ~)
+        lines_and_styles.stimulus_lines.LabelVisible = logical(get(src, 'Value'));
+        save(SettingsFilepath, 'lines_and_styles', '-append');
+        updatePlot();
+    end
+
     function ShowSpikesButtonCallback(~, ~)
         visualSettings.show_spikes = ~visualSettings.show_spikes;
         set(showSpikesButton, 'Value', visualSettings.show_spikes);
@@ -1639,7 +1670,7 @@ function signalViewerGUI(filePath)
     function ShowCSDButtonCallback(~, ~)
         prev_show_csd = visualSettings.show_CSD;
         visualSettings.show_CSD = ~visualSettings.show_CSD;
-
+        errmess = 'Select more channels for CSD analysis. At least 4 channels. ';
         if visualSettings.show_CSD
             csd_orig = ch_inxs(csd_avaliable(ch_inxs));
             [segments, ~] = splitConsecutiveChannels(csd_orig);
@@ -1651,7 +1682,7 @@ function signalViewerGUI(filePath)
             if ~logical(enoughCsd)
                 visualSettings.show_CSD = prev_show_csd;
                 set(showCSDbutton, 'Value', visualSettings.show_CSD);
-                errordlg('At least 4 active channels are required to compute CSD.', 'CSD Error', 'modal');
+                errordlg(errmess, 'CSD Error', 'modal');
                 return;
             end
         end
@@ -1661,12 +1692,12 @@ function signalViewerGUI(filePath)
         try
             updatePlot(); % Обновление графика
         catch ME
-            csd_error_detected = contains(ME.message, 'At least 4 channels are required to compute CSD.') || ...
+            csd_error_detected = contains(ME.message, errmess) || ...
                 contains(ME.message, 'Output argument "csd"');
             if csd_error_detected
                 visualSettings.show_CSD = prev_show_csd;
                 set(showCSDbutton, 'Value', visualSettings.show_CSD);
-                errordlg('At least 4 active channels are required to compute CSD.', 'CSD Error', 'modal');
+                errordlg(errmess, 'CSD Error', 'modal');
                 return;
             end
             rethrow(ME);
@@ -2065,7 +2096,6 @@ function signalViewerGUI(filePath)
         filterSettings.channelsToFilter = np_flatten(filter_avaliable);
 
         updateLocalCoefs()% локальные аналоги для текущего учаска времени
-        updateCSDControlsVisibility();
 
         saveChannelSettings();
         if isRestoringStartupState
@@ -2454,10 +2484,7 @@ function signalViewerGUI(filePath)
         selected_event_rows = selected_event_rows(selected_event_rows > 0 & selected_event_rows <= length(events));
 
         selected_row = selected_event_rows(1);
-        selectedCenter = 'event';
         event_inx = selected_row;
-
-        set(timeCenterPopup, 'Value', 3);
 
         windowSize = time_forward;
         chosen_time_interval(1) = events(event_inx);
@@ -2472,9 +2499,7 @@ function signalViewerGUI(filePath)
         if isempty(events) || ev_ix < 1 || ev_ix > numel(events)
             return;
         end
-        selectedCenter = 'event';
         event_inx = ev_ix;
-        set(timeCenterPopup, 'Value', 3);
         windowSize = time_forward;
         chosen_time_interval(1) = events(event_inx);
         chosen_time_interval(2) = events(event_inx) + windowSize;
@@ -2486,9 +2511,7 @@ function signalViewerGUI(filePath)
         if isempty(stims) || st_ix < 1 || st_ix > numel(stims)
             return;
         end
-        selectedCenter = 'stimulus';
         stim_inx = st_ix;
-        set(timeCenterPopup, 'Value', 2);
         windowSize = time_forward;
         chosen_time_interval(1) = stims(stim_inx);
         chosen_time_interval(2) = stims(stim_inx) + windowSize;
@@ -2751,7 +2774,6 @@ function signalViewerGUI(filePath)
         set(FMbutton, 'Enable', 'on');
         set(loadEventsBtn, 'Enable', 'on');
         updateMUAControlsVisibility();
-        updateCSDControlsVisibility();
         data_loaded = false;
     end
 
@@ -2819,8 +2841,8 @@ function signalViewerGUI(filePath)
         syncMUAControlsState();
         set(showEventsButton, 'Value', visualSettings.events_show);
         set(showStimButton, 'Value', visualSettings.stim_show);
+        syncLogoCheckboxesFromLinesAndStyles();
         updateMUAControlsVisibility();
-        updateCSDControlsVisibility();
         
         % Установка правильного значения в выпадающем списке в зависимости от selectedCenter
         switch selectedCenter
@@ -2875,23 +2897,6 @@ function signalViewerGUI(filePath)
         if ~isempty(showSpikesButton) && isgraphics(showSpikesButton, 'uicontrol')
             set(showSpikesButton, 'Value', visualSettings.show_spikes);
         end
-    end
-
-    function updateCSDControlsVisibility()
-        csd_orig = ch_inxs(csd_avaliable(ch_inxs));
-        [segments, ~] = splitConsecutiveChannels(csd_orig);
-        maxLen = max(segments(:,2) - segments(:,1) + 1);
-        if isempty(maxLen)
-            maxLen = 0;
-        end
-        enoughActiveChannels = (numel(ch_inxs) >= 4) * ~logical(csd_split_by_channel_gaps) + (maxLen >= 4) * logical(csd_split_by_channel_gaps);
-        visibilityStates = {'off', 'on'};
-        visibilityValue = visibilityStates{enoughActiveChannels + 1};
-        if ~enoughActiveChannels
-            visualSettings.show_CSD = false;
-            set(showCSDbutton, 'Value', visualSettings.show_CSD);
-        end
-        set(showCSDbutton, 'Visible', visibilityValue);
     end
 
     function toggleChannelProperty(~, ~, columnIndex)
@@ -3360,6 +3365,26 @@ end
     end
 
 
+    function switchSelectedCenterToTime()
+        selectedCenter = 'time';
+        set(timeCenterPopup, 'Value', 1);
+        updateSliderMaxValue();
+    end
+
+    function shiftTimeInTimeMode(direction, windowSize)
+        if direction == 1
+            next_step_1 = chosen_time_interval(2);
+            next_step_2 = chosen_time_interval(2) + windowSize;
+        else
+            next_step_1 = chosen_time_interval(1) - windowSize;
+            next_step_2 = next_step_1 + windowSize;
+        end
+        if ~(next_step_1 < 0 || next_step_2 > time(end) + windowSize)
+            chosen_time_interval(1) = next_step_1;
+            chosen_time_interval(2) = next_step_2;
+        end
+    end
+
     function shiftTime(~, ~, direction, timeForwardEdit)
         
         
@@ -3379,6 +3404,19 @@ end
 %         disp('changed position')
         windowSize = str2double(get(timeForwardEdit, 'String'))/timeUnitFactor;% должен быть в секундах
         debugState('shiftTime', 'windowSize=%.3f, stims_exist=%d, stim_inx=%d', windowSize, stims_exist, stim_inx);
+
+        eventNavExhausted = strcmp(selectedCenter, 'event') && ( ...
+            ~events_exist || isempty(events) || (direction == 1 && event_inx >= numel(events)));
+        stimNavExhausted = strcmp(selectedCenter, 'stimulus') && ( ...
+            ~stims_exist || isempty(stims) || (direction == 1 && stim_inx >= numel(stims)));
+        if eventNavExhausted || stimNavExhausted
+            switchSelectedCenterToTime();
+            shiftTimeInTimeMode(direction, windowSize);
+            keyboardpressed = false;
+            updatePlot();
+            return;
+        end
+
         switch selectedCenter
             case 'event'
                 if events_exist
@@ -3439,24 +3477,8 @@ end
                         sweep_inx = 1;
                     end
                 end
-            case 'time'            
-            if direction == 1% движение вперед     
-%                 disp('time forward')
-                next_step_1 = chosen_time_interval(2);
-                next_step_2 = chosen_time_interval(2)+windowSize; 
-                
-            else% движение назад 
-%                 disp('time back')
-                next_step_1 = chosen_time_interval(1)-windowSize;
-                next_step_2 = next_step_1 + windowSize;
-            end
-            
-            % Обновление интервала времени
-            % проверка 
-            if ~(next_step_1<0 || next_step_2>time(end)+windowSize)
-                chosen_time_interval(1) = next_step_1;
-                chosen_time_interval(2) = next_step_2;
-            end
+            case 'time'
+                shiftTimeInTimeMode(direction, windowSize);
         end
         
         keyboardpressed = false;
