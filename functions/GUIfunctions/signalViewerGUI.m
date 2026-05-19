@@ -473,7 +473,7 @@ function signalViewerGUI(filePath)
     set(timeUnitPopup, 'Value', index);
 
     % Добавление выпадающего списка для выбора режима просмотра
-    timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', {'continuous', 'stimulus', 'events', 'sweep'}, 'Position', getElementPosition('time_center_popup'), 'Callback', @changeTimeCenter, 'Tag', 'time_center_popup');
+    timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', {'continuous', 'stimulus', 'events'}, 'Position', getElementPosition('time_center_popup'), 'Callback', @changeTimeCenter, 'Tag', 'time_center_popup');
 
     % Путь к папке с иконками
     assetsPath = getAssetsPath();
@@ -777,21 +777,13 @@ function signalViewerGUI(filePath)
         elseif ismember('shift', modifiers) % Добавление события по клику (та же логика, что у маркера)
             cp = get(ax, 'CurrentPoint');
             x = cp(1, 1);
-            if strcmp(selectedCenter, 'sweep') && sweep_info.is_sweep_data
-                time_origin = sweep_info.sweep_times(sweep_inx);
-            else
-                time_origin = chosen_time_interval(1);
-            end
+            time_origin = chosen_time_interval(1);
             t_absolute = time_origin + x / timeUnitFactor;
             addEventAtTime(t_absolute);
         elseif add_event_pending
             cp = get(ax, 'CurrentPoint');
             x = cp(1, 1);
-            if strcmp(selectedCenter, 'sweep') && sweep_info.is_sweep_data
-                time_origin = sweep_info.sweep_times(sweep_inx);
-            else
-                time_origin = chosen_time_interval(1);
-            end
+            time_origin = chosen_time_interval(1);
             t_absolute = time_origin + x / timeUnitFactor;
             addEventAtTime(t_absolute);
             add_event_pending = false;
@@ -1676,12 +1668,6 @@ function signalViewerGUI(filePath)
                     chosen_time_interval(1) = stims(stim_inx);
                     chosen_time_interval(2) = stims(stim_inx)+windowSize;
                 end
-            case 'sweep'
-                if sweep_info.is_sweep_data && sweep_inx > 0 && sweep_inx <= sweep_info.sweep_count
-                    % Устанавливаем начало текущего свипа
-                    chosen_time_interval(1) = sweep_info.sweep_times(sweep_inx);
-                    chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
-                end
             case 'continuous'
                 % Обновляем интервал времени, сохраняя начальную точку интервала
                 chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
@@ -1732,8 +1718,6 @@ function signalViewerGUI(filePath)
                 stim_inx = 1;
             case 'events'
                 event_inx = 1;
-            case 'sweep'
-                sweep_inx = 1;
         end
         
         % Обновляем максимальное значение слайдера в зависимости от режима
@@ -1862,28 +1846,6 @@ function signalViewerGUI(filePath)
                     end
                     chosen_time_interval = [sliderValue, sliderValue + windowSize];
                 end
-            case 'sweep'
-                if sweep_info.is_sweep_data
-                    % Находим ближайший свип к текущему значению слайдера
-                    sweep_inx = ClosestIndex(sliderValue, sweep_info.sweep_times);
-                    
-                    % Проверяем границы
-                    if sweep_inx > sweep_info.sweep_count
-                        sweep_inx = sweep_info.sweep_count;
-                    elseif sweep_inx < 1
-                        sweep_inx = 1;
-                    end
-                    
-                    % Устанавливаем временной интервал относительно найденного свипа
-                    chosen_time_interval(1) = sweep_info.sweep_times(sweep_inx);
-                    chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
-                else
-                    % Если свипов нет, работаем как с обычным временем
-                    if sliderValue + windowSize > time(end)
-                        sliderValue = time(end) - windowSize;
-                    end
-                    chosen_time_interval = [sliderValue, sliderValue + windowSize];
-                end
             case 'continuous'
                 % Проверка на выход за границы времени
                 if sliderValue + windowSize > time(end)
@@ -1904,11 +1866,7 @@ function signalViewerGUI(filePath)
         if plot_updating
             return;
         end
-        if strcmp(selectedCenter, 'sweep') && sweep_info.is_sweep_data
-            tor_restore = sweep_info.sweep_times(sweep_inx);
-        else
-            tor_restore = chosen_time_interval(1);
-        end
+        tor_restore = chosen_time_interval(1);
         t_disp = str2double(get(src, 'String'));
         if isnan(t_disp)
             set(src, 'String', num2str(tor_restore * timeUnitFactor));
@@ -1954,23 +1912,6 @@ function signalViewerGUI(filePath)
                     chosen_time_interval(1) = events(event_inx);
                     chosen_time_interval(2) = events(event_inx) + windowSize;
                     set(eventDeleteEdit, 'String', num2str(event_inx));
-                else
-                    if sliderValue + windowSize > time(end)
-                        sliderValue = time(end) - windowSize;
-                    end
-                    chosen_time_interval = [sliderValue, sliderValue + windowSize];
-                end
-            case 'sweep'
-                if sweep_info.is_sweep_data
-                    sweep_inx = ClosestIndex(sliderValue, sweep_info.sweep_times);
-                    if sweep_inx > sweep_info.sweep_count
-                        sweep_inx = sweep_info.sweep_count;
-                    end
-                    if sweep_inx < 1
-                        sweep_inx = 1;
-                    end
-                    chosen_time_interval(1) = sweep_info.sweep_times(sweep_inx);
-                    chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
                 else
                     if sliderValue + windowSize > time(end)
                         sliderValue = time(end) - windowSize;
@@ -2636,8 +2577,6 @@ function signalViewerGUI(filePath)
         % Автоматический выбор режима центра
         if stims_exist && numel(stims) > 1
             selectedCenter = 'stimulus';
-        elseif sweep_info.is_sweep_data && sweep_info.sweep_count > 1
-            selectedCenter = 'sweep';
         else
             selectedCenter = 'continuous';
         end
@@ -2652,13 +2591,6 @@ function signalViewerGUI(filePath)
                 if stims_exist && stim_inx > 0 && stim_inx <= numel(stims)
                     chosen_time_interval(1) = stims(stim_inx);
                     chosen_time_interval(2) = stims(stim_inx) + windowSize;
-                else
-                    chosen_time_interval = [0, windowSize];
-                end
-            case 'sweep'
-                if sweep_info.is_sweep_data && sweep_inx > 0 && sweep_inx <= sweep_info.sweep_count
-                    chosen_time_interval(1) = sweep_info.sweep_times(sweep_inx);
-                    chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
                 else
                     chosen_time_interval = [0, windowSize];
                 end
@@ -2789,8 +2721,6 @@ function signalViewerGUI(filePath)
                 set(timeCenterPopup, 'Value', 2);
             case 'events'
                 set(timeCenterPopup, 'Value', 3);
-            case 'sweep'
-                set(timeCenterPopup, 'Value', 4);
         end
         
         set(timeBackEdit, 'String', num2str(time_back*timeUnitFactor));% time window before
@@ -2798,14 +2728,7 @@ function signalViewerGUI(filePath)
         set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
         set(FsCoeffEdit, 'String', num2str(newFs));
         
-        % Управление доступностью режима sweep в зависимости от типа данных
-        if sweep_info.is_sweep_data
-            % Для данных со свипами показываем все режимы
-            set(timeCenterPopup, 'String', {'continuous', 'stimulus', 'events', 'sweep'});
-        else
-            % Для обычных данных скрываем режим sweep
-            set(timeCenterPopup, 'String', {'continuous', 'stimulus', 'events'});
-        end
+        set(timeCenterPopup, 'String', {'continuous', 'stimulus', 'events'});
         
         % Обновление максимального значения слайдера
         updateSliderMaxValue();
@@ -3059,12 +2982,6 @@ function loadSettingsFile()
                 case 'stimulus'
                     if stims_exist && stim_inx > 0 && stim_inx <= numel(stims)
                         chosen_time_interval = [stims(stim_inx), stims(stim_inx) + time_forward];
-                    else
-                        chosen_time_interval = [0, time_forward];
-                    end
-                case 'sweep'
-                    if isfield(sweep_info, 'is_sweep_data') && sweep_info.is_sweep_data && sweep_inx > 0 && sweep_inx <= sweep_info.sweep_count
-                        chosen_time_interval = [sweep_info.sweep_times(sweep_inx), sweep_info.sweep_times(sweep_inx) + time_forward];
                     else
                         chosen_time_interval = [0, time_forward];
                     end
@@ -3395,23 +3312,6 @@ end
                         debugState('shiftTime', 'stim_inx=%d, stims(stim_inx)=%.3f, chosen_time_interval=[%.3f, %.3f]', stim_inx, stims(stim_inx), chosen_time_interval(1), chosen_time_interval(2));
                     else
                         stim_inx = 1;
-                    end
-                end
-            case 'sweep'
-                if sweep_info.is_sweep_data
-                    if direction == 1% движение вперед  
-                        sweep_inx = sweep_inx+1;                    
-                    else% движение назад 
-                        sweep_inx = sweep_inx-1;                    
-                    end
-                    if sweep_inx > sweep_info.sweep_count
-                        sweep_inx = sweep_info.sweep_count;
-                    end
-                    if sweep_inx > 0
-                        chosen_time_interval(1) = sweep_info.sweep_times(sweep_inx);
-                        chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
-                    else
-                        sweep_inx = 1;
                     end
                 end
             case 'continuous'

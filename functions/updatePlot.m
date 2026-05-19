@@ -15,9 +15,9 @@ function updatePlot()
     global plot_updating loading_text_handle % флаг обновления и handle текста
     global previousSliderValue % сохраняем предыдущее значение слайдера
     global event_label_click_callback stim_label_click_callback
-global event_amplitudes
-global event_channels
-global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
+    global event_amplitudes
+    global event_channels
+    global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
     global event_title_string
     global binsize
     global timeCenterPopup
@@ -63,11 +63,7 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
         if ~isempty(loading_text_handle) && isvalid(loading_text_handle)
             set(loading_text_handle, 'Visible', 'off');
         end
-        if strcmp(selectedCenter, 'sweep') && sweep_info.is_sweep_data
-            time_origin_early = sweep_info.sweep_times(sweep_inx);
-        else
-            time_origin_early = chosen_time_interval(1);
-        end
+        time_origin_early = chosen_time_interval(1);
         set(timeZeroEdit, 'String', num2str(time_origin_early * timeUnitFactor));
         if isgraphics(multiax)
             yl = get(multiax, 'YLim');
@@ -83,13 +79,7 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
     plot_time_interval(1) = plot_time_interval(1) - time_back;
     
     % Относительное время по X:
-    % - обычный режим: 0 в начале выбранного окна (chosen_time_interval(1))
-    % - sweep режим: 0 в начале текущего свипа
-    if strcmp(selectedCenter, 'sweep') && sweep_info.is_sweep_data
-        time_origin = sweep_info.sweep_times(sweep_inx);
-    else
-        time_origin = chosen_time_interval(1);
-    end
+    time_origin = chosen_time_interval(1);
 
     row_start = find(time >= plot_time_interval(1), 1, 'first');
     row_end   = find(time < plot_time_interval(2), 1, 'last');
@@ -269,11 +259,7 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
 
     
     % Обновляем отображение осей
-    if strcmp(selectedCenter, 'sweep') && sweep_info.is_sweep_data
-        xlabel(sprintf('Time, %s (Sweep %d/%d)', selectedUnit, sweep_inx, sweep_info.sweep_count));
-    else
-        xlabel('Time, ' + string(selectedUnit) + '');
-    end
+    xlabel('Time, ' + string(selectedUnit) + '');
     ylabel('Channels');
 
     % Устанавливаем новые тики по оси Y
@@ -439,35 +425,6 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
 %     % Извлечение текущих тиков оси X из графика
 %%     xTicks = get(multiax, 'XTick');%(0.5*timeUnitFactor)
 %%     tickInterval = xTicks(3)-xTicks(2);
-%     tickInterval = (Xlims(2)-Xlims(1))/10;
-%     xTicks = Xlims(1):tickInterval:Xlims(2);
-%     
-%     xticks(xTicks)
-%     
-%     % Вычисление новых тиков и меток в зависимости от режима отображения
-%     if strcmp(selectedCenter, 'sweep') && sweep_info.is_sweep_data
-%         % Режим свипа: показываем время относительно начала текущего свипа
-%         sweep_start_time = sweep_info.sweep_times(sweep_inx);
-%         newTicks = xTicks - sweep_start_time*timeUnitFactor - time_back*timeUnitFactor;
-%         newTicks(abs(newTicks)<1e-4) = 0;
-%         newLabels = arrayfun(@num2str, newTicks, 'UniformOutput', false);
-%         newLabels{1} = [sprintf('Sweep %d, ', sweep_inx), newLabels{1}, ' ', selectedUnit];
-%         
-%         % Устанавливаем заголовок оси для режима свипа
-%         xlabel(sprintf('Time, %s (Sweep %d/%d)', selectedUnit, sweep_inx, sweep_info.sweep_count));
-%     else
-%         % Обычный режим: первый тик остается без изменений, остальные равны отступу от первого
-%         newTicks = xTicks - xTicks(1) - time_back*timeUnitFactor;
-%         newTicks(1) = xTicks(1); % Установка первого тика в исходное значение
-%         newTicks(abs(newTicks)<1e-4) = 0;
-%         newLabels = arrayfun(@num2str, newTicks, 'UniformOutput', false);
-%         newLabels{1} = [newLabels{1}, ' ', selectedUnit];
-%         
-%         % Обычный заголовок оси
-%         xlabel('Time, ' + string(selectedUnit) + '');
-%     end
-%     
-%     % Применение новых меток тиков к текущему графику
 %     set(multiax, 'XTickLabel', newLabels);
     
     manualYlimValid = viewerYlimManual && numel(viewerYlim) == 2 && all(isfinite(viewerYlim)) && viewerYlim(1) < viewerYlim(2);
