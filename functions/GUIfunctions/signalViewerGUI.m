@@ -817,52 +817,53 @@ function signalViewerGUI(filePath)
     end
 
     function zoomButtonCallback(src, ~)
-        % Активация встроенного zoom
-        pan(f, 'off'); % Отключаем другие инструменты
-        datacursormode(f, 'off');
-        brush(f, 'off');
-        zoom(f, 'on');
-        zoom(multiax, 'on');
+        useBuiltinTool('zoom');
         debugState('zoomButtonCallback', 'Built-in zoom activated');
     end
 
     function panButtonCallback(src, ~)
-        % Активация встроенного pan
-        zoom(f, 'off'); % Отключаем другие инструменты
-        datacursormode(f, 'off');
-        brush(f, 'off');
-        pan(f, 'on');
-        pan(multiax, 'on');
+        useBuiltinTool('pan');
         debugState('panButtonCallback', 'Built-in pan activated');
     end
 
     function cursorButtonCallback(src, ~)
-        % Активация встроенного data cursor
-        zoom(f, 'off'); % Отключаем другие инструменты
-        pan(f, 'off');
-        brush(f, 'off');
-        datacursormode(f, 'on');
+        useBuiltinTool('datacursor');
         debugState('cursorButtonCallback', 'Data cursor activated');
     end
 
     function homeButtonCallback(src, ~)
-        % Сброс всех инструментов и восстановление исходного вида графика
-        zoom(f, 'off'); % Отключаем все встроенные инструменты
-        pan(f, 'off');
-        datacursormode(f, 'off');
-        brush(f, 'off');
+        disableBuiltinTools();
         updatePlot(); % Восстанавливаем исходные границы осей
         debugState('homeButtonCallback', 'All tools reset, view restored');
     end
 
     function brushButtonCallback(src, ~)
-        % Активация встроенного brush
-        zoom(f, 'off'); % Отключаем другие инструменты
+        useBuiltinTool('brush');
+        debugState('brushButtonCallback', 'Built-in brush activated');
+    end
+    
+    function disableBuiltinTools()
+        zoom(f, 'off');
         pan(f, 'off');
         datacursormode(f, 'off');
-        brush(f, 'on');
-        brush(multiax, 'on');
-        debugState('brushButtonCallback', 'Built-in brush activated');
+        brush(f, 'off');
+    end
+
+    function useBuiltinTool(toolName)
+        disableBuiltinTools();
+        switch toolName
+            case 'zoom'
+                zoom(f, 'on');
+                zoom(multiax, 'on');
+            case 'pan'
+                pan(f, 'on');
+                pan(multiax, 'on');
+            case 'datacursor'
+                datacursormode(f, 'on');
+            case 'brush'
+                brush(f, 'on');
+                brush(multiax, 'on');
+        end
     end
     
     % Функция для добавления маркера
@@ -1213,9 +1214,7 @@ function signalViewerGUI(filePath)
             str_out = 'Hide Channel Settings';
         end
         
-        view_functions{1} = str_out;
-        set(view_menu, 'String', view_functions);
-            
+        updateViewMenuLabel(1, str_out);
         visualSettings.side_panel_visible = ~visualSettings.side_panel_visible;
         
         % Обновляем текст кнопки переключения
@@ -1236,58 +1235,63 @@ function signalViewerGUI(filePath)
     end
 
     function showHideStimulus()
-        
         if visualSettings.stim_show
             debugState('showHideStimulus', 'Hiding Stimulus')
-            str_out = 'Show stimulus';
         else
             debugState('showHideStimulus', 'Showing Stimulus')
-            str_out = 'Hide stimulus';
         end
-        
-        view_functions{3} = str_out;
-        set(view_menu, 'String', view_functions);
-        visualSettings.stim_show = ~visualSettings.stim_show;
-        set(showStimButton, 'Value', visualSettings.stim_show);
-        
+
+        toggleVisualSetting('stim_show', showStimButton, false, 3, {'Show stimulus','Hide stimulus'});
         updatePlot()
     end
 
     function toggleFullSignal()
-        visualSettings.show_full_signal = ~visualSettings.show_full_signal;
-        
-        if visualSettings.show_full_signal
-            str_out = 'Hide full signal';
-        else
-            str_out = 'Show full signal';
-        end
-        
-        view_functions{5} = str_out;
-        set(view_menu, 'String', view_functions);
-        set(showFullSignalCheckbox, 'Value', visualSettings.show_full_signal);
-        
-        save(SettingsFilepath, 'visualSettings', '-append');
+        toggleVisualSetting('show_full_signal', showFullSignalCheckbox, true, 5, {'Show full signal','Hide full signal'});
         updatePlot()
     end
 
     function toggleAutoShift()
-        visualSettings.auto_shift = ~visualSettings.auto_shift;
-        
         if visualSettings.auto_shift
-            str_out = 'Manual channel shift';
+            debugState('toggleAutoShift', 'Disabling auto channel shift')
+        else
+            debugState('toggleAutoShift', 'Enabling auto channel shift')
+        end
+
+        toggleVisualSetting('auto_shift', [], true, 7, {'Auto channel shift','Manual channel shift'});
+
+        if visualSettings.auto_shift
             set(shiftCoefText, 'Visible', 'off');
             set(shiftCoeffEdit, 'Visible', 'off');
         else
-            str_out = 'Auto channel shift';
             set(shiftCoefText, 'Visible', 'on');
             set(shiftCoeffEdit, 'Visible', 'on');
         end
-        
-        view_functions{7} = str_out;
-        set(view_menu, 'String', view_functions);
-        
-        save(SettingsFilepath, 'visualSettings', '-append');
+
         updatePlot()
+    end
+
+    function toggleVisualSetting(fieldName, uiHandle, saveFlag, updateMenuIndex, labels)
+        setVisualSetting(fieldName, ~visualSettings.(fieldName), uiHandle, saveFlag, updateMenuIndex, labels);
+    end
+
+    function setVisualSetting(fieldName, value, uiHandle, saveFlag, updateMenuIndex, labels)
+        visualSettings.(fieldName) = logical(value);
+        if nargin >= 3 && ~isempty(uiHandle) && isvalid(uiHandle)
+            set(uiHandle, 'Value', visualSettings.(fieldName));
+        end
+        if nargin >= 5 && ~isempty(updateMenuIndex) && ~isempty(labels)
+            updateViewMenuLabel(updateMenuIndex, labels{visualSettings.(fieldName) + 1});
+        end
+        if saveFlag
+            save(SettingsFilepath, 'visualSettings', '-append');
+        end
+    end
+
+    function updateViewMenuLabel(index, label)
+        if index > 0 && index <= numel(view_functions)
+            view_functions{index} = label;
+            set(view_menu, 'String', view_functions);
+        end
     end
 
     function toggleFullChannelTraceMode()
@@ -1337,51 +1341,18 @@ function signalViewerGUI(filePath)
     end
 
     function activateBuiltInZoom()
-        % Активация встроенного инструмента zoom для multiax через меню
-        pan(f, 'off');
-        datacursormode(f, 'off');
-        brush(f, 'off');
-        zoom(f, 'on');
-        zoom(multiax, 'on');
+        useBuiltinTool('zoom');
         debugState('activateBuiltInZoom', 'Built-in zoom activated');
     end
 
     function activateBuiltInPan()
-        % Активация встроенного инструмента pan для multiax через меню
-        zoom(f, 'off');
-        datacursormode(f, 'off');
-        brush(f, 'off');
-        pan(f, 'on');
-        pan(multiax, 'on');
+        useBuiltinTool('pan');
         debugState('activateBuiltInPan', 'Built-in pan activated');
     end
 
     function activateDataCursor()
-        % Активация встроенного инструмента data cursor для multiax через меню
-        zoom(f, 'off');
-        pan(f, 'off');
-        brush(f, 'off');
-        datacursormode(f, 'on');
+        useBuiltinTool('datacursor');
         debugState('activateDataCursor', 'Data cursor activated');
-    end
-
-    function showSidePanel()
-        if ~visualSettings.side_panel_visible
-            debugState('showSidePanel', 'Showing Side Panel')
-            set(sidePanel, 'Visible', 'on');            
-            set(multiax,'Position', multiax_position_a);
-            str_out = 'Hide Channel Settings';
-
-            view_functions{1} = str_out;
-            set(view_menu, 'String', view_functions);
-
-            visualSettings.side_panel_visible = true;
-            
-            % Обновляем текст кнопки переключения
-            if exist('sidePanelToggleBtn', 'var') && isvalid(sidePanelToggleBtn)
-                set(sidePanelToggleBtn, 'String', '×');
-            end
-        end
     end
 
 
@@ -1414,52 +1385,36 @@ function signalViewerGUI(filePath)
 
     % Функция обратного вызова для кнопки
     function showAnalysisMenu(~, ~)
-        if analysis_menu_visible
-            set(analysis_menu, 'Visible', 'off'); % Убрать меню
-        else
-            set(analysis_menu, 'Visible', 'on'); % Показать меню
-        end
-        analysis_menu_visible = not(analysis_menu_visible);
+        analysis_menu_visible = toggleMenuVisibility(analysis_menu, analysis_menu_visible);
     end
 
     % Функция обратного вызова для кнопки
     function showFileMenu(~, ~)
-        if file_menu_visible
-            set(file_menu, 'Visible', 'off'); % Убрать меню
-        else
-            set(file_menu, 'Visible', 'on'); % Показать меню
-        end
-        file_menu_visible = not(file_menu_visible);
+        file_menu_visible = toggleMenuVisibility(file_menu, file_menu_visible);
     end
     
     % Функция обратного вызова для кнопки
     function showViewMenu(~, ~)
-        if view_menu_visible
-            set(view_menu, 'Visible', 'off'); % Убрать меню
-        else
-            set(view_menu, 'Visible', 'on'); % Показать меню
-        end
-        view_menu_visible = not(view_menu_visible);
+        view_menu_visible = toggleMenuVisibility(view_menu, view_menu_visible);
     end
     
     % Функция обратного вызова для кнопки
     function showMenu(~, ~)
-        if menu_visible
-            set(opt_menu, 'Visible', 'off'); % Убрать меню
-        else
-            set(opt_menu, 'Visible', 'on'); % Показать меню   
-        end
-        menu_visible = not(menu_visible);
+        menu_visible = toggleMenuVisibility(opt_menu, menu_visible);
     end
     
     % Функция обратного вызова для кнопки Help
     function showHelpMenu(~, ~)
-        if help_menu_visible
-            set(help_menu, 'Visible', 'off'); % Убрать меню
+        help_menu_visible = toggleMenuVisibility(help_menu, help_menu_visible);
+    end
+
+    function newState = toggleMenuVisibility(menuHandle, currentState)
+        if currentState
+            set(menuHandle, 'Visible', 'off');
         else
-            set(help_menu, 'Visible', 'on'); % Показать меню
+            set(menuHandle, 'Visible', 'on');
         end
-        help_menu_visible = not(help_menu_visible);
+        newState = ~currentState;
     end
 
     
@@ -1598,17 +1553,12 @@ function signalViewerGUI(filePath)
     end
     
     function ShowEventsButtonCallback(~, ~)
-        if ~isfield(visualSettings, 'events_show')
-            visualSettings.events_show = true;
-        end
-        visualSettings.events_show = ~visualSettings.events_show;
-        set(showEventsButton, 'Value', visualSettings.events_show);
+        toggleVisualSetting('events_show', showEventsButton, false, [], {});
         updatePlot();
     end
 
     function ShowStimButtonCallback(~, ~)
-        visualSettings.stim_show = ~visualSettings.stim_show;
-        set(showStimButton, 'Value', visualSettings.stim_show);
+        toggleVisualSetting('stim_show', showStimButton, false, [], {});
         updatePlot();
     end
 
@@ -1646,62 +1596,57 @@ function signalViewerGUI(filePath)
     end
 
     function ShowSpikesButtonCallback(~, ~)
-        visualSettings.show_spikes = ~visualSettings.show_spikes;
-        set(showSpikesButton, 'Value', visualSettings.show_spikes);
-        save(SettingsFilepath, 'visualSettings', '-append');
+        toggleVisualSetting('show_spikes', showSpikesButton, true, [], {});
         updatePlot();
     end
 
     function fullSignalCheckboxCallback(src, ~)
-        visualSettings.show_full_signal = logical(get(src, 'Value'));
-        viewMenuLabels = {'Show full signal', 'Hide full signal'};
-        view_functions{5} = viewMenuLabels{visualSettings.show_full_signal + 1};
-        set(view_menu, 'String', view_functions);
-        save(SettingsFilepath, 'visualSettings', '-append');
+        setVisualSetting('show_full_signal', logical(get(src, 'Value')), showFullSignalCheckbox, true, 5, {'Show full signal','Hide full signal'});
         updatePlot();
     end
 
     function ampLabelsCheckboxCallback(src, ~)
-        visualSettings.show_amplitude_labels = logical(get(src, 'Value'));
-        save(SettingsFilepath, 'visualSettings', '-append');
+        setVisualSetting('show_amplitude_labels', logical(get(src, 'Value')), [], true, [], {});
         updatePlot();
     end
 
     function ShowCSDButtonCallback(~, ~)
         prev_show_csd = visualSettings.show_CSD;
-        visualSettings.show_CSD = ~visualSettings.show_CSD;
-        errmess = 'Select more channels for CSD analysis. At least 4 channels. ';
-        if visualSettings.show_CSD
-            csd_orig = ch_inxs(csd_avaliable(ch_inxs));
-            [segments, ~] = splitConsecutiveChannels(csd_orig);
-            maxLen = max(segments(:,2) - segments(:,1) + 1);
-            if isempty(maxLen)
-                maxLen = 0;
-            end
-            enoughCsd = (maxLen >= 4) * logical(csd_split_by_channel_gaps) + (sum(csd_avaliable(ch_inxs)) >= 4) * ~logical(csd_split_by_channel_gaps);
-            if ~logical(enoughCsd)
-                visualSettings.show_CSD = prev_show_csd;
-                set(showCSDbutton, 'Value', visualSettings.show_CSD);
-                errordlg(errmess, 'CSD Error', 'modal');
-                return;
-            end
-        end
+        new_show_csd = ~prev_show_csd;
 
+        if new_show_csd
+            csd_orig = ch_inxs(csd_avaliable(ch_inxs));
+            if ~isEnoughCsd(csd_orig)
+                set(showCSDbutton, 'Value', prev_show_csd);
+                activeChannels = CSDSettingsGUI();
+                if isempty(activeChannels)
+                    visualSettings.show_CSD = false;
+                    return;
+                end
+                visualSettings.show_CSD = true;
+            else
+                visualSettings.show_CSD = true;
+            end
+        else
+            visualSettings.show_CSD = false;
+        end
         set(showCSDbutton, 'Value', visualSettings.show_CSD);
         saveChannelSettings('visualSettings');
-        try
-            updatePlot(); % Обновление графика
-        catch ME
-            csd_error_detected = contains(ME.message, errmess) || ...
-                contains(ME.message, 'Output argument "csd"');
-            if csd_error_detected
-                visualSettings.show_CSD = prev_show_csd;
-                set(showCSDbutton, 'Value', visualSettings.show_CSD);
-                errordlg(errmess, 'CSD Error', 'modal');
-                return;
-            end
-            rethrow(ME);
+        updatePlot();
+    end
+
+    function enough = isEnoughCsd(chIndices)
+        if isempty(chIndices)
+            enough = false;
+            return;
         end
+        [segments, ~] = splitConsecutiveChannels(chIndices);
+        maxLen = max(segments(:,2) - segments(:,1) + 1);
+        if isempty(maxLen)
+            maxLen = 0;
+        end
+        enough = (maxLen >= 4) * logical(csd_split_by_channel_gaps) + (numel(chIndices) >= 4) * ~logical(csd_split_by_channel_gaps);
+        enough = logical(enough);
     end
 
     % Функция обратного вызова для timeBackEdit
@@ -3632,12 +3577,7 @@ function loadEvents(~, ~)
         end
         
         % Загрузка новых полей с обратной совместимостью
-        if isfield(loadedData.manlDet, 'amplitude')
-            event_amplitudes = [loadedData.manlDet.amplitude]';
-        else
-            event_amplitudes = NaN(size(events)); % default для старых файлов
-            debugState('loadEvents', 'Old format detected: amplitude data not available');
-        end
+        event_amplitudes = loadEventField(loadedData.manlDet, 'amplitude', NaN(size(events)), 'amplitude data not available');
         
         if isfield(loadedData.manlDet, 'channels')
             % Проверяем, одноканальные или многоканальные данные
@@ -3660,39 +3600,57 @@ function loadEvents(~, ~)
             debugState('loadEvents', 'Old format detected: channel data not available');
         end
         
-        if isfield(loadedData.manlDet, 'width')
-            event_widths = [loadedData.manlDet.width]';
-        else
-            event_widths = NaN(size(events)); % default для старых файлов
-            debugState('loadEvents', 'Old format detected: width data not available');
-        end
-        
-        if isfield(loadedData.manlDet, 'prominence')
-            event_prominences = [loadedData.manlDet.prominence]';
-        else
-            event_prominences = NaN(size(events)); % default для старых файлов
-            debugState('loadEvents', 'Old format detected: prominence data not available');
-        end
-        
-        if isfield(loadedData.manlDet, 'metadata')
-            event_metadata = [loadedData.manlDet.metadata]';
-        else
-            % Создаем default metadata для старых файлов
-            event_metadata = createDefaultEventMetadata('loaded', length(events));
-            debugState('loadEvents', 'Old format detected: metadata not available');
-        end
-        
-        event_title_string = file;
-        lastEventsFilePath = filepath;
-        event_inx = getRestoredEventIndex(loadedData, numel(events));
-        saveChannelSettings('lastEventsFilePath', 'event_inx');
-        UpdateEventTable();
-        events_exist = true;
-        applyEventsLoadedState();
+        event_widths = loadEventField(loadedData.manlDet, 'width', NaN(size(events)), 'width data not available');
+        event_prominences = loadEventField(loadedData.manlDet, 'prominence', NaN(size(events)), 'prominence data not available');
+        event_metadata = loadEventMetadata(loadedData.manlDet, length(events));
+        finalizeLoadedEventFile(filepath, file, '', true, loadedData, numel(events));
     else
         debugState('loadEvents', 'No events found in the file.');
     end
 end
+
+    function loadEventField(loadedStruct, fieldName, defaultValue, missingMessage)
+        if isfield(loadedStruct, fieldName)
+            values = [loadedStruct.(fieldName)]';
+        else
+            values = defaultValue;
+            debugState('loadEvents', ['Old format detected: ' missingMessage]);
+        end
+    end
+
+    function metadata = loadEventMetadata(loadedStruct, defaultCount)
+        if isfield(loadedStruct, 'metadata')
+            metadata = [loadedStruct.metadata]';
+        else
+            metadata = createDefaultEventMetadata('loaded', defaultCount);
+            debugState('loadEvents', 'Old format detected: metadata not available');
+        end
+    end
+
+    function finalizeLoadedEventFile(filepath, file, titleSuffix, applyLoadedState, loadedData, eventCount)
+        event_title_string = [file titleSuffix];
+        lastEventsFilePath = filepath;
+        event_inx = getRestoredEventIndex(loadedData, eventCount);
+        saveChannelSettings('lastEventsFilePath', 'event_inx');
+        UpdateEventTable();
+        if applyLoadedState
+            applyEventsLoadedState();
+        end
+    end
+
+    function finalizeLoadedMUA(filepath, titleSuffix, hasEvents, debugMessage)
+        event_title_string = titleSuffix;
+        lastEventsFilePath = filepath;
+        saveChannelSettings('lastEventsFilePath', 'event_inx');
+        visualSettings.show_spikes = true;
+        UpdateEventTable();
+        updateMUAControlsVisibility();
+        if hasEvents
+            applyEventsLoadedState();
+        end
+        updatePlot();
+        debugState('loadMUAFromEvData', debugMessage);
+    end
 
     function loadMUAFromEvData(loadedData, file)
         if isfield(loadedData, 'spks_events') && ~isempty(loadedData.spks_events)
@@ -3730,14 +3688,7 @@ end
             events_exist = true;
             event_inx = getRestoredEventIndex(loadedData, numel(events));
             event_title_string = [file ' (MUA trials)'];
-            lastEventsFilePath = filepath;
-            saveChannelSettings('lastEventsFilePath', 'event_inx');
-            visualSettings.show_spikes = true;
-            UpdateEventTable();
-            applyEventsLoadedState();
-            updateMUAControlsVisibility();
-            updatePlot();
-            debugState('loadMUAFromEvData', sprintf('Loaded MUA trials n=%d from %s', nT, file));
+            finalizeLoadedMUA(filepath, event_title_string, true, sprintf('Loaded MUA trials n=%d from %s', nT, file));
             return;
         end
 
@@ -3756,13 +3707,7 @@ end
             events_exist = false;
             event_inx = 1;
             event_title_string = [file ' (MUA)'];
-            lastEventsFilePath = filepath;
-            saveChannelSettings('lastEventsFilePath', 'event_inx');
-            visualSettings.show_spikes = true;
-            UpdateEventTable();
-            updateMUAControlsVisibility();
-            updatePlot();
-            debugState('loadMUAFromEvData', sprintf('Loaded %d MUA spikes from %s', loadedCount, file));
+            finalizeLoadedMUA(filepath, event_title_string, false, sprintf('Loaded %d MUA spikes from %s', loadedCount, file));
             return;
         end
 
@@ -3828,14 +3773,7 @@ end
         events_exist = false;
         event_inx = 1;
         event_title_string = [file ' (MUA)'];
-        lastEventsFilePath = filepath;
-        saveChannelSettings('lastEventsFilePath', 'event_inx');
-
-        visualSettings.show_spikes = true;
-        UpdateEventTable();
-        updateMUAControlsVisibility();
-        updatePlot();
-        debugState('loadMUAFromEvData', sprintf('Loaded %d MUA spikes from %s', numel(tStampMs), file));
+        finalizeLoadedMUA(filepath, event_title_string, false, sprintf('Loaded %d MUA spikes from %s', numel(tStampMs), file));
     end
 
     function loadEventsFromExcel(filepath, file)
@@ -3866,13 +3804,7 @@ end
         event_prominences = NaN(n, 1);
         event_metadata = createDefaultEventMetadata('excel', n);
 
-        event_title_string = file;
-        lastEventsFilePath = filepath;
-        event_inx = getRestoredEventIndex(struct(), numel(events));
-        saveChannelSettings('lastEventsFilePath', 'event_inx');
-        UpdateEventTable();
-        events_exist = true;
-        applyEventsLoadedState();
+        finalizeLoadedEventFile(filepath, file, '', true, struct(), numel(events));
     end
 
     function saveEvents(~, ~)

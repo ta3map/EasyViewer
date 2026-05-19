@@ -1,5 +1,6 @@
-function CSDSettingsGUI()
+function activeChannels = CSDSettingsGUI()
 
+    activeChannels = [];
     min_coef = 98;
     max_coef = 200;
     slider_max = 100;
@@ -13,6 +14,7 @@ function CSDSettingsGUI()
     if ~isempty(guiFig)
         % Делаем существующее окно текущим (активным)
         figure(guiFig);
+        activeChannels = find(csd_avaliable);
         return
     end
     
@@ -97,6 +99,7 @@ end
     function saveSettings(~, ~)
         updatedData = get(hTable, 'Data');
         csd_avaliable = np_flatten([updatedData{:, 2}]);
+        activeChannels = find(csd_avaliable);
         % Update csd_contrast_coef from the slider value
         slider_value = csdContrastSlider.Value;
         csd_contrast_coef = slider_formula(slider_value, min_coef, max_coef, slider_max);
