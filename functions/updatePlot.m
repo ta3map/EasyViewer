@@ -494,8 +494,8 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
     if ~isempty(eventFileLabel) && ~strcmp(eventFileLabel, 'Events')
         titleLabel = sprintf('%s | %s', name, eventFileLabel);
     end
-    centerModes = {'stimulus', 'event', 'sweep', 'time'};
-    centerLabels = {'Stimuli', 'Events', 'Sweep', 'Continuos'};
+    centerModes = {'stimulus', 'events', 'continuous'};
+    centerLabels = {'Stimuli', 'Events', 'Continuos'};
     centerStyleNames = {'stimulus_lines', 'events_lines', 'stimulus_lines', ''};
     centerLabel = centerLabels{find(strcmp(centerModes, selectedCenter), 1)};
     timeFmtOpts = {'%.3f', '%.0f'};
@@ -505,7 +505,7 @@ global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
         sprintf([timeFmt, ' %s'], time_origin * timeUnitFactor, selectedUnit) ...
     };
     switch selectedCenter
-        case 'event'
+        case 'events'
             centerLabelParts{end + 1} = sprintf('%d/%d', event_inx, numel(events));
         case 'stimulus'
             centerLabelParts{end + 1} = sprintf('%d/%d', stim_inx, numel(stims));

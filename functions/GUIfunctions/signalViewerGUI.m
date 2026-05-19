@@ -170,7 +170,7 @@ function signalViewerGUI(filePath)
                 'LineStyle', '--', ...
                 'LineWidth', 2, ...
                 'LineAlpha', 1, ...
-                'LabelText', 'event', ...
+                'LabelText', 'events', ...
                 'LabelColor', 'r', ...
                 'LabelFontSize', 10, ...
                 'LabelBackgroundColor', 'y', ...
@@ -473,7 +473,7 @@ function signalViewerGUI(filePath)
     set(timeUnitPopup, 'Value', index);
 
     % Добавление выпадающего списка для выбора режима просмотра
-    timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', {'time', 'stimulus', 'event', 'sweep'}, 'Position', getElementPosition('time_center_popup'), 'Callback', @changeTimeCenter, 'Tag', 'time_center_popup');
+    timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', {'continuous', 'stimulus', 'events', 'sweep'}, 'Position', getElementPosition('time_center_popup'), 'Callback', @changeTimeCenter, 'Tag', 'time_center_popup');
 
     % Путь к папке с иконками
     assetsPath = getAssetsPath();
@@ -1721,7 +1721,7 @@ function signalViewerGUI(filePath)
         debugState('timeForwardEditCallback', 'windowSize=%.3f, stim_inx=%d', windowSize, stim_inx);
                 
         switch selectedCenter
-            case 'event'
+            case 'events'
                 if events_exist
                     chosen_time_interval(1) = events(event_inx);
                     chosen_time_interval(2) = events(event_inx)+windowSize;
@@ -1737,7 +1737,7 @@ function signalViewerGUI(filePath)
                     chosen_time_interval(1) = sweep_info.sweep_times(sweep_inx);
                     chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
                 end
-            case 'time'
+            case 'continuous'
                 % Обновляем интервал времени, сохраняя начальную точку интервала
                 chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
 
@@ -1781,11 +1781,11 @@ function signalViewerGUI(filePath)
     function changeTimeCenter(src, ~)
         selectedCenter = src.String{src.Value};
         switch selectedCenter
-            case 'time'
+            case 'continuous'
                 nan;
             case 'stimulus'
                 stim_inx = 1;
-            case 'event'
+            case 'events'
                 event_inx = 1;
             case 'sweep'
                 sweep_inx = 1;
@@ -1800,6 +1800,8 @@ function signalViewerGUI(filePath)
     
     % Функция для обновления максимального значения слайдера в зависимости от режима
     function updateSliderMaxValue()
+        events_exist = ~isempty(events);
+        stims_exist = ~isempty(stims);
         switch selectedCenter
             case 'stimulus'
                 if stims_exist
@@ -1811,7 +1813,7 @@ function signalViewerGUI(filePath)
                     set(timeSlider, 'Max', time(end));
                     set(timeSlider, 'Min', time(1));
                 end
-            case 'event'
+            case 'events'
                 if events_exist
                     % Максимальное значение - время последнего события
                     set(timeSlider, 'Max', events(end));
@@ -1821,17 +1823,7 @@ function signalViewerGUI(filePath)
                     set(timeSlider, 'Max', time(end));
                     set(timeSlider, 'Min', time(1));
                 end
-            case 'sweep'
-                if sweep_info.is_sweep_data
-                    % Максимальное значение - время последнего свипа
-                    set(timeSlider, 'Max', sweep_info.sweep_times(end));
-                    set(timeSlider, 'Min', sweep_info.sweep_times(1));
-                else
-                    % Если свипов нет, используем обычное время
-                    set(timeSlider, 'Max', time(end));
-                    set(timeSlider, 'Min', time(1));
-                end
-            case 'time'
+            case 'continuous'
                 % Обычное время
                 set(timeSlider, 'Max', time(end));
                 set(timeSlider, 'Min', time(1));
@@ -1900,7 +1892,7 @@ function signalViewerGUI(filePath)
                     end
                     chosen_time_interval = [sliderValue, sliderValue + windowSize];
                 end
-            case 'event'
+            case 'events'
                 if events_exist
                     % Находим ближайшее событие к текущему значению слайдера
                     event_inx = ClosestIndex(sliderValue, events);
@@ -1947,7 +1939,7 @@ function signalViewerGUI(filePath)
                     end
                     chosen_time_interval = [sliderValue, sliderValue + windowSize];
                 end
-            case 'time'
+            case 'continuous'
                 % Проверка на выход за границы времени
                 if sliderValue + windowSize > time(end)
                     sliderValue = time(end) - windowSize;
@@ -2005,7 +1997,7 @@ function signalViewerGUI(filePath)
                     end
                     chosen_time_interval = [sliderValue, sliderValue + windowSize];
                 end
-            case 'event'
+            case 'events'
                 if events_exist
                     event_inx = ClosestIndex(sliderValue, events);
                     if event_inx > numel(events)
@@ -2040,7 +2032,7 @@ function signalViewerGUI(filePath)
                     end
                     chosen_time_interval = [sliderValue, sliderValue + windowSize];
                 end
-            case 'time'
+            case 'continuous'
                 if sliderValue + windowSize > time(end)
                     sliderValue = time(end) - windowSize;
                 end
@@ -2702,7 +2694,7 @@ function signalViewerGUI(filePath)
         elseif sweep_info.is_sweep_data && sweep_info.sweep_count > 1
             selectedCenter = 'sweep';
         else
-            selectedCenter = 'time';
+            selectedCenter = 'continuous';
         end
         stim_inx = 1;
         debugState('loadMatFile', 'selectedCenter=%s, stim_inx=%d', selectedCenter, stim_inx);
@@ -2725,7 +2717,7 @@ function signalViewerGUI(filePath)
                 else
                     chosen_time_interval = [0, windowSize];
                 end
-            case 'time'
+            case 'continuous'
                 chosen_time_interval = [0, windowSize];
         end
         
@@ -2754,7 +2746,7 @@ function signalViewerGUI(filePath)
         time_forward = []; time_back = []; matFilePath = ''; matFileName = ''; stims_exist = false;
         events = []; event_indices = []; event_comments = {}; event_amplitudes = []; event_channels = [];
         event_widths = []; event_prominences = []; event_metadata = [];
-        N = []; Fs = []; newFs = []; sweep_inx = 1; selectedCenter = 'time'; stim_inx = 1;
+        N = []; Fs = []; newFs = []; sweep_inx = 1; selectedCenter = 'continuous'; stim_inx = 1;
         chosen_time_interval = [0, 0];
         viewerYlimManual = false;
         set(StimuliTitle, 'String', 'Stimuli');
@@ -2846,11 +2838,11 @@ function signalViewerGUI(filePath)
         
         % Установка правильного значения в выпадающем списке в зависимости от selectedCenter
         switch selectedCenter
-            case 'time'
+            case 'continuous'
                 set(timeCenterPopup, 'Value', 1);
             case 'stimulus'
                 set(timeCenterPopup, 'Value', 2);
-            case 'event'
+            case 'events'
                 set(timeCenterPopup, 'Value', 3);
             case 'sweep'
                 set(timeCenterPopup, 'Value', 4);
@@ -2864,10 +2856,10 @@ function signalViewerGUI(filePath)
         % Управление доступностью режима sweep в зависимости от типа данных
         if sweep_info.is_sweep_data
             % Для данных со свипами показываем все режимы
-            set(timeCenterPopup, 'String', {'time', 'stimulus', 'event', 'sweep'});
+            set(timeCenterPopup, 'String', {'continuous', 'stimulus', 'events', 'sweep'});
         else
             % Для обычных данных скрываем режим sweep
-            set(timeCenterPopup, 'String', {'time', 'stimulus', 'event'});
+            set(timeCenterPopup, 'String', {'continuous', 'stimulus', 'events'});
         end
         
         % Обновление максимального значения слайдера
@@ -3366,7 +3358,7 @@ end
 
 
     function switchSelectedCenterToTime()
-        selectedCenter = 'time';
+        selectedCenter = 'continuous';
         set(timeCenterPopup, 'Value', 1);
         updateSliderMaxValue();
     end
@@ -3405,7 +3397,7 @@ end
         windowSize = str2double(get(timeForwardEdit, 'String'))/timeUnitFactor;% должен быть в секундах
         debugState('shiftTime', 'windowSize=%.3f, stims_exist=%d, stim_inx=%d', windowSize, stims_exist, stim_inx);
 
-        eventNavExhausted = strcmp(selectedCenter, 'event') && ( ...
+        eventNavExhausted = strcmp(selectedCenter, 'events') && ( ...
             ~events_exist || isempty(events) || (direction == 1 && event_inx >= numel(events)));
         stimNavExhausted = strcmp(selectedCenter, 'stimulus') && ( ...
             ~stims_exist || isempty(stims) || (direction == 1 && stim_inx >= numel(stims)));
@@ -3418,7 +3410,7 @@ end
         end
 
         switch selectedCenter
-            case 'event'
+            case 'events'
                 if events_exist
                     if direction == 1% движение вперед  
 %                         disp('event forward')
@@ -3477,7 +3469,7 @@ end
                         sweep_inx = 1;
                     end
                 end
-            case 'time'
+            case 'continuous'
                 shiftTimeInTimeMode(direction, windowSize);
         end
         
@@ -3535,7 +3527,7 @@ end
                 chosen_time_interval(1) = stims(stim_inx);
                 chosen_time_interval(2) = stims(stim_inx) + windowSize;
             else
-                selectedCenter = 'time';
+                selectedCenter = 'continuous';
                 set(timeCenterPopup, 'Value', 1);
                 chosen_time_interval = [0, windowSize];
             end
@@ -3563,7 +3555,7 @@ end
     end
 
     function applyEventsLoadedState()
-        selectedCenter = 'event';
+        selectedCenter = 'events';
         set(timeCenterPopup, 'Value', 3);
         chosen_time_interval(1) = events(event_inx);
         chosen_time_interval(2) = events(event_inx) + time_forward;
@@ -3615,7 +3607,7 @@ function loadEvents(~, ~)
         if isfield(loadedData.viewer_data, 'matFilePath') && ~isempty(loadedData.viewer_data.matFilePath)
             if exist(loadedData.viewer_data.matFilePath, 'file')
                 % Загружаем файл, если путь отличается ИЛИ данные не загружены
-                if ~strcmp(loadedData.viewer_data.matFilePath, matFilePath) || ~exist('time', 'var') || isempty(time)
+                if ~strcmp(loadedData.viewer_data.matFilePath, matFilePath) || ~exist('continuous', 'var') || isempty(time)
                     loadMatFile(loadedData.viewer_data.matFilePath);
                 end
             end
