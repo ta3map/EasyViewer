@@ -46,15 +46,13 @@ end
 flatInd(k:end) = [];%delete excess
 dataFlt = dataFlt(setdiff(1:size(dataFlt, 1), flatInd));%trace without flat segments
 
-slidVar = Inf(ceil(size(dataFlt, 1) / win2), 1);%variations over entire trace
-k = 1;%number of window
-t = 1;%data index
-while (t < (size(dataFlt, 1) - win))
-    slidVar(k) = std(dataFlt(t:(t + win - 1)));%std
-    t = t + win2;%next window
-    k = k + 1;%number of next window
+starts = 1:win2:(size(dataFlt, 1) - win - 1);
+if isempty(starts)
+    slidVar = [];
+else
+    slidVarFull = movstd(dataFlt, [win - 1, 0]);
+    slidVar = slidVarFull(starts + win - 1);
 end
-slidVar(k:end) = [];%delete excess
 [minVar, k] = min(slidVar);%[minimal variation, number of the most silent window]
 if ~isempty(minVar) %good recordation
     jj = win2 * (k - 1) + (1:win);

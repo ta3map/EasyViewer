@@ -32,32 +32,33 @@ else
     disp('no other methods')
 end
 
-filteredS = zeros(size(s));%preallocation of memory for filtered signal
-
-
 % !use FILTER instead of FILTFILT if analogous-like filtering is required!
 
+sz = size(s);
+n = sz(1);
+nCh = sz(2);
+if numel(sz) < 3
+    nSw = 1;
+else
+    nSw = sz(3);
+end
+s2 = reshape(s, n, nCh * nSw);
+
 if ((metod == 1) || (metod == 4)) %single-step filtering
-    for ch = 1:size(s, 2) %run over channels
-        for sw = 1:size(s, 3) %run over segments
-            filteredS(:, ch, sw) = filtfilt(b1, a1, s(:, ch, sw));%filtering
-        end
-    end
+    f2 = filtfilt(b1, a1, s2);
 elseif (metod == 2) %two-cascade filtering (Chebyshev)
-    for ch = 1:size(s, 2) %run over channels
-        for sw = 1:size(s, 3) %run over segments
-            filteredS(:, ch, sw) = filtfilt(b1, a1, s(:, ch, sw));%first step filtering
-            filteredS(:, ch, sw) = filtfilt(b2, a2, filteredS(:, ch, sw));%second step filtering
-        end
-    end
+    f2 = filtfilt(b1, a1, s2);
+    f2 = filtfilt(b2, a2, f2);
 elseif (metod == 3) %three-cascade filtering (Chebyshev)
-    for ch = 1:size(s, 2) %run over channels
-        for sw = 1:size(s, 3) %run over segments
-            filteredS(:, ch, sw) = filtfilt(b1, a1, s(:, ch, sw));%first step filtering
-            filteredS(:, ch, sw) = filtfilt(b2, a2, filteredS(:, ch, sw));%second step filtering
-            filteredS(:, ch, sw) = filtfilt(b3, a3, filteredS(:, ch, sw));%third step filtering
-        end
-    end
+    f2 = filtfilt(b1, a1, s2);
+    f2 = filtfilt(b2, a2, f2);
+    f2 = filtfilt(b3, a3, f2);
 else
     disp('unexpected method number');%no other methods
+    f2 = zeros(size(s2));
+end
+
+filteredS = reshape(f2, n, nCh, nSw);
+if numel(sz) < 3
+    filteredS = filteredS(:,:,1);
 end

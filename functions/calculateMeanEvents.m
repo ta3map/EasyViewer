@@ -115,15 +115,7 @@ if params.remove_artifact
     params.lfp = removeStimArtifact(params.lfp, stims, time, win_r, art_rem_settings.interp_method);
     if params.show_spikes
         stim_inxs = ClosestIndex(stims, time);
-        for ch = 1:size(spks, 1)
-            for i = 1:length(stim_inxs)
-                start_inx = max(stim_inxs(i) - win_r, 1);
-                end_inx = stim_inxs(i) + win_r;
-                cond5 = params.spks(ch).tStamp/1000 >= time(start_inx) & params.spks(ch).tStamp/1000 < time(end_inx);
-                params.spks(ch).tStamp = params.spks(ch).tStamp(~cond5);
-                params.spks(ch).ampl = params.spks(ch).ampl(~cond5);
-            end
-        end
+        params.spks = maskSpikesInStimWindows(params.spks, time, stim_inxs, win_r);
     end
 end
 
@@ -218,33 +210,24 @@ meanData = meanData / numEvents;
 
 if params.SmoothingKernel_s > 0
     kernel_samples = max(5, round((params.SmoothingKernel_s / timeUnitFactor) * Fs));
-    for chIdx = 1:size(meanData, 2)
-        meanData(:, chIdx) = smooth1(meanData(:, chIdx), kernel_samples, 'moving');
-    end
-    for eventIdx = 1:length(originalEventsData)
-        eventData = originalEventsData{eventIdx};
-        for chIdx = 1:size(eventData, 2)
-            eventData(:, chIdx) = smooth1(eventData(:, chIdx), kernel_samples, 'moving');
-        end
-        originalEventsData{eventIdx} = eventData;
-    end
+    meanData = movmean(meanData, kernel_samples, 1, 'Endpoints', 'shrink');
+    originalEventsData = cellfun(@(x) movmean(x, kernel_samples, 1, 'Endpoints', 'shrink'), ...
+        originalEventsData, 'UniformOutput', false);
 end
 
 if params.SubtractMean
-    for chIdx = 1:size(meanData, 2)
-        meanData(:, chIdx) = meanData(:, chIdx) - mean(meanData(:, chIdx));
-    end
-    for eventIdx = 1:length(originalEventsData)
-        eventData = originalEventsData{eventIdx};
-        for chIdx = 1:size(eventData, 2)
-            eventData(:, chIdx) = eventData(:, chIdx) - mean(eventData(:, chIdx));
-        end
-        originalEventsData{eventIdx} = eventData;
-    end
+    meanData = meanData - mean(meanData, 1);
+    originalEventsData = cellfun(@(x) x - mean(x, 1), originalEventsData, 'UniformOutput', false);
 end
 
 ev_hists = [];
 if show_spikes && ~isempty(spks) && ~show_CSD
+    spk_times_sec = cell(1, numel(ch_inxs));
+    for ch_idx = 1:numel(ch_inxs)
+        ch_inx = ch_inxs_for_spks(ch_idx);
+        ii = double(spks(ch_inx).ampl) <= (-lfpVar(ch_inx) * prg);
+        spk_times_sec{ch_idx} = spks(ch_inx).tStamp(ii) / 1000;
+    end
     for i = 1:numEvents
         eventIdx = round(timePoints(i) * Fs);
         windowStart = max(eventIdx - round(meanWindow * Fs / 2), 1);
@@ -253,17 +236,12 @@ if show_spikes && ~isempty(spks) && ~show_CSD
         if windowEnd < size(lfp, 1)
             time_start = time(windowStart);
             time_end = time(windowEnd);
-            time_interval = [time_start, time_end];
-            edges = time_interval(1):binsize:time_interval(2);
-            ch_hists = [];
+            edges = time_start:binsize:time_end;
+            ch_hists = zeros(numel(ch_inxs), max(numel(edges) - 1, 0));
             for ch_idx = 1:numel(ch_inxs)
-                ch_inx = ch_inxs_for_spks(ch_idx);
-                ii = double(spks(ch_inx).ampl) <= (-lfpVar(ch_inx) * prg);
-                spks_in(ch_inx).tStamp = spks(ch_inx).tStamp(ii);
-                spks_in(ch_inx).ampl = spks(ch_inx).ampl(ii);
-                spk = spks_in(ch_inx).tStamp/1000;
-                hist_data = histcounts(spk, edges);
-                ch_hists = [ch_hists; hist_data];
+                spk = spk_times_sec{ch_idx};
+                spk = spk(spk >= time_start & spk < time_end);
+                ch_hists(ch_idx, :) = histcounts(spk, edges);
             end
             evs(i, :, :) = ch_hists;
         end

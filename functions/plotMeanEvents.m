@@ -132,21 +132,11 @@ function [f, calculation_result] = plotMeanEvents(params)
     if isfield(params, 'SmoothingKernel_s') && params.SmoothingKernel_s > 0
         kernel_time_scaled = params.SmoothingKernel_s;
         kernel_samples = round((kernel_time_scaled / timeUnitFactor) * Fs);
-        kernel_samples = max(5, kernel_samples); % smooth1 требует минимум 5 точек
+        kernel_samples = max(5, kernel_samples);
         
-        % Сглаживание meanData
-        for chIdx = 1:size(meanData, 2)
-            meanData(:, chIdx) = smooth1(meanData(:, chIdx), kernel_samples, 'moving');
-        end
-        
-        % Сглаживание originalEventsData
-        for eventIdx = 1:length(originalEventsData)
-            eventData = originalEventsData{eventIdx};
-            for chIdx = 1:size(eventData, 2)
-                eventData(:, chIdx) = smooth1(eventData(:, chIdx), kernel_samples, 'moving');
-            end
-            originalEventsData{eventIdx} = eventData;
-        end
+        meanData = movmean(meanData, kernel_samples, 1, 'Endpoints', 'shrink');
+        originalEventsData = cellfun(@(x) movmean(x, kernel_samples, 1, 'Endpoints', 'shrink'), ...
+            originalEventsData, 'UniformOutput', false);
         
         kernel_time_s = kernel_time_scaled / timeUnitFactor;
         debugState('plotMeanEvents', 'Smoothing applied: kernel=%.3f s (%.1f ms, %d samples)', kernel_time_s, kernel_time_s*1000, kernel_samples);
@@ -154,19 +144,8 @@ function [f, calculation_result] = plotMeanEvents(params)
 
     % Применение вычитания среднего к meanData и originalEventsData, если задано
     if isfield(params, 'SubtractMean') && params.SubtractMean
-        % Вычитание среднего из meanData
-        for chIdx = 1:size(meanData, 2)
-            meanData(:, chIdx) = meanData(:, chIdx) - mean(meanData(:, chIdx));
-        end
-        
-        % Вычитание среднего из originalEventsData
-        for eventIdx = 1:length(originalEventsData)
-            eventData = originalEventsData{eventIdx};
-            for chIdx = 1:size(eventData, 2)
-                eventData(:, chIdx) = eventData(:, chIdx) - mean(eventData(:, chIdx));
-            end
-            originalEventsData{eventIdx} = eventData;
-        end
+        meanData = meanData - mean(meanData, 1);
+        originalEventsData = cellfun(@(x) x - mean(x, 1), originalEventsData, 'UniformOutput', false);
         
         debugState('plotMeanEvents', 'Mean subtraction applied to meanData and originalEventsData');
     end
@@ -177,40 +156,29 @@ function [f, calculation_result] = plotMeanEvents(params)
     ev_hists = [];
     if show_spikes && not(isempty(spks))
         clear evs
+        spk_times_sec = cell(1, numel(ch_inxs));
+        for c = 1:numel(ch_inxs)
+            ch_inx = ch_inxs(c);
+            ii = abs(double(spks(ch_inx).ampl)) >= (lfpVar(ch_inx) * prg);
+            spk_times_sec{c} = spks(ch_inx).tStamp(ii) / 1000;
+        end
         for i = 1:numEvents
-            % Вычисление индексов окна вокруг временной точки
             eventIdx = round(timePoints(i) * Fs);
             windowStart = max(eventIdx - round(meanWindow * Fs / 2), 1);
             windowEnd = min(windowStart + round(meanWindow * Fs) - 1, N);
 
-            if windowEnd < size(lfp, 1)                      
-                % Окно события
+            if windowEnd < size(lfp, 1)
                 time_start = time(windowStart);
                 time_end = time(windowEnd);
-                c = 0;
-
-                time_interval = [time_start, time_end];% s
-                edges = time_interval(1):binsize:time_interval(2);
-
-                % Смотрим что на каждом канале для этого эвента
-                ch_hists = [];
-                for ch_inx = ch_inxs
-                    c = c+1;
-                    
-                    % Порог ZAV метод для положительных амплитуд:
-                    % берем |ampl| и сравниваем с положительным порогом.
-                    ii = abs(double(spks(ch_inx).ampl)) >= (lfpVar(ch_inx) * prg);
-                    spks_in(ch_inx).tStamp = spks(ch_inx).tStamp(ii);
-                    spks_in(ch_inx).ampl = abs(double(spks(ch_inx).ampl(ii)));
-
-                    spk = spks_in(ch_inx).tStamp/1000;
-                    
-                    hist_data = histcounts(spk, edges);
-                    ch_hists = [ch_hists; hist_data];
+                edges = time_start:binsize:time_end;
+                ch_hists = zeros(numel(ch_inxs), max(numel(edges) - 1, 0));
+                for c = 1:numel(ch_inxs)
+                    spk = spk_times_sec{c};
+                    spk = spk(spk >= time_start & spk < time_end);
+                    ch_hists(c, :) = histcounts(spk, edges);
                 end
                 evs(i, :, :) = ch_hists;
             end
-            % Обновляем waitbar (если он создан)
             if showWaitbar && ~isempty(wb)
                 waitbar(i / numEvents, wb, sprintf('Processing spikes: event %d of %d', i, numEvents));
             end
@@ -258,10 +226,7 @@ function [f, calculation_result] = plotMeanEvents(params)
     hold on  
         
      % Initialize offsets array
-    offsets = zeros(1, numChannels);
-    for p = 1:numChannels
-        offsets(p) = -(p-1) * pl_shiftCoeff;
-    end
+    offsets = -(0:numChannels-1) * pl_shiftCoeff;
     
     showOriginalTraces = isfield(params, 'showOriginalTraces') && logical(params.showOriginalTraces);
     allOriginalData = [];

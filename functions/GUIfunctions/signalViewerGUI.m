@@ -22,6 +22,7 @@ function signalViewerGUI(filePath)
     global ch_labels_l colors_in_l  widths_in_l
     global add_event_settings
     global timeSlider timeZeroEdit yLimMinEdit yLimMaxEdit yLimResetBtn menu_visible filterSettings
+    global shiftCoeffEdit
     global viewerYlimManual viewerYlim
     global previousSliderValue % сохраняем предыдущее значение слайдера
     global data_loaded
@@ -746,14 +747,7 @@ function signalViewerGUI(filePath)
         view_functions{7} = 'Auto channel shift';
     end
     set(view_menu, 'String', view_functions);
-    
-    if visualSettings.auto_shift
-        set(shiftCoefText, 'Visible', 'off');
-        set(shiftCoeffEdit, 'Visible', 'off');
-    end
-    
 
-           
     f.WindowButtonDownFcn = @(src, event)ButtonDownFcn(multiax, f);
     f.WindowButtonMotionFcn = @(src, event)ButtonMotionFcn(multiax, f);
     f.WindowButtonUpFcn = @(src, event)ButtonUpFcn(multiax, f);
@@ -1248,15 +1242,6 @@ function signalViewerGUI(filePath)
         end
 
         toggleVisualSetting('auto_shift', [], true, 7, {'Auto channel shift','Manual channel shift'});
-
-        if visualSettings.auto_shift
-            set(shiftCoefText, 'Visible', 'off');
-            set(shiftCoeffEdit, 'Visible', 'off');
-        else
-            set(shiftCoefText, 'Visible', 'on');
-            set(shiftCoeffEdit, 'Visible', 'on');
-        end
-
         updatePlot()
     end
 
@@ -1524,14 +1509,20 @@ function signalViewerGUI(filePath)
 %%
 
     function shiftCoeffEditCallback(src, ~)
+        if plot_updating
+            return;
+        end
         newShiftCoeff = str2double(get(src, 'String'));
         if isnan(newShiftCoeff) || newShiftCoeff <= 0
             debugState('shiftCoeffEditCallback', 'Invalid Shift Coeff Value');
             return;
         end
+        if visualSettings.auto_shift
+            setVisualSetting('auto_shift', false, [], true, 7, {'Auto channel shift','Manual channel shift'});
+        end
         shiftCoeff = newShiftCoeff;
         saveChannelSettings();
-        updatePlot(); % Обновление графика с новым shiftCoeff
+        updatePlot();
     end
 
     function FsCoeffEditCallback(src, ~)

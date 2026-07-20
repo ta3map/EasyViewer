@@ -80,23 +80,14 @@ function [csd_image, csd_t_range, csd_ch_range] = csdCalc(params)
         
         raw_frq = Fs;
         new_frq = round(Fs/csd_smooth_coef);
-        numChannels = size(csd_image, 1);
-        firstResampled = resample1(csd_image(1, :)', new_frq, raw_frq);
-        numPoints = numel(firstResampled);
-        csd_image_res = zeros(numPoints, numChannels);
-        csd_image_res(:, 1) = firstResampled;
+        csd_image = resample1(csd_image', new_frq, raw_frq)';
         
-        for ch = 2:numChannels
-            csd_image_res(:, ch) = resample1(csd_image(ch, :)', new_frq, raw_frq);            
+        span = csd_smooth_coef;
+        if mod(span, 2) == 0
+            span = span + 1;
         end
-        
-%         csd_t_range = resample(csd_t_range, new_frq , raw_frq);
-        csd_image = csd_image_res';
-        
-        for ch = 1:size(csd_image, 1)
-            csd_image(ch, :) = medfilt1(csd_image(ch, :), csd_smooth_coef);
-            csd_image(ch, :) = smooth1(csd_image(ch, :), csd_smooth_coef);
-        end
+        csd_image = medfilt1(csd_image.', span).';
+        csd_image = movmean(csd_image.', csd_smooth_coef, 1, 'Endpoints', 'shrink').';
     end
     
 end

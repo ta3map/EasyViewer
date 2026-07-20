@@ -46,54 +46,12 @@ function testResult = clusterPermutationTest(fullTrialData, timeAxis, params)
     numPostStimPoints = sum(postStimIdx);
     
     % Предварительно вычисляем средние baseline для каждого триала
-    baseline_means = nan(numTrials, numChannels);
-    for trial = 1:numTrials
-        for ch = 1:numChannels
-            trial_data = squeeze(fullTrialData(trial, :, ch));
-            trial_baseline = trial_data(baselineIdx);
-            trial_baseline = trial_baseline(~isnan(trial_baseline));
-            if ~isempty(trial_baseline)
-                baseline_means(trial, ch) = mean(trial_baseline);
-            end
-        end
-    end
+    baseline_means = mean(fullTrialData(:, baselineIdx, :), 2, 'omitnan');
+    baseline_means = reshape(baseline_means, numTrials, numChannels);
     
-    % Вычисляем наблюдаемые t-статистики для ВСЕХ временных точек
-    % Используем парный t-тест: для каждой точки вычисляем разницы (point - baseline_mean) внутри каждого триала
-    t_observed = nan(numTimepoints, numChannels);
-    
-    for tp = 1:numTimepoints
-        for ch = 1:numChannels
-            % Вычисляем разницы для каждого триала: point - baseline_mean
-            differences = nan(numTrials, 1);
-            for trial = 1:numTrials
-                baseline_mean = baseline_means(trial, ch);
-                point_val = fullTrialData(trial, tp, ch);
-                if ~isnan(baseline_mean) && ~isnan(point_val)
-                    differences(trial) = point_val - baseline_mean;
-                end
-            end
-            
-            % Удаляем NaN значения
-            differences = differences(~isnan(differences));
-            
-            if length(differences) < 2
-                t_observed(tp, ch) = 0;
-                continue;
-            end
-            
-            % Парный t-тест: t = mean(diff) / (std(diff) / sqrt(n))
-            mean_diff = mean(differences);
-            std_diff = std(differences, 0);
-            n = length(differences);
-            
-            if std_diff == 0 || n < 2
-                t_observed(tp, ch) = 0;
-            else
-                t_observed(tp, ch) = mean_diff / (std_diff / sqrt(n));
-            end
-        end
-    end
+    % Парный t-тест: разницы point - baseline_mean
+    diffs = fullTrialData - reshape(baseline_means, numTrials, 1, numChannels);
+    t_observed = tObservedFromDiffs(diffs);
     
     % Определение кластеров значимых точек
     clusters = cell(numChannels, 1);
@@ -155,48 +113,9 @@ function testResult = clusterPermutationTest(fullTrialData, timeAxis, params)
     
     for perm = 1:numPermutations
         % Для парного t-теста в within-trials: случайно меняем знаки разниц для каждого триала
-        % Знаки должны быть одинаковыми для всех временных точек одного триала в данной пермутации
-        % Генерируем знаки один раз для всех триалов и каналов
-        perm_signs = 2 * (rand(numTrials, numChannels) > 0.5) - 1;  % случайные ±1 для каждого триала и канала
-        
-        % Вычисляем t-статистики для пермутации для ВСЕХ временных точек
-        for tp = 1:numTimepoints
-            for ch = 1:numChannels
-                % Вычисляем разницы как обычно (point - baseline_mean)
-                differences = nan(numTrials, 1);
-                for trial = 1:numTrials
-                    baseline_mean = baseline_means(trial, ch);
-                    point_val = fullTrialData(trial, tp, ch);
-                    if ~isnan(baseline_mean) && ~isnan(point_val)
-                        differences(trial) = point_val - baseline_mean;
-                    end
-                end
-                
-                % Удаляем NaN значения
-                valid_trials = ~isnan(differences);
-                differences = differences(valid_trials);
-                signs_for_trials = perm_signs(valid_trials, ch);
-                
-                if length(differences) < 2
-                    perm_t_stats(perm, tp, ch) = 0;
-                    continue;
-                end
-                
-                % Для пермутации: умножаем каждую разницу на знак для этого триала
-                perm_differences = differences .* signs_for_trials;
-                
-                % Парный t-тест: t = mean(diff) / (std(diff) / sqrt(n))
-                mean_diff = mean(perm_differences);
-                std_diff = std(perm_differences, 0);
-                n = length(perm_differences);
-                
-                if std_diff == 0 || n < 2
-                    perm_t_stats(perm, tp, ch) = 0;
-                else
-                    perm_t_stats(perm, tp, ch) = mean_diff / (std_diff / sqrt(n));
-                end
-            end
-        end
+        perm_signs = 2 * (rand(numTrials, numChannels) > 0.5) - 1;
+        perm_diffs = diffs .* reshape(perm_signs, numTrials, 1, numChannels);
+        perm_t_stats(perm, :, :) = tObservedFromDiffs(perm_diffs);
         
         % Обновляем waitbar
         if mod(perm, max(1, round(numPermutations/100))) == 0 || perm == numPermutations
@@ -338,5 +257,15 @@ function testResult = clusterPermutationTest(fullTrialData, timeAxis, params)
     testResult.clusters = clusters;
     testResult.perm_percentiles = perm_percentiles;
     testResult.threshold_t = threshold_t;
+end
+
+function t = tObservedFromDiffs(diffs)
+% diffs: trials × timepoints × channels
+    mu = mean(diffs, 1, 'omitnan');
+    sd = std(diffs, 0, 1, 'omitnan');
+    n = sum(~isnan(diffs), 1);
+    t = mu ./ (sd ./ sqrt(double(n)));
+    t(sd == 0 | n < 2 | ~isfinite(t)) = 0;
+    t = reshape(t, size(diffs, 2), size(diffs, 3));
 end
 

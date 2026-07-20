@@ -1,20 +1,11 @@
 function y = smooth1(x, span, method)
-%SMOOTH Сглаживание данных
-%   Y = SMOOTH(X) сглаживает данные в векторе X используя метод 'moving'
-%   с окном по умолчанию 5 точек.
-%
-%   Y = SMOOTH(X, SPAN) сглаживает данные с окном SPAN точек.
-%
-%   Y = SMOOTH(X, SPAN, METHOD) сглаживает данные используя указанный метод:
-%       'moving' - скользящее среднее (по умолчанию)
-%       'median' - медианный фильтр (medfilt1)
-%
-%   Примеры:
-%       y = smooth(randn(100,1));
-%       y = smooth(randn(100,1), 10);
-%       y = smooth(randn(100,1), 10, 'lowess');
+%SMOOTH1 Сглаживание данных
+%   Y = SMOOTH1(X) — скользящее среднее, окно 5 точек.
+%   Y = SMOOTH1(X, SPAN) — окно SPAN точек.
+%   Y = SMOOTH1(X, SPAN, METHOD):
+%       'moving' — movmean (по умолчанию)
+%       'median' — medfilt1
 
-% Обработка входных аргументов
 if nargin < 1
     error('Недостаточно входных аргументов');
 end
@@ -27,7 +18,6 @@ if nargin < 3
     method = 'moving';
 end
 
-% Проверка входных данных
 if ~isvector(x) || length(x) < 3
     error('X должен быть вектором с минимум 3 элементами');
 end
@@ -44,17 +34,14 @@ if span < 5
     span = 5;
 end
 
-% Преобразование в столбец
+wasRow = isrow(x);
 x = x(:);
-n = length(x);
-
-% Ограничение span размером данных
-span = min(span, n);
+span = min(span, length(x));
 
 method = lower(method);
 switch method
     case 'moving'
-        y = movingAverage(x, span);
+        y = movmean(x, span, 'Endpoints', 'shrink');
     case 'median'
         if mod(span, 2) == 0
             span = span + 1;
@@ -64,19 +51,8 @@ switch method
         error('Неизвестный метод сглаживания: %s', method);
 end
 
+if wasRow
+    y = y.';
 end
 
-function y = movingAverage(x, span)
-% Скользящее среднее
-n = length(x);
-y = zeros(n, 1);
-
-halfSpan = floor(span / 2);
-
-for i = 1:n
-    startIdx = max(1, i - halfSpan);
-    endIdx = min(n, i + halfSpan);
-    y(i) = mean(x(startIdx:endIdx));
 end
-end
-

@@ -152,52 +152,19 @@ function [eventDataRaw, shouldSkip] = extractTrialSkip(lfp, windowStart_abs, win
     
     shouldSkip = false;
     
-    % Проверяем, выходит ли триал за границы данных
     if windowStart_abs < 1 || windowEnd_abs > N
         shouldSkip = true;
         eventDataRaw = nan(requiredSamples, numChannels);
         return;
     end
     
-    % Инициализируем массив для триала
-    eventDataRaw = nan(requiredSamples, numChannels);
-    
-    % Простое извлечение без ротации (триалы уже проверены на границы)
-    for sample = 1:requiredSamples
-        absIdx = windowStart_abs + sample - 1;
-        if absIdx >= 1 && absIdx <= N
-            eventDataRaw(sample, :) = lfp(absIdx, :);
-        end
-    end
+    eventDataRaw = lfp(windowStart_abs:windowStart_abs + requiredSamples - 1, :);
 end
 
 function eventDataRaw = extractTrialWrap(lfp, windowStart_abs, requiredSamples, numChannels, N)
     % Извлекает данные триала с циклическим закольцовыванием
     
-    % Инициализируем массив для триала
-    eventDataRaw = nan(requiredSamples, numChannels);
-    
-    % Заполняем данные с циклическим закольцовыванием
-    for sample = 1:requiredSamples
-        absIdx = windowStart_abs + sample - 1;
-        
-        if absIdx < 1
-            % Выход за начало: берем с конца данных (циклическое закольцовывание)
-            wrappedIdx = N + absIdx;
-            if wrappedIdx < 1
-                wrappedIdx = 1; % fallback
-            end
-            eventDataRaw(sample, :) = lfp(wrappedIdx, :);
-        elseif absIdx > N
-            % Выход за конец: берем с начала данных (циклическое закольцовывание)
-            wrappedIdx = absIdx - N;
-            if wrappedIdx > N
-                wrappedIdx = N; % fallback
-            end
-            eventDataRaw(sample, :) = lfp(wrappedIdx, :);
-        else
-            % Нормальный случай: данные в пределах
-            eventDataRaw(sample, :) = lfp(absIdx, :);
-        end
-    end
+    idx = windowStart_abs + (0:requiredSamples-1)';
+    idx = mod(idx - 1, N) + 1;
+    eventDataRaw = lfp(idx, :);
 end

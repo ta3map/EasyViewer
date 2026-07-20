@@ -2,7 +2,7 @@ function updatePlot()
     % disp('Plot is updated')
     global chosen_time_interval time_back cond time lfp_file mean_group_ch ch_inxs m_coef Fs newFs timeUnitFactor multiax
     global ch_labels_l shiftCoeff widths_in_l colors_in_l spks std_coef selectedUnit matFilePath stims events timeSlider timeZeroEdit
-    global viewerYlimManual viewerYlim yLimMinEdit yLimMaxEdit
+    global viewerYlimManual viewerYlim yLimMinEdit yLimMaxEdit shiftCoeffEdit
     global data time_in filterSettings filter_avaliable csd_smooth_coef
     global csd_contrast_coef csd_avaliable lfpVar
     global csd_split_by_channel_gaps
@@ -122,14 +122,7 @@ function updatePlot()
         % Используем resample1 для ресемплинга (без краевых эффектов)
         % Используем ту же формулу, что и в resample1 для точного совпадения размеров
         N = size(data, 1);
-        numPoints = round((N - 1) * lfp_Fs / raw_Fs) + 1;
-        data_res = zeros(numPoints, size(data, 2));
-
-        for ch = 1:size(data, 2)
-            data_res(:, ch) = resample1(data(:, ch), lfp_Fs, raw_Fs);
-        end
-
-        % Создаем временной вектор для ресемплированных данных
+        data_res = resample1(data, lfp_Fs, raw_Fs);
         numPoints = size(data_res, 1);
         time_res = linspace(time_in(1), time_in(end), numPoints);
     end
@@ -138,16 +131,11 @@ function updatePlot()
     
     % Вычитание медианы первых 10% сигнала для каналов с включенным baseline subtraction
     baseline_subtract_active = baseline_subtract_available(ch_inxs);
-    baseline_medians = zeros(1, numChannels); % Сохраняем вычтенную базовую линию для каждого канала
-    for ch = 1:numChannels
-        if baseline_subtract_active(ch)
-            numPoints = size(data_res, 1);
-            baselineLength = max(1, round(numPoints * 0.1));
-            baselineMedian = median(data_res(1:baselineLength, ch));
-            baseline_medians(ch) = baselineMedian; % Сохраняем вычтенную медиану
-            data_res(:, ch) = data_res(:, ch) - baselineMedian;
-        end
-    end
+    baseline_medians = zeros(1, numChannels);
+    baselineLength = max(1, round(size(data_res, 1) * 0.1));
+    med = median(data_res(1:baselineLength, :), 1);
+    baseline_medians(baseline_subtract_active) = med(baseline_subtract_active);
+    data_res(:, baseline_subtract_active) = data_res(:, baseline_subtract_active) - med(baseline_subtract_active);
 
     % Кэшируем подготовленные данные для ручных событий без повторных вычислений.
     lastPlotTimeResForEvents = time_res;
@@ -170,12 +158,7 @@ function updatePlot()
     
     if visualSettings.show_CSD
         csdChildrenBefore = get(multiax, 'Children');
-        offsets = zeros(1, numChannels);
-        % Plot each column with specified parameters
-        for p = 1:numChannels
-            % Determine the offset
-            offsets(p) = -(p-1) * shiftCoeff;
-        end        
+        offsets = -(0:numChannels-1) * shiftCoeff;
         
         params.time_in_csd = time_in_transformed;
         params.data_in_csd = data_res;
@@ -340,16 +323,10 @@ function updatePlot()
                 
                 if not(isempty(stims)) && visualSettings.stim_show
                     stims_in = stims(cond3);
-                    stim_inxs = ClosestIndex(stims_in, time_in); % Индекс стимулов
+                    stim_inxs = ClosestIndex(stims_in, time_in);
                     win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
-                    for i = 1:length(stim_inxs)
-                        start_inx = stim_inxs(i) - win_r;
-                        start_inx = max(start_inx, 1);
-                        end_inx = stim_inxs(i) + win_r;
-                        end_inx = min(end_inx, numel(time_in));
-                        cond5 = spk >= time_in(start_inx) & spk < time_in(end_inx);
-                        spk = spk(~cond5);
-                    end
+                    keep = maskTimesOutsideStimWindows(spk, time_in, stim_inxs, win_r);
+                    spk = spk(keep);
                 end
                 
                 if isempty(spk)
@@ -396,18 +373,11 @@ function updatePlot()
             
             if not(isempty(stims)) && visualSettings.stim_show
                 stims_in = stims(cond3);
-                stim_inxs = ClosestIndex(stims_in, time_in); % Индекс стимулов
+                stim_inxs = ClosestIndex(stims_in, time_in);
                 win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
-                for i = 1:length(stim_inxs) 
-                    start_inx = stim_inxs(i) - win_r;
-                    start_inx = max(start_inx, 1);
-                    end_inx = stim_inxs(i) + win_r;
-                    end_inx = min(end_inx, numel(time_in));
-                    cond5 = x_coord >= time_in(start_inx) & x_coord < time_in(end_inx);
-                    x_coord = x_coord(~cond5);
-                    y_coord = y_coord(~cond5);
-                end
-                
+                keep = maskTimesOutsideStimWindows(x_coord, time_in, stim_inxs, win_r);
+                x_coord = x_coord(keep);
+                y_coord = y_coord(keep);
             end
             
             scatter((x_coord - time_origin)*timeUnitFactor, y_coord, 'MarkerEdgeColor', mua_color_rgb, 'Marker', '|')
@@ -626,6 +596,9 @@ function updatePlot()
 
     set(yLimMinEdit, 'String', sprintf('%.6g', Ylims(1)));
     set(yLimMaxEdit, 'String', sprintf('%.6g', Ylims(2)));
+    if isgraphics(shiftCoeffEdit)
+        set(shiftCoeffEdit, 'String', sprintf('%.6g', shiftCoeff));
+    end
 
     % Сбрасываем флаг обновления в самом конце
     plot_updating = false;
