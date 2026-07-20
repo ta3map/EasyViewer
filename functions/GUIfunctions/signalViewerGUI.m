@@ -189,7 +189,7 @@ function signalViewerGUI(filePath)
     
     
     csd_smooth_coef = 5;
-    csd_split_by_channel_gaps = true;
+    csd_split_by_channel_gaps = false;
     
     event_title_string = 'Events';
     csd_contrast_coef = 99.9;
@@ -511,8 +511,6 @@ function signalViewerGUI(filePath)
         'Position', getElementPosition('show_amplitude_labels_checkbox'), ...
         'Value', visualSettings.show_amplitude_labels, ...
         'Callback', @ampLabelsCheckboxCallback, 'Tag', 'show_amplitude_labels_checkbox');
-    disp(getElementPosition('show_stim_button'))
-    disp(getElementPosition('show_stim_logo_button'))
     % Кнопки для навигации по времени
     previousbutton = uicontrol('Parent', mainPanel, 'Style', 'pushbutton', 'String', 'Previous', 'Position', getElementPosition('previous_button'), 'Callback', {@shiftTime, -1, timeForwardEdit}, 'Tag', 'previous_button');
     btnIcon(previousbutton, fullfile(assetsPath, 'previous_button.png'), false);
@@ -1465,6 +1463,9 @@ function signalViewerGUI(filePath)
             drawnow;
         end
         autoEventDetectionGUI();
+        if ~isempty(wb) && isvalid(wb)
+            delete(wb);
+        end
     end
     
     function openSignalAnalysisWindow(~, ~)
@@ -2924,6 +2925,9 @@ function loadSettingsFile()
         if isfield(loadedSettings, 'meanControlsState') && isstruct(loadedSettings.meanControlsState)
             meanControlsState = loadedSettings.meanControlsState;
         end
+        if isfield(loadedSettings, 'autodetection_settings') && isstruct(loadedSettings.autodetection_settings)
+            autodetection_settings = loadedSettings.autodetection_settings;
+        end
         if isfield(loadedSettings, 'std_coef')
             std_coef = min(max(double(loadedSettings.std_coef), 0), 10);
         end
@@ -2950,7 +2954,11 @@ function loadSettingsFile()
             debugState('loadSettingsFile', 'settings were without CSD contrast coef');
         end
         
-        csd_split_by_channel_gaps = true;
+        if isfield(loadedSettings, 'csd_split_by_channel_gaps')
+            csd_split_by_channel_gaps = logical(loadedSettings.csd_split_by_channel_gaps);
+        else
+            csd_split_by_channel_gaps = false;
+        end
         
         % Загружаем смещенные стимулы если они есть
         if isfield(loadedSettings, 'stims')

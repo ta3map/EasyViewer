@@ -13,6 +13,7 @@ function saveChannelSettings(varargin)
     global lastEventsFilePath
     global event_inx
     global meanControlsState
+    global autodetection_settings
     
     if exist(matFilePath, 'file') ~= 2
         return;
@@ -48,6 +49,7 @@ function saveChannelSettings(varargin)
             'lastEventsFilePath'
             'event_inx'
             'meanControlsState'
+            'autodetection_settings'
             'EV_version'
         };
     end

@@ -1,10 +1,21 @@
 function autoEventDetectionGUI()
-    % Загрузка настроек
-    global autodetection_settings events_exist event_inx
+    % Загрузка настроек только из локального *_channelSettings.stn
+    global events_exist event_inx
     global table_calling event_title_string
     global timeUnitFactor selectedUnit
+    global matFilePath
     
-    settings = autodetection_settings;
+    settings = [];
+    if ~isempty(matFilePath)
+        [settingsPath, settingsName, ~] = fileparts(matFilePath);
+        channelSettingsFilePath = fullfile(settingsPath, [settingsName '_channelSettings.stn']);
+        if exist(channelSettingsFilePath, 'file') == 2
+            loadedLocal = load(channelSettingsFilePath, '-mat');
+            if isfield(loadedLocal, 'autodetection_settings') && isstruct(loadedLocal.autodetection_settings)
+                settings = loadedLocal.autodetection_settings;
+            end
+        end
+    end
     
     % Загружаем координаты элементов из JSON файла
     coordsFile = getGUIConfigPath('autoEventDetectionGUI_coords.json');
@@ -36,7 +47,7 @@ function autoEventDetectionGUI()
         end
     end
     
-    global events event_comments hd events_detected matFilePath evfilename eventDeleteEdit
+    global events event_comments hd events_detected evfilename eventDeleteEdit
     global hMinPeakProminence hDetectionType hMainChannel hSubtractChannelCheck hSubtractChannel hMaxPeakWidth
     global hMinPeakDistance
     global hSourceType selectedCenter timeCenterPopup windowSize chosen_time_interval
@@ -263,8 +274,42 @@ function autoEventDetectionGUI()
     % Устанавливаем обработчик изменения размера окна
     set(detectionFig, 'SizeChangedFcn', @(~,~) resizeComponentsCallback(detectionFig, coordsFile));
     
-    % Рисуем превью до показа окна
-    previewData();
+    hasPlotSnapshot = ~isempty(settings) && isfield(settings, 'plotSnapshot') && isstruct(settings.plotSnapshot) ...
+        && isfield(settings.plotSnapshot, 'Trace_out');
+    if hasPlotSnapshot
+        snap = settings.plotSnapshot;
+        events_detected = snap.events_detected;
+        amplitudes_detected = [];
+        widths_detected = [];
+        channels_detected = [];
+        metadata_detected = [];
+        indices_detected = [];
+        if isfield(snap, 'amplitudes_detected')
+            amplitudes_detected = snap.amplitudes_detected;
+        end
+        if isfield(snap, 'widths_detected')
+            widths_detected = snap.widths_detected;
+        end
+        if isfield(snap, 'channels_detected')
+            channels_detected = snap.channels_detected;
+        end
+        if isfield(snap, 'metadata_detected')
+            metadata_detected = snap.metadata_detected;
+        end
+        if isfield(snap, 'indices_detected')
+            indices_detected = snap.indices_detected;
+        end
+        drawPlotsFromSnapshot(snap);
+        set(applybutton, 'Enable', 'on');
+        if isfield(settings, 'MinPeakProminence')
+            set(hMinPeakProminence, 'String', num2str(settings.MinPeakProminence));
+        end
+    else
+        previewData();
+        if ~isempty(settings) && isfield(settings, 'MinPeakProminence')
+            set(hMinPeakProminence, 'String', num2str(settings.MinPeakProminence));
+        end
+    end
     
     % Показываем окно после превью
     set(detectionFig, 'Visible', 'on');
@@ -502,22 +547,30 @@ function autoEventDetectionGUI()
         params.StartTime = str2double(get(hStartTime, 'String')) / timeUnitFactor;
         params.EndTime = str2double(get(hEndTime, 'String')) / timeUnitFactor;
         
+        saveSettings();
+        
         [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected] = autoEventDetection(params);
         
         Trace_out(isnan(Trace_out)) = 0;
         Trace_out(isinf(Trace_out)) = 0;
         
-        plotRequest(events_detected, Trace_out, time_res, params, prominences_detected, amplitudes_detected);
+        [~, plotSnapshot] = plotRequest(events_detected, Trace_out, time_res, params, prominences_detected, amplitudes_detected);
+        plotSnapshot.widths_detected = widths_detected;
+        plotSnapshot.channels_detected = channels_detected;
+        plotSnapshot.metadata_detected = metadata_detected;
+        plotSnapshot.indices_detected = indices_detected;
+        plotSnapshot.prominences_detected = prominences_detected;
+        saveSettings(plotSnapshot);
         
         set(applybutton, 'Enable', 'on')
         
     end
 
-    function outlier = plotRequest(events_detected, Trace_out, time_res, params, prominences_detected, amplitudes_detected)
+    function [outlier, snap] = plotRequest(events_in, Trace_out, time_res, params, prominences_detected, amplitudes_in)
 
         numSegments = 100;
         Trace_out = findSegmentMaxima(Trace_out, numSegments);
-        time_res = linspace(time_res(1),time_res(end),numSegments);
+        time_res = linspace(time_res(1), time_res(end), numSegments);
         
         yMin = quantile(Trace_out, 0.02);
         yMax = quantile(Trace_out, 0.98);
@@ -532,159 +585,183 @@ function autoEventDetectionGUI()
         outlier = quantile(dataInRange, 0.999);
         std3 = 3*nanstd(dataInRange);
         
-        if params.detect % если идет детекция
+        if params.detect
             chosen_th = params.MinPeakProminence;
-        else % если предварительная прорисовка
+        else
             chosen_th = outlier;
         end
         
-        % Находим контейнер графиков
-        plotPanel = findobj(detectionFig, 'Tag', 'plotPanel');
-        if isempty(plotPanel)
-            return;
-        end
-        
-        % Очищаем контейнер
-        delete(plotPanel.Children);
-        
-        % Проверяем, нужны ли дополнительные графики для поиска вокруг стимулов
         SearchAroundStimuli = false;
         if isfield(params, 'SearchAroundStimuli')
             SearchAroundStimuli = params.SearchAroundStimuli;
         end
-        needStimuliPlots = SearchAroundStimuli && params.detect && ~isempty(events_detected) && stims_exist && ~isempty(stims);
+        needStimuliPlots = SearchAroundStimuli && params.detect && ~isempty(events_in) && stims_exist && ~isempty(stims);
         
-        % Создаем tiledlayout в зависимости от необходимости дополнительных графиков
+        nBins = max(25, min(80, round(3*sqrt(numel(Trace_out)))));
+        peakEdges = linspace(yMin, yMax, nBins + 1);
+        peakCounts = histcounts(Trace_out, peakEdges);
+        peakValues = peakCounts / max(sum(peakCounts), 1);
+        
+        rel_times = [];
+        histRel = struct('edges', [], 'values', []);
+        histAmp = struct('edges', [], 'values', []);
         if needStimuliPlots
-            t = tiledlayout(plotPanel, 3, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-        else
-            t = tiledlayout(plotPanel, 1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+            rel_times = zeros(numel(events_in), 1);
+            for i = 1:numel(events_in)
+                [~, closest_stim_idx] = min(abs(stims - events_in(i)));
+                rel_times(i) = events_in(i) - stims(closest_stim_idx);
+            end
+            relScaled = rel_times * timeUnitFactor;
+            [relCounts, relEdges] = histcounts(relScaled, 30);
+            histRel.edges = relEdges;
+            histRel.values = relCounts / max(sum(relCounts), 1);
+            [ampCounts, ampEdges] = histcounts(amplitudes_in, 30);
+            histAmp.edges = ampEdges;
+            histAmp.values = ampCounts / max(sum(ampCounts), 1);
         end
         
-        % Tile 1 (левый верхний): временной ряд (голубые бары)
+        useTimeRange = params.detect && isfield(params, 'UseTimeRange') && params.UseTimeRange;
+        startTime = 0;
+        endTime = 0;
+        if useTimeRange
+            startTime = params.StartTime;
+            endTime = params.EndTime;
+        end
+        
+        snap = struct();
+        snap.Trace_out = Trace_out(:);
+        snap.time_res = time_res(:);
+        snap.events_detected = events_in;
+        snap.amplitudes_detected = amplitudes_in;
+        snap.widths_detected = [];
+        snap.channels_detected = [];
+        snap.metadata_detected = [];
+        snap.indices_detected = [];
+        snap.prominences_detected = prominences_detected;
+        snap.yMin = yMin;
+        snap.yMax = yMax;
+        snap.outlier = outlier;
+        snap.std3 = std3;
+        snap.chosen_th = chosen_th;
+        snap.detect = logical(params.detect);
+        snap.needStimuliPlots = logical(needStimuliPlots);
+        snap.UseTimeRange = logical(useTimeRange);
+        snap.StartTime = startTime;
+        snap.EndTime = endTime;
+        snap.histPeak = struct('edges', peakEdges, 'values', peakValues);
+        snap.rel_times = rel_times;
+        snap.histRel = histRel;
+        snap.histAmp = histAmp;
+        
+        drawPlotsFromSnapshot(snap);
+    end
+
+    function drawPlotsFromSnapshot(snap)
+        plotPanelLocal = findobj(detectionFig, 'Tag', 'plotPanel');
+        if isempty(plotPanelLocal)
+            return;
+        end
+        delete(plotPanelLocal.Children);
+        
+        if snap.needStimuliPlots
+            t = tiledlayout(plotPanelLocal, 3, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+        else
+            t = tiledlayout(plotPanelLocal, 1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+        end
+        
         ax1 = nexttile(t);
         hold(ax1, 'on');
-        bar(ax1, time_res*timeUnitFactor, Trace_out, 'FaceColor', [0.3 0.6 0.9], 'EdgeColor', 'none');
+        bar(ax1, snap.time_res * timeUnitFactor, snap.Trace_out, 'FaceColor', [0.3 0.6 0.9], 'EdgeColor', 'none');
         xlabel(ax1, ['Time, ' selectedUnit]);
-        yline(ax1, chosen_th, 'k:');
-        if params.detect && isfield(params, 'UseTimeRange') && params.UseTimeRange
-            xlim(ax1, [params.StartTime, params.EndTime]*timeUnitFactor);
+        yline(ax1, snap.chosen_th, 'k:');
+        if snap.UseTimeRange
+            xlim(ax1, [snap.StartTime, snap.EndTime] * timeUnitFactor);
         else
-            xlim(ax1, [time_res(1), time_res(end)]*timeUnitFactor);
+            xlim(ax1, [snap.time_res(1), snap.time_res(end)] * timeUnitFactor);
         end
-        ylim(ax1, [yMin, yMax]);
-        Lines(events_detected*timeUnitFactor, [], 'r',':');
-        numEvents = numel(events_detected);
-        if params.detect
-            title(ax1, [ num2str(numEvents), ' events'], 'interpreter', 'none');
+        ylim(ax1, [snap.yMin, snap.yMax]);
+        Lines(snap.events_detected * timeUnitFactor, [], 'r', ':');
+        if snap.detect
+            title(ax1, [num2str(numel(snap.events_detected)), ' events'], 'interpreter', 'none');
         else
             title(ax1, '');
         end
         hold(ax1, 'off');
         
-        % Tile 2 (правый верхний): гистограмма (амплитуда по оси Y)
         ax2 = nexttile(t);
         hold(ax2, 'on');
-        
-        hist_data = Trace_out;
-        hist_label = 'Height';
-        nBins = max(25, min(80, round(3*sqrt(numel(hist_data)))));
-        edges = linspace(yMin, yMax, nBins + 1);
-        h = histogram(ax2, hist_data, edges, ...
-            'Normalization', 'probability', ...
+        histogram(ax2, 'BinEdges', snap.histPeak.edges, 'BinCounts', snap.histPeak.values, ...
             'Orientation', 'horizontal', ...
             'FaceColor', [0.3 0.6 0.9], ...
             'EdgeColor', 'none');
-        ylim(ax2, [yMin, yMax]);
-        maxProb = max(h.Values);
+        ylim(ax2, [snap.yMin, snap.yMax]);
+        maxProb = max(snap.histPeak.values);
+        if isempty(maxProb) || maxProb <= 0
+            maxProb = 1;
+        end
         yl = ylim(ax2);
         ySpan = yl(2) - yl(1);
         labelLift = 0.05 * ySpan;
         valueLift = 0.02 * ySpan;
         topPad = 0.01 * ySpan;
         
-        yline(ax2, outlier, 'k:');
-        outlier_x = maxProb*0.9;
-        outlier_y_label = min(outlier + labelLift, yl(2) - topPad);
-        outlier_y_value = min(outlier + valueLift, yl(2) - topPad);
-        text(ax2, outlier_x, outlier_y_label, 'outlier', 'VerticalAlignment', 'bottom');
-        text(ax2, outlier_x, outlier_y_value, num2str(outlier, 3), 'VerticalAlignment', 'bottom');
+        yline(ax2, snap.outlier, 'k:');
+        outlier_x = maxProb * 0.9;
+        text(ax2, outlier_x, min(snap.outlier + labelLift, yl(2) - topPad), 'outlier', 'VerticalAlignment', 'bottom');
+        text(ax2, outlier_x, min(snap.outlier + valueLift, yl(2) - topPad), num2str(snap.outlier, 3), 'VerticalAlignment', 'bottom');
         
-        std3_x = maxProb;
-        yline(ax2, std3, 'k:');
-        std3_y_label = min(std3 + labelLift, yl(2) - topPad);
-        std3_y_value = min(std3 + valueLift, yl(2) - topPad);
-        text(ax2, std3_x, std3_y_label, '3*STD', 'VerticalAlignment', 'bottom');
-        text(ax2, std3_x, std3_y_value, num2str(std3, 3), 'VerticalAlignment', 'bottom');
+        yline(ax2, snap.std3, 'k:');
+        text(ax2, maxProb, min(snap.std3 + labelLift, yl(2) - topPad), '3*STD', 'VerticalAlignment', 'bottom');
+        text(ax2, maxProb, min(snap.std3 + valueLift, yl(2) - topPad), num2str(snap.std3, 3), 'VerticalAlignment', 'bottom');
         
-        chosen_th_x = maxProb*0.5;
-        yline(ax2, chosen_th, 'r:');
-        chosen_th_y_label = min(chosen_th + labelLift, yl(2) - topPad);
-        chosen_th_y_value = min(chosen_th + valueLift, yl(2) - topPad);
-        text(ax2, chosen_th_x, chosen_th_y_label, 'now', 'VerticalAlignment', 'bottom');
-        text(ax2, chosen_th_x, chosen_th_y_value, num2str(chosen_th, 3), 'color', 'r', 'VerticalAlignment', 'bottom');
+        yline(ax2, snap.chosen_th, 'r:');
+        text(ax2, maxProb * 0.5, min(snap.chosen_th + labelLift, yl(2) - topPad), 'now', 'VerticalAlignment', 'bottom');
+        text(ax2, maxProb * 0.5, min(snap.chosen_th + valueLift, yl(2) - topPad), num2str(snap.chosen_th, 3), 'color', 'r', 'VerticalAlignment', 'bottom');
         
         xlabel(ax2, 'Probability');
-        ylabel(ax2, ['Peak ' hist_label]);
-        title(ax2, ['Distribution of Peak ' hist_label]);
+        ylabel(ax2, 'Peak Height');
+        title(ax2, 'Distribution of Peak Height');
         hold(ax2, 'off');
         
-        % Tile 3 и 4 (второй ряд): боксплот и гистограмма относительного времени
-        % Создаем только если нужны графики для поиска вокруг стимулов
-        if needStimuliPlots
-            % Вычисляем относительное время для каждого события
-            rel_times = [];
-            for i = 1:length(events_detected)
-                event_time = events_detected(i);
-                % Находим ближайший стимул
-                [~, closest_stim_idx] = min(abs(stims - event_time));
-                closest_stim = stims(closest_stim_idx);
-                rel_time = event_time - closest_stim;
-                rel_times = [rel_times; rel_time];
-            end
-            
-            % Tile 3 (левый средний): боксплот относительного времени
+        if snap.needStimuliPlots
+            relScaled = snap.rel_times * timeUnitFactor;
             ax3 = nexttile(t);
             hold(ax3, 'on');
-            boxplot(ax3, rel_times*timeUnitFactor, 'Orientation', 'horizontal');
-            
-            % Добавляем точки данных с небольшим jitter по вертикали
-            y_jitter = 0.5 + 0.15 * (rand(size(rel_times)) - 0.5);
-            scatter(ax3, rel_times*timeUnitFactor, y_jitter, 20, 'k', '.', 'MarkerFaceAlpha', 0.6);
-            
+            boxplot(ax3, relScaled, 'Orientation', 'horizontal');
+            y_jitter = 0.5 + 0.15 * (rand(size(relScaled)) - 0.5);
+            scatter(ax3, relScaled, y_jitter, 20, 'k', '.', 'MarkerFaceAlpha', 0.6);
             xlabel(ax3, ['Relative time from stimulus, ' selectedUnit]);
             ylabel(ax3, 'Events');
-            title(ax3, sprintf('Event timing relative to stimuli (n=%d)', length(rel_times)));
+            title(ax3, sprintf('Event timing relative to stimuli (n=%d)', numel(snap.rel_times)));
             grid(ax3, 'on');
             hold(ax3, 'off');
             
-            % Tile 4 (правый средний): гистограмма относительного времени
             ax4 = nexttile(t);
             hold(ax4, 'on');
-            histogram(ax4, rel_times*timeUnitFactor, 30, 'Normalization', 'probability', 'FaceColor', [0.3 0.6 0.9], 'EdgeColor', 'k');
+            histogram(ax4, 'BinEdges', snap.histRel.edges, 'BinCounts', snap.histRel.values, ...
+                'FaceColor', [0.3 0.6 0.9], 'EdgeColor', 'k');
             xlabel(ax4, ['Relative time from stimulus, ' selectedUnit]);
             ylabel(ax4, 'Probability');
             title(ax4, 'Distribution of relative event times');
             grid(ax4, 'on');
             xlim(ax3, xlim(ax4));
             hold(ax4, 'off');
-
-            % Tile 5 (левый нижний): боксплот амплитуд событий
+            
             ax5 = nexttile(t);
             hold(ax5, 'on');
-            boxplot(ax5, amplitudes_detected, 'Orientation', 'horizontal');
-            y_jitter_amp = 0.5 + 0.15 * (rand(size(amplitudes_detected)) - 0.5);
-            scatter(ax5, amplitudes_detected, y_jitter_amp, 20, 'k', '.', 'MarkerFaceAlpha', 0.6);
+            boxplot(ax5, snap.amplitudes_detected, 'Orientation', 'horizontal');
+            y_jitter_amp = 0.5 + 0.15 * (rand(size(snap.amplitudes_detected)) - 0.5);
+            scatter(ax5, snap.amplitudes_detected, y_jitter_amp, 20, 'k', '.', 'MarkerFaceAlpha', 0.6);
             xlabel(ax5, 'Event amplitude');
             ylabel(ax5, 'Events');
-            title(ax5, sprintf('Event amplitudes (n=%d)', length(amplitudes_detected)));
+            title(ax5, sprintf('Event amplitudes (n=%d)', numel(snap.amplitudes_detected)));
             grid(ax5, 'on');
             hold(ax5, 'off');
-
-            % Tile 6 (правый нижний): гистограмма амплитуд событий
+            
             ax6 = nexttile(t);
             hold(ax6, 'on');
-            histogram(ax6, amplitudes_detected, 30, 'Normalization', 'probability', 'FaceColor', [0.3 0.6 0.9], 'EdgeColor', 'k');
+            histogram(ax6, 'BinEdges', snap.histAmp.edges, 'BinCounts', snap.histAmp.values, ...
+                'FaceColor', [0.3 0.6 0.9], 'EdgeColor', 'k');
             xlabel(ax6, 'Event amplitude');
             ylabel(ax6, 'Probability');
             title(ax6, 'Distribution of event amplitudes');
@@ -759,7 +836,7 @@ function autoEventDetectionGUI()
         if ~isempty(events)
             events_exist = true;
             event_inx = 1;
-            selectedCenter = 'event';
+            selectedCenter = 'events';
             set(timeCenterPopup, 'Value', 3);
             
             chosen_time_interval(1) = events(event_inx);
@@ -780,12 +857,12 @@ function autoEventDetectionGUI()
 
 end
 
-function saveSettings()
+function saveSettings(plotSnapshot)
     global hMinPeakProminence hDetectionType hMainChannel hSubtractChannelCheck hSubtractChannel hMaxPeakWidth
     global hMinPeakDistance
-    global autodetection_settings SettingsFilepath
     global hSourceType timeUnitFactor hSearchAroundStimuli hSearchWindow hSearchAroundDirection
     global hUseTimeRange hStartTime hEndTime
+    global autodetection_settings
 
     settings.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
     settings.PolarityIndex = get(hDetectionType, 'Value');
@@ -802,9 +879,14 @@ function saveSettings()
     settings.StartTime = str2double(get(hStartTime, 'String')) / timeUnitFactor;
     settings.EndTime = str2double(get(hEndTime, 'String')) / timeUnitFactor;
     
+    if nargin >= 1 && isstruct(plotSnapshot)
+        settings.plotSnapshot = plotSnapshot;
+    elseif isstruct(autodetection_settings) && isfield(autodetection_settings, 'plotSnapshot')
+        settings.plotSnapshot = autodetection_settings.plotSnapshot;
+    end
+    
     autodetection_settings = settings;
-    % сохраняем фактор в глобальные настройки              
-    save(SettingsFilepath, 'autodetection_settings', '-append');
+    saveChannelSettings('autodetection_settings');
 end
 
 function [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected] = autoEventDetection(params)

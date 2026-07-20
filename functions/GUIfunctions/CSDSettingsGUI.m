@@ -59,6 +59,10 @@ function activeChannels = CSDSettingsGUI()
     % Поле для отображения значения csd_contrast_coef
     csdContrastCoeffEdit = uicontrol('Style', 'edit', 'String', num2str(csd_contrast_coef), 'Position', [220, 240, 100, 20], 'BackgroundColor', 'white', 'Enable', 'inactive');
     
+    splitCheckbox = uicontrol('Style', 'checkbox', 'String', 'Split channel groups', ...
+        'Position', [220, 200, 120, 20], 'Value', logical(csd_split_by_channel_gaps), ...
+        'HorizontalAlignment', 'left');
+    
     % Поле для выбора значения csd_smooth_coef
     uicontrol('Style', 'text', 'String', 'Smooth Coef:', 'Position', [220, 150, 100, 15], 'HorizontalAlignment', 'left');
     csdSmoothCoefEdit = uicontrol('Style', 'edit', 'String', num2str(csd_smooth_coef), 'Position', [220, 130, 100, 20], 'BackgroundColor', 'white');
@@ -104,7 +108,7 @@ end
         slider_value = csdContrastSlider.Value;
         csd_contrast_coef = slider_formula(slider_value, min_coef, max_coef, slider_max);
         csd_smooth_coef = str2double(get(csdSmoothCoefEdit, 'String')); % Обновление значения коэффициента
-        csd_split_by_channel_gaps = true;
+        csd_split_by_channel_gaps = logical(get(splitCheckbox, 'Value'));
         updatePlot();
         [path, name, ~] = fileparts(matFilePath);
         channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);

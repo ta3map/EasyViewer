@@ -79,7 +79,10 @@ end
 channelSettings = get(channelTable, 'Data');
 
 params.sourceType = sourceType;
-params.csd_split_by_channel_gaps = true;
+if isfield(opts, 'csd_split_by_channel_gaps')
+    csd_split_by_channel_gaps = logical(opts.csd_split_by_channel_gaps);
+end
+params.csd_split_by_channel_gaps = csd_split_by_channel_gaps;
 buildFigure = ~isfield(opts, 'buildFigure') || logical(opts.buildFigure);
 if isfield(opts, 'tiledlayoutSize') && ~isempty(opts.tiledlayoutSize)
     tiledRows = opts.tiledlayoutSize(1);
@@ -190,6 +193,16 @@ else
     else
         params.csd_baseline_boundary = (-time_back * timeUnitFactor) / 2;
     end
+end
+if isfield(opts, 'hpFilterEnabled')
+    params.hpFilterEnabled = logical(opts.hpFilterEnabled);
+else
+    params.hpFilterEnabled = true;
+end
+if isfield(opts, 'baselineEnabled')
+    params.baselineEnabled = logical(opts.baselineEnabled);
+else
+    params.baselineEnabled = true;
 end
 
 % Убираем артефакт стимуляции в окне усреднения
@@ -427,6 +440,7 @@ hp_text_coords = [280, 7, 38, 20];
 hp_edit_coords = [318, 7, 45, 20];
 hp_slider_coords = [365, 9, 70, 18];
 hp_active_checkbox_coords = [262, 9, 16, 18];
+baseline_active_checkbox_coords = [434, 9, 16, 18];
 baseline_text_coords = [450, 7, 55, 20];
 baseline_edit_coords = [490, 7, 50, 20];
 baseline_slider_coords = [543, 9, 70, 18];
@@ -438,8 +452,6 @@ xmin_edit_coords = [817, 7, 38, 20];
 xmax_text_coords = [857, 7, 32, 20];
 xmax_edit_coords = [893, 7, 38, 20];
 mua_trace_checkbox_coords = [940, 7, 95, 20];
-colormap_text_coords = [55, 33, 62, 20];
-colormap_popup_coords = [117, 33, 118, 22];
 lfp_spacing_text_coords = [250, 33, 78, 20];
 lfp_spacing_edit_coords = [326, 33, 44, 20];
 lfp_spacing_slider_coords = [372, 35, 86, 18];
@@ -464,20 +476,18 @@ hpEdit = [];
 hpSlider = [];
 hpActiveCheckbox = [];
 hpFilterEnabled = true;
+baselineEnabled = true;
 baselineLabel = [];
 baselineEdit = [];
 baselineSlider = [];
+baselineActiveCheckbox = [];
 smoothLabel = [];
 smoothEdit = [];
 smoothSlider = [];
-colormapLabel = [];
-colormapPopup = [];
 lfpSpacingLabel = [];
 lfpSpacingEdit = [];
 lfpSpacingSlider = [];
 secondaryAxesCheckbox = [];
-colormapNames = {'parula', 'turbo', 'jet', 'gray'};
-currentColormapName = colormapNames{1};
 xMinLabel = [];
 xMinEdit = [];
 xMaxLabel = [];
@@ -499,6 +509,12 @@ if isfield(calculationResultOut, 'csd_hp_cutoff_hz')
 end
 if isfield(calculationResultOut, 'csd_baseline_boundary')
     currentBaselineBoundary = calculationResultOut.csd_baseline_boundary;
+end
+if isfield(calculationResultOut, 'hpFilterEnabled')
+    hpFilterEnabled = logical(calculationResultOut.hpFilterEnabled);
+end
+if isfield(calculationResultOut, 'baselineEnabled')
+    baselineEnabled = logical(calculationResultOut.baselineEnabled);
 end
 maxHpCutoff = 500;
 restoreMeanControlsState();
@@ -590,9 +606,9 @@ function ResetClb(~, ~)
     currentHpCutoff = 100;
     currentBaselineBoundary = defaultXlims(1) / 2;
     hpFilterEnabled = true;
+    baselineEnabled = true;
     useWhiteTracesInMua = true;
     currentHeatmapSmoothSigma = defaultHeatmapSmoothSigma();
-    currentColormapName = colormapNames{1};
     currentShiftSpacing = params.shiftCoeff;
     syncPreCsdControls();
     applyCurrentColormap();
@@ -670,6 +686,9 @@ hpActiveCheckbox = uicontrol('Parent', figureHandleOut, 'Style', 'checkbox', ...
     'String', '', 'Value', double(hpFilterEnabled), ...
     'Position', hp_active_checkbox_coords, 'Callback', @HpActiveCheckboxClb);
 
+baselineActiveCheckbox = uicontrol('Parent', figureHandleOut, 'Style', 'checkbox', ...
+    'String', '', 'Value', double(baselineEnabled), ...
+    'Position', baseline_active_checkbox_coords, 'Callback', @BaselineActiveCheckboxClb);
 baselineLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'Base to', ...
     'Position', baseline_text_coords, 'HorizontalAlignment', 'left');
 baselineEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', ...
@@ -700,11 +719,6 @@ xMaxEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', ...
 muaTraceWhiteCheckbox = uicontrol('Parent', figureHandleOut, 'Style', 'checkbox', ...
     'String', 'white traces', 'Value', double(useWhiteTracesInMua), ...
     'Position', mua_trace_checkbox_coords, 'Callback', @MuaTraceWhiteCheckboxClb);
-colormapLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'Colormap', ...
-    'Position', colormap_text_coords, 'HorizontalAlignment', 'left');
-colormapPopup = uicontrol('Parent', figureHandleOut, 'Style', 'popupmenu', ...
-    'String', colormapNames, 'BackgroundColor', 'white', ...
-    'Position', colormap_popup_coords, 'Callback', @ColormapPopupClb);
 lfpSpacingLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'LFP gap', ...
     'Position', lfp_spacing_text_coords, 'HorizontalAlignment', 'left');
 lfpSpacingEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', ...
@@ -727,7 +741,7 @@ end
 
 function deletePreCsdControls()
 cancelDebouncedRefresh();
-handles = {hpLabel, hpEdit, hpSlider, baselineLabel, baselineEdit, baselineSlider, smoothLabel, smoothEdit, smoothSlider, xMinLabel, xMinEdit, xMaxLabel, xMaxEdit, muaTraceWhiteCheckbox, colormapLabel, colormapPopup, lfpSpacingLabel, lfpSpacingEdit, lfpSpacingSlider, secondaryAxesCheckbox};
+handles = {hpLabel, hpEdit, hpSlider, hpActiveCheckbox, baselineActiveCheckbox, baselineLabel, baselineEdit, baselineSlider, smoothLabel, smoothEdit, smoothSlider, xMinLabel, xMinEdit, xMaxLabel, xMaxEdit, muaTraceWhiteCheckbox, lfpSpacingLabel, lfpSpacingEdit, lfpSpacingSlider, secondaryAxesCheckbox};
 for idx = 1:numel(handles)
     h = handles{idx};
     if ~isempty(h) && isgraphics(h, 'uicontrol')
@@ -738,14 +752,13 @@ hpLabel = [];
 hpEdit = [];
 hpSlider = [];
 hpActiveCheckbox = [];
+baselineActiveCheckbox = [];
 baselineLabel = [];
 baselineEdit = [];
 baselineSlider = [];
 smoothLabel = [];
 smoothEdit = [];
 smoothSlider = [];
-colormapLabel = [];
-colormapPopup = [];
 xMinLabel = [];
 xMinEdit = [];
 xMaxLabel = [];
@@ -766,6 +779,13 @@ end
 
 function HpActiveCheckboxClb(src, ~)
 hpFilterEnabled = logical(get(src, 'Value'));
+syncPreCsdControls();
+saveMeanControlsState();
+requestDebouncedRefresh();
+end
+
+function BaselineActiveCheckboxClb(src, ~)
+baselineEnabled = logical(get(src, 'Value'));
 syncPreCsdControls();
 saveMeanControlsState();
 requestDebouncedRefresh();
@@ -950,11 +970,40 @@ else
     Ylims = [min(offsetsLocal)-currentShiftSpacing*0.5, max(offsetsLocal)+currentShiftSpacing*0.5];
 end
 ylim(mainAxLocal, Ylims);
-secondaryAxes = findobj(figureHandleOut, 'Type', 'axes', '-not', 'Tag', 'legend');
-for iAx = 1:numel(secondaryAxes)
-    if secondaryAxes(iAx) ~= mainAxLocal
-        ylim(secondaryAxes(iAx), Ylims);
+secondaryAxes = findobj(figureHandleOut, 'Type', 'axes', 'Tag', 'mean_secondary_axis');
+if ~isempty(secondaryAxes) && isgraphics(secondaryAxes(1))
+    secondaryAxLocal = secondaryAxes(1);
+    yMin = min(offsetsLocal);
+    yMax = max(offsetsLocal);
+    lineHandles = findobj(secondaryAxLocal, 'Type', 'line');
+    textHandles = findobj(secondaryAxLocal, 'Type', 'text');
+    srcMin = [];
+    srcMax = [];
+    for iLine = 1:numel(lineHandles)
+        yOld = get(lineHandles(iLine), 'YData');
+        yOld = yOld(:);
+        if numel(yOld) < 2
+            continue
+        end
+        if isempty(srcMin)
+            srcMin = min(yOld);
+            srcMax = max(yOld);
+        end
+        if srcMax > srcMin
+            yNew = yMin + (yOld - srcMin) * (yMax - yMin) / (srcMax - srcMin);
+        else
+            yNew = yOld * 0 + yMin;
+        end
+        set(lineHandles(iLine), 'YData', yNew);
     end
+    if ~isempty(srcMin) && srcMax > srcMin
+        for iText = 1:numel(textHandles)
+            pos = get(textHandles(iText), 'Position');
+            pos(2) = yMin + (pos(2) - srcMin) * (yMax - yMin) / (srcMax - srcMin);
+            set(textHandles(iText), 'Position', pos);
+        end
+    end
+    ylim(secondaryAxLocal, Ylims);
 end
 applyCurrentColormap();
 hold(mainAxLocal, 'off');
@@ -1018,31 +1067,39 @@ function syncPreCsdControls()
 if ~isempty(hpActiveCheckbox) && isgraphics(hpActiveCheckbox, 'uicontrol')
     set(hpActiveCheckbox, 'Value', double(hpFilterEnabled));
 end
-enabledState = ternaryEnable(hpFilterEnabled);
-labelColor = [0 0 0];
+if ~isempty(baselineActiveCheckbox) && isgraphics(baselineActiveCheckbox, 'uicontrol')
+    set(baselineActiveCheckbox, 'Value', double(baselineEnabled));
+end
+hpEnabledState = ternaryEnable(hpFilterEnabled);
+baselineEnabledState = ternaryEnable(baselineEnabled);
+hpLabelColor = [0 0 0];
 if ~hpFilterEnabled
-    labelColor = [0.5 0.5 0.5];
+    hpLabelColor = [0.5 0.5 0.5];
+end
+baselineLabelColor = [0 0 0];
+if ~baselineEnabled
+    baselineLabelColor = [0.5 0.5 0.5];
 end
 if ~isempty(hpLabel) && isgraphics(hpLabel, 'uicontrol')
-    set(hpLabel, 'ForegroundColor', labelColor);
+    set(hpLabel, 'ForegroundColor', hpLabelColor);
 end
 if ~isempty(baselineLabel) && isgraphics(baselineLabel, 'uicontrol')
-    set(baselineLabel, 'ForegroundColor', labelColor);
+    set(baselineLabel, 'ForegroundColor', baselineLabelColor);
 end
 if ~isempty(hpEdit) && isgraphics(hpEdit, 'uicontrol')
-    set(hpEdit, 'Enable', enabledState);
+    set(hpEdit, 'Enable', hpEnabledState);
     set(hpEdit, 'String', sprintf('%.2f', currentHpCutoff));
 end
 if ~isempty(hpSlider) && isgraphics(hpSlider, 'uicontrol')
-    set(hpSlider, 'Enable', enabledState);
+    set(hpSlider, 'Enable', hpEnabledState);
     set(hpSlider, 'Value', hpSliderFromValue(currentHpCutoff));
 end
 if ~isempty(baselineEdit) && isgraphics(baselineEdit, 'uicontrol')
-    set(baselineEdit, 'Enable', enabledState);
+    set(baselineEdit, 'Enable', baselineEnabledState);
     set(baselineEdit, 'String', num2str(currentBaselineBoundary, '%.3g'));
 end
 if ~isempty(baselineSlider) && isgraphics(baselineSlider, 'uicontrol')
-    set(baselineSlider, 'Enable', enabledState);
+    set(baselineSlider, 'Enable', baselineEnabledState);
     set(baselineSlider, 'Value', baselineSliderFromValue(currentBaselineBoundary));
 end
 if ~isempty(xMinEdit) && isgraphics(xMinEdit, 'uicontrol')
@@ -1057,14 +1114,6 @@ end
 if ~isempty(smoothSlider) && isgraphics(smoothSlider, 'uicontrol')
     set(smoothSlider, 'Value', smoothSliderFromValue(currentHeatmapSmoothSigma));
 end
-if ~isempty(colormapPopup) && isgraphics(colormapPopup, 'uicontrol')
-    activeColormapIndex = find(strcmp(colormapNames, currentColormapName), 1);
-    if isempty(activeColormapIndex)
-        activeColormapIndex = 1;
-        currentColormapName = colormapNames{activeColormapIndex};
-    end
-    set(colormapPopup, 'Value', activeColormapIndex);
-end
 if ~isempty(lfpSpacingEdit) && isgraphics(lfpSpacingEdit, 'uicontrol')
     set(lfpSpacingEdit, 'String', num2str(currentShiftSpacing, '%.6g'));
 end
@@ -1073,14 +1122,6 @@ if ~isempty(lfpSpacingSlider) && isgraphics(lfpSpacingSlider, 'uicontrol')
 end
 if ~isempty(secondaryAxesCheckbox) && isgraphics(secondaryAxesCheckbox, 'uicontrol')
     set(secondaryAxesCheckbox, 'Value', double(showSecondaryAxes));
-end
-hasHeatmap = (isfield(calculationResultOut, 'show_CSD') && calculationResultOut.show_CSD) || ...
-    (isfield(calculationResultOut, 'show_spikes') && calculationResultOut.show_spikes);
-if ~isempty(colormapLabel) && isgraphics(colormapLabel, 'uicontrol')
-    set(colormapLabel, 'Visible', ternaryVisibility(hasHeatmap));
-end
-if ~isempty(colormapPopup) && isgraphics(colormapPopup, 'uicontrol')
-    set(colormapPopup, 'Visible', ternaryVisibility(hasHeatmap));
 end
 end
 
@@ -1185,7 +1226,7 @@ if isfield(calculationResultOut, 'show_CSD') && calculationResultOut.show_CSD
     csdParams.csd_smooth_coef = calculationResultOut.csd_smooth_coef;
     csdParams.csd_active = calculationResultOut.csd_active;
     csdParams.ch_inxs_original = calculationResultOut.ch_inxs;
-    csdParams.csd_split_by_channel_gaps = true;
+    csdParams.csd_split_by_channel_gaps = calculationResultOut.csd_split_by_channel_gaps;
     [csdImage, csdTime, csdCh] = csdCalc(csdParams);
     [csdImage, csdTime, csdCh] = applyHeatmapResampling(csdImage, csdTime, csdCh, currentHeatmapSmoothSigma);
     csdPlotting(csdImage, csdTime, csdCh, calculationResultOut.csd_contrast_coef);
@@ -1225,6 +1266,8 @@ ylim(mainAxLocal, currentYlim);
 hold(mainAxLocal, 'off');
 calculationResultOut.csd_hp_cutoff_hz = currentHpCutoff;
 calculationResultOut.csd_baseline_boundary = currentBaselineBoundary;
+calculationResultOut.hpFilterEnabled = hpFilterEnabled;
+calculationResultOut.baselineEnabled = baselineEnabled;
 applyXlimToAxes();
 applySecondaryAxesVisibility();
 end
@@ -1233,10 +1276,14 @@ function plMeanData = prepareLfpForCsd(timeAxis)
 plMeanData = calculationResultOut.meanData(:, calculationResultOut.ch_inxs) .* ...
     calculationResultOut.scalingCoefficients(calculationResultOut.ch_inxs);
 plMeanData = double(plMeanData);
+processRight = currentXlims(2);
+if baselineEnabled
+    processRight = currentBaselineBoundary;
+end
 if hpFilterEnabled && currentHpCutoff > 0
     nyquistFreq = calculationResultOut.Fs / 2;
     hpCutoff = min(currentHpCutoff, nyquistFreq * 0.99);
-    processingMask = timeAxis >= currentXlims(1) & timeAxis <= currentBaselineBoundary;
+    processingMask = timeAxis >= currentXlims(1) & timeAxis <= processRight;
     processIdx = find(processingMask);
     if numel(processIdx) >= 9
         dataBeforeFilter = plMeanData;
@@ -1250,7 +1297,7 @@ if hpFilterEnabled && currentHpCutoff > 0
         end
     end
 end
-if hpFilterEnabled
+if baselineEnabled
     baselineBoundaryInRange = currentBaselineBoundary >= currentXlims(1) && currentBaselineBoundary <= currentXlims(2);
     if baselineBoundaryInRange
         baselineMask = timeAxis >= currentXlims(1) & timeAxis <= currentBaselineBoundary;
@@ -1286,8 +1333,10 @@ if ~isempty(gapIdx)
         plot(mainAxLocal, [x1, x2], [y, y], '--', 'Color', [0.6 0.6 0.6], 'LineWidth', 1);
     end
 end
-xline(mainAxLocal, currentBaselineBoundary, '--', 'Color', [0.5 0.5 0.5], 'LineWidth', 1);
 xline(mainAxLocal, 0, 'r:');
+if baselineEnabled
+    xline(mainAxLocal, currentBaselineBoundary, '--', 'Color', [0.5 0.5 0.5], 'LineWidth', 1);
+end
 end
 
 function visibleValue = ternaryVisibility(isVisible)
@@ -1347,22 +1396,16 @@ newClim = contrastCenter + [-halfSpan, halfSpan];
 set(get(heatmapHandle, 'Parent'), 'CLim', newClim);
 end
 
-function ColormapPopupClb(src, ~)
-selectedIndex = get(src, 'Value');
-if selectedIndex < 1 || selectedIndex > numel(colormapNames)
-    return
-end
-currentColormapName = colormapNames{selectedIndex};
-applyCurrentColormap();
-saveMeanControlsState();
-end
-
 function applyCurrentColormap()
 mainAxes = findobj(figureHandleOut, 'Type', 'axes', 'Tag', 'mean_main_axis');
 if isempty(mainAxes) || ~isgraphics(mainAxes(1))
     return
 end
-colormap(mainAxes(1), currentColormapName);
+colormapName = 'parula';
+if isfield(calculationResultOut, 'show_CSD') && calculationResultOut.show_CSD
+    colormapName = 'jet';
+end
+colormap(mainAxes(1), colormapName);
 end
 
 function coef = defaultContrastPercent()
@@ -1399,14 +1442,14 @@ end
 if isfield(stateForMode, 'hpFilterEnabled')
     hpFilterEnabled = logical(stateForMode.hpFilterEnabled);
 end
+if isfield(stateForMode, 'baselineEnabled')
+    baselineEnabled = logical(stateForMode.baselineEnabled);
+end
 if isfield(stateForMode, 'muaWhiteTraces')
     useWhiteTracesInMua = logical(stateForMode.muaWhiteTraces);
 end
 if isfield(stateForMode, 'heatmapSmoothSigma')
     currentHeatmapSmoothSigma = stateForMode.heatmapSmoothSigma;
-end
-if isfield(stateForMode, 'colormapName') && ischar(stateForMode.colormapName)
-    currentColormapName = stateForMode.colormapName;
 end
 if isfield(stateForMode, 'lfpSpacing')
     currentShiftSpacing = double(stateForMode.lfpSpacing);
@@ -1426,6 +1469,9 @@ end
 if isfield(opts, 'hpFilterEnabled')
     hpFilterEnabled = logical(opts.hpFilterEnabled);
 end
+if isfield(opts, 'baselineEnabled')
+    baselineEnabled = logical(opts.baselineEnabled);
+end
 if isfield(opts, 'muaWhiteTraces')
     useWhiteTracesInMua = logical(opts.muaWhiteTraces);
 end
@@ -1435,17 +1481,11 @@ end
 if isfield(opts, 'contrastPercent')
     currentContrastPercent = double(opts.contrastPercent);
 end
-if isfield(opts, 'colormapName')
-    currentColormapName = char(opts.colormapName);
-end
 if isfield(opts, 'shiftCoeff')
     currentShiftSpacing = double(opts.shiftCoeff);
 end
 if isfield(opts, 'showSecondaryAxes')
     showSecondaryAxes = logical(opts.showSecondaryAxes);
-end
-if isempty(find(strcmp(colormapNames, currentColormapName), 1))
-    currentColormapName = colormapNames{1};
 end
 if currentXlims(1) >= currentXlims(2)
     currentXlims = Xlims;
@@ -1466,9 +1506,9 @@ stateForMode = struct( ...
     'baselineBoundary', currentBaselineBoundary, ...
     'xLim', currentXlims, ...
     'hpFilterEnabled', logical(hpFilterEnabled), ...
+    'baselineEnabled', logical(baselineEnabled), ...
     'muaWhiteTraces', logical(useWhiteTracesInMua), ...
     'heatmapSmoothSigma', currentHeatmapSmoothSigma, ...
-    'colormapName', currentColormapName, ...
     'lfpSpacing', currentShiftSpacing, ...
     'showSecondaryAxes', logical(showSecondaryAxes));
 if ~isstruct(meanControlsState)

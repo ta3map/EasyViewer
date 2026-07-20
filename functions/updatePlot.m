@@ -184,7 +184,7 @@ function updatePlot()
         params.csd_smooth_coef = csd_smooth_coef;
         params.csd_active = csd_active;
         params.ch_inxs_original = ch_inxs;
-        params.csd_split_by_channel_gaps = true;
+        params.csd_split_by_channel_gaps = csd_split_by_channel_gaps;
         
         [csd_image, csd_t_range, csd_ch_range] = csdCalc(params);
         csdPlotting(csd_image, csd_t_range, csd_ch_range, csd_contrast_coef);

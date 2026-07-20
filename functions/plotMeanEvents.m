@@ -25,7 +25,10 @@ function [f, calculation_result] = plotMeanEvents(params)
     csd_smooth_coef = params.csd_smooth_coef;
     csd_contrast_coef = params.csd_contrast_coef;
     csd_active = params.csd_active;
-    csd_split_by_channel_gaps = true;
+    csd_split_by_channel_gaps = false;
+    if isfield(params, 'csd_split_by_channel_gaps')
+        csd_split_by_channel_gaps = logical(params.csd_split_by_channel_gaps);
+    end
     lfpVar = params.lfpVar;
     mean_group_ch = params.mean_group_ch;
     t_profile = params.t_profile;
@@ -49,6 +52,14 @@ function [f, calculation_result] = plotMeanEvents(params)
         csdBaselineBoundary = params.csd_baseline_boundary;
     else
         csdBaselineBoundary = 0;
+    end
+    hpFilterEnabled = true;
+    if isfield(params, 'hpFilterEnabled')
+        hpFilterEnabled = logical(params.hpFilterEnabled);
+    end
+    baselineEnabled = true;
+    if isfield(params, 'baselineEnabled')
+        baselineEnabled = logical(params.baselineEnabled);
     end
     
     % Получение данных событий и настроек каналов
@@ -282,8 +293,12 @@ function [f, calculation_result] = plotMeanEvents(params)
         pl_meanDataForCsd = double(pl_meanData);
         nyquistFreq = Fs / 2;
         hpCutoffHz = min(hpCutoffHz, nyquistFreq * 0.99);
-        processingMask = timeAxis >= xlimLeft & timeAxis <= baselineRight;
-        if hpCutoffHz >= 0.01
+        processRight = xlimRight;
+        if baselineEnabled
+            processRight = baselineRight;
+        end
+        processingMask = timeAxis >= xlimLeft & timeAxis <= processRight;
+        if hpFilterEnabled && hpCutoffHz >= 0.01
             processIdx = find(processingMask);
             if numel(processIdx) >= 9
                 dataBeforeFilter = pl_meanDataForCsd;
@@ -297,9 +312,11 @@ function [f, calculation_result] = plotMeanEvents(params)
                 end
             end
         end
-        baselineMask = timeAxis >= xlimLeft & timeAxis <= baselineRight;
-        baselineMedian = median(pl_meanDataForCsd(baselineMask, :), 1);
-        pl_meanDataForCsd = pl_meanDataForCsd - baselineMedian;
+        if baselineEnabled
+            baselineMask = timeAxis >= xlimLeft & timeAxis <= baselineRight;
+            baselineMedian = median(pl_meanDataForCsd(baselineMask, :), 1);
+            pl_meanDataForCsd = pl_meanDataForCsd - baselineMedian;
+        end
         pl_meanDataToPlot = pl_meanDataForCsd;
         
         params.time_in_csd = timeAxis;
@@ -399,7 +416,7 @@ end
     'shiftCoeff',pl_shiftCoeff, ...
     'linewidth', pl_widths_in, ...
     'color', pl_colors_in);
-    if show_CSD
+    if show_CSD && baselineEnabled
         xline(baselineRight, '--', 'Color', [0.5 0.5 0.5], 'LineWidth', 1);
     end
 
@@ -487,8 +504,11 @@ end
     calculation_result.csd_smooth_coef = csd_smooth_coef;
     calculation_result.csd_contrast_coef = csd_contrast_coef;
     calculation_result.csd_active = csd_active;
+    calculation_result.csd_split_by_channel_gaps = csd_split_by_channel_gaps;
     calculation_result.csd_hp_cutoff_hz = hpCutoffHz;
     calculation_result.csd_baseline_boundary = baselineRight;
+    calculation_result.hpFilterEnabled = hpFilterEnabled;
+    calculation_result.baselineEnabled = baselineEnabled;
     secondaryAxes = findobj(axesParent, 'Type', 'axes', 'Tag', 'mean_secondary_axis');
     if ~isempty(secondaryAxes)
         calculation_result.secondary_axes_handle = secondaryAxes(1);

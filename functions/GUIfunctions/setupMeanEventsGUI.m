@@ -1,6 +1,7 @@
 function [wasApplied, sourceType, meanOpts] = setupMeanEventsGUI(config)
 global visualSettings shiftCoeff meanControlsState
 global time_back time_forward timeUnitFactor
+global csd_split_by_channel_gaps
 
 if nargin < 1 || ~isstruct(config)
     config = struct();
@@ -52,9 +53,10 @@ initialState = struct( ...
     'hpCutoffHz', 100, ...
     'baselineBoundary', defaultXlims(1) / 2, ...
     'hpFilterEnabled', true, ...
+    'baselineEnabled', true, ...
     'muaWhiteTraces', true, ...
     'heatmapSmoothSigma', 0.1, ...
-    'colormapName', 'parula');
+    'csd_split_by_channel_gaps', logical(csd_split_by_channel_gaps));
 
 initialStartIndex = 1;
 initialEndIndex = 0;
@@ -173,10 +175,11 @@ uicontrol('Parent', preCsdPanel, 'Style', 'text', 'String', 'High Pass, Hz', ...
     'Position', [140, 132, 78, 20], 'HorizontalAlignment', 'left');
 hpEdit = uicontrol('Parent', preCsdPanel, 'Style', 'edit', 'BackgroundColor', 'white', ...
     'String', num2str(initialState.hpCutoffHz, '%.6g'), 'Position', [220, 130, 55, 24]);
-uicontrol('Parent', preCsdPanel, 'Style', 'text', 'String', 'Baseline to', ...
-    'Position', [300, 132, 70, 20], 'HorizontalAlignment', 'left');
+baselineEnabledCheckbox = uicontrol('Parent', preCsdPanel, 'Style', 'checkbox', ...
+    'String', 'Baseline to', 'Position', [290, 130, 90, 24], ...
+    'Value', double(logical(initialState.baselineEnabled)));
 baselineEdit = uicontrol('Parent', preCsdPanel, 'Style', 'edit', 'BackgroundColor', 'white', ...
-    'String', num2str(initialState.baselineBoundary, '%.6g'), 'Position', [372, 130, 85, 24]);
+    'String', num2str(initialState.baselineBoundary, '%.6g'), 'Position', [382, 130, 75, 24]);
 uicontrol('Parent', preCsdPanel, 'Style', 'text', 'String', 'Smooth', ...
     'Position', [12, 92, 70, 20], 'HorizontalAlignment', 'left');
 smoothEdit = uicontrol('Parent', preCsdPanel, 'Style', 'edit', 'BackgroundColor', 'white', ...
@@ -185,17 +188,15 @@ uicontrol('Parent', preCsdPanel, 'Style', 'text', 'String', 'Contrast, %', ...
     'Position', [190, 92, 80, 20], 'HorizontalAlignment', 'left');
 contrastEdit = uicontrol('Parent', preCsdPanel, 'Style', 'edit', 'BackgroundColor', 'white', ...
     'String', num2str(initialState.contrastPercent, '%.6g'), 'Position', [266, 90, 85, 24]);
+splitGroupsCheckbox = uicontrol('Parent', preCsdPanel, 'Style', 'checkbox', ...
+    'String', 'Split channel groups', ...
+    'Position', [12, 50, 160, 24], ...
+    'Value', double(logical(initialState.csd_split_by_channel_gaps)));
 
-colormapNames = {'parula', 'turbo', 'jet', 'gray'};
-uicontrol('Parent', preCsdPanel, 'Style', 'text', 'String', 'Colormap', ...
-    'Position', [372, 92, 70, 20], 'HorizontalAlignment', 'left');
-colormapPopup = uicontrol('Parent', preCsdPanel, 'Style', 'popupmenu', ...
-    'String', colormapNames, 'Position', [442, 90, 120, 24], 'BackgroundColor', 'white');
-colormapIdx = find(strcmp(colormapNames, initialState.colormapName), 1);
-if isempty(colormapIdx)
-    colormapIdx = 1;
-end
-set(colormapPopup, 'Value', colormapIdx);
+set(hpEnabledCheckbox, 'Callback', @syncHpEditEnable);
+syncHpEditEnable();
+set(baselineEnabledCheckbox, 'Callback', @syncBaselineEditEnable);
+syncBaselineEditEnable();
 set(showMuaCheckbox, 'Callback', @syncMuaWhiteVisibility);
 set(sourcePopup, 'Callback', @sourceChangedCallback);
 syncMuaWhiteVisibility();
@@ -266,10 +267,11 @@ uiwait(fig);
             return
         end
 
-        colormapValue = colormapNames{get(colormapPopup, 'Value')};
         removeBaselineVal = logical(get(removeBaselineCheckbox, 'Value'));
         hpEnabledVal = logical(get(hpEnabledCheckbox, 'Value'));
+        baselineEnabledVal = logical(get(baselineEnabledCheckbox, 'Value'));
         muaWhiteVal = logical(get(muaWhiteCheckbox, 'Value'));
+        splitGroupsVal = logical(get(splitGroupsCheckbox, 'Value'));
 
         meanOpts = struct();
         meanOpts.removeBaseline = removeBaselineVal;
@@ -280,12 +282,14 @@ uiwait(fig);
         meanOpts.csd_hp_cutoff_hz = hpVal;
         meanOpts.csd_baseline_boundary = baselineVal;
         meanOpts.hpFilterEnabled = hpEnabledVal;
+        meanOpts.baselineEnabled = baselineEnabledVal;
         meanOpts.heatmapSmoothSigma = smoothVal;
         meanOpts.contrastPercent = contrastVal;
-        meanOpts.colormapName = colormapValue;
         meanOpts.muaWhiteTraces = muaWhiteVal;
         meanOpts.startIndex = startIndexVal;
         meanOpts.endIndex = endIndexVal;
+        meanOpts.csd_split_by_channel_gaps = splitGroupsVal;
+        csd_split_by_channel_gaps = splitGroupsVal;
         if ~isstruct(meanControlsState)
             meanControlsState = struct();
         end
@@ -299,9 +303,10 @@ uiwait(fig);
             'baselineBoundary', baselineVal, ...
             'xLim', [xMinVal, xMaxVal], ...
             'hpFilterEnabled', hpEnabledVal, ...
+            'baselineEnabled', baselineEnabledVal, ...
             'muaWhiteTraces', muaWhiteVal, ...
             'heatmapSmoothSigma', smoothVal, ...
-            'colormapName', colormapValue);
+            'csd_split_by_channel_gaps', splitGroupsVal);
         meanControlsState.preDialog = struct( ...
             'sourceType', sourceType, ...
             'startIndex', startIndexVal, ...
@@ -309,7 +314,8 @@ uiwait(fig);
             'show_spikes', showMuaVal, ...
             'show_CSD', showCsdVal, ...
             'shiftCoeff', shiftVal, ...
-            'removeBaseline', removeBaselineVal);
+            'removeBaseline', removeBaselineVal, ...
+            'csd_split_by_channel_gaps', splitGroupsVal);
         saveChannelSettings('meanControlsState');
 
         wasApplied = true;
@@ -343,6 +349,22 @@ uiwait(fig);
             visibleState = 'on';
         end
         set(muaWhiteCheckbox, 'Visible', visibleState);
+    end
+
+    function syncBaselineEditEnable(~, ~)
+        enableState = 'off';
+        if logical(get(baselineEnabledCheckbox, 'Value'))
+            enableState = 'on';
+        end
+        set(baselineEdit, 'Enable', enableState);
+    end
+
+    function syncHpEditEnable(~, ~)
+        enableState = 'off';
+        if logical(get(hpEnabledCheckbox, 'Value'))
+            enableState = 'on';
+        end
+        set(hpEdit, 'Enable', enableState);
     end
 
     function count = sourceCount(sourceTypeIn)
