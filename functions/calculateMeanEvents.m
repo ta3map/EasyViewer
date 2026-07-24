@@ -167,7 +167,9 @@ scalingCoefficients = [channelSettings{:, 3}];
 colors_in = channelSettings(:, 4)';
 widths_in = [channelSettings{:, 5}];
 
-meanData = zeros(round(meanWindow * Fs), size(lfp, 2));
+winLen = round(meanWindow * Fs);
+halfWin = round(meanWindow * Fs / 2);
+meanData = zeros(winLen, size(lfp, 2));
 numEvents = length(timePoints);
 removeBaseline = params.removeBaseline;
 
@@ -177,31 +179,37 @@ end
 
 ch_enabled = false(length(ch_labels), 1);
 ch_enabled(activeChannels) = true;
-originalEventsData = {};
+scaleEnabled = scalingCoefficients(ch_enabled);
+
+eventIdx = round(timePoints(:) * Fs);
+windowStart = max(eventIdx - halfWin, 1);
+windowEnd = min(windowStart + winLen - 1, N);
+valid = windowEnd < size(lfp, 1);
+nValid = nnz(valid);
+originalEventsData = cell(nValid, 1);
+kValid = 0;
+
 showWaitbar = ~isfield(params, 'showWaitbar') || logical(params.showWaitbar);
 wb_local = [];
 if showWaitbar
     wb_local = waitbar(0, 'Processing events...', 'Name', 'Calculating mean events');
 end
+wbStep = max(1, floor(numEvents / 20));
 
 for i = 1:numEvents
-    eventIdx = round(timePoints(i) * Fs);
-    windowStart = max(eventIdx - round(meanWindow * Fs / 2), 1);
-    windowEnd = min(windowStart + round(meanWindow * Fs) - 1, N);
-
-    if windowEnd < size(lfp, 1)
-        eventDataRaw = lfp(windowStart:windowEnd, :);
+    if valid(i)
+        eventDataRaw = lfp(windowStart(i):windowEnd(i), :);
         if removeBaseline
             eventDataProcessed = eventDataRaw - nanmedian(eventDataRaw);
         else
             eventDataProcessed = eventDataRaw;
         end
         meanData = meanData + eventDataProcessed;
-        eventDataScaled = eventDataProcessed(:, ch_enabled) .* scalingCoefficients(ch_enabled);
-        originalEventsData{end+1} = eventDataScaled;
+        kValid = kValid + 1;
+        originalEventsData{kValid} = eventDataProcessed(:, ch_enabled) .* scaleEnabled;
     end
 
-    if showWaitbar && ~isempty(wb_local)
+    if showWaitbar && ~isempty(wb_local) && (mod(i, wbStep) == 0 || i == numEvents)
         waitbar(i / numEvents, wb_local, sprintf('Processing event %d of %d', i, numEvents));
     end
 end
@@ -228,28 +236,32 @@ if show_spikes && ~isempty(spks) && ~show_CSD
         ii = double(spks(ch_inx).ampl) <= (-lfpVar(ch_inx) * prg);
         spk_times_sec{ch_idx} = spks(ch_inx).tStamp(ii) / 1000;
     end
-    for i = 1:numEvents
-        eventIdx = round(timePoints(i) * Fs);
-        windowStart = max(eventIdx - round(meanWindow * Fs / 2), 1);
-        windowEnd = min(windowStart + round(meanWindow * Fs) - 1, N);
 
-        if windowEnd < size(lfp, 1)
-            time_start = time(windowStart);
-            time_end = time(windowEnd);
-            edges = time_start:binsize:time_end;
-            ch_hists = zeros(numel(ch_inxs), max(numel(edges) - 1, 0));
-            for ch_idx = 1:numel(ch_inxs)
-                spk = spk_times_sec{ch_idx};
-                spk = spk(spk >= time_start & spk < time_end);
-                ch_hists(ch_idx, :) = histcounts(spk, edges);
+    firstValid = find(valid, 1, 'first');
+    if ~isempty(firstValid)
+        t0 = time(windowStart(firstValid));
+        t1 = time(windowEnd(firstValid));
+        nBins = max(numel(t0:binsize:t1) - 1, 0);
+        evs = zeros(numEvents, numel(ch_inxs), nBins);
+        nChSpk = numel(ch_inxs);
+
+        for i = 1:numEvents
+            if valid(i) && nBins > 0
+                time_start = time(windowStart(i));
+                edges = linspace(time_start, time_start + nBins * binsize, nBins + 1);
+                time_end = edges(end);
+                ch_hists = zeros(nChSpk, nBins);
+                for ch_idx = 1:nChSpk
+                    spk = spk_times_sec{ch_idx};
+                    spk = spk(spk >= time_start & spk < time_end);
+                    ch_hists(ch_idx, :) = histcounts(spk, edges);
+                end
+                evs(i, :, :) = ch_hists;
             end
-            evs(i, :, :) = ch_hists;
+            if showWaitbar && ~isempty(wb_local) && (mod(i, wbStep) == 0 || i == numEvents)
+                waitbar(i / numEvents, wb_local, sprintf('Processing spikes: event %d of %d', i, numEvents));
+            end
         end
-        if showWaitbar && ~isempty(wb_local)
-            waitbar(i / numEvents, wb_local, sprintf('Processing spikes: event %d of %d', i, numEvents));
-        end
-    end
-    if exist('evs', 'var')
         ev_hists = squeeze(mean(evs, 1));
     end
 end
@@ -288,11 +300,7 @@ calculation_result.widths_in = widths_in;
 calculation_result.colors_in = colors_in;
 calculation_result.originalEventsData = originalEventsData;
 
-baseline_medians = zeros(1, numChannels);
-for ch = 1:numChannels
-    baseline_medians(ch) = median(pl_meanData(:, ch));
-end
-calculation_result.baseline_medians = baseline_medians;
+calculation_result.baseline_medians = median(pl_meanData, 1);
 
 if ~isempty(params.customXLimits)
     Xlims = params.customXLimits;
