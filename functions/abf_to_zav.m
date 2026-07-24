@@ -12,7 +12,11 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
     if nargin < 10
         progressCallback = [];
     end
+    if nargin < 9
+        hWaitBar = [];
+    end
 
+    try
     sweepStartAsStim = true;
     
     % Чтение заголовка ABF-файла.
@@ -299,6 +303,15 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
     fprintf('==============================\n\n');
 
     notifyProgress(1, 'finalize', 'Complete');
+    catch ME
+        if strcmp(ME.identifier, 'EasyViewer:UserCancel')
+            clear m;
+            if exist(zavFilePath, 'file')
+                delete(zavFilePath);
+            end
+        end
+        rethrow(ME);
+    end
 
     function notifyProgress(itemProgress, stage, message)
         if isempty(progressCallback)
@@ -309,10 +322,15 @@ function abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, col
     end
 
     function updateWaitbar(itemProgress, message)
-        if isempty(progressCallback)
-            waitbar(itemProgress, hWaitBar, message);
+        if isempty(hWaitBar)
             return;
         end
-        waitbar(itemProgress, hWaitBar);
+        assertWaitbarNotCanceled(hWaitBar);
+        if isempty(progressCallback)
+            waitbar(itemProgress, hWaitBar, message);
+        else
+            waitbar(itemProgress, hWaitBar);
+        end
+        assertWaitbarNotCanceled(hWaitBar);
     end
 end

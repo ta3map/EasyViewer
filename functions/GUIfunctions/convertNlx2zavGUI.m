@@ -352,10 +352,11 @@ function convertNlx2zavGUI
             active_folder = path;
         end
 
-        hWaitBar = waitbar(0, 'Initializing conversion...', 'Name', 'Neuralynx to ZAV Conversion');
+        hWaitBar = createCancelableWaitbar(0, 'Initializing conversion...', 'Neuralynx to ZAV Conversion');
 
-        ncsFilePaths = channelFilePaths(selectedChannelIndices);
-        nlx_to_zav_streaming(recordPath, zavFilePath, channels_list, ncsFilePaths, lfp_Fs, detectMua, mua_std_coef, doResample, hWaitBar);
+        try
+            ncsFilePaths = channelFilePaths(selectedChannelIndices);
+            nlx_to_zav_streaming(recordPath, zavFilePath, channels_list, ncsFilePaths, lfp_Fs, detectMua, mua_std_coef, doResample, hWaitBar);
             
             % Сохраняем информацию о последней открытой папке
             lastOpenedFolders = {recordPath};
@@ -372,9 +373,7 @@ function convertNlx2zavGUI
             disp('Conversion completed successfully.');
 
             % Закрываем окно прогресса
-            if isvalid(hWaitBar)
-                close(hWaitBar);
-            end
+            deleteCancelableWaitbar(hWaitBar);
 
             % Закрываем окно GUI после успешной конвертации
             close(fig);
@@ -383,5 +382,16 @@ function convertNlx2zavGUI
             if openAfter
                 zav_calling(zavFilePath)
             end
+        catch ME
+            if exist('hWaitBar', 'var')
+                deleteCancelableWaitbar(hWaitBar);
+            end
+            if strcmp(ME.identifier, 'EasyViewer:UserCancel')
+                disp('Conversion stopped by user.');
+                return;
+            end
+            disp(['Error during conversion: ', ME.message]);
+            warndlg(['An error occurred during conversion: ', ME.message], 'Conversion Error');
+        end
     end
 end

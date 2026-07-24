@@ -41,7 +41,7 @@ function zavFilePath = autoConvertAbfToZav(abfFilePath)
     end
     
     % Создание waitbar для отображения прогресса
-    hWaitBar = waitbar(0, 'Converting ABF to ZAV...', 'Name', 'ABF to ZAV Conversion');
+    hWaitBar = createCancelableWaitbar(0, 'Converting ABF to ZAV...', 'ABF to ZAV Conversion');
     
     try
         % Параметры конвертации по умолчанию
@@ -54,15 +54,14 @@ function zavFilePath = autoConvertAbfToZav(abfFilePath)
         % Вызов функции конвертации
         abf_to_zav(abfFilePath, zavFilePath, lfp_Fs, detectMua, doResample, collectSweeps, selectedChannels, mua_std_coef, hWaitBar);
         
-        % Закрытие waitbar
-        if isvalid(hWaitBar)
-            close(hWaitBar);
-        end
+        deleteCancelableWaitbar(hWaitBar);
         
     catch ME
-        % Закрытие waitbar при ошибке
-        if isvalid(hWaitBar)
-            close(hWaitBar);
+        deleteCancelableWaitbar(hWaitBar);
+        if strcmp(ME.identifier, 'EasyViewer:UserCancel')
+            disp('Conversion stopped by user.');
+            zavFilePath = '';
+            return;
         end
         warning('autoConvertAbfToZav: Error during ABF conversion: %s', ME.message);
         zavFilePath = ''; % Возвращаем пустую строку при ошибке

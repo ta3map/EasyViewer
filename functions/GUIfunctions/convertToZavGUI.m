@@ -735,7 +735,7 @@ function convertToZavGUI(formatKey)
             selectQueueItemById(queueData.items(i).id);
             refreshQueueProgressLabel();
 
-            hWaitBar = waitbar(0, sprintf('Converting %d/%d...', i, numel(queueData.items)), 'Name', cfg.windowTitle);
+            hWaitBar = createCancelableWaitbar(0, sprintf('Converting %d/%d...', i, numel(queueData.items)), cfg.windowTitle);
             try
                 runItemConversion(i, hWaitBar);
                 queueData.items(i).status = 'done';
@@ -744,11 +744,15 @@ function convertToZavGUI(formatKey)
                 lastOpenedZav = queueData.items(i).outputPath;
             catch ME
                 queueData.items(i).status = 'failed';
-                queueData.items(i).errorMessage = ME.message;
                 queueData.items(i).progress = 0;
+                if strcmp(ME.identifier, 'EasyViewer:UserCancel')
+                    queueData.items(i).errorMessage = 'Stopped by user';
+                else
+                    queueData.items(i).errorMessage = ME.message;
+                end
             end
-            if exist('hWaitBar', 'var') && isvalid(hWaitBar)
-                close(hWaitBar);
+            if exist('hWaitBar', 'var')
+                deleteCancelableWaitbar(hWaitBar);
             end
             saveQueueState();
             if strcmp(queueData.items(i).status, 'done')
@@ -756,6 +760,9 @@ function convertToZavGUI(formatKey)
             end
             refreshQueueList();
             refreshQueueProgressLabel();
+            if strcmp(queueData.items(i).errorMessage, 'Stopped by user')
+                break;
+            end
         end
 
         renderSelectedItem();
@@ -807,6 +814,7 @@ function convertToZavGUI(formatKey)
         end
         queueData.items(itemIdx).progress = min(max(progressStruct.itemProgress, 0), 1);
         [overallProgress, etaText] = calculateOverallProgressAndEta();
+        assertWaitbarNotCanceled(hWaitBar);
         if isgraphics(hWaitBar)
             backendMessage = '';
             if isfield(progressStruct, 'message') && ~isempty(progressStruct.message)
@@ -832,6 +840,7 @@ function convertToZavGUI(formatKey)
                 end
             end
         end
+        assertWaitbarNotCanceled(hWaitBar);
         refreshQueueProgressLabel();
         renderSelectedItem();
         if isempty(lastProgressSaveTic)

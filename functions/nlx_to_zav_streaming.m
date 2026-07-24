@@ -2,10 +2,14 @@ function nlx_to_zav_streaming(recordPath, zavFilePath, channels_list, ncsFilePat
     if nargin < 10
         progressCallback = [];
     end
+    if nargin < 9
+        hWaitBar = [];
+    end
     channels_n = numel(channels_list);
     conversion_tic = tic;
     formatEta = @(sec) sprintf('~%d min %d s left', floor(sec / 60), round(rem(sec, 60)));
 
+    try
     m = matfile(zavFilePath, 'Writable', true);
     spks(channels_n) = struct('tStamp', [], 'ampl', [], 'shape', []);
     lfpVar = zeros(1, channels_n);
@@ -145,6 +149,15 @@ function nlx_to_zav_streaming(recordPath, zavFilePath, channels_list, ncsFilePat
 
     updateWaitbar(1, 'Complete');
     notifyProgress(1, 'finalize', 'Complete');
+    catch ME
+        if strcmp(ME.identifier, 'EasyViewer:UserCancel')
+            clear m;
+            if exist(zavFilePath, 'file')
+                delete(zavFilePath);
+            end
+        end
+        rethrow(ME);
+    end
 
     function notifyProgress(itemProgress, stage, message)
         if isempty(progressCallback)
@@ -155,10 +168,15 @@ function nlx_to_zav_streaming(recordPath, zavFilePath, channels_list, ncsFilePat
     end
 
     function updateWaitbar(itemProgress, message)
-        if isempty(progressCallback)
-            waitbar(itemProgress, hWaitBar, message);
+        if isempty(hWaitBar)
             return;
         end
-        waitbar(itemProgress, hWaitBar);
+        assertWaitbarNotCanceled(hWaitBar);
+        if isempty(progressCallback)
+            waitbar(itemProgress, hWaitBar, message);
+        else
+            waitbar(itemProgress, hWaitBar);
+        end
+        assertWaitbarNotCanceled(hWaitBar);
     end
 end

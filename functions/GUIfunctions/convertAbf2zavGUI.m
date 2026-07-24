@@ -305,7 +305,7 @@ function convertAbf2zavGUI
         end
 
         % Показываем окно прогресса
-        hWaitBar = waitbar(0, 'Converting...', 'Name', 'ABF to ZAV Conversion');
+        hWaitBar = createCancelableWaitbar(0, 'Converting...', 'ABF to ZAV Conversion');
 
         % Обновление окна прогресса
         waitbar(0, hWaitBar, 'Starting conversion...');
@@ -329,7 +329,7 @@ function convertAbf2zavGUI
             disp('Conversion completed successfully.');
 
             % Закрываем окно прогресса
-            close(hWaitBar);
+            deleteCancelableWaitbar(hWaitBar);
             
             % Закрываем окно GUI после успешной конвертации
             close(fig);
@@ -340,10 +340,15 @@ function convertAbf2zavGUI
             end
             
         catch ME
+            if exist('hWaitBar', 'var')
+                deleteCancelableWaitbar(hWaitBar);
+            end
+            if strcmp(ME.identifier, 'EasyViewer:UserCancel')
+                disp('Conversion stopped by user.');
+                return;
+            end
             disp(['Error during conversion: ', ME.message]);
             warndlg(['An error occurred during conversion: ', ME.message], 'Conversion Error');
-            % Закрываем окно прогресса при ошибке
-            close(hWaitBar);
         end
     end
 end

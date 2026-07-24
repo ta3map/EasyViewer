@@ -1456,9 +1456,10 @@ function signalViewerGUI(filePath)
     function openAutoEventDetectionWindow(~, ~)
         global wb
         if isempty(wb) || ~isvalid(wb)
-            wb = waitbar(0.01, 'Opening Auto Event Detection...', 'Name', 'Event Detection');
+            wb = createCancelableWaitbar(0.01, 'Opening Auto Event Detection...', 'Event Detection');
             drawnow;
         else
+            setappdata(wb, 'canceling', 0);
             waitbar(0.01, wb, 'Opening Auto Event Detection...');
             drawnow;
         end

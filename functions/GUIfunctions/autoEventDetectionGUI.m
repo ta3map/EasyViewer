@@ -469,8 +469,9 @@ function autoEventDetectionGUI()
         % Предварительная прорисовка
         global wb
         if isempty(wb) || ~isvalid(wb)
-            wb = waitbar(0, 'Preview: preparing...', 'Name', 'Event Detection');
+            wb = createCancelableWaitbar(0, 'Preview: preparing...', 'Event Detection');
         else
+            setappdata(wb, 'canceling', 0);
             waitbar(0, wb, 'Preview: preparing...');
         end
         drawnow;
@@ -489,7 +490,10 @@ function autoEventDetectionGUI()
         params.StartTime = str2double(get(hStartTime, 'String')) / timeUnitFactor;
         params.EndTime = str2double(get(hEndTime, 'String')) / timeUnitFactor;
                
-        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected] = autoEventDetection(params);
+        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, ~, wasCanceled] = autoEventDetection(params);
+        if wasCanceled
+            return;
+        end
         
         Trace_out(isnan(Trace_out)) = 0;
         Trace_out(isinf(Trace_out)) = 0;
@@ -549,7 +553,10 @@ function autoEventDetectionGUI()
         
         saveSettings();
         
-        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected] = autoEventDetection(params);
+        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = autoEventDetection(params);
+        if wasCanceled
+            return;
+        end
         
         Trace_out(isnan(Trace_out)) = 0;
         Trace_out(isinf(Trace_out)) = 0;
@@ -889,20 +896,26 @@ function saveSettings(plotSnapshot)
     saveChannelSettings('autodetection_settings');
 end
 
-function [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected] = autoEventDetection(params)
+function [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = autoEventDetection(params)
     global Fs time newFs lfp_file wb ch_inxs csd_avaliable filterSettings filter_avaliable mean_group_ch 
     global stims_exist stims time art_rem_settings
     
+    wasCanceled = false;
     data_in = lfp_file.lfp;
     fprintf('Please wait...\n');
     
-    % Инициализация waitbar если не существует
     if isempty(wb) || ~isvalid(wb)
-        wb = waitbar(0, 'Initializing...', 'Name', 'Event Detection');
+        wb = createCancelableWaitbar(0, 'Initializing...', 'Event Detection');
+    else
+        setappdata(wb, 'canceling', 0);
     end
     drawnow;
     waitbar(0.06, wb, 'Preparing data...');
     drawnow;
+    if isWaitbarCanceled(wb)
+        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
+        return;
+    end
     
     % Распаковка параметров из структуры
     DetectionType = params.DetectionType;
@@ -924,6 +937,10 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     drawnow;
     waitbar(0.1, wb, 'Applying filters...');
     drawnow;
+    if isWaitbarCanceled(wb)
+        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
+        return;
+    end
     try
         if sum(filter_avaliable)>0
             ch_to_filter = find(filter_avaliable);
@@ -934,10 +951,18 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     catch ME
         fprintf('An error occurred: %s\n', ME.message);
     end
+    if isWaitbarCanceled(wb)
+        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
+        return;
+    end
 
     % Убираем артефакт стимула если включено
     waitbar(0.2, wb, 'Removing stimulus artifacts...');
     drawnow;
+    if isWaitbarCanceled(wb)
+        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
+        return;
+    end
     if stims_exist && ~isempty(stims) && art_rem_settings.artifact_window_ms > 0
         win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
         data_in = removeStimArtifact(data_in, stims, time, win_r, art_rem_settings.interp_method);
@@ -946,11 +971,19 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     % Вычитаем среднее из запрошенных
     waitbar(0.3, wb, 'Subtracting mean...');
     drawnow;
+    if isWaitbarCanceled(wb)
+        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
+        return;
+    end
     data_in(:, mean_group_ch) = data_in(:, mean_group_ch) - mean(data_in(:, mean_group_ch), 2); % вычитание выбранных средних каналов
     
     % Если источником выбран CSD
     waitbar(0.4, wb, 'Computing CSD...');
     drawnow;
+    if isWaitbarCanceled(wb)
+        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
+        return;
+    end
     switch SourceType
         case 'CSD'
         % Выборка только разрешенных каналов, которым доступен CSD
@@ -959,10 +992,18 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
         drawnow;
         data_in = -globalCSD(data_in, allowed_ch_inxs);
     end
+    if isWaitbarCanceled(wb)
+        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
+        return;
+    end
 
     % Создание Trace_out
     waitbar(0.5, wb, 'Creating detection trace...');
     drawnow;
+    if isWaitbarCanceled(wb)
+        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
+        return;
+    end
     switch DetectionType
         case 'two channels difference'
 
@@ -1029,6 +1070,11 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     end
     
     waitbar(0.6, wb, 'Preparing detection...');
+    drawnow;
+    if isWaitbarCanceled(wb)
+        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
+        return;
+    end
     
     if detect
         fprintf('=== DEBUG: Detection parameters ===\n');
@@ -1071,6 +1117,11 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
             fprintf('\n');
             
             waitbar(0.65, wb, sprintf('Detecting events around %d stimuli...', length(stims)));
+            drawnow;
+            if isWaitbarCanceled(wb)
+                [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
+                return;
+            end
             
             % Инициализация массивов для объединения результатов
             all_peak_times = [];
@@ -1084,6 +1135,11 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
             for stim_idx = 1:num_stims
                 waitbar(0.65 + 0.25 * (stim_idx / num_stims), wb, ...
                     sprintf('Processing stimulus %d of %d...', stim_idx, num_stims));
+                drawnow;
+                if isWaitbarCanceled(wb)
+                    [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
+                    return;
+                end
                 stim = stims(stim_idx);
                 window_start = stim - SearchWindow*isTwoSided;
                 window_end = stim + SearchWindow;
@@ -1158,6 +1214,11 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
             fprintf('\n');
             
             waitbar(0.9, wb, 'Removing duplicates...');
+            drawnow;
+            if isWaitbarCanceled(wb)
+                [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
+                return;
+            end
             
             % Удаление дубликатов (если окна перекрываются)
             if ~isempty(all_peak_times)
@@ -1199,6 +1260,11 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
         else
             % Детекция по всему сигналу (как раньше)
             waitbar(0.7, wb, 'Detecting peaks in full signal...');
+            drawnow;
+            if isWaitbarCanceled(wb)
+                [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
+                return;
+            end
             
             % Проверка на пустой Trace_out перед вызовом findpeaks
             if isempty(Trace_out) || numel(Trace_out) == 0
@@ -1233,6 +1299,11 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
             fprintf('\n');
             
             waitbar(0.85, wb, 'Filtering peaks by width...');
+            drawnow;
+            if isWaitbarCanceled(wb)
+                [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
+                return;
+            end
             
             % убираем слишком широкие пики
             wide_peaks_mask = widths > max_peak_width;
@@ -1262,6 +1333,11 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
         end
         
         waitbar(0.95, wb, 'Finalizing results...');
+        drawnow;
+        if isWaitbarCanceled(wb)
+            [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
+            return;
+        end
         
         % Формируем каналы и метаданные
         channels_detected = [];
@@ -1319,6 +1395,23 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     if detect
         fprintf('Events detected.\n');
     end
+    if ~isempty(wb) && isvalid(wb)
+        delete(wb);
+    end
+end
+
+function [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb)
+    wasCanceled = true;
+    events_detected = [];
+    Trace_out = [];
+    time_res = [];
+    amplitudes_detected = [];
+    widths_detected = [];
+    channels_detected = [];
+    metadata_detected = [];
+    prominences_detected = [];
+    indices_detected = [];
+    fprintf('Event detection stopped by user.\n');
     if ~isempty(wb) && isvalid(wb)
         delete(wb);
     end

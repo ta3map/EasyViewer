@@ -21,12 +21,13 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
 
     % Create waitbar if not provided
     if nargin < 10 || isempty(hWaitBar)
-        hWaitBar = waitbar(0, 'Initializing conversion...', 'Name', 'OEP to ZAV Conversion');
+        hWaitBar = createCancelableWaitbar(0, 'Initializing conversion...', 'OEP to ZAV Conversion');
         closeWaitBar = true; % Flag to close waitbar at the end
     else
         closeWaitBar = false; % Don't close if provided from outside
     end
 
+    try
     fprintf('\n========================================\n');
     fprintf('OEP_TO_ZAV_STREAMING - NEW VERSION CALLED!\n');
     fprintf('========================================\n');
@@ -391,15 +392,24 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
     
     % Close waitbar only if we created it
     if closeWaitBar
-        try
-            close(hWaitBar);
-        catch
-        end
+        deleteCancelableWaitbar(hWaitBar);
     end
     
     debugState('oep_to_zav_streaming', 'Processing complete. Data saved to: %s', zavFilePath);
     disp('Processing complete. Data saved to:');
     disp(zavFilePath);
+    catch ME
+        if closeWaitBar
+            deleteCancelableWaitbar(hWaitBar);
+        end
+        if strcmp(ME.identifier, 'EasyViewer:UserCancel')
+            clear m;
+            if exist(zavFilePath, 'file')
+                delete(zavFilePath);
+            end
+        end
+        rethrow(ME);
+    end
 
     function notifyProgress(itemProgress, stage, message)
         if isempty(progressCallback)
@@ -410,11 +420,16 @@ function oep_to_zav_streaming(rec_path, zavFilePath, Fs, newFs, detectMua, mua_s
     end
 
     function updateWaitbar(itemProgress, message)
-        if isempty(progressCallback)
-            waitbar(itemProgress, hWaitBar, message);
+        if isempty(hWaitBar)
             return;
         end
-        waitbar(itemProgress, hWaitBar);
+        assertWaitbarNotCanceled(hWaitBar);
+        if isempty(progressCallback)
+            waitbar(itemProgress, hWaitBar, message);
+        else
+            waitbar(itemProgress, hWaitBar);
+        end
+        assertWaitbarNotCanceled(hWaitBar);
     end
 end
 

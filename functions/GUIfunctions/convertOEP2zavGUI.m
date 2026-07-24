@@ -270,7 +270,7 @@ function convertOEP2zavGUI
         end
 
         % Создаем окно прогресса
-        hWaitBar = waitbar(0, 'Initializing conversion...', 'Name', 'OEP to ZAV Conversion');
+        hWaitBar = createCancelableWaitbar(0, 'Initializing conversion...', 'OEP to ZAV Conversion');
 
         try
             % Получаем метаданные для частоты дискретизации
@@ -306,9 +306,7 @@ function convertOEP2zavGUI
             disp('Conversion completed successfully.');
             
             % Закрываем окно прогресса
-            if isvalid(hWaitBar)
-                close(hWaitBar);
-            end
+            deleteCancelableWaitbar(hWaitBar);
 
             % Закрываем окно GUI после успешной конвертации
             close(fig);
@@ -319,12 +317,15 @@ function convertOEP2zavGUI
             end
             
         catch ME
+            if exist('hWaitBar', 'var')
+                deleteCancelableWaitbar(hWaitBar);
+            end
+            if strcmp(ME.identifier, 'EasyViewer:UserCancel')
+                disp('Conversion stopped by user.');
+                return;
+            end
             disp(['Error during conversion: ', ME.message]);
             warndlg(['An error occurred during conversion: ', ME.message], 'Conversion Error');
-            % Закрываем окно прогресса при ошибке
-            if exist('hWaitBar', 'var') && isvalid(hWaitBar)
-                close(hWaitBar);
-            end
         end
     end
 end
