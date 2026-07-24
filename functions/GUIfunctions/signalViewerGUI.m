@@ -73,9 +73,11 @@ function signalViewerGUI(filePath)
     global event_label_click_callback stim_label_click_callback
     global meanControlsState
     global full_channel_trace_state
+    global mainPlotGfx
 
     debugState('signalViewerGUI', 'Signal Viewer Started')
     meanControlsState = struct();
+    mainPlotGfx = emptyMainPlotGfx();
 
     if nargin < 1
         filePath = [];
@@ -136,6 +138,10 @@ function signalViewerGUI(filePath)
     channelUpdateDebounceTimer = timer( ...
         'TimerFcn', @debouncedChannelUpdatePlotCallback, ...
         'StartDelay', 1, ...
+        'ExecutionMode', 'singleShot');
+    sliderUpdateDebounceTimer = timer( ...
+        'TimerFcn', @debouncedSliderUpdatePlotCallback, ...
+        'StartDelay', 0.15, ...
         'ExecutionMode', 'singleShot');
     
     % Инициализация настроек slope measurement
@@ -874,6 +880,10 @@ function signalViewerGUI(filePath)
             stop(channelUpdateDebounceTimer);
             delete(channelUpdateDebounceTimer);
         end
+        if exist('sliderUpdateDebounceTimer', 'var') && ~isempty(sliderUpdateDebounceTimer) && isvalid(sliderUpdateDebounceTimer)
+            stop(sliderUpdateDebounceTimer);
+            delete(sliderUpdateDebounceTimer);
+        end
 
         % Фиксируем текущий MUA coef в настройках записи перед закрытием
         try
@@ -1286,7 +1296,12 @@ function signalViewerGUI(filePath)
         full_channel_trace_state.channel_index = traceData.channel_index;
         full_channel_trace_state.target_fs = traceData.target_fs;
 
-        cla(multiax);
+        keepLoading = gobjects(0);
+        if ~isempty(loading_text_handle) && isvalid(loading_text_handle)
+            keepLoading = loading_text_handle;
+        end
+        clearMainAxesPlotContent(multiax, keepLoading);
+        mainPlotGfx = emptyMainPlotGfx();
         plot(multiax, traceData.time, traceData.signal, 'Color', [0 0 0], 'LineWidth', 1);
         setUIControlsEnable({sidePanel, mainPanel}, 'off');
         set(yLimResetBtn, 'Enable', 'on');
@@ -1851,7 +1866,28 @@ function signalViewerGUI(filePath)
                 end
         end
         
-        updatePlot(); % Обновление графика
+        requestDebouncedSliderUpdatePlot();
+    end
+
+    function requestDebouncedSliderUpdatePlot()
+        if isRestoringStartupState
+            return;
+        end
+        if ~exist('sliderUpdateDebounceTimer', 'var') || isempty(sliderUpdateDebounceTimer) || ~isvalid(sliderUpdateDebounceTimer)
+            sliderUpdateDebounceTimer = timer( ...
+                'TimerFcn', @debouncedSliderUpdatePlotCallback, ...
+                'StartDelay', 0.15, ...
+                'ExecutionMode', 'singleShot');
+        end
+        stop(sliderUpdateDebounceTimer);
+        start(sliderUpdateDebounceTimer);
+    end
+
+    function debouncedSliderUpdatePlotCallback(~, ~)
+        if isRestoringStartupState || plot_updating
+            return;
+        end
+        updatePlot();
     end
 
     function timeZeroEditCallback(src, ~)
@@ -2620,7 +2656,12 @@ function signalViewerGUI(filePath)
         viewerYlimManual = false;
         set(StimuliTitle, 'String', 'Stimuli');
         axes(multiax);
-        cla(multiax);
+        keepLoading = gobjects(0);
+        if ~isempty(loading_text_handle) && isvalid(loading_text_handle)
+            keepLoading = loading_text_handle;
+        end
+        clearMainAxesPlotContent(multiax, keepLoading);
+        mainPlotGfx = emptyMainPlotGfx();
         text(multiax, 0.5, 0.5, 'Open MAT or EV file', 'color', 'r', 'horizontalalignment', 'center', 'Units', 'normalized');
         set(multiax, 'Visible', 'off');
         if ~isempty(loading_text_handle) && isvalid(loading_text_handle)
@@ -3508,7 +3549,7 @@ function loadEvents(~, ~)
     end
 end
 
-    function loadEventField(loadedStruct, fieldName, defaultValue, missingMessage)
+    function values = loadEventField(loadedStruct, fieldName, defaultValue, missingMessage)
         if isfield(loadedStruct, fieldName)
             values = [loadedStruct.(fieldName)]';
         else
@@ -3530,6 +3571,7 @@ end
         event_title_string = [file titleSuffix];
         lastEventsFilePath = filepath;
         event_inx = getRestoredEventIndex(loadedData, eventCount);
+        events_exist = true;
         saveChannelSettings('lastEventsFilePath', 'event_inx');
         UpdateEventTable();
         if applyLoadedState
@@ -3822,6 +3864,9 @@ end
             end
             if ~isempty(channelUpdateDebounceTimer) && isvalid(channelUpdateDebounceTimer)
                 stop(channelUpdateDebounceTimer);
+            end
+            if ~isempty(sliderUpdateDebounceTimer) && isvalid(sliderUpdateDebounceTimer)
+                stop(sliderUpdateDebounceTimer);
             end
             isRestoringStartupState = false;
             waitbar(0.95, restorationWaitBar, 'Applying final view...');

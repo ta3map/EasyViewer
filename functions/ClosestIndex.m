@@ -1,16 +1,32 @@
 function closest_indexes = ClosestIndex(x, X)
-    % Проверка на необходимость транспонирования X для удобства обработки
-    if size(X, 2) > 1
-        X = X';
+% Indices in X nearest to values in x. X is nondecreasing (time axis).
+% On equal distance prefers the smaller index (same as min(abs(X-x))).
+
+X = X(:);
+n = numel(X);
+closest_indexes = nan(size(x));
+
+for k = 1:numel(x)
+    v = x(k);
+    if isnan(v)
+        continue;
     end
-    % Инициализация массива индексов
-    closest_indexes = zeros(size(x));
-    % Обработка случая, когда x - это массив
-    for idx = 1:length(x)
-        if isnan(x(idx))
-            closest_indexes(idx) = nan; % Возвращение NaN для NaN элементов
+
+    lo = 1;
+    hi = n + 1;
+    while lo < hi
+        mid = floor((lo + hi) / 2);
+        if X(mid) < v
+            lo = mid + 1;
         else
-            [~, closest_indexes(idx)] = min(abs(X - x(idx)));
+            hi = mid;
         end
     end
+
+    iRight = min(lo, n);
+    iLeft = max(lo - 1, 1);
+    chooseRight = abs(X(iRight) - v) < abs(X(iLeft) - v);
+    closest_indexes(k) = iLeft + chooseRight * (iRight - iLeft);
+end
+
 end

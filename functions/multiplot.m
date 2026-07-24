@@ -1,4 +1,4 @@
-function [offsets, shiftCoeff] = multiplot(varargin)
+function [offsets, shiftCoeff, hLines] = multiplot(varargin)
 
 % Multiple lines on a single graph
 %
@@ -117,6 +117,7 @@ function [offsets, shiftCoeff] = multiplot(varargin)
     % Initialize offsets array
     offsets = zeros(1, size(data, 2));
     numChannels = size(data, 2);
+    hLines = gobjects(1, numChannels);
     % Plot each column with specified parameters
     for chIdx = 1:numChannels
         % Determine the offset
@@ -136,7 +137,7 @@ function [offsets, shiftCoeff] = multiplot(varargin)
                                     'MarkerEdgeColor', getOptionalParam(markerEdgeColors, chIdx), ...
                                     'MarkerFaceColor', getOptionalParam(markerFaceColors, chIdx)}];
         end
-        plot(time, data(:, chIdx) + offsets(chIdx), plotArgs{:});
+        hLines(chIdx) = plot(time, data(:, chIdx) + offsets(chIdx), plotArgs{:});
     end
     
     if size(data, 2)>1

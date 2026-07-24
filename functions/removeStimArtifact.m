@@ -39,63 +39,56 @@ if ~isempty(stims) & win_r ~= 0
         start_inx = stim_inxs(i) - win_r;
         end_inx = stim_inxs(i) + win_r;
 
-        if start_inx > 1 & end_inx < nSamples
-            extend_win = max(3, round(win_r * 0.5));
-            left_extend = max(1, start_inx - extend_win);
-            right_extend = min(nSamples, end_inx + extend_win);
-            x_before = time(left_extend:start_inx-1);
-            x_after = time(end_inx+1:right_extend);
-            y_before = data_in(left_extend:start_inx-1, :);
-            y_after = data_in(end_inx+1:right_extend, :);
-            x_interp = time(start_inx:end_inx);
-            n_points = length(x_interp);
-
-            switch method
-                case 'pchip'
-                    x_all = [x_before; x_after];
-                    y_all = [y_before; y_after];
-                    interpolated_vals = pchip(x_all, y_all, x_interp);
-
-                case 'spline'
-                    x_all = [x_before; x_after];
-                    y_all = [y_before; y_after];
-                    interpolated_vals = spline(x_all, y_all, x_interp);
-
-                case 'smooth'
-                    v0 = data_in(start_inx-1, :);
-                    v1 = data_in(end_inx+1, :);
-                    w = linspace(0, 1, n_points)';
-                    linear_vals = v0 + (v1 - v0) .* w;
-                    edge_points = max(3, round(n_points * 0.2));
-                    window = ones(n_points, 1);
-                    alphas = ((0:edge_points-1) / edge_points)';
-                    window(1:edge_points) = alphas;
-                    window(n_points-edge_points+1:n_points) = flipud(alphas);
-                    original_vals = data_in(start_inx:end_inx, :);
-                    interpolated_vals = linear_vals .* window + original_vals .* (1 - window);
-                    n_smooth = max(5, min(round(n_points/3), n_points));
-                    interpolated_vals = movmean(interpolated_vals, n_smooth, 1, 'Endpoints', 'shrink');
-
-                case 'median'
-                    median_win = max(5, round(win_r * 0.5));
-                    left_win_start = max(1, start_inx - win_r - median_win);
-                    left_win_end = start_inx - 1;
-                    right_win_start = end_inx + 1;
-                    right_win_end = min(nSamples, end_inx + win_r + median_win);
-                    left_data = data_in(left_win_start:left_win_end, :);
-                    right_data = data_in(right_win_start:right_win_end, :);
-                    median_val = median([left_data; right_data], 1);
-                    interpolated_vals = repmat(median_val, n_points, 1);
-
-                otherwise
-                    v0 = data_in(start_inx-1, :);
-                    v1 = data_in(end_inx+1, :);
-                    w = linspace(0, 1, n_points)';
-                    interpolated_vals = v0 + (v1 - v0) .* w;
-            end
-
-            data_out(start_inx:end_inx, :) = interpolated_vals;
+        if start_inx <= 1 | end_inx >= nSamples
+            continue;
         end
+
+        n_points = end_inx - start_inx + 1;
+
+        switch method
+            case 'pchip'
+                extend_win = max(3, round(win_r * 0.5));
+                left_extend = max(1, start_inx - extend_win);
+                right_extend = min(nSamples, end_inx + extend_win);
+                x_all = [time(left_extend:start_inx-1); time(end_inx+1:right_extend)];
+                y_all = [data_in(left_extend:start_inx-1, :); data_in(end_inx+1:right_extend, :)];
+                interpolated_vals = pchip(x_all, y_all, time(start_inx:end_inx));
+
+            case 'spline'
+                extend_win = max(3, round(win_r * 0.5));
+                left_extend = max(1, start_inx - extend_win);
+                right_extend = min(nSamples, end_inx + extend_win);
+                x_all = [time(left_extend:start_inx-1); time(end_inx+1:right_extend)];
+                y_all = [data_in(left_extend:start_inx-1, :); data_in(end_inx+1:right_extend, :)];
+                interpolated_vals = spline(x_all, y_all, time(start_inx:end_inx));
+
+            case 'smooth'
+                w = linspace(0, 1, n_points)';
+                linear_vals = data_in(start_inx-1, :) + (data_in(end_inx+1, :) - data_in(start_inx-1, :)) .* w;
+                edge_points = max(3, round(n_points * 0.2));
+                window = ones(n_points, 1);
+                alphas = ((0:edge_points-1) / edge_points)';
+                window(1:edge_points) = alphas;
+                window(n_points-edge_points+1:n_points) = flipud(alphas);
+                original_vals = data_in(start_inx:end_inx, :);
+                interpolated_vals = linear_vals .* window + original_vals .* (1 - window);
+                n_smooth = max(5, min(round(n_points/3), n_points));
+                interpolated_vals = movmean(interpolated_vals, n_smooth, 1, 'Endpoints', 'shrink');
+
+            case 'median'
+                median_win = max(5, round(win_r * 0.5));
+                left_data = data_in(max(1, start_inx - win_r - median_win):start_inx-1, :);
+                right_data = data_in(end_inx+1:min(nSamples, end_inx + win_r + median_win), :);
+                median_val = median([left_data; right_data], 1);
+                interpolated_vals = repmat(median_val, n_points, 1);
+
+            otherwise % linear
+                w = linspace(0, 1, n_points)';
+                interpolated_vals = data_in(start_inx-1, :) + ...
+                    (data_in(end_inx+1, :) - data_in(start_inx-1, :)) .* w;
+        end
+
+        data_out(start_inx:end_inx, :) = interpolated_vals;
     end
 end
 

@@ -22,9 +22,14 @@ function updatePlot()
     global binsize
     global timeCenterPopup
     global full_channel_trace_state
+    global mainPlotGfx
 
     if ~isempty(full_channel_trace_state) && isstruct(full_channel_trace_state)
         full_channel_trace_state.active = false;
+    end
+
+    if isempty(mainPlotGfx) || ~isstruct(mainPlotGfx)
+        mainPlotGfx = emptyMainPlotGfx();
     end
     
     show_events = true;
@@ -34,11 +39,10 @@ function updatePlot()
 
     fprintf('[%s] updatePlot: START, chosen_time_interval=[%.3f, %.3f], selectedCenter=%s\n', datestr(now, 'HH:MM:SS.FFF'), chosen_time_interval(1), chosen_time_interval(2), selectedCenter);
     
-    % Устанавливаем флаг обновления
     plot_updating = true;
     
-    % Показываем "LOADING..." на графике
     axes(multiax);
+    keepLoading = gobjects(0);
     if isempty(loading_text_handle) || ~isvalid(loading_text_handle)
         loading_text_handle = text(0.5, 0.5, 'LOADING...', ...
             'HorizontalAlignment', 'center', ...
@@ -47,22 +51,22 @@ function updatePlot()
             'FontSize', 12, ...
             'FontWeight', 'normal', ...
             'Color', 'black', ...
-            'BackgroundColor', [0.8 0.8 0.8]);
+            'BackgroundColor', [0.8 0.8 0.8], ...
+            'Visible', 'on');
     else
         set(loading_text_handle, 'Visible', 'on');
     end
-    drawnow; % Принудительное обновление экрана
+    keepLoading = loading_text_handle;
+    uistack(loading_text_handle, 'top');
     
     if isempty(ch_inxs)
-        axes(multiax);
-        cla(multiax);
+        clearMainAxesPlotContent(multiax, keepLoading);
+        mainPlotGfx = emptyMainPlotGfx();
         xlabel('Time, s');
         ylabel('Channels');
         text(0.5, 0.5, 'No channels selected', 'HorizontalAlignment', 'center', 'Units', 'normalized');
         plot_updating = false;
-        if ~isempty(loading_text_handle) && isvalid(loading_text_handle)
-            set(loading_text_handle, 'Visible', 'off');
-        end
+        set(loading_text_handle, 'Visible', 'off');
         time_origin_early = chosen_time_interval(1);
         set(timeZeroEdit, 'String', num2str(time_origin_early * timeUnitFactor));
         if isgraphics(multiax)
@@ -78,50 +82,41 @@ function updatePlot()
     plot_time_interval = chosen_time_interval;
     plot_time_interval(1) = plot_time_interval(1) - time_back;
     
-    % Относительное время по X:
     time_origin = chosen_time_interval(1);
 
-    row_start = find(time >= plot_time_interval(1), 1, 'first');
-    row_end   = find(time < plot_time_interval(2), 1, 'last');
+    [row_start, row_end] = timeWindowIndices(time, plot_time_interval(1), plot_time_interval(2));
+    if isempty(row_start)
+        row_start = 1;
+        row_end = 0;
+    end
     cond = row_start:row_end;
     local_lfp = lfp_file.lfp(cond, :);
-    local_lfp(:, mean_group_ch) = local_lfp(:, mean_group_ch) - mean(local_lfp(:, mean_group_ch), 2); % вычитание выбранных средних каналов
+    local_lfp(:, mean_group_ch) = local_lfp(:, mean_group_ch) - mean(local_lfp(:, mean_group_ch), 2);
     data = local_lfp(:, ch_inxs).*m_coef;
     time_in = time(cond);
     
     if not(isempty(stims)) && visualSettings.stim_show
         cond3 = stims >= plot_time_interval(1) & stims < plot_time_interval(2); 
         stims_x = (stims(cond3) - time_origin) * timeUnitFactor;
-        % Убираем артефакт из LFP
         win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
         debugState('updatePlot', 'Stim artifact removal: Fs=%dHz, window=%.3f ms (~%d samples)', Fs, art_rem_settings.artifact_window_ms, win_r);
         data = removeStimArtifact(data, stims(cond3), time_in, win_r, art_rem_settings.interp_method);
-    
     else
         cond3 = [];
         stims_x = [];
     end
 
-    % Фильтруем если попросили
     if sum(filter_avaliable)>0
         ch_to_filter = filter_avaliable(ch_inxs);
         data(:, ch_to_filter) = applyFilter(data(:, ch_to_filter), filterSettings, newFs);        
     end
     
-    % Проверка, совпадают ли частоты дискретизации
     if Fs <= newFs
-        % Если newFs >= Fs, не делаем ресемплинг (апсемплинг не нужен и вызывает краевые эффекты)
         data_res = data;
         time_res = time_in;
-        lfp_Fs = Fs;
     else
-        % Иначе, проводим ресемплинг (только даунсемплинг)
         raw_Fs = Fs;
         lfp_Fs = round(newFs);
-
-        % Используем resample1 для ресемплинга (без краевых эффектов)
-        % Используем ту же формулу, что и в resample1 для точного совпадения размеров
-        N = size(data, 1);
         data_res = resample1(data, lfp_Fs, raw_Fs);
         numPoints = size(data_res, 1);
         time_res = linspace(time_in(1), time_in(end), numPoints);
@@ -129,7 +124,6 @@ function updatePlot()
 
     numChannels = size(data_res, 2);
     
-    % Вычитание медианы первых 10% сигнала для каналов с включенным baseline subtraction
     baseline_subtract_active = baseline_subtract_available(ch_inxs);
     baseline_medians = zeros(1, numChannels);
     baselineLength = max(1, round(size(data_res, 1) * 0.1));
@@ -137,29 +131,53 @@ function updatePlot()
     baseline_medians(baseline_subtract_active) = med(baseline_subtract_active);
     data_res(:, baseline_subtract_active) = data_res(:, baseline_subtract_active) - med(baseline_subtract_active);
 
-    % Кэшируем подготовленные данные для ручных событий без повторных вычислений.
     lastPlotTimeResForEvents = time_res;
     lastPlotDataResForEvents = data_res;
     lastPlotChInxsForEvents = ch_inxs;
     
-    % Отображение времени на графике с учетом выбранной единицы времени
     time_in_transformed = (time_res - time_origin) * timeUnitFactor;
 
-    % Очистка и обновление графика
+    use_mua_mask = isfield(visualSettings, 'mua_use_mask') && visualSettings.mua_use_mask;
+    [~, gapIdx] = splitConsecutiveChannels(ch_inxs);
+
+    sig = struct();
+    sig.ch_inxs = ch_inxs(:)';
+    sig.numChannels = numChannels;
+    sig.show_CSD = logical(visualSettings.show_CSD);
+    sig.show_spikes = logical(visualSettings.show_spikes) && ~isempty(spks);
+    sig.mua_use_mask = sig.show_spikes && logical(use_mua_mask);
+    sig.gapIdx = gapIdx(:)';
+
+    canReuse = canReuseMainPlotGfx(mainPlotGfx, sig);
+
     axes(multiax);
-    cla(multiax); 
-    
-    hold on;
-    %yyaxis left
+    if canReuse
+        keep = keepLoading;
+        keep = [keep; mainPlotGfx.traceLines(:)];
+        keep = [keep; mainPlotGfx.gapLines(:)];
+        if ~isempty(mainPlotGfx.csdImage) && isgraphics(mainPlotGfx.csdImage)
+            keep = [keep; mainPlotGfx.csdImage];
+        end
+        if ~isempty(mainPlotGfx.muaImage) && isgraphics(mainPlotGfx.muaImage)
+            keep = [keep; mainPlotGfx.muaImage];
+        end
+        if ~isempty(mainPlotGfx.muaScatter) && isgraphics(mainPlotGfx.muaScatter)
+            keep = [keep; mainPlotGfx.muaScatter];
+        end
+        clearMainAxesPlotContent(multiax, keep);
+    else
+        clearMainAxesPlotContent(multiax, keepLoading);
+        mainPlotGfx = emptyMainPlotGfx();
+    end
+
+    hold(multiax, 'on');
     
     if visualSettings.auto_shift
         shiftCoeff = max(std(data_res)) * 2;
     end
+    offsets = -(0:numChannels-1) * shiftCoeff;
     
     if visualSettings.show_CSD
-        csdChildrenBefore = get(multiax, 'Children');
-        offsets = -(0:numChannels-1) * shiftCoeff;
-        
         params.time_in_csd = time_in_transformed;
         params.data_in_csd = data_res;
         params.Fs = Fs;
@@ -170,60 +188,80 @@ function updatePlot()
         params.csd_split_by_channel_gaps = csd_split_by_channel_gaps;
         
         [csd_image, csd_t_range, csd_ch_range] = csdCalc(params);
-        csdPlotting(csd_image, csd_t_range, csd_ch_range, csd_contrast_coef);
-        csdChildrenAfter = get(multiax, 'Children');
-        csdLayerHandles = setdiff(csdChildrenAfter, csdChildrenBefore, 'stable');
-        for iHandle = 1:numel(csdLayerHandles)
-            if strcmp(get(csdLayerHandles(iHandle), 'Type'), 'image')
-                set(csdLayerHandles(iHandle), 'Tag', 'csd_layer');
-            end
+        hCsd = [];
+        if canReuse && ~isempty(mainPlotGfx.csdImage) && isgraphics(mainPlotGfx.csdImage)
+            hCsd = mainPlotGfx.csdImage;
         end
+        mainPlotGfx.csdImage = csdPlotting(csd_image, csd_t_range, csd_ch_range, csd_contrast_coef, hCsd);
+    else
+        mainPlotGfx.csdImage = gobjects(0);
     end
     
-    traceChildrenBefore = get(multiax, 'Children');
-    if visualSettings.auto_shift
-        [offsets, shiftCoeff] = multiplot(time_in_transformed, data_res, ...
-            'ChannelLabels', ch_labels_l, ...
-            'linewidth', widths_in_l, ...
-            'color', colors_in_l);
-    else
-        [offsets, shiftCoeff] = multiplot(time_in_transformed, data_res, ...
-            'ChannelLabels', ch_labels_l, ...
-            'shiftCoeff', shiftCoeff, ...
-            'linewidth', widths_in_l, ...
-            'color', colors_in_l);
-    end
-    traceChildrenAfter = get(multiax, 'Children');
-    traceLayerHandles = setdiff(traceChildrenAfter, traceChildrenBefore, 'stable');
-    for iHandle = 1:numel(traceLayerHandles)
-        if strcmp(get(traceLayerHandles(iHandle), 'Type'), 'line')
-            set(traceLayerHandles(iHandle), 'Tag', 'trace_layer');
+    if canReuse && numel(mainPlotGfx.traceLines) == numChannels && all(isgraphics(mainPlotGfx.traceLines))
+        if visualSettings.auto_shift
+            [offsets, shiftCoeff] = updateMultiplotLines(mainPlotGfx.traceLines, time_in_transformed, data_res, ...
+                'ChannelLabels', ch_labels_l, ...
+                'LineWidth', widths_in_l, ...
+                'Color', colors_in_l);
+        else
+            [offsets, shiftCoeff] = updateMultiplotLines(mainPlotGfx.traceLines, time_in_transformed, data_res, ...
+                'ChannelLabels', ch_labels_l, ...
+                'shiftCoeff', shiftCoeff, ...
+                'LineWidth', widths_in_l, ...
+                'Color', colors_in_l);
         end
+    else
+        if visualSettings.auto_shift
+            [offsets, shiftCoeff, hLines] = multiplot(time_in_transformed, data_res, ...
+                'ChannelLabels', ch_labels_l, ...
+                'linewidth', widths_in_l, ...
+                'color', colors_in_l);
+        else
+            [offsets, shiftCoeff, hLines] = multiplot(time_in_transformed, data_res, ...
+                'ChannelLabels', ch_labels_l, ...
+                'shiftCoeff', shiftCoeff, ...
+                'linewidth', widths_in_l, ...
+                'color', colors_in_l);
+        end
+        set(hLines, 'Tag', 'trace_layer');
+        mainPlotGfx.traceLines = hLines;
     end
 
-    [~, gapIdx] = splitConsecutiveChannels(ch_inxs);
-    if ~isempty(gapIdx)
+    if canReuse && numel(mainPlotGfx.gapLines) == numel(gapIdx) && (isempty(gapIdx) || all(isgraphics(mainPlotGfx.gapLines)))
         x1 = time_in_transformed(1);
         x2 = time_in_transformed(end);
         for k = 1:numel(gapIdx)
             i = gapIdx(k);
             y = (offsets(i) + offsets(i+1)) / 2;
-            hGap = plot([x1, x2], [y, y], '--', 'Color', [0.6 0.6 0.6], 'LineWidth', 1);
-            set(hGap, 'Tag', 'trace_layer');
+            set(mainPlotGfx.gapLines(k), 'XData', [x1, x2], 'YData', [y, y]);
+        end
+    else
+        if ~isempty(mainPlotGfx.gapLines)
+            delete(mainPlotGfx.gapLines(isgraphics(mainPlotGfx.gapLines)));
+        end
+        mainPlotGfx.gapLines = gobjects(0);
+        if ~isempty(gapIdx)
+            x1 = time_in_transformed(1);
+            x2 = time_in_transformed(end);
+            mainPlotGfx.gapLines = gobjects(1, numel(gapIdx));
+            for k = 1:numel(gapIdx)
+                i = gapIdx(k);
+                y = (offsets(i) + offsets(i+1)) / 2;
+                hGap = plot([x1, x2], [y, y], '--', 'Color', [0.6 0.6 0.6], 'LineWidth', 1);
+                set(hGap, 'Tag', 'trace_layer');
+                mainPlotGfx.gapLines(k) = hGap;
+            end
         end
     end
     
-    y_pixel_size = 750;             % Размер по Y в пикселях
-    y_tick_min_pixel_size = 25;     % Минимальный размер тиков по Y в пикселях
+    y_pixel_size = 750;
+    y_tick_min_pixel_size = 25;
 
     [chRanges, chRangesOffsets, chRangeIndexes] = calculateChRanges(offsets, shiftCoeff, data_res, numChannels, m_coef, y_pixel_size, y_tick_min_pixel_size);
     
-    % Корректируем значения chRanges для каналов с вычитанием базовой линии
-    % Добавляем обратно вычтенную базовую линию, чтобы показать реальные значения
     for ch_inx = 1:numChannels
         if baseline_subtract_active(ch_inx)
             ch_mask = chRangeIndexes == ch_inx;
-            % baseline_medians уже в масштабе данных, нужно добавить обратно с учетом m_coef
             chRanges(ch_mask) = chRanges(ch_mask) + baseline_medians(ch_inx) / m_coef(ch_inx);
         end
     end
@@ -240,19 +278,11 @@ function updatePlot()
         end
     end
 
-    
-    % Обновляем отображение осей
     xlabel('Time, ' + string(selectedUnit) + '');
     ylabel('Channels');
 
-    % Устанавливаем новые тики по оси Y
-    %yticks(allOffsets);  % Устанавливаем уникальные тики
-    %yticklabels(allLabels); % Обновляем метки: каналы, максимумы и минимумы (без текста)
-
-    % show spikes
     if visualSettings.show_spikes && not(isempty(spks))
         prg = std_coef;        
-        use_mua_mask = isfield(visualSettings, 'mua_use_mask') && visualSettings.mua_use_mask;
         mua_alpha = 0.8;
         if isfield(visualSettings, 'mua_alpha')
             mua_alpha = min(max(double(visualSettings.mua_alpha), 0), 1);
@@ -301,18 +331,24 @@ function updatePlot()
         end
             
         c = 0;
-        x_coord = [];
-        y_coord = [];
+        nEst = 0;
+        if ~use_mua_mask
+            for ch_pre = ch_inxs
+                nEst = nEst + numel(spks(ch_pre).tStamp);
+            end
+        end
+        x_coord = zeros(1, nEst);
+        y_coord = zeros(1, nEst);
+        nFill = 0;
         for ch_inx = ch_inxs
             c = c+1;
             offset = offsets(c) ;
             
-            % Порог MUA по модулю амплитуды
             ii = abs(double(spks(ch_inx).ampl)) >= (lfpVar(ch_inx) * prg);
             spks_in(ch_inx).tStamp = spks(ch_inx).tStamp(ii);
             spks_in(ch_inx).ampl = spks(ch_inx).ampl(ii);
             
-            spk = spks_in(ch_inx).tStamp/1000;% переводим из мс в сек формат
+            spk = spks_in(ch_inx).tStamp/1000;
             
             if use_mua_mask
                 cond4 = spk >= plot_time_interval(1) & spk < plot_time_interval(2);
@@ -325,8 +361,8 @@ function updatePlot()
                     stims_in = stims(cond3);
                     stim_inxs = ClosestIndex(stims_in, time_in);
                     win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
-                    keep = maskTimesOutsideStimWindows(spk, time_in, stim_inxs, win_r);
-                    spk = spk(keep);
+                    keepSpk = maskTimesOutsideStimWindows(spk, time_in, stim_inxs, win_r);
+                    spk = spk(keepSpk);
                 end
                 
                 if isempty(spk)
@@ -340,9 +376,15 @@ function updatePlot()
                 end
                 mua_counts(c, :) = accumarray(bin_idx(:), 1, [n_bins, 1], @sum, 0).';
             else
-                x_coord = [x_coord, spk'];
-                y_coord = [y_coord, zeros(1, numel(spk)) + offset];
+                nSpk = numel(spk);
+                x_coord(nFill + (1:nSpk)) = spk;
+                y_coord(nFill + (1:nSpk)) = offset;
+                nFill = nFill + nSpk;
             end
+        end
+        if ~use_mua_mask
+            x_coord = x_coord(1:nFill);
+            y_coord = y_coord(1:nFill);
         end
         if use_mua_mask
             max_count = max(mua_counts(:));
@@ -361,12 +403,30 @@ function updatePlot()
 
                 y_start = offsets(1) + y_half;
                 y_end = offsets(end) - y_half;
-                h = image(multiax, [x_start, x_end], [y_start, y_end], mua_rgb);
-                set(h, 'AlphaData', mua_alpha_map, 'AlphaDataMapping', 'none');
-                set(h, 'Tag', 'mua_layer');
+                if canReuse && ~isempty(mainPlotGfx.muaImage) && isgraphics(mainPlotGfx.muaImage)
+                    set(mainPlotGfx.muaImage, ...
+                        'CData', mua_rgb, ...
+                        'XData', [x_start, x_end], ...
+                        'YData', [y_start, y_end], ...
+                        'AlphaData', mua_alpha_map, ...
+                        'AlphaDataMapping', 'none', ...
+                        'Visible', 'on');
+                else
+                    if ~isempty(mainPlotGfx.muaImage) && isgraphics(mainPlotGfx.muaImage)
+                        delete(mainPlotGfx.muaImage);
+                    end
+                    h = image(multiax, [x_start, x_end], [y_start, y_end], mua_rgb);
+                    set(h, 'AlphaData', mua_alpha_map, 'AlphaDataMapping', 'none');
+                    set(h, 'Tag', 'mua_layer');
+                    mainPlotGfx.muaImage = h;
+                end
+            else
+                if ~isempty(mainPlotGfx.muaImage) && isgraphics(mainPlotGfx.muaImage)
+                    set(mainPlotGfx.muaImage, 'Visible', 'off');
+                end
             end
-        end
-        if ~use_mua_mask
+            mainPlotGfx.muaScatter = gobjects(0);
+        else
             cond4 = x_coord >= plot_time_interval(1) & x_coord < plot_time_interval(2);
             x_coord = x_coord(cond4);
             y_coord = y_coord(cond4);
@@ -375,27 +435,38 @@ function updatePlot()
                 stims_in = stims(cond3);
                 stim_inxs = ClosestIndex(stims_in, time_in);
                 win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
-                keep = maskTimesOutsideStimWindows(x_coord, time_in, stim_inxs, win_r);
-                x_coord = x_coord(keep);
-                y_coord = y_coord(keep);
+                keepSpk = maskTimesOutsideStimWindows(x_coord, time_in, stim_inxs, win_r);
+                x_coord = x_coord(keepSpk);
+                y_coord = y_coord(keepSpk);
             end
             
-            scatter((x_coord - time_origin)*timeUnitFactor, y_coord, 'MarkerEdgeColor', mua_color_rgb, 'Marker', '|')
+            x_plot = (x_coord - time_origin) * timeUnitFactor;
+            if canReuse && ~isempty(mainPlotGfx.muaScatter) && isgraphics(mainPlotGfx.muaScatter)
+                set(mainPlotGfx.muaScatter, ...
+                    'XData', x_plot, ...
+                    'YData', y_coord, ...
+                    'MarkerEdgeColor', mua_color_rgb, ...
+                    'Visible', 'on');
+            else
+                if ~isempty(mainPlotGfx.muaScatter) && isgraphics(mainPlotGfx.muaScatter)
+                    delete(mainPlotGfx.muaScatter);
+                end
+                hSc = scatter(x_plot, y_coord, 'MarkerEdgeColor', mua_color_rgb, 'Marker', '|');
+                set(hSc, 'Tag', 'mua_layer');
+                mainPlotGfx.muaScatter = hSc;
+            end
+            mainPlotGfx.muaImage = gobjects(0);
         end
+    else
+        mainPlotGfx.muaImage = gobjects(0);
+        mainPlotGfx.muaScatter = gobjects(0);
     end
+
+    mainPlotGfx.signature = sig;
     applySignalLayerOrder(multiax);
     
     Xlims = (plot_time_interval - time_origin) * timeUnitFactor;
-    
-    
     xlim(Xlims)
-%     
-%     % Манипуляция с тиками времени (временно отключено)
-%     % Даем MATLAB самому выставлять XTick/XTickLabel.
-%     % Извлечение текущих тиков оси X из графика
-%%     xTicks = get(multiax, 'XTick');%(0.5*timeUnitFactor)
-%%     tickInterval = xTicks(3)-xTicks(2);
-%     set(multiax, 'XTickLabel', newLabels);
     
     manualYlimValid = viewerYlimManual && numel(viewerYlim) == 2 && all(isfinite(viewerYlim)) && viewerYlim(1) < viewerYlim(2);
     if manualYlimValid
@@ -413,7 +484,6 @@ function updatePlot()
         viewerYlimManual = false;
     end
     ylim(Ylims)
-    hold off;
 
     [~, name, ~] = fileparts(matFilePath);
     titleLabel = name;
@@ -438,7 +508,6 @@ function updatePlot()
             centerLabelParts{end + 1} = sprintf('%d/%d', stim_inx, numel(stims));
     end
     centerLabel = strjoin(centerLabelParts, ' | ');
-%     title(name, 'interpreter', 'none')
     hylabel_ax(Xlims(1), multiax, titleLabel);
     centerStyleName = centerStyleNames{find(strcmp(centerModes, selectedCenter), 1)};
     modeLabelColor = [0 0.4 0];
@@ -449,7 +518,7 @@ function updatePlot()
     end
     modeLabelX = mean(Xlims);
     modeLabelY = multiax.YLim(2) + diff(multiax.YLim) * 0.04;
-    modeLabel = text(multiax, modeLabelX, modeLabelY, centerLabel, ...
+    text(multiax, modeLabelX, modeLabelY, centerLabel, ...
         'Color', modeLabelColor, ...
         'BackgroundColor', modeLabelBgColor, ...
         'FontSize', 12, ...
@@ -460,13 +529,9 @@ function updatePlot()
         'HitTest', 'on', ...
         'PickableParts', 'all', ...
         'ButtonDownFcn', @modeLabelClickCallback);
-    labelHeightFractions = [0.05, 0.10]; % [stimulus, event]
+    labelHeightFractions = [0.05, 0.10];
 
-    % Дальше рисуем события/стимулы (в т.ч. scatter). Должен быть hold on,
-    % иначе новые вызовы могут перерисовать оси и стереть трейсы.
     hold(multiax, 'on');
-
-
 
     if show_events && ~isempty(events)
         cond2 = events >= plot_time_interval(1) & events < plot_time_interval(2);    
@@ -476,17 +541,11 @@ function updatePlot()
         evets_x = [];
     end     
 
-%     events_color = [255, 15, 107]/255;
-%     stims_color = [126, 237, 219]/255;
-
-%     Lines(evets_x, [], events_color, ':');
-%     Lines(stims_x, [], stims_color, ':');
     if show_events
         xlineMod(evets_x, lines_and_styles, 'events_lines')
     end
     xlineMod(stims_x, lines_and_styles, 'stimulus_lines')
     
-    % events number
     text_y = Ylims(2) - diff(Ylims)*labelHeightFractions(2);
     text_y = zeros(numel(evets_x), 1) + text_y;
     text_x = evets_x + diff(Xlims)*0.01;
@@ -494,12 +553,12 @@ function updatePlot()
         text_text = '';
     else
         ev_ix = find(cond2);
-        ev_ix = ev_ix(:); % ensure column shape for consistent cell-array sizing
+        ev_ix = ev_ix(:);
         event_times_absolute = events(cond2) * timeUnitFactor;
         event_times_relative = (events(cond2) - time_origin) * timeUnitFactor;
         fmtOpts = {'%.3f', '%.0f'};
         timeFmt = fmtOpts{1 + strcmp(selectedUnit, 'ms')};
-        idx = (1:numel(ev_ix)).'; % column vector to force column cell output
+        idx = (1:numel(ev_ix)).';
         baseText = arrayfun( ...
             @(i) sprintf(['#%d\n', timeFmt, ' ', selectedUnit, '\nrel ', timeFmt, ' ', selectedUnit], ...
                 ev_ix(i), event_times_absolute(i), event_times_relative(i)), ...
@@ -510,11 +569,9 @@ function updatePlot()
             ev_amps = event_amplitudes(ev_ix);
         end
         
-        % Если у события есть канал, показываем подпись на уровне амплитуды
-        % и рисуем красную точку на соответствующем смещении канала.
         event_y = NaN(size(ev_ix));
         if ~isempty(event_channels)
-            ev_chs = event_channels(:); % ожидаем 1 канал на событие
+            ev_chs = event_channels(:);
             if numel(ev_chs) >= max(ev_ix)
                 for iEv = 1:numel(ev_ix)
                     ev_ch = ev_chs(ev_ix(iEv));
@@ -555,9 +612,7 @@ function updatePlot()
             textMod(text_x, text_y, text_text, lines_and_styles, 'events_lines');
         end
     end
-%     text(text_x, text_y, text_text, 'color', events_color);
 
-    % stims number
     text_y = Ylims(2) - diff(Ylims)*labelHeightFractions(1);
     text_y = zeros(numel(stims_x), 1) + text_y;
     text_x = stims_x + diff(Xlims)*0.01;
@@ -567,7 +622,6 @@ function updatePlot()
     else
         text_text = arrayfun(@(i) sprintf('%d', stim_ix(i)), 1:numel(stim_ix), 'UniformOutput', false);
     end
-%     text(text_x, text_y, text_text, 'color', stims_color);    
     stimLabelsVisible = true;
     if isfield(lines_and_styles.stimulus_lines, 'LabelVisible')
         stimLabelsVisible = logical(lines_and_styles.stimulus_lines.LabelVisible);
@@ -583,14 +637,12 @@ function updatePlot()
         textMod(text_x, text_y, text_text, lines_and_styles, 'stimulus_lines')
     end
     
-    % Обновление положения слайдера с фильтром
     sliderMin = get(timeSlider, 'Min');
     sliderMax = get(timeSlider, 'Max');
     sliderValue = chosen_time_interval(1);
-    % Ограничиваем значение диапазоном слайдера
     sliderValue = max(sliderMin, min(sliderMax, sliderValue));
     set(timeSlider, 'Value', sliderValue);
-    previousSliderValue = sliderValue; % обновляем предыдущее значение
+    previousSliderValue = sliderValue;
 
     set(timeZeroEdit, 'String', num2str(time_origin * timeUnitFactor));
 
@@ -600,10 +652,9 @@ function updatePlot()
         set(shiftCoeffEdit, 'String', sprintf('%.6g', shiftCoeff));
     end
 
-    % Сбрасываем флаг обновления в самом конце
+    set(loading_text_handle, 'Visible', 'off');
     plot_updating = false;
 
-    % очищаем память 
     clear local_lfp time_in_transformed data_res
     
     function modeLabelClickCallback(~, ~)
