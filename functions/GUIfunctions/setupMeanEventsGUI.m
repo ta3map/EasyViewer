@@ -60,6 +60,7 @@ initialState = struct( ...
 
 initialStartIndex = 1;
 initialEndIndex = 0;
+initialUseAll = true;
 initialShowMua = false;
 if isfield(visualSettings, 'show_spikes')
     initialShowMua = logical(visualSettings.show_spikes);
@@ -80,6 +81,9 @@ if isstruct(meanControlsState) && isfield(meanControlsState, 'preDialog') && iss
     end
     if isfield(preDialogState, 'endIndex') && isnumeric(preDialogState.endIndex)
         initialEndIndex = max(1, round(double(preDialogState.endIndex)));
+    end
+    if isfield(preDialogState, 'useAll')
+        initialUseAll = logical(preDialogState.useAll);
     end
     if isfield(preDialogState, 'show_spikes')
         initialShowMua = logical(preDialogState.show_spikes);
@@ -151,8 +155,10 @@ uicontrol('Parent', renderPanel, 'Style', 'text', 'String', 'End index', ...
     'Position', [162, 94, 70, 18], 'HorizontalAlignment', 'left');
 endIndexEdit = uicontrol('Parent', renderPanel, 'Style', 'edit', 'BackgroundColor', 'white', ...
     'String', num2str(initialEndIndex), 'Position', [232, 92, 42, 22]);
+useAllCheckbox = uicontrol('Parent', renderPanel, 'Style', 'checkbox', 'String', 'All events', ...
+    'Position', [12, 70, 90, 20], 'Value', double(initialUseAll), 'Callback', @syncIndexEditsEnable);
 rangeHintLabel = uicontrol('Parent', renderPanel, 'Style', 'text', ...
-    'String', '', 'Position', [12, 74, 258, 16], ...
+    'String', '', 'Position', [104, 70, 166, 16], ...
     'HorizontalAlignment', 'left', 'ForegroundColor', [0.25 0.25 0.25]);
 
 uicontrol('Parent', renderPanel, 'Style', 'text', 'String', 'X min', ...
@@ -201,6 +207,7 @@ set(showMuaCheckbox, 'Callback', @syncMuaWhiteVisibility);
 set(sourcePopup, 'Callback', @sourceChangedCallback);
 syncMuaWhiteVisibility();
 sourceChangedCallback();
+syncIndexEditsEnable();
 
 uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Apply', ...
     'Position', [220, 26, 90, 38], 'Callback', @applyCallback);
@@ -229,6 +236,7 @@ uiwait(fig);
         showCsdVal = logical(get(showCsdCheckbox, 'Value'));
         startIndexVal = str2double(strrep(get(startIndexEdit, 'String'), ',', '.'));
         endIndexVal = str2double(strrep(get(endIndexEdit, 'String'), ',', '.'));
+        useAllVal = logical(get(useAllCheckbox, 'Value'));
 
         shiftVal = str2double(strrep(get(shiftEdit, 'String'), ',', '.'));
         xMinVal = str2double(strrep(get(xMinEdit, 'String'), ',', '.'));
@@ -256,13 +264,19 @@ uiwait(fig);
         rangeMax = max(1, selectedCount);
         startIndexVal = round(startIndexVal);
         endIndexVal = round(endIndexVal);
+        calcStart = startIndexVal;
+        calcEnd = endIndexVal;
+        if useAllVal
+            calcStart = rangeMin;
+            calcEnd = rangeMax;
+        end
         if selectedCount < 1
             errordlg(sprintf('No points available for "%s".', sourceType), 'Mean Parameters', 'modal');
             return
         end
-        if startIndexVal < rangeMin || startIndexVal > rangeMax || endIndexVal < rangeMin || endIndexVal > rangeMax || startIndexVal > endIndexVal
+        if calcStart < rangeMin || calcStart > rangeMax || calcEnd < rangeMin || calcEnd > rangeMax || calcStart > calcEnd
             errordlg(sprintf('Invalid index range [%d, %d]. Available range: [%d, %d].', ...
-                startIndexVal, endIndexVal, rangeMin, rangeMax), ...
+                calcStart, calcEnd, rangeMin, rangeMax), ...
                 'Mean Parameters', 'modal');
             return
         end
@@ -286,8 +300,8 @@ uiwait(fig);
         meanOpts.heatmapSmoothSigma = smoothVal;
         meanOpts.contrastPercent = contrastVal;
         meanOpts.muaWhiteTraces = muaWhiteVal;
-        meanOpts.startIndex = startIndexVal;
-        meanOpts.endIndex = endIndexVal;
+        meanOpts.startIndex = calcStart;
+        meanOpts.endIndex = calcEnd;
         meanOpts.csd_split_by_channel_gaps = splitGroupsVal;
         csd_split_by_channel_gaps = splitGroupsVal;
         if ~isstruct(meanControlsState)
@@ -311,6 +325,7 @@ uiwait(fig);
             'sourceType', sourceType, ...
             'startIndex', startIndexVal, ...
             'endIndex', endIndexVal, ...
+            'useAll', useAllVal, ...
             'show_spikes', showMuaVal, ...
             'show_CSD', showCsdVal, ...
             'shiftCoeff', shiftVal, ...
@@ -341,6 +356,15 @@ uiwait(fig);
         set(startIndexEdit, 'String', num2str(min(max(initialStartIndex, 1), maxIndex)));
         set(endIndexEdit, 'String', num2str(min(max(initialEndIndex, 1), maxIndex)));
         set(rangeHintLabel, 'String', sprintf('Available range: 1..%d', maxIndex));
+    end
+
+    function syncIndexEditsEnable(~, ~)
+        enableState = 'on';
+        if logical(get(useAllCheckbox, 'Value'))
+            enableState = 'off';
+        end
+        set(startIndexEdit, 'Enable', enableState);
+        set(endIndexEdit, 'Enable', enableState);
     end
 
     function syncMuaWhiteVisibility(~, ~)
