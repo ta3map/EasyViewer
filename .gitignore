@@ -1,5 +1,8 @@
 *.asv
-dist/
+
+# Build output only (deploy scripts and resources stay in git)
+/deploy/out/
+/dist/
 
 # Python virtual environment
 venv/
@@ -36,4 +39,6 @@ data_examples/
 
 # Script source files
 modules/script_source/
-scripts/
+
+# Project scripts folder (not deploy/)
+/scripts/
