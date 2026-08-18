@@ -526,7 +526,7 @@ function importLFPGUI()
         chosen_time_interval = [0, time_forward];
         shiftCoeff = 200;
         newFs = 1000;
-        selectedCenter = 'time';
+        selectedCenter = 'continuous';
         stim_inx = 1;
         visualSettings.show_spikes = false;
         visualSettings.show_CSD = false;

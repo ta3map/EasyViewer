@@ -1,4 +1,5 @@
 *.asv
+dist/
 
 # Python virtual environment
 venv/

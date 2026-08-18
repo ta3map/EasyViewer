@@ -480,7 +480,7 @@ function signalViewerGUI(filePath)
     set(timeUnitPopup, 'Value', index);
 
     % Добавление выпадающего списка для выбора режима просмотра
-    timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', {'continuous', 'stimulus', 'events'}, 'Position', getElementPosition('time_center_popup'), 'Callback', @changeTimeCenter, 'Tag', 'time_center_popup');
+    timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', timeCenterNav('modes'), 'Position', getElementPosition('time_center_popup'), 'Callback', @changeTimeCenter, 'Tag', 'time_center_popup');
 
     % Путь к папке с иконками
     assetsPath = getAssetsPath();
@@ -1070,7 +1070,8 @@ function signalViewerGUI(filePath)
                 event_title_string = [matFileName, ' stimulus imported'];
                 evfilename = matFileName;
                 events_exist = true;
-                set(timeCenterPopup, 'Value', 3);
+                selectedCenter = 'events';
+                syncTimeCenterPopup();
                 changeTimeCenter(timeCenterPopup);
                 UpdateEventTable();
                 updatePlot();
@@ -1665,28 +1666,7 @@ function signalViewerGUI(filePath)
         end
         debugState('timeForwardEditCallback', 'windowSize=%.3f, stim_inx=%d', windowSize, stim_inx);
                 
-        switch selectedCenter
-            case 'events'
-                if events_exist
-                    chosen_time_interval(1) = events(event_inx);
-                    chosen_time_interval(2) = events(event_inx)+windowSize;
-                end
-            case 'stimulus'
-                if stims_exist
-                    chosen_time_interval(1) = stims(stim_inx);
-                    chosen_time_interval(2) = stims(stim_inx)+windowSize;
-                end
-            case 'continuous'
-                % Обновляем интервал времени, сохраняя начальную точку интервала
-                chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
-
-                % Проверяем, не выходит ли интервал за границы временного ряда
-                if chosen_time_interval(2) > time(end)
-                    chosen_time_interval(2) = time(end);
-                    chosen_time_interval(1) = max(time(end) - windowSize, 0);
-                    set(src, 'String', num2str(windowSize*timeUnitFactor)); % Обновляем значение в поле
-                end
-        end
+        timeCenterNav('applyInterval', windowSize);
         
         saveChannelSettings();
         updatePlot(); % Обновление графика
@@ -1719,20 +1699,13 @@ function signalViewerGUI(filePath)
 
     function changeTimeCenter(src, ~)
         selectedCenter = src.String{src.Value};
-        switch selectedCenter
-            case 'continuous'
-                nan;
-            case 'stimulus'
-                stim_inx = 1;
-            case 'events'
-                event_inx = 1;
-        end
-        
-        % Обновляем максимальное значение слайдера в зависимости от режима
+        timeCenterNav('resetIndex');
         updateSliderMaxValue();
-        
         timeForwardEditCallback(timeForwardEdit)
-%         updatePlot(); % Обновление графика с новыми единицами времени
+    end
+
+    function syncTimeCenterPopup()
+        set(timeCenterPopup, 'Value', timeCenterNav('popupIndex'));
     end
     
     % Функция для обновления максимального значения слайдера в зависимости от режима
@@ -2747,22 +2720,13 @@ function signalViewerGUI(filePath)
         syncLogoCheckboxesFromLinesAndStyles();
         updateMUAControlsVisibility();
         
-        % Установка правильного значения в выпадающем списке в зависимости от selectedCenter
-        switch selectedCenter
-            case 'continuous'
-                set(timeCenterPopup, 'Value', 1);
-            case 'stimulus'
-                set(timeCenterPopup, 'Value', 2);
-            case 'events'
-                set(timeCenterPopup, 'Value', 3);
-        end
+        set(timeCenterPopup, 'String', timeCenterNav('modes'));
+        syncTimeCenterPopup();
         
         set(timeBackEdit, 'String', num2str(time_back*timeUnitFactor));% time window before
         set(timeForwardEdit, 'String', num2str(time_forward*timeUnitFactor));% time window after
         set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
         set(FsCoeffEdit, 'String', num2str(newFs));
-        
-        set(timeCenterPopup, 'String', {'continuous', 'stimulus', 'events'});
         
         % Обновление максимального значения слайдера
         updateSliderMaxValue();
@@ -3157,7 +3121,7 @@ end
     end
 
     function UpdateEventTable()        
-        [events, ev_inxs] = sort(events);
+        [events, ev_inxs] = sort(events(:));
         event_comments = event_comments(ev_inxs);
         
         % Сортируем все метаданные в том же порядке что и события
@@ -3168,14 +3132,7 @@ end
         end
         
         if ~isempty(event_channels) && size(event_channels, 1) == length(events)
-            sorted_channels = event_channels(ev_inxs, :);
-            % Для отображения берем первый канал или показываем все каналы
-            if size(sorted_channels, 2) == 1
-                display_channels = sorted_channels;
-            else
-                % Для многоканальных показываем первый канал
-                display_channels = sorted_channels(:, 1);
-            end
+            display_channels = event_channels(ev_inxs, 1);
         else
             display_channels = ones(size(events));
         end
@@ -3194,9 +3151,8 @@ end
             source_strings = repmat({'unknown'}, size(events));
         end
         
-        % Обновляем данные таблицы с новыми колонками
-        eventTable.Data = [num2cell(events*timeUnitFactor), event_comments, ...
-                          num2cell(sorted_amplitudes), num2cell(display_channels), source_strings];
+        eventTable.Data = [num2cell(events*timeUnitFactor), event_comments(:), ...
+                          num2cell(sorted_amplitudes(:)), num2cell(display_channels(:)), source_strings(:)];
         set(EventsTableTitle, 'String', [event_title_string, ': ', num2str(numel(events))]);
     end
 
@@ -3262,110 +3218,34 @@ end
 
     function switchSelectedCenterToTime()
         selectedCenter = 'continuous';
-        set(timeCenterPopup, 'Value', 1);
+        syncTimeCenterPopup();
         updateSliderMaxValue();
     end
 
-    function shiftTimeInTimeMode(direction, windowSize)
-        if direction == 1
-            next_step_1 = chosen_time_interval(2);
-            next_step_2 = chosen_time_interval(2) + windowSize;
-        else
-            next_step_1 = chosen_time_interval(1) - windowSize;
-            next_step_2 = next_step_1 + windowSize;
-        end
-        if ~(next_step_1 < 0 || next_step_2 > time(end) + windowSize)
-            chosen_time_interval(1) = next_step_1;
-            chosen_time_interval(2) = next_step_2;
-        end
-    end
-
     function shiftTime(~, ~, direction, timeForwardEdit)
-        
-        
-        % Проверяем, не идет ли уже обновление графика
         if plot_updating
             return;
         end
-        
-        % отключаем возможность использовать клавиатуру
-%         set(f, 'KeyPressFcn', '');
-        
         if keyboardpressed
            return;
         end
         keyboardpressed = true;
         
-%         disp('changed position')
-        windowSize = str2double(get(timeForwardEdit, 'String'))/timeUnitFactor;% должен быть в секундах
+        windowSize = str2double(get(timeForwardEdit, 'String'))/timeUnitFactor;
         debugState('shiftTime', 'windowSize=%.3f, stims_exist=%d, stim_inx=%d', windowSize, stims_exist, stim_inx);
 
-        eventNavExhausted = strcmp(selectedCenter, 'events') && ( ...
-            ~events_exist || isempty(events) || (direction == 1 && event_inx >= numel(events)));
-        stimNavExhausted = strcmp(selectedCenter, 'stimulus') && ( ...
-            ~stims_exist || isempty(stims) || (direction == 1 && stim_inx >= numel(stims)));
-        if eventNavExhausted || stimNavExhausted
-            switchSelectedCenterToTime();
-            shiftTimeInTimeMode(direction, windowSize);
-            keyboardpressed = false;
-            updatePlot();
-            return;
-        end
-
+        timeCenterNav('shift', direction, windowSize);
+        syncTimeCenterPopup();
+        updateSliderMaxValue();
         switch selectedCenter
             case 'events'
-                if events_exist
-                    if direction == 1% движение вперед  
-%                         disp('event forward')
-                        event_inx = event_inx+1;                    
-                    else% движение назад 
-%                         disp('event back')
-                        event_inx = event_inx-1;                    
-                    end
-                    if event_inx > numel(events)
-                        event_inx = numel(events);
-                    end
-                    if event_inx > 0
-                        chosen_time_interval(1) = events(event_inx);
-                        chosen_time_interval(2) = events(event_inx)+windowSize;
-                    else
-                        event_inx = 1;
-                    end
-                    % обновляем активное окно
-                    set(eventDeleteEdit, 'String', num2str(event_inx));                    
-                end
-            case 'stimulus'
-                if stims_exist
-                    debugState('shiftTime', 'stim_inx=%d, numel(stims)=%d', stim_inx, numel(stims));
-                    if direction == 1% движение вперед  
-%                         disp('stimulus forward')
-                        stim_inx = stim_inx+1;                    
-                    else% движение назад 
-%                         disp('stimulus back')
-                        stim_inx = stim_inx-1;                    
-                    end
-                    if stim_inx > numel(stims)
-                        stim_inx = numel(stims);
-                    end
-                    if stim_inx > 0
-                        chosen_time_interval(1) = stims(stim_inx);
-                        chosen_time_interval(2) = stims(stim_inx)+windowSize;
-                        debugState('shiftTime', 'stim_inx=%d, stims(stim_inx)=%.3f, chosen_time_interval=[%.3f, %.3f]', stim_inx, stims(stim_inx), chosen_time_interval(1), chosen_time_interval(2));
-                    else
-                        stim_inx = 1;
-                    end
-                end
-            case 'continuous'
-                shiftTimeInTimeMode(direction, windowSize);
+                set(eventDeleteEdit, 'String', num2str(event_inx));
         end
         
         keyboardpressed = false;
         debugState('shiftTime', 'chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
-        updatePlot(); % Обновление графика
+        updatePlot();
         debugState('shiftTime', 'plot updated');
-        
-        % Включаем callback нажатия клавиш
-%         set(f, 'KeyPressFcn', @keyPressFunction);
     end
     
     function deleteEvent(~, ~)
@@ -3409,12 +3289,12 @@ end
             if stims_exist && ~isempty(stims)
                 selectedCenter = 'stimulus';
                 stim_inx = 1;
-                set(timeCenterPopup, 'Value', 2);
+                syncTimeCenterPopup();
                 chosen_time_interval(1) = stims(stim_inx);
                 chosen_time_interval(2) = stims(stim_inx) + windowSize;
             else
                 selectedCenter = 'continuous';
-                set(timeCenterPopup, 'Value', 1);
+                syncTimeCenterPopup();
                 chosen_time_interval = [0, windowSize];
             end
             updateSliderMaxValue();
@@ -3442,7 +3322,7 @@ end
 
     function applyEventsLoadedState()
         selectedCenter = 'events';
-        set(timeCenterPopup, 'Value', 3);
+        syncTimeCenterPopup();
         chosen_time_interval(1) = events(event_inx);
         chosen_time_interval(2) = events(event_inx) + time_forward;
         cb = get(timeSlider, 'Callback');
@@ -3509,7 +3389,7 @@ function loadEvents(~, ~)
 
     if isfield(loadedData, 'manlDet')
         event_indices = round([loadedData.manlDet.t])';
-        events = time(event_indices)';
+        events = time(event_indices(:));
         
         if ~isfield(loadedData, 'event_comments') % если комментариев не было
             event_comments = repmat({'...'}, numel(events), 1); % Инициализация комментариев
@@ -3619,9 +3499,9 @@ end
                 spks(ch).tStamp = ta;
                 spks(ch).ampl = aa;
             end
-            events = evtSec;
+            events = evtSec(:);
             event_indices = [];
-            event_comments = {};
+            event_comments = repmat({'...'}, numel(events), 1);
             event_amplitudes = [];
             event_channels = [];
             event_widths = [];
@@ -3918,39 +3798,6 @@ end
         [~, currentMatName, ~] = fileparts(currentMatPath);
         [~, linkedMatName, ~] = fileparts(eventsData.viewer_data.matFilePath);
         isMatch = strcmp(linkedMatName, currentMatName);
-    end
-    
-    function updateAndRunInstaller()
-        saveDirectory = fullfile(fileparts(EV_path), 'EV updates'); % Save directory
-
-        % Check for the existence of the save directory and create it if necessary
-        if ~exist(saveDirectory, 'dir')
-            mkdir(saveDirectory);
-        end
-
-        % Call the function to check and update the version
-        [isNewVersionAvailable, newVersion] = checkAndUpdateVersion(EV_version, saveDirectory);
-
-        % Check if a new version has been downloaded
-        if isNewVersionAvailable
-            % Dialog box to confirm the installation of the new version
-            choice = questdlg(['New version ' newVersion ' is available. Do you want to install it now?'], ...
-                'Update Available', ...
-                'Yes', 'No', 'Yes');
-
-            % Handle the user's response
-            if strcmp(choice, 'Yes')
-                % Form the full path to the downloaded installer file
-                installerPath = fullfile(saveDirectory, ['EasyView ', newVersion, '.exe']);
-                % открываем папку с установщиком
-                winopen(saveDirectory)
-                % закрываем программу
-                closeAllCallback(f, []);
-            end
-        else
-            % Dialog box to inform the user that the latest version is already installed
-            debugState('updateAndRunInstaller', 'The latest version is already installed.');
-        end
     end
 
 end

@@ -7,9 +7,7 @@ function params = loadModuleParams(moduleName, timeUnitFactor)
     
     params = struct();
     
-    [functionFolder, ~, ~] = fileparts(mfilename('fullpath'));
-    projectRoot = fileparts(functionFolder);
-    moduleFolder = fullfile(projectRoot, 'modules');
+    moduleFolder = fullfile(getAppRoot(), 'modules');
     jsonPath = fullfile(moduleFolder, [moduleName, '.json']);
     
     if ~exist(jsonPath, 'file')

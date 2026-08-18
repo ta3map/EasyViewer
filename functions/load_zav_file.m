@@ -283,8 +283,8 @@ if p > 1 && stims_exist
     selectedCenter = 'stimulus';
     fprintf('Viewing mode automatically selected: stimulus\n');
 else
-    selectedCenter = 'time';
-    fprintf('Viewing mode automatically selected: time\n');
+    selectedCenter = 'continuous';
+    fprintf('Viewing mode automatically selected: continuous\n');
 end
 
 % Инициализация переменных событий
@@ -420,7 +420,7 @@ if exist(event_file, 'file')
         loadedData = load(event_file, '-mat');
         if isfield(loadedData, 'manlDet')
             event_indices = round([loadedData.manlDet.t])';
-            events = time(event_indices)';
+            events = time(event_indices(:));
             
             if ~isfield(loadedData, 'event_comments')
                 event_comments = repmat({'...'}, numel(events), 1);

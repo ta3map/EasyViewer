@@ -5,7 +5,7 @@ function loadEventsFromFile(filepath, options)
     % Параметры:
     %   filepath - путь к файлу событий (опционально, если не указан - запрашивается диалог)
     %   options - структура с опциями (опционально):
-    %     .skip_mode_change - если true, не меняет selectedCenter на 'event'
+    %     .skip_mode_change - если true, не меняет selectedCenter на 'events'
     %     .skip_callbacks - если true, не вызывает callback функции
     
     % Глобальные переменные для данных
@@ -82,7 +82,7 @@ function loadEventsFromFile(filepath, options)
     % Обработка данных событий
     if isfield(loadedData, 'manlDet')
         event_indices = round([loadedData.manlDet.t])';
-        events = time(event_indices)';
+        events = time(event_indices(:));
         
         % Загрузка комментариев
         if ~isfield(loadedData, 'event_comments') % если комментариев не было
@@ -146,9 +146,9 @@ function loadEventsFromFile(filepath, options)
         events_exist = true;
         event_inx = 1;
         
-        % Устанавливаем режим 'event' если нужно
+        % Устанавливаем режим 'events' если нужно
         if ~options.skip_mode_change
-            selectedCenter = 'event';
+            selectedCenter = 'events';
         end
         
         % Обновляем временной интервал

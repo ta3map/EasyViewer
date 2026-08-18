@@ -495,9 +495,14 @@ end
         'String', '────── Navigation ──────', ...
         'HorizontalAlignment', 'center', 'FontWeight', 'bold', 'Tag', 'navigation_separator');
     
-    % Статус навигации
+    hTimeCenterPopup = uicontrol(signalFig, 'Style', 'popup', ...
+        'String', timeCenterNav('modes'), ...
+        'Position', getElementPosition('time_center_popup'), ...
+        'Value', timeCenterNav('popupIndex'), ...
+        'Callback', @changeTimeCenter, 'Tag', 'time_center_popup');
+    
     hNavigationStatus = uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('navigation_status'), ...
-        'String', 'Mode: time', 'HorizontalAlignment', 'left', 'Tag', 'navigation_status');
+        'String', timeCenterNav('status'), 'HorizontalAlignment', 'left', 'Tag', 'navigation_status');
     
     % Путь к папке с иконками
     assetsPath = getAssetsPath();
@@ -1156,23 +1161,12 @@ updateCursorEditFields();
             return;
         end
         
-        % Обновляем временной интервал на основе режима и временных окон
-        if strcmp(selectedCenter, 'event') && events_exist && ~isempty(events)
-            % В режиме события центрируем интервал по текущему событию
-            chosen_time_interval(1) = events(event_inx);
-            chosen_time_interval(2) = chosen_time_interval(1) + time_forward;
-        elseif strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
-            % В режиме стимула центрируем интервал по текущему стимулу
-            chosen_time_interval(1) = stims(stim_inx);
-            chosen_time_interval(2) = chosen_time_interval(1) + time_forward;
-        elseif strcmp(selectedCenter, 'sweep') && isstruct(sweep_info) && sweep_info.is_sweep_data
-            % В режиме sweep используем времена свипов
-            chosen_time_interval(1) = sweep_info.sweep_times(sweep_inx);
-            chosen_time_interval(2) = chosen_time_interval(1) + time_forward;
-        elseif strcmp(selectedCenter, 'time')
-            % В режиме time обновляем только правую границу
-            chosen_time_interval(2) = chosen_time_interval(1) + time_forward;
+        if isempty(time) || isempty(time_forward)
+            return;
         end
+        
+        % Обновляем временной интервал на основе режима и временных окон
+        timeCenterNav('applyInterval', time_forward);
         
         % Сначала вычисляем все результаты
         [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = calculateResults();
@@ -1697,99 +1691,34 @@ updateCursorEditFields();
     end
 
     function updateNavigationStatus()
-        % Обновляет статус навигации на основе текущего режима
-        status_text = sprintf('Mode: %s', selectedCenter);
-        
-        % Добавляем информацию о текущей позиции
-        switch selectedCenter
-            case 'event'
-                if events_exist && ~isempty(events)
-                    status_text = sprintf('%s (%d/%d)', status_text, event_inx, length(events));
-                end
-            case 'stimulus'
-                if stims_exist && ~isempty(stims)
-                    status_text = sprintf('%s (%d/%d)', status_text, stim_inx, length(stims));
-                end
-            case 'sweep'
-                if isstruct(sweep_info) && sweep_info.is_sweep_data
-                    status_text = sprintf('%s (%d/%d)', status_text, sweep_inx, sweep_info.sweep_count);
-                end
+        set(hTimeCenterPopup, 'Value', timeCenterNav('popupIndex'));
+        set(hNavigationStatus, 'String', timeCenterNav('status'));
+    end
+
+    function changeTimeCenter(src, ~)
+        if isempty(time) || isempty(time_forward)
+            return;
         end
-        
-        set(hNavigationStatus, 'String', status_text);
+        [baseline_rel, peak_rel] = getRelativePositions();
+        selectedCenter = src.String{src.Value};
+        timeCenterNav('resetIndex');
+        timeCenterNav('applyInterval', time_forward);
+        setRelativePositions(baseline_rel, peak_rel);
+        [original_xlim, original_ylim] = calculateOptimalAxisLimits(true);
+        updateCursorEditFields();
+        updateNavigationStatus();
+        updatePlotAndCalculation();
     end
     
     function shiftTimeSlope(direction)
-        % Навигация между временными сегментами (аналогично shiftTime из signalViewerGUI.m)
-        
-        % Сохраняем относительные позиции текущих диапазонов
-        old_interval = chosen_time_interval;
-        [baseline_rel, peak_rel] = getRelativePositions();
-        
-        % Вычисляем размер окна
-        windowSize = chosen_time_interval(2) - chosen_time_interval(1);
-        
-        % Навигация в зависимости от режима
-        switch selectedCenter
-            case 'event'
-                if events_exist && ~isempty(events)
-                    if direction == 1  % движение вперед
-                        event_inx = min(event_inx + 1, length(events));
-                    else  % движение назад
-                        event_inx = max(event_inx - 1, 1);
-                    end
-                    chosen_time_interval(1) = events(event_inx);
-                    chosen_time_interval(2) = events(event_inx) + windowSize;
-                end
-                
-            case 'stimulus'
-                if stims_exist && ~isempty(stims)
-                    if direction == 1  % движение вперед
-                        stim_inx = min(stim_inx + 1, length(stims));
-                    else  % движение назад
-                        stim_inx = max(stim_inx - 1, 1);
-                    end
-                    chosen_time_interval(1) = stims(stim_inx);
-                    chosen_time_interval(2) = stims(stim_inx) + windowSize;
-                end
-                
-            case 'sweep'
-                if isstruct(sweep_info) && sweep_info.is_sweep_data
-                    if direction == 1  % движение вперед
-                        sweep_inx = min(sweep_inx + 1, sweep_info.sweep_count);
-                    else  % движение назад
-                        sweep_inx = max(sweep_inx - 1, 1);
-                    end
-                    chosen_time_interval(1) = sweep_info.sweep_times(sweep_inx);
-                    chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
-                end
-                
-            case 'time'
-                if direction == 1  % движение вперед
-                    next_step_1 = chosen_time_interval(2);
-                    next_step_2 = chosen_time_interval(2) + windowSize;
-                else  % движение назад
-                    next_step_1 = chosen_time_interval(1) - windowSize;
-                    next_step_2 = next_step_1 + windowSize;
-                end
-                
-                % Проверяем границы времени
-                if ~(next_step_1 < 0 || next_step_2 > time(end) + windowSize)
-                    chosen_time_interval(1) = next_step_1;
-                    chosen_time_interval(2) = next_step_2;
-                end
+        if isempty(time) || isempty(time_forward)
+            return;
         end
-        
-        % Применяем сохраненные относительные позиции к новому интервалу
+        [baseline_rel, peak_rel] = getRelativePositions();
+        timeCenterNav('shift', direction, time_forward);
         setRelativePositions(baseline_rel, peak_rel);
-
-        % устанавливаем оптимальные границы осей
         [original_xlim, original_ylim] = calculateOptimalAxisLimits(true);
-
-        % Обновляем edit fields после изменения позиций
         updateCursorEditFields();
-        
-        % Обновляем статус и график
         updateNavigationStatus();
         updatePlotAndCalculation();
     end
@@ -2989,6 +2918,8 @@ updateCursorEditFields();
         original_stim_inx = stim_inx;
         original_sweep_inx = sweep_inx;
         
+        timeCenterNav('applyInterval', time_forward);
+        
         % Определяем количество участков в зависимости от режима
         switch selectedCenter
             case 'stimulus'
@@ -2999,18 +2930,17 @@ updateCursorEditFields();
                     debugState('autoMeasureAllTimeRanges', 'ERROR: No stimuli for measurement');
                     return;
                 end
-                
-            case 'sweep'
-                if isstruct(sweep_info) && sweep_info.is_sweep_data
-                    total_ranges = sweep_info.sweep_count;
-                    debugState('autoMeasureAllTimeRanges', 'Automatic measurement of %d sweeps...', total_ranges);
+
+            case 'events'
+                if events_exist && ~isempty(events)
+                    total_ranges = length(events);
+                    debugState('autoMeasureAllTimeRanges', 'Automatic measurement of %d events...', total_ranges);
                 else
-                    debugState('autoMeasureAllTimeRanges', 'ERROR: No sweep data for measurement');
+                    debugState('autoMeasureAllTimeRanges', 'ERROR: No events for measurement');
                     return;
                 end
                 
-            case 'time'
-                % Для режима time вычисляем количество возможных шагов
+            case 'continuous'
                 windowSize = chosen_time_interval(2) - chosen_time_interval(1);
                 if windowSize <= 0
                     debugState('autoMeasureAllTimeRanges', 'ERROR: Invalid time window size');
@@ -3022,10 +2952,6 @@ updateCursorEditFields();
                     return;
                 end
                 debugState('autoMeasureAllTimeRanges', 'Automatic measurement of %d time segments...', total_ranges);
-                
-            otherwise
-                debugState('autoMeasureAllTimeRanges', 'ERROR: Unsupported navigation mode');
-                return;
         end
         
         % Сохраняем относительные позиции текущих диапазонов
@@ -3063,13 +2989,13 @@ updateCursorEditFields();
                         stim_inx = i;
                         chosen_time_interval(1) = stims(stim_inx);
                         chosen_time_interval(2) = stims(stim_inx) + windowSize;
+
+                    case 'events'
+                        event_inx = i;
+                        chosen_time_interval(1) = events(event_inx);
+                        chosen_time_interval(2) = events(event_inx) + windowSize;
                         
-                    case 'sweep'
-                        sweep_inx = i;
-                        chosen_time_interval(1) = sweep_info.sweep_times(sweep_inx);
-                        chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
-                        
-                    case 'time'
+                    case 'continuous'
                         chosen_time_interval(1) = time(1) + (i-1) * windowSize;
                         chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
                 end
@@ -3131,13 +3057,11 @@ updateCursorEditFields();
         switch selectedCenter
             case 'stimulus'
                 if stims_exist && ~isempty(stims)
-                    % Находим ближайший стимул к восстановленному интервалу
                     [~, stim_inx] = min(abs(stims - chosen_time_interval(1)));
                 end
-            case 'sweep'
-                if isstruct(sweep_info) && sweep_info.is_sweep_data
-                    % Находим ближайший sweep к восстановленному интервалу
-                    [~, sweep_inx] = min(abs(sweep_info.sweep_times - chosen_time_interval(1)));
+            case 'events'
+                if events_exist && ~isempty(events)
+                    [~, event_inx] = min(abs(events - chosen_time_interval(1)));
                 end
         end
         
@@ -3386,7 +3310,7 @@ updateCursorEditFields();
             if stims_exist && numel(stims) > 1
                 selectedCenter = 'stimulus';
             else
-                selectedCenter = 'time';
+                selectedCenter = 'continuous';
             end
             stim_inx = 1;
             
@@ -3510,7 +3434,7 @@ updateCursorEditFields();
         lfp_file = []; spks = []; hd = []; zavp = []; lfpVar = []; chnlGrp = []; time = []; stims = [];
         sweep_info = struct('is_sweep_data', false, 'sweep_count', 0, 'sweep_times', []);
         time_forward = []; time_back = []; matFilePath = ''; matFileName = ''; stims_exist = false;
-        N = []; Fs = []; newFs = []; sweep_inx = 1; selectedCenter = 'time'; stim_inx = 1;
+        N = []; Fs = []; newFs = []; sweep_inx = 1; selectedCenter = 'continuous'; stim_inx = 1;
         chosen_time_interval = [0, 0];
         slope_measurement_results = []; current_loaded_excel_path = [];
         selected_row_slope = []; selected_measurement_row = [];
@@ -4132,19 +4056,10 @@ updateCursorEditFields();
         
         % Если события успешно загружены, переключаемся на режим событий и обновляем график
         if events_exist && ~isempty(events)
-            selectedCenter = 'event';
+            selectedCenter = 'events';
             event_inx = 1;
-            
-            % Обновляем временной интервал для первого события
-            if exist('time_forward', 'var') && ~isempty(time_forward)
-                chosen_time_interval(1) = events(event_inx);
-                chosen_time_interval(2) = events(event_inx) + time_forward;
-            end
-            
-            % Обновляем edit fields
+            timeCenterNav('applyInterval', time_forward);
             updateCursorEditFields();
-            
-            % Обновляем график и статус
             updateNavigationStatus();
             updatePlotAndCalculation();
         else

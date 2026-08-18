@@ -1,9 +1,7 @@
 function showHelp()
     % SHOWHELP Показывает список markdown файлов из папки docs для просмотра
     
-    currentFile = mfilename('fullpath');
-    appRoot = fileparts(fileparts(currentFile));
-    docsPath = fullfile(appRoot, 'docs');
+    docsPath = fullfile(getAppRoot(), 'docs');
     
     if ~exist(docsPath, 'dir')
         errordlg(['Папка docs не найдена: ' docsPath], 'Ошибка');

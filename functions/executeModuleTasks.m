@@ -1,4 +1,5 @@
 function stats = executeModuleTasks(tasks, varargin)
+    %#function autoDetectStimuli autoMeanStimulus autoSlopeMeasurement autoClusterPermutationTest autoHoldPotential autoIosVideo assignAge assignHasResponse assignFileTypeId assignStimulusPairId assignFolderIds assignHoldPotentialStimChannel splitChannels calculateGabaAmpaOnsetDiff
     % Выполняет список задач модулей с обработкой результатов
     % 
     % Входные параметры:

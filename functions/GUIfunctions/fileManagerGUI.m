@@ -80,15 +80,8 @@ function fileManagerGUI()
         end
     end
     
-    functionFolder = fileparts(mfilename('fullpath'));
-    projectRoot = fileparts(fileparts(functionFolder));
-    moduleDir = fullfile(projectRoot, 'modules');
-    if exist(moduleDir, 'dir')
-        currentPath = strsplit(path, pathsep); %#ok<PATHNM>
-        if ~any(strcmp(currentPath, moduleDir))
-            addpath(moduleDir);
-        end
-    end
+    moduleDir = fullfile(getAppRoot(), 'modules');
+    addpath(moduleDir);
     
     % Функция обработки закрытия окна (определяем до создания окна)
     function closeFileManagerWindow(src, ~)
@@ -1574,9 +1567,7 @@ function fileManagerGUI()
         end
         
         tasks = [];
-        functionFolder = fileparts(mfilename('fullpath'));
-        projectRoot = fileparts(fileparts(functionFolder));
-        moduleFolder = fullfile(projectRoot, 'modules');
+        moduleFolder = fullfile(getAppRoot(), 'modules');
         
         for moduleIdx = 1:numel(state.moduleQueue)
             moduleAction = state.moduleQueue{moduleIdx};

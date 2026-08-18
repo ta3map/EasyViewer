@@ -12,7 +12,7 @@ function iosPlayerGUI(iosPath)
     if isempty(SettingsFilepath)
         SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
     end
-    assetsPath = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'assets');
+    assetsPath = getAssetsPath();
     playIcon = fullfile(assetsPath, 'play_btn.png');
     pauseIcon = fullfile(assetsPath, 'pause_btn.png');
     recordIcon = fullfile(assetsPath, 'record_btn.png');
