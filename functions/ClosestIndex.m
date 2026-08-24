@@ -1,9 +1,18 @@
-function closest_indexes = ClosestIndex(x, X)
+function closest_indexes = ClosestIndex(x, X, uniform)
 % Indices in X nearest to values in x. X is nondecreasing (time axis).
-% On equal distance prefers the smaller index (same as min(abs(X-x))).
+% ClosestIndex(x, X, true) — X is uniformly sampled.
 
 X = X(:);
 n = numel(X);
+
+if nargin >= 3 && uniform
+    dt = X(2) - X(1);
+    closest_indexes = round((x - X(1)) / dt) + 1;
+    closest_indexes = max(1, min(n, closest_indexes));
+    return
+end
+
+% On equal distance prefers the smaller index (same as min(abs(X-x))).
 closest_indexes = nan(size(x));
 
 for k = 1:numel(x)

@@ -30,7 +30,7 @@ function [mean_data, mean_time] = calculateMeanSignal()
         if ~isempty(signal_data) && ~isempty(time_data)
 
             % Находим ближайшую точку к t=0
-            zero_idx_array = ClosestIndex(0, time_data);
+            zero_idx_array = ClosestIndex(0, time_data, true);
             zero_idx = zero_idx_array(1); % Берем первый (и единственный) элемент
             valid_results = valid_results + 1;
             zero_indices(valid_results) = zero_idx;

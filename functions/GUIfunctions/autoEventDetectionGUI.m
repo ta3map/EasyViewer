@@ -265,6 +265,8 @@ function autoEventDetectionGUI()
     % Кнопка 'Check Detection'
     uicontrol(detectionFig, 'Style', 'pushbutton', 'String', 'Check Detection',...
         'Position', getElementPosition('checkDetectionBtn'), 'Callback', @checkDetectionCallback, 'Tag', 'checkDetectionBtn');
+    set([hMinPeakProminence, hMinPeakDistance, hMaxPeakWidth, hStartTime, hEndTime, hSearchWindow], ...
+        'Callback', @previewData);
 
     % Кнопка 'Apply'
     applybutton = uicontrol(detectionFig, 'Style', 'pushbutton', 'String', 'Apply',...
@@ -348,16 +350,17 @@ function autoEventDetectionGUI()
             set(hEndTime, 'Visible', 'off');
         end
         changeDetectionType();
+        previewData();
     end
 
     function mainChannelCallback(~, ~)
         changeDetectionType();
-        previewData();
+        previewData('autoThreshold');
     end
 
     function detectionControlsCallback(~, ~)
         changeDetectionType();
-        previewData();
+        previewData('autoThreshold');
     end
 
     function [detectionType, chPos, chNeg] = uiToDetectionParams()
@@ -435,6 +438,7 @@ function autoEventDetectionGUI()
             search_enabled = get(hSearchAroundStimuli, 'Value');
             if search_enabled
                 set(hUseTimeRange, 'Value', 0)
+                useTimeRange = 0;
                 set(hStartTimeLabel, 'visible', 'off')
                 set(hStartTime, 'visible', 'off')
                 set(hEndTimeLabel, 'visible', 'off')
@@ -465,8 +469,9 @@ function autoEventDetectionGUI()
 
     end
 
-    function previewData()
+    function previewData(src, ~)
         % Предварительная прорисовка
+        set(applybutton, 'Enable', 'off');
         global wb
         if isempty(wb) || ~isvalid(wb)
             wb = createCancelableWaitbar(0, 'Preview: preparing...', 'Event Detection');
@@ -498,12 +503,11 @@ function autoEventDetectionGUI()
         Trace_out(isnan(Trace_out)) = 0;
         Trace_out(isinf(Trace_out)) = 0;
         
-        if ~isempty(wb) && isvalid(wb)
-            waitbar(0.9, wb, 'Preview: rendering plots...');
-            drawnow;
+        if strcmp(get(applybutton, 'Enable'), 'on')
+            return;
         end
-        outlier = plotRequest(events_detected, Trace_out, time_res, params, prominences_detected, amplitudes_detected);
-        set(hMinPeakProminence, 'String', num2str(outlier));
+        autoThreshold = nargin > 0 && ischar(src);
+        plotRequest(events_detected, Trace_out, time_res, params, prominences_detected, amplitudes_detected, autoThreshold);
     end
 
     function checkDetectionCallback(~, ~)
@@ -573,9 +577,15 @@ function autoEventDetectionGUI()
         
     end
 
-    function [outlier, snap] = plotRequest(events_in, Trace_out, time_res, params, prominences_detected, amplitudes_in)
+    function [std2, snap] = plotRequest(events_in, Trace_out, time_res, params, prominences_detected, amplitudes_in, autoThreshold)
 
-        numSegments = 100;
+        useTimeRange = isfield(params, 'UseTimeRange') && params.UseTimeRange;
+        if useTimeRange
+            inWindow = time_res >= params.StartTime & time_res <= params.EndTime;
+            Trace_out = Trace_out(inWindow);
+            time_res = time_res(inWindow);
+        end
+        numSegments = min(100, numel(Trace_out));
         Trace_out = findSegmentMaxima(Trace_out, numSegments);
         time_res = linspace(time_res(1), time_res(end), numSegments);
         
@@ -591,11 +601,12 @@ function autoEventDetectionGUI()
         end
         outlier = quantile(dataInRange, 0.999);
         std3 = 3*nanstd(dataInRange);
+        std2 = 2*nanstd(dataInRange);
         
-        if params.detect
-            chosen_th = params.MinPeakProminence;
-        else
-            chosen_th = outlier;
+        chosen_th = params.MinPeakProminence;
+        if nargin >= 7 && autoThreshold
+            chosen_th = std2;
+            set(hMinPeakProminence, 'String', num2str(std2));
         end
         
         SearchAroundStimuli = false;
@@ -627,7 +638,6 @@ function autoEventDetectionGUI()
             histAmp.values = ampCounts / max(sum(ampCounts), 1);
         end
         
-        useTimeRange = params.detect && isfield(params, 'UseTimeRange') && params.UseTimeRange;
         startTime = 0;
         endTime = 0;
         if useTimeRange
@@ -687,7 +697,11 @@ function autoEventDetectionGUI()
             xlim(ax1, [snap.time_res(1), snap.time_res(end)] * timeUnitFactor);
         end
         ylim(ax1, [snap.yMin, snap.yMax]);
-        Lines(snap.events_detected * timeUnitFactor, [], 'r', ':');
+        tBins = snap.time_res(:);
+        dtBin = (tBins(end) - tBins(1)) / max(numel(tBins) - 1, 1);
+        binIdx = round((snap.events_detected(:) - tBins(1)) / dtBin) + 1;
+        binIdx = unique(max(1, min(numel(tBins), binIdx)), 'stable');
+        Lines(tBins(binIdx) * timeUnitFactor, [], 'r', ':');
         if snap.detect
             title(ax1, [num2str(numel(snap.events_detected)), ' events'], 'interpreter', 'none');
         else
@@ -901,7 +915,6 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     global stims_exist stims time art_rem_settings
     
     wasCanceled = false;
-    data_in = lfp_file.lfp;
     fprintf('Please wait...\n');
     
     if isempty(wb) || ~isvalid(wb)
@@ -927,6 +940,27 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
     
     detect = params.detect;
     
+    if ~detect
+        [Trace_out, time_res, wasCanceled] = previewDetectionTrace(params);
+        events_detected = [];
+        amplitudes_detected = [];
+        widths_detected = [];
+        channels_detected = [];
+        metadata_detected = [];
+        prominences_detected = [];
+        indices_detected = [];
+        if wasCanceled
+            [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
+            return;
+        end
+        waitbar(1.0, wb, 'Complete');
+        if ~isempty(wb) && isvalid(wb)
+            delete(wb);
+        end
+        return;
+    end
+    
+    data_in = lfp_file.lfp;
     max_peak_width = params.max_peak_width;
     
     raw_frq = Fs;
@@ -1371,32 +1405,117 @@ function [events_detected, Trace_out, time_res, amplitudes_detected, widths_dete
         end
         
         % Индексы в исходной шкале time (создаются при детекции, без поиска при сохранении)
-        indices_detected = zeros(length(events_detected), 1);
-        for i = 1:length(events_detected)
-            [~, indices_detected(i)] = min(abs(time - events_detected(i)));
-        end
+        indices_detected = ClosestIndex(events_detected, time, true);
         
         fprintf('=== DEBUG: Final results ===\n');
         fprintf('Total events detected: %d\n', length(events_detected));
         fprintf('===================================\n\n');
         
-    else
-        waitbar(0.9, wb, 'Preview mode - no detection');
-        events_detected = [];
-        amplitudes_detected = [];
-        widths_detected = [];
-        channels_detected = [];
-        metadata_detected = [];
-        prominences_detected = [];
-        indices_detected = [];
     end
     
     waitbar(1.0, wb, 'Complete');
-    if detect
-        fprintf('Events detected.\n');
-    end
+    fprintf('Events detected.\n');
     if ~isempty(wb) && isvalid(wb)
         delete(wb);
+    end
+end
+
+function [Trace_out, time_res, wasCanceled] = previewDetectionTrace(params)
+    global Fs time newFs lfp_file wb filterSettings filter_avaliable
+    global stims_exist stims art_rem_settings
+
+    wasCanceled = false;
+    DetectionType = params.DetectionType;
+    ChPos = params.ChPos;
+    ChNeg = params.ChNeg;
+    SourceType = params.SourceType;
+    nSamples = size(lfp_file.lfp, 1);
+    nChannels = size(lfp_file.lfp, 2);
+
+    switch DetectionType
+        case {'two channels difference', 'two channels multiplied'}
+            chs = [ChPos, ChNeg];
+        case 'one channel negative'
+            chs = ChNeg;
+        case 'one channel positive'
+            chs = ChPos;
+    end
+    if strcmp(SourceType, 'CSD')
+        chs = [chs, chs - 1, chs + 1];
+    end
+    chs = unique(chs);
+    chs = chs(chs >= 1 & chs <= nChannels);
+
+    step = max(1, round(Fs / newFs));
+    idx = 1:step:nSamples;
+    if params.UseTimeRange
+        idx = idx(time(idx) >= params.StartTime & time(idx) <= params.EndTime);
+    end
+
+    waitbar(0.3, wb, 'Preview: reading channel...');
+    drawnow;
+    if isWaitbarCanceled(wb)
+        wasCanceled = true;
+        Trace_out = [];
+        time_res = [];
+        return;
+    end
+    traces = double(lfp_file.lfp(idx, chs));
+
+    waitbar(0.55, wb, 'Preview: filtering...');
+    drawnow;
+    if isWaitbarCanceled(wb)
+        wasCanceled = true;
+        Trace_out = [];
+        time_res = [];
+        return;
+    end
+    filtMask = logical(filter_avaliable(chs));
+    if any(filtMask)
+        traces(:, filtMask) = applyFilter(traces(:, filtMask), filterSettings, newFs);
+    end
+
+    if stims_exist && ~isempty(stims) && art_rem_settings.artifact_window_ms > 0
+        win_r = max(1, round(art_rem_settings.artifact_window_ms * (Fs / 1000) / step));
+        traces = removeStimArtifact(traces, stims, time(idx), win_r, art_rem_settings.interp_method);
+    end
+
+    waitbar(0.75, wb, 'Preview: building trace...');
+    drawnow;
+    pos = previewSourceColumn(traces, chs, ChPos, SourceType, nChannels);
+    neg = previewSourceColumn(traces, chs, ChNeg, SourceType, nChannels);
+    switch DetectionType
+        case 'two channels difference'
+            Trace_out = pos - neg;
+        case 'two channels multiplied'
+            Trace_out = -(neg .* pos);
+        case 'one channel negative'
+            Trace_out = -neg;
+        case 'one channel positive'
+            Trace_out = pos;
+    end
+
+    Trace_out(isnan(Trace_out)) = nanmean(Trace_out);
+    Trace_out = Trace_out - mean(Trace_out);
+    Trace_out = np_flatten(Trace_out);
+    time_res = time(idx);
+end
+
+function col = previewSourceColumn(traces, chs, ch, SourceType, nChannels)
+    col = previewChannelColumn(traces, chs, ch);
+    if strcmp(SourceType, 'CSD')
+        col = zeros(size(traces, 1), 1);
+        if ch > 1 && ch < nChannels
+            col = -(previewChannelColumn(traces, chs, ch - 1) - 2 * previewChannelColumn(traces, chs, ch) + previewChannelColumn(traces, chs, ch + 1));
+        end
+    end
+end
+
+function col = previewChannelColumn(traces, chs, ch)
+    col = zeros(size(traces, 1), 1);
+    mask = (chs == ch);
+    if any(mask)
+        col = traces(:, mask);
     end
 end
 

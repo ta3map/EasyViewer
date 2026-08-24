@@ -114,7 +114,7 @@ if params.remove_artifact
     win_r = round(artifact_window_ms * (Fs/1000));
     params.lfp = removeStimArtifact(params.lfp, stims, time, win_r, art_rem_settings.interp_method);
     if params.show_spikes
-        stim_inxs = ClosestIndex(stims, time);
+        stim_inxs = ClosestIndex(stims, time, true);
         params.spks = maskSpikesInStimWindows(params.spks, time, stim_inxs, win_r);
     end
 end

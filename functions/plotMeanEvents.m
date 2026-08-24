@@ -312,7 +312,7 @@ function [f, calculation_result] = plotMeanEvents(params)
         smoothCoef = smoothCoef(1);
         smoothCoef = max(smoothCoef, 1);
         
-        csd_time_zero_idx = round(ClosestIndex(t_profile, csd_trange) / smoothCoef); % находим индекс данных, соответствующий времени профиля
+        csd_time_zero_idx = round(ClosestIndex(t_profile, csd_trange, true) / smoothCoef); % находим индекс данных, соответствующий времени профиля
         csd_profile = csd_image(:, csd_time_zero_idx);
         [max_csd_profile, max_csd_prof_index] = max(csd_profile);
         [min_csd_profile, min_csd_prof_index] = min(csd_profile);
@@ -346,7 +346,7 @@ if not(isempty(ev_hists))  && not(show_CSD)
     heatmap_base_clim = get(ax, 'CLim');
     
     % Построение профиля MUA
-    mua_time_profile_idx = round(ClosestIndex(t_profile, mua_x)); % находим индекс данных, соответствующий времени профиля
+    mua_time_profile_idx = round(ClosestIndex(t_profile, mua_x, true)); % находим индекс данных, соответствующий времени профиля
     mua_profile = ev_hists(:, mua_time_profile_idx);
     [max_mua_profile, max_mua_prof_index] = max(mua_profile);
     [min_mua_profile, min_mua_prof_index] = min(mua_profile);

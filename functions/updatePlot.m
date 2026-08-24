@@ -359,7 +359,7 @@ function updatePlot()
                 
                 if not(isempty(stims)) && visualSettings.stim_show
                     stims_in = stims(cond3);
-                    stim_inxs = ClosestIndex(stims_in, time_in);
+                    stim_inxs = ClosestIndex(stims_in, time_in, true);
                     win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
                     keepSpk = maskTimesOutsideStimWindows(spk, time_in, stim_inxs, win_r);
                     spk = spk(keepSpk);
@@ -433,7 +433,7 @@ function updatePlot()
             
             if not(isempty(stims)) && visualSettings.stim_show
                 stims_in = stims(cond3);
-                stim_inxs = ClosestIndex(stims_in, time_in);
+                stim_inxs = ClosestIndex(stims_in, time_in, true);
                 win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
                 keepSpk = maskTimesOutsideStimWindows(x_coord, time_in, stim_inxs, win_r);
                 x_coord = x_coord(keepSpk);

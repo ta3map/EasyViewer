@@ -63,7 +63,7 @@ function importEventsFromSimulusGUI()
                 j = j + 1;
             end
 
-            stimClusterInxs = ClosestIndex(stimCluster, time);
+            stimClusterInxs = ClosestIndex(stimCluster, time, true);
             clusterData = mean(lfp_file.lfp(stimClusterInxs, selectedChannels), 2);
             
             if ampCriterion == 1

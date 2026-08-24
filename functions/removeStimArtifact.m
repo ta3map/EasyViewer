@@ -32,7 +32,7 @@ nSamples = size(data_in, 1);
 method = lower(method);
 
 if ~isempty(stims) & win_r ~= 0
-    stim_inxs = ClosestIndex(stims, time);
+    stim_inxs = ClosestIndex(stims, time, true);
     win_r = round(win_r);
 
     for i = 1:length(stim_inxs)
