@@ -26,7 +26,7 @@ Launch the application by running the `app()` command in the MATLAB command wind
 - **Signal Viewer** - signal viewing mode
 - **Signal Analysis** - analysis and parameter measurement mode
 
-![Application main window](docs/screenshots/app_main.png)
+![Application main window](docs/user_docs/screenshots/app_main.png)
 
 ### Selecting Operation Mode
 
@@ -48,7 +48,7 @@ Main features:
 - Signal processing (filtering, mean subtraction, CSD)
 - Analysis tools (Z-score, spectral density, PCA, correlation)
 
-Detailed description: [Signal Viewer](docs/signal_viewer_eng.md)
+Detailed description: [Signal Viewer](docs/user_docs/signal_viewer/signal_viewer_eng.html)
 
 ### Signal Analysis
 
@@ -62,41 +62,19 @@ Main features:
 - Hot Resave for automatic re-saving
 - Viewing mean trace by measurements
 
-Detailed description: [Signal Analysis](docs/signal_analysis_eng.md)
-
-### File Manager
-
-File manager with SQL database support for organizing projects, file groups, and metadata.
-
-Main features:
-- Creating and managing projects
-- File grouping
-- Metadata storage
-- Running automation modules
-- Viewing analysis results
-
-Detailed description: [File Manager](docs/file_manager_eng.md)
+Detailed description: [Signal Analysis](docs/user_docs/signal_analysis/signal_analysis_eng.html)
 
 ## Detailed Documentation
 
 ### Main Components
 
-- [Signal Viewer](docs/signal_viewer_eng.md) - signal viewing and event management
-- [Signal Analysis](docs/signal_analysis_eng.md) - signal parameter measurement
-- [File Manager](docs/file_manager_eng.md) - file and project management
+- [Signal Viewer](docs/user_docs/signal_viewer/signal_viewer_eng.html) - signal viewing and event management
+- [Signal Analysis](docs/user_docs/signal_analysis/signal_analysis_eng.html) - signal parameter measurement
 
 ### Processing and Analysis
 
-- [Signal Processing](docs/signal_processing_eng.md) - filtering, CSD, mean subtraction
-- [Analysis Tools](docs/analysis_tools_eng.md) - Z-score, spectral density, PCA, correlation
-- [Events and Stimuli](docs/events_and_stimuli_eng.md) - event and stimulus management
-- [Parameter Measurements](docs/measurements_eng.md) - slope, peak, onset, baseline
-
-### Automation
-
-- [Automation Modules](docs/modules_eng.md) - automated analysis through modules
-
-### Data Work
-
-- [Data Conversion](docs/data_conversion_eng.md) - conversion from various formats
-- [Visualization](docs/visualization_eng.md) - display and graph settings
+- [Signal Processing](docs/user_docs/signal_viewer/signal_processing_eng.html) - filtering, CSD, mean subtraction
+- [Analysis Tools](docs/user_docs/signal_viewer/analysis_tools_eng.html) - Z-score, spectral density, PCA, correlation
+- [Events and Stimuli](docs/user_docs/signal_viewer/events_and_stimuli_eng.html) - event and stimulus management
+- [Parameter Measurements](docs/user_docs/signal_analysis/measurements_eng.html) - slope, peak, onset, baseline
+- [Visualization](docs/user_docs/signal_viewer/visualization_eng.html) - display and graph settings

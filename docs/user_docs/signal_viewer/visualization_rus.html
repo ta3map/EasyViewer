@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Визуализация</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="визуализация">Визуализация</h1>
+<p>Программа предоставляет различные инструменты для настройки
+отображения сигналов и результатов анализа.</p>
+<h2 id="настройки-отображения-каналов">Настройки отображения
+каналов</h2>
+<h3 id="таблица-каналов">Таблица каналов</h3>
+<p>Боковая панель Signal Viewer содержит таблицу настроек каналов:</p>
+<ul>
+<li><strong>Channel</strong> - название канала</li>
+<li><strong>Enabled</strong> - включение/выключение отображения
+канала</li>
+<li><strong>Scale</strong> - коэффициент масштабирования амплитуды</li>
+<li><strong>Color</strong> - цвет линии сигнала</li>
+<li><strong>Line Width</strong> - толщина линии</li>
+<li><strong>Averaging</strong> - участие в усреднении</li>
+<li><strong>CSD</strong> - участие в CSD</li>
+<li><strong>Filter</strong> - применение фильтрации</li>
+<li><strong>Baseline</strong> - вычитание базовой линии</li>
+</ul>
+<figure>
+<img src="../screenshots/channel_table.png" alt="Таблица каналов" />
+<figcaption aria-hidden="true">Таблица каналов</figcaption>
+</figure>
+<h3 id="быстрое-управление">Быстрое управление</h3>
+<p>Кнопки под таблицей каналов:</p>
+<ul>
+<li><strong>(De)select ch</strong> - переключение видимости всех
+каналов</li>
+<li><strong>(De)select CSD</strong> - переключение участия всех каналов
+в CSD</li>
+<li><strong>(De)select Baseline</strong> - переключение вычитания
+базовой линии</li>
+</ul>
+<h3 id="вертикальное-смещение">Вертикальное смещение</h3>
+<p>Поле <strong>Ch. Shift</strong> определяет величину вертикального
+смещения между каналами в единицах амплитуды сигнала. Увеличение
+значения увеличивает расстояние между каналами на графике.</p>
+<h2 id="цвета-и-стили-линий">Цвета и стили линий</h2>
+<h3 id="настройка-цветов-каналов">Настройка цветов каналов</h3>
+<p>Цвет каждого канала настраивается в таблице каналов. Доступны
+стандартные цвета MATLAB (r, g, b, k, m, c, y) или RGB значения.</p>
+<h3 id="стили-линий-событий-и-стимулов">Стили линий событий и
+стимулов</h3>
+<p>Меню <strong>View/Lines and styles</strong> открывает окно настройки
+стилей линий для событий и стимулов.</p>
+<p><strong>Параметры для каждого типа линий:</strong></p>
+<ul>
+<li><strong>Line Color</strong> - цвет линии</li>
+<li><strong>Line Style</strong> - стиль линии (-, –, :, -.)</li>
+<li><strong>Line Width</strong> - толщина линии</li>
+<li><strong>Label Text</strong> - текст метки</li>
+<li><strong>Label Color</strong> - цвет метки</li>
+<li><strong>Label Font Size</strong> - размер шрифта метки</li>
+<li><strong>Label Background Color</strong> - цвет фона метки</li>
+<li><strong>Label Font Weight</strong> - начертание шрифта
+(normal/bold)</li>
+</ul>
+<figure>
+<img src="../screenshots/lines_styles.png" alt="Настройки стилей линий" />
+<figcaption aria-hidden="true">Настройки стилей линий</figcaption>
+</figure>
+<h2 id="zoom-и-pan">Zoom и Pan</h2>
+<h3 id="built-in-zoom">Built-in Zoom</h3>
+<p>Меню <strong>View/Built-in Zoom</strong> или кнопка
+<strong>Zoom</strong> активирует встроенный инструмент зума.</p>
+<p><strong>Использование:</strong></p>
+<ol type="1">
+<li>Активируйте Zoom</li>
+<li>Выделите область на графике для увеличения</li>
+<li>Кликните правой кнопкой мыши для уменьшения</li>
+</ol>
+<figure>
+<img src="../screenshots/zoom.png" alt="Zoom инструмент" />
+<figcaption aria-hidden="true">Zoom инструмент</figcaption>
+</figure>
+<h3 id="built-in-pan">Built-in Pan</h3>
+<p>Меню <strong>View/Built-in Pan</strong> или кнопка
+<strong>Pan</strong> активирует встроенный инструмент
+панорамирования.</p>
+<p><strong>Использование:</strong></p>
+<ol type="1">
+<li>Активируйте Pan</li>
+<li>Зажмите левую кнопку мыши и перемещайте график</li>
+<li>Отпустите кнопку для завершения</li>
+</ol>
+<figure>
+<img src="../screenshots/pan.png" alt="Pan инструмент" />
+<figcaption aria-hidden="true">Pan инструмент</figcaption>
+</figure>
+<h3 id="home">Home</h3>
+<p>Кнопка <strong>Home</strong> сбрасывает все инструменты (Zoom, Pan,
+Cursor) и восстанавливает исходный вид графика с автоматическим
+масштабированием.</p>
+<h2 id="data-cursor">Data Cursor</h2>
+<p>Меню <strong>View/Data Cursor</strong> или кнопка
+<strong>Cursor</strong> активирует курсор данных.</p>
+<p><strong>Использование:</strong></p>
+<ol type="1">
+<li>Активируйте Data Cursor</li>
+<li>Кликните на графике в интересующей точке</li>
+<li>Отображаются координаты точки (время, амплитуда, канал)</li>
+</ol>
+<figure>
+<img src="../screenshots/data_cursor.png" alt="Data Cursor" />
+<figcaption aria-hidden="true">Data Cursor</figcaption>
+</figure>
+<h2 id="brush">Brush</h2>
+<p>Кнопка <strong>Brush</strong> активирует инструмент выделения данных
+на графике. Позволяет выделять точки данных для дальнейшего анализа.</p>
+<figure>
+<img src="../screenshots/brush.png" alt="Brush инструмент" />
+<figcaption aria-hidden="true">Brush инструмент</figcaption>
+</figure>
+<h2 id="сохранение-графиков">Сохранение графиков</h2>
+<h3 id="сохранение-снимка-графика">Сохранение снимка графика</h3>
+<p>Меню <strong>File/Save figure snapshot</strong> в Signal Viewer
+сохраняет текущий график в файл изображения.</p>
+<p><strong>Форматы:</strong></p>
+<ul>
+<li>PNG</li>
+<li>FIG (MATLAB figure)</li>
+<li>PDF</li>
+<li>EPS</li>
+</ul>
+<figure>
+<img src="../screenshots/save_figure.png" alt="Сохранение графика" />
+<figcaption aria-hidden="true">Сохранение графика</figcaption>
+</figure>
+<h3 id="сохранение-изображения-в-signal-analysis">Сохранение изображения
+в Signal Analysis</h3>
+<p>Кнопка <strong>Save Image</strong> в Signal Analysis сохраняет
+текущий график анализа.</p>
+<h2 id="настройки-осей">Настройки осей</h2>
+<h3 id="единицы-измерения-времени">Единицы измерения времени</h3>
+<p>Выпадающий список единиц измерения позволяет выбрать:</p>
+<ul>
+<li><strong>s</strong> - секунды</li>
+<li><strong>ms</strong> - миллисекунды</li>
+<li><strong>min</strong> - минуты</li>
+</ul>
+<p>Выбранная единица применяется ко всем временным параметрам и
+отображению на оси времени.</p>
+<h3 id="автоматическое-масштабирование">Автоматическое
+масштабирование</h3>
+<p>Графики автоматически масштабируются для оптимального отображения
+данных. При использовании Zoom/Pan масштабирование может быть изменено
+вручную.</p>
+<h3 id="восстановление-масштаба">Восстановление масштаба</h3>
+<p>Кнопка <strong>Home</strong> восстанавливает автоматическое
+масштабирование и исходный вид графика.</p>
+<h2 id="скрытие-элементов-интерфейса">Скрытие элементов интерфейса</h2>
+<h3 id="скрытие-боковой-панели">Скрытие боковой панели</h3>
+<p>Кнопка <strong>×</strong> в верхней части боковой панели или меню
+<strong>View/Hide Channel Settings</strong> скрывает боковую панель для
+увеличения области графика.</p>
+<p>Кнопка <strong>□</strong> или меню <strong>View/show Channel
+Settings</strong> восстанавливает панель.</p>
+<h3 id="скрытие-стимулов">Скрытие стимулов</h3>
+<p>Меню <strong>View/Hide stimulus</strong> скрывает или показывает
+отображение стимулов на графике.</p>
+<h2 id="отображение-csd-и-mua">Отображение CSD и MUA</h2>
+<h3 id="csd">CSD</h3>
+<p>Чекбокс <strong>CSD</strong> на панели инструментов включает
+отображение Current Source Density. Настройки CSD доступны через меню
+<strong>View/CSD displaying</strong>.</p>
+<h3 id="mua">MUA</h3>
+<p>Чекбокс <strong>MUA</strong> включает отображение мультиюнитной
+активности. Поле <strong>MUA coef</strong> задает порог отображения в
+единицах стандартного отклонения.</p>
+<h2 id="настройки-графика-в-signal-analysis">Настройки графика в Signal
+Analysis</h2>
+<p>В Signal Analysis доступны дополнительные настройки:</p>
+<ul>
+<li>Отображение элементов измерения (baseline, peak, slope, onset)</li>
+<li>Переключение между исходным и сглаженным сигналом</li>
+<li>Отображение среднего трейса</li>
+</ul>
+<p>Все настройки применяются немедленно к графику.</p>
+<h2 id="экспорт-графиков">Экспорт графиков</h2>
+<p>Графики могут быть экспортированы в различные форматы:</p>
+<ul>
+<li><strong>PNG</strong> - растровое изображение</li>
+<li><strong>FIG</strong> - MATLAB figure файл</li>
+<li><strong>PDF</strong> - векторный формат</li>
+<li><strong>EPS</strong> - векторный формат для публикаций</li>
+</ul>
+<p>Разрешение для растровых форматов: 300 DPI.</p>
+</body>
+</html>

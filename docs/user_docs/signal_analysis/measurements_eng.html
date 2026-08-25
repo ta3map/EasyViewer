@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Parameter Measurements</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="parameter-measurements">Parameter Measurements</h1>
+<p>Signal Analysis provides tools for measuring various signal
+parameters relative to stimuli or events.</p>
+<h2 id="measurement-parameters">Measurement Parameters</h2>
+<h3 id="slope">Slope</h3>
+<p>Slope (steepness) measures the rate of signal change in a certain
+range relative to the peak.</p>
+<p><strong>Calculation:</strong></p>
+<ol type="1">
+<li>Peak is determined in the specified range (peak range)</li>
+<li>Percentage of peak amplitude is calculated (Slope Percent)</li>
+<li>Point on signal rise/fall corresponding to this percentage is
+found</li>
+<li>Linear regression between the percentage point and peak is
+calculated</li>
+<li>Slope is the regression line slope coefficient</li>
+</ol>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><strong>Slope Percent</strong> - percentage of peak amplitude for
+calculation (0-100)</li>
+<li><strong>Peak Range</strong> - peak search range (Peak Start, Peak
+End)</li>
+<li><strong>Polarity</strong> - peak polarity (positive/negative)</li>
+</ul>
+<figure>
+<img src="../screenshots/measurement_slope.png" alt="Slope measurement" />
+<figcaption aria-hidden="true">Slope measurement</figcaption>
+</figure>
+<h3 id="peak">Peak</h3>
+<p>Peak - maximum or minimum signal value in the specified range.</p>
+<p><strong>Calculation:</strong></p>
+<ol type="1">
+<li>In the Peak Range, an extremum is found (maximum for positive,
+minimum for negative)</li>
+<li>Peak time and value are recorded</li>
+</ol>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><strong>Peak Range</strong> - peak search range</li>
+<li><strong>Polarity</strong> - peak polarity</li>
+</ul>
+<figure>
+<img src="../screenshots/measurement_peak.png" alt="Peak measurement" />
+<figcaption aria-hidden="true">Peak measurement</figcaption>
+</figure>
+<h3 id="onset">Onset</h3>
+<p>Onset - moment of signal change start.</p>
+<p><strong>Calculation methods:</strong></p>
+<ul>
+<li><strong>Derivative</strong> - based on signal derivative</li>
+<li><strong>Threshold</strong> - based on threshold in standard
+deviation units</li>
+</ul>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><strong>Onset Method</strong> - calculation method
+(derivative/threshold)</li>
+<li><strong>Onset Threshold</strong> - threshold for threshold method
+(in std units)</li>
+</ul>
+<figure>
+<img src="../screenshots/measurement_onset.png" alt="Onset measurement" />
+<figcaption aria-hidden="true">Onset measurement</figcaption>
+</figure>
+<h3 id="baseline">Baseline</h3>
+<p>Baseline - mean signal value in the specified range before
+stimulus.</p>
+<p><strong>Calculation:</strong></p>
+<ol type="1">
+<li>In the Baseline Range, mean signal value is calculated</li>
+<li>This value is used as a reference point for other measurements</li>
+</ol>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><strong>Baseline Range</strong> - range for calculation (Baseline
+Start, Baseline End)</li>
+</ul>
+<figure>
+<img src="../screenshots/measurement_baseline.png"
+alt="Baseline measurement" />
+<figcaption aria-hidden="true">Baseline measurement</figcaption>
+</figure>
+<h2 id="measurement-configuration">Measurement Configuration</h2>
+<h3 id="channel-selection">Channel Selection</h3>
+<p>The <strong>Channel</strong> dropdown allows selection of a channel
+for measurement. When the channel is changed, all measurements are
+recalculated.</p>
+<h3 id="peak-polarity">Peak Polarity</h3>
+<p>The <strong>Polarity</strong> dropdown determines the direction of
+peak search:</p>
+<ul>
+<li><strong>Positive</strong> - search for positive peak (maximum)</li>
+<li><strong>Negative</strong> - search for negative peak (minimum)</li>
+</ul>
+<h3 id="measurement-ranges">Measurement Ranges</h3>
+<p>All ranges are specified relative to the current reference point
+(stimulus, event, or time):</p>
+<ul>
+<li><strong>Baseline Start/End</strong> - range for baseline
+calculation</li>
+<li><strong>Peak Start/End</strong> - range for peak search</li>
+</ul>
+<p>Values are entered in selected time units (s, ms, min).</p>
+<p>The <strong>★</strong> button next to the field allows selecting a
+point on the graph with a mouse click.</p>
+<h3 id="slope-percent">Slope Percent</h3>
+<p>The <strong>Slope Percent</strong> field sets the percentage of peak
+amplitude used for slope calculation. Value from 0 to 100.</p>
+<h2 id="results-visualization">Results Visualization</h2>
+<h3 id="displaying-measurement-elements">Displaying Measurement
+Elements</h3>
+<p>Checkboxes control visibility of elements on the graph:</p>
+<ul>
+<li><strong>Baseline</strong> - display baseline range and its
+value</li>
+<li><strong>Peak</strong> - display peak range, peak marker, and its
+value</li>
+<li><strong>Slope</strong> - display slope regression line</li>
+<li><strong>Onset</strong> - display onset marker and its time</li>
+</ul>
+<h3 id="current-results-table">Current Results Table</h3>
+<p>The table shows results for the current measurement:</p>
+<ul>
+<li><strong>Slope</strong> - slope value</li>
+<li><strong>Peak Time (rel)</strong> - peak time relative to reference
+point</li>
+<li><strong>Peak Amplitude</strong> - peak amplitude</li>
+<li><strong>Onset Time (rel)</strong> - onset time relative to reference
+point</li>
+<li><strong>Baseline</strong> - baseline value</li>
+</ul>
+<h2 id="automatic-measurement">Automatic Measurement</h2>
+<p>The <strong>Auto Measure All</strong> button automatically measures
+parameters for all stimuli/events/sweeps:</p>
+<ol type="1">
+<li>Moves to each stimulus/event/sweep</li>
+<li>Performs measurement with current settings</li>
+<li>Adds result to the results table</li>
+</ol>
+<h2 id="results-table">Results Table</h2>
+<p>Measurement results accumulate in the results table. Each row
+contains:</p>
+<ul>
+<li><strong>Stimulus</strong> - stimulus/event/sweep number</li>
+<li><strong>Slope</strong> - slope value</li>
+<li><strong>Peak Time (rel/abs)</strong> - peak time (relative and
+absolute)</li>
+<li><strong>Peak Amplitude</strong> - peak amplitude</li>
+<li><strong>Peak Value (rel)</strong> - peak value relative to
+baseline</li>
+<li><strong>Onset Time (rel/abs)</strong> - onset time (relative and
+absolute)</li>
+<li><strong>Peak - Onset</strong> - difference between peak and
+onset</li>
+<li><strong>Baseline</strong> - baseline value</li>
+<li><strong>Channel</strong> - channel number</li>
+<li><strong>Stim Time</strong> - stimulus/event time</li>
+<li><strong>Info</strong> - additional information</li>
+</ul>
+<h2 id="average-values-table">Average Values Table</h2>
+<p>The table shows average values across all measurements in the results
+table:</p>
+<ul>
+<li><strong>Slope</strong> - average slope value</li>
+<li><strong>Peak Time (rel)</strong> - average peak time</li>
+<li><strong>Peak Amplitude</strong> - average peak amplitude</li>
+<li><strong>Onset Time (rel)</strong> - average onset time</li>
+<li><strong>Baseline</strong> - average baseline value</li>
+<li><strong>Peak - Onset</strong> - average difference between peak and
+onset</li>
+</ul>
+<h2 id="mean-trace">Mean Trace</h2>
+<p>The <strong>Av. Trace</strong> button toggles the mean signal display
+mode across all measurements. In this mode:</p>
+<ul>
+<li>The graph shows the averaged signal</li>
+<li>Measurements are performed relative to the mean signal</li>
+<li>This allows evaluating the typical response and its variability</li>
+</ul>
+<h2 id="smoothing-before-measurement">Smoothing Before Measurement</h2>
+<p>Signal smoothing can be enabled to reduce noise influence on
+measurements:</p>
+<ul>
+<li><strong>Enable</strong> - enable smoothing</li>
+<li><strong>Kernel</strong> - smoothing kernel size</li>
+<li><strong>Method</strong> - smoothing method (Moving/Median)</li>
+<li><strong>Show Raw</strong> - show original signal</li>
+</ul>
+<p>Smoothing is applied before all measurement calculations.</p>
+<h2 id="measurement-metadata">Measurement Metadata</h2>
+<p>Each measurement saves metadata:</p>
+<ul>
+<li>Measurement configuration parameters</li>
+<li>Range timestamps</li>
+<li>Calculation method</li>
+<li>Channel and stimulus information</li>
+</ul>
+<p>Metadata is available through the <strong>Collect All</strong> button
+and saved when exporting results.</p>
+<h2 id="saving-results">Saving Results</h2>
+<p>Measurement results can be saved:</p>
+<ul>
+<li>To Excel file (button <strong>Save</strong> or <strong>Save
+As</strong>)</li>
+<li>With metadata (through <strong>Collect All</strong>)</li>
+<li>With automatic re-saving (Hot Resave)</li>
+</ul>
+<h2 id="navigation-during-measurements">Navigation During
+Measurements</h2>
+<p>When measuring parameters, navigation is available:</p>
+<ul>
+<li><strong>Previous</strong> and <strong>Next</strong> buttons move to
+previous/next stimulus/event</li>
+<li>Navigation mode is determined automatically based on loaded
+data</li>
+<li>Status line shows current navigation mode</li>
+</ul>
+</body>
+</html>

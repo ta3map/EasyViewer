@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Измерения параметров</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="измерения-параметров">Измерения параметров</h1>
+<p>Signal Analysis предоставляет инструменты для измерения различных
+параметров сигнала относительно стимулов или событий.</p>
+<h2 id="параметры-измерения">Параметры измерения</h2>
+<h3 id="slope">Slope</h3>
+<p>Slope (крутизна) измеряет скорость изменения сигнала в определенном
+диапазоне относительно пика.</p>
+<p><strong>Расчет:</strong></p>
+<ol type="1">
+<li>Определяется пик в заданном диапазоне (peak range)</li>
+<li>Вычисляется процент от амплитуды пика (Slope Percent)</li>
+<li>Находится точка на подъеме/спаде сигнала, соответствующая этому
+проценту</li>
+<li>Вычисляется линейная регрессия между точкой процента и пиком</li>
+<li>Slope - это угловой коэффициент регрессии</li>
+</ol>
+<p><strong>Параметры:</strong></p>
+<ul>
+<li><strong>Slope Percent</strong> - процент от амплитуды пика для
+расчета (0-100)</li>
+<li><strong>Peak Range</strong> - диапазон поиска пика (Peak Start, Peak
+End)</li>
+<li><strong>Polarity</strong> - полярность пика (positive/negative)</li>
+</ul>
+<figure>
+<img src="../screenshots/measurement_slope.png" alt="Измерение slope" />
+<figcaption aria-hidden="true">Измерение slope</figcaption>
+</figure>
+<h3 id="peak">Peak</h3>
+<p>Peak (пик) - максимальное или минимальное значение сигнала в заданном
+диапазоне.</p>
+<p><strong>Расчет:</strong></p>
+<ol type="1">
+<li>В диапазоне Peak Range находится экстремум (максимум для positive,
+минимум для negative)</li>
+<li>Записывается время и значение пика</li>
+</ol>
+<p><strong>Параметры:</strong></p>
+<ul>
+<li><strong>Peak Range</strong> - диапазон поиска пика</li>
+<li><strong>Polarity</strong> - полярность пика</li>
+</ul>
+<figure>
+<img src="../screenshots/measurement_peak.png" alt="Измерение peak" />
+<figcaption aria-hidden="true">Измерение peak</figcaption>
+</figure>
+<h3 id="onset">Onset</h3>
+<p>Onset (начало) - момент начала изменения сигнала.</p>
+<p><strong>Методы расчета:</strong></p>
+<ul>
+<li><strong>Derivative</strong> - на основе производной сигнала</li>
+<li><strong>Threshold</strong> - на основе порога в единицах
+стандартного отклонения</li>
+</ul>
+<p><strong>Параметры:</strong></p>
+<ul>
+<li><strong>Onset Method</strong> - метод расчета
+(derivative/threshold)</li>
+<li><strong>Onset Threshold</strong> - порог для метода threshold (в
+единицах std)</li>
+</ul>
+<figure>
+<img src="../screenshots/measurement_onset.png" alt="Измерение onset" />
+<figcaption aria-hidden="true">Измерение onset</figcaption>
+</figure>
+<h3 id="baseline">Baseline</h3>
+<p>Baseline (базовая линия) - среднее значение сигнала в заданном
+диапазоне до стимула.</p>
+<p><strong>Расчет:</strong></p>
+<ol type="1">
+<li>В диапазоне Baseline Range вычисляется среднее значение сигнала</li>
+<li>Это значение используется как опорная точка для других
+измерений</li>
+</ol>
+<p><strong>Параметры:</strong></p>
+<ul>
+<li><strong>Baseline Range</strong> - диапазон для расчета (Baseline
+Start, Baseline End)</li>
+</ul>
+<figure>
+<img src="../screenshots/measurement_baseline.png"
+alt="Измерение baseline" />
+<figcaption aria-hidden="true">Измерение baseline</figcaption>
+</figure>
+<h2 id="настройка-измерений">Настройка измерений</h2>
+<h3 id="выбор-канала">Выбор канала</h3>
+<p>Выпадающий список <strong>Channel</strong> позволяет выбрать канал
+для измерения. При изменении канала все измерения пересчитываются.</p>
+<h3 id="полярность-пика">Полярность пика</h3>
+<p>Выпадающий список <strong>Polarity</strong> определяет направление
+поиска пика:</p>
+<ul>
+<li><strong>Positive</strong> - поиск положительного пика
+(максимума)</li>
+<li><strong>Negative</strong> - поиск отрицательного пика
+(минимума)</li>
+</ul>
+<h3 id="диапазоны-измерения">Диапазоны измерения</h3>
+<p>Все диапазоны задаются относительно текущей точки отсчета (стимул,
+событие или время):</p>
+<ul>
+<li><strong>Baseline Start/End</strong> - диапазон для расчета
+baseline</li>
+<li><strong>Peak Start/End</strong> - диапазон для поиска пика</li>
+</ul>
+<p>Значения вводятся в выбранных единицах времени (s, ms, min).</p>
+<p>Кнопка <strong>★</strong> рядом с полем позволяет выбрать точку на
+графике кликом мыши.</p>
+<h3 id="процент-для-slope">Процент для slope</h3>
+<p>Поле <strong>Slope Percent</strong> задает процент от амплитуды пика,
+используемый для расчета slope. Значение от 0 до 100.</p>
+<h2 id="визуализация-измерений">Визуализация измерений</h2>
+<h3 id="отображение-элементов">Отображение элементов</h3>
+<p>Чекбоксы управляют видимостью элементов на графике:</p>
+<ul>
+<li><strong>Baseline</strong> - отображение диапазона baseline и его
+значения</li>
+<li><strong>Peak</strong> - отображение диапазона peak, маркера пика и
+его значения</li>
+<li><strong>Slope</strong> - отображение линии регрессии slope</li>
+<li><strong>Onset</strong> - отображение маркера онсета и его
+времени</li>
+</ul>
+<h3 id="таблица-текущих-результатов">Таблица текущих результатов</h3>
+<p>Таблица показывает результаты для текущего измерения:</p>
+<ul>
+<li><strong>Slope</strong> - значение slope</li>
+<li><strong>Peak Time (rel)</strong> - время пика относительно точки
+отсчета</li>
+<li><strong>Peak Amplitude</strong> - амплитуда пика</li>
+<li><strong>Onset Time (rel)</strong> - время онсета относительно точки
+отсчета</li>
+<li><strong>Baseline</strong> - значение baseline</li>
+</ul>
+<h2 id="автоматическое-измерение">Автоматическое измерение</h2>
+<p>Кнопка <strong>Auto Measure All</strong> автоматически измеряет
+параметры для всех стимулов/событий/свипов:</p>
+<ol type="1">
+<li>Переходит к каждому стимулу/событию/свипу</li>
+<li>Выполняет измерение с текущими настройками</li>
+<li>Добавляет результат в таблицу результатов</li>
+</ol>
+<h2 id="таблица-результатов">Таблица результатов</h2>
+<p>Результаты измерений накапливаются в таблице результатов. Каждая
+строка содержит:</p>
+<ul>
+<li><strong>Stimulus</strong> - номер стимула/события/свипа</li>
+<li><strong>Slope</strong> - значение slope</li>
+<li><strong>Peak Time (rel/abs)</strong> - время пика (относительное и
+абсолютное)</li>
+<li><strong>Peak Amplitude</strong> - амплитуда пика</li>
+<li><strong>Peak Value (rel)</strong> - значение пика относительно
+baseline</li>
+<li><strong>Onset Time (rel/abs)</strong> - время онсета (относительное
+и абсолютное)</li>
+<li><strong>Peak - Onset</strong> - разница между пиком и онсетом</li>
+<li><strong>Baseline</strong> - значение baseline</li>
+<li><strong>Channel</strong> - номер канала</li>
+<li><strong>Stim Time</strong> - время стимула/события</li>
+<li><strong>Info</strong> - дополнительная информация</li>
+</ul>
+<h2 id="таблица-средних-значений">Таблица средних значений</h2>
+<p>Таблица показывает средние значения по всем измерениям в таблице
+результатов:</p>
+<ul>
+<li><strong>Slope</strong> - среднее значение slope</li>
+<li><strong>Peak Time (rel)</strong> - среднее время пика</li>
+<li><strong>Peak Amplitude</strong> - средняя амплитуда пика</li>
+<li><strong>Onset Time (rel)</strong> - среднее время онсета</li>
+<li><strong>Baseline</strong> - среднее значение baseline</li>
+<li><strong>Peak - Onset</strong> - средняя разница между пиком и
+онсетом</li>
+</ul>
+<h2 id="средний-трейс">Средний трейс</h2>
+<p>Кнопка <strong>Av. Trace</strong> переключает режим отображения
+среднего сигнала по всем измерениям. В этом режиме:</p>
+<ul>
+<li>График показывает усредненный сигнал</li>
+<li>Измерения выполняются относительно среднего сигнала</li>
+<li>Это позволяет оценить типичный ответ и его вариабельность</li>
+</ul>
+<h2 id="сглаживание-перед-измерением">Сглаживание перед измерением</h2>
+<p>Сглаживание сигнала может быть включено для уменьшения влияния шума
+на измерения:</p>
+<ul>
+<li><strong>Enable</strong> - включить сглаживание</li>
+<li><strong>Kernel</strong> - размер ядра сглаживания</li>
+<li><strong>Method</strong> - метод сглаживания (Moving/Median)</li>
+<li><strong>Show Raw</strong> - показывать исходный сигнал</li>
+</ul>
+<p>Сглаживание применяется перед всеми расчетами измерений.</p>
+<h2 id="метаданные-измерений">Метаданные измерений</h2>
+<p>Каждое измерение сохраняет метаданные:</p>
+<ul>
+<li>Параметры настройки измерения</li>
+<li>Временные метки диапазонов</li>
+<li>Метод расчета</li>
+<li>Информация о канале и стимуле</li>
+</ul>
+<p>Метаданные доступны через кнопку <strong>Collect All</strong> и
+сохраняются при экспорте результатов.</p>
+<h2 id="сохранение-результатов">Сохранение результатов</h2>
+<p>Результаты измерений могут быть сохранены:</p>
+<ul>
+<li>В Excel файл (кнопка <strong>Save</strong> или <strong>Save
+As</strong>)</li>
+<li>С метаданными (через <strong>Collect All</strong>)</li>
+<li>С автоматическим пересохранением (Hot Resave)</li>
+</ul>
+<h2 id="навигация-при-измерениях">Навигация при измерениях</h2>
+<p>При измерении параметров доступна навигация:</p>
+<ul>
+<li>Кнопки <strong>Previous</strong> и <strong>Next</strong> перемещают
+к предыдущему/следующему стимулу/событию</li>
+<li>Режим навигации определяется автоматически на основе загруженных
+данных</li>
+<li>Статусная строка показывает текущий режим навигации</li>
+</ul>
+</body>
+</html>

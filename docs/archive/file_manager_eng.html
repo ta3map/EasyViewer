@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>File Manager</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="file-manager">File Manager</h1>
+<p>File manager with SQL database support for organizing projects, file
+groups, and metadata.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_main.png"
+alt="File Manager main window" />
+<figcaption aria-hidden="true">File Manager main window</figcaption>
+</figure>
+<h2 id="database-structure">Database Structure</h2>
+<p>File Manager uses SQLite database to store information about
+projects, groups, files, and analysis results.</p>
+<h3 id="database-tables">Database Tables</h3>
+<ul>
+<li><strong>projects</strong> - projects</li>
+<li><strong>groups</strong> - file groups within projects</li>
+<li><strong>group_metadata</strong> - group metadata</li>
+<li><strong>files</strong> - files</li>
+<li><strong>project_files</strong> - project-file relationship
+(many-to-many)</li>
+<li><strong>file_metadata</strong> - file metadata</li>
+<li><strong>analysis_results</strong> - module analysis results</li>
+</ul>
+<p>Detailed schema description: <a
+href="../dev_docs/sql_storage_eng.html">SQL Storage</a></p>
+<h2 id="database-selection">Database Selection</h2>
+<p>The top of the window displays the path to the current database. The
+<strong>Select Database</strong> button allows selecting an existing
+database or creating a new one.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_database.png"
+alt="Database selection" />
+<figcaption aria-hidden="true">Database selection</figcaption>
+</figure>
+<h2 id="projects">Projects</h2>
+<h3 id="creating-project">Creating Project</h3>
+<p>The <strong>New Project</strong> button opens a dialog for creating a
+new project. Specify the project name and description.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_new_project.png"
+alt="Creating project" />
+<figcaption aria-hidden="true">Creating project</figcaption>
+</figure>
+<h3 id="projects-list">Projects List</h3>
+<p>The left panel contains a list of all projects in the database.
+Selecting a project loads its files and groups.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_projects_list.png"
+alt="Projects list" />
+<figcaption aria-hidden="true">Projects list</figcaption>
+</figure>
+<h3 id="editing-project">Editing Project</h3>
+<p>Select a project and use the <strong>Edit Project</strong> button to
+change the name and description.</p>
+<h3 id="deleting-project">Deleting Project</h3>
+<p>Select a project and use the <strong>Delete Project</strong> button
+to delete it. All associated groups, files, and results are deleted.</p>
+<h2 id="groups">Groups</h2>
+<h3 id="creating-group">Creating Group</h3>
+<p>The <strong>New Group</strong> button creates a new group in the
+current project. Specify the group name.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_new_group.png"
+alt="Creating group" />
+<figcaption aria-hidden="true">Creating group</figcaption>
+</figure>
+<h3 id="groups-list">Groups List</h3>
+<p>The middle panel contains a list of groups in the current project.
+Selecting a group filters files by group.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_groups_list.png" alt="Groups list" />
+<figcaption aria-hidden="true">Groups list</figcaption>
+</figure>
+<h3 id="editing-group">Editing Group</h3>
+<p>Select a group and use the <strong>Edit Group</strong> button to
+change the name.</p>
+<h3 id="deleting-group">Deleting Group</h3>
+<p>Select a group and use the <strong>Delete Group</strong> button to
+delete it. Files remain in the project but lose association with the
+group.</p>
+<h3 id="group-metadata">Group Metadata</h3>
+<p>The <strong>Group Metadata</strong> button opens the group metadata
+editing window. Metadata is stored as field-value pairs.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_group_metadata.png"
+alt="Group metadata" />
+<figcaption aria-hidden="true">Group metadata</figcaption>
+</figure>
+<h2 id="files">Files</h2>
+<h3 id="adding-files">Adding Files</h3>
+<p>The <strong>Add File</strong> button opens a file selection dialog.
+Selected files are added to the current project.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_add_file.png" alt="Adding files" />
+<figcaption aria-hidden="true">Adding files</figcaption>
+</figure>
+<h3 id="files-list">Files List</h3>
+<p>The right panel contains a list of files in the current project. The
+table shows:</p>
+<ul>
+<li>File path</li>
+<li>File name</li>
+<li>Group (if assigned)</li>
+<li>Metadata (if set)</li>
+</ul>
+<figure>
+<img src="../user_docs/screenshots/file_manager_files_list.png" alt="Files list" />
+<figcaption aria-hidden="true">Files list</figcaption>
+</figure>
+<h3 id="assigning-group">Assigning Group</h3>
+<p>Select file(s) in the list and use the <strong>Assign to
+Group</strong> dropdown to assign a group.</p>
+<h3 id="file-metadata">File Metadata</h3>
+<p>Select a file and use the <strong>File Metadata</strong> button to
+edit file metadata.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_file_metadata.png"
+alt="File metadata" />
+<figcaption aria-hidden="true">File metadata</figcaption>
+</figure>
+<h3 id="removing-file">Removing File</h3>
+<p>Select a file and use the <strong>Remove File</strong> button to
+remove it from the project. The file remains in the database but loses
+association with the project.</p>
+<h3 id="opening-file">Opening File</h3>
+<p>Select a file and use the <strong>Open File</strong> button to open
+it in Signal Viewer or Signal Analysis (depending on context).</p>
+<h2 id="automation-modules">Automation Modules</h2>
+<h3 id="module-selection">Module Selection</h3>
+<p>The <strong>Module</strong> dropdown contains available automation
+modules:</p>
+<ul>
+<li><strong>autoClusterPermutationTest</strong> - cluster permutation
+test</li>
+<li><strong>autoMeanStimulus</strong> - averaging by stimuli</li>
+<li><strong>autoDetectStimuli</strong> - automatic stimulus
+detection</li>
+<li><strong>autoSlopeMeasurement</strong> - automatic slope
+measurement</li>
+</ul>
+<figure>
+<img src="../user_docs/screenshots/file_manager_module_selection.png"
+alt="Module selection" />
+<figcaption aria-hidden="true">Module selection</figcaption>
+</figure>
+<h3 id="module-parameters-configuration">Module Parameters
+Configuration</h3>
+<p>The <strong>Edit Module Params</strong> button opens the parameter
+editing window for the selected module. Parameters are saved in JSON
+format.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_module_params.png"
+alt="Module parameters configuration" />
+<figcaption aria-hidden="true">Module parameters
+configuration</figcaption>
+</figure>
+<h3 id="running-module">Running Module</h3>
+<p>The <strong>Run Module</strong> button runs the selected module for
+selected files. Results are saved to the database and displayed in the
+results list.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_run_module.png"
+alt="Running module" />
+<figcaption aria-hidden="true">Running module</figcaption>
+</figure>
+<h3 id="module-queue">Module Queue</h3>
+<p>Modules can be added to a queue for sequential execution. The
+<strong>Add to Queue</strong> button adds the current module
+configuration to the queue.</p>
+<h2 id="analysis-results">Analysis Results</h2>
+<h3 id="viewing-results">Viewing Results</h3>
+<p>Select a file and use the <strong>View Results</strong> button to
+view analysis results. A list of all results for the selected file is
+displayed.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_view_results.png"
+alt="Viewing results" />
+<figcaption aria-hidden="true">Viewing results</figcaption>
+</figure>
+<h3 id="deleting-results">Deleting Results</h3>
+<p>Select a result and use the <strong>Delete Result</strong> button to
+delete it from the database.</p>
+<h2 id="excel-import">Excel Import</h2>
+<p>The <strong>Import from Excel</strong> button allows importing a file
+list from an Excel table. Specify the column with file paths.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_import_excel.png"
+alt="Excel import" />
+<figcaption aria-hidden="true">Excel import</figcaption>
+</figure>
+<h2 id="export">Export</h2>
+<p>The <strong>Export</strong> button allows exporting the file list of
+the current project to an Excel table.</p>
+<h2 id="filtering-and-search">Filtering and Search</h2>
+<p>The <strong>Search</strong> field allows filtering files by name or
+path.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_search.png" alt="File search" />
+<figcaption aria-hidden="true">File search</figcaption>
+</figure>
+<h2 id="settings">Settings</h2>
+<p>The <strong>Settings</strong> button opens the File Manager settings
+window:</p>
+<ul>
+<li>Default database path</li>
+<li>Display settings</li>
+<li>Module settings</li>
+</ul>
+<figure>
+<img src="../user_docs/screenshots/file_manager_settings.png"
+alt="File Manager settings" />
+<figcaption aria-hidden="true">File Manager settings</figcaption>
+</figure>
+</body>
+</html>

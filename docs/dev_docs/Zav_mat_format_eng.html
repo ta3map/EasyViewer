@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>ZAV File Structure for MAT Files</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="zav-file-structure-for-mat-files">ZAV File Structure for MAT
+Files</h1>
+<h2 id="zav-file-structure">ZAV File Structure</h2>
+<p>ZAV files are MAT files with a specific variable structure used in
+Eviewer and Easy Viewer applications for analyzing electrophysiological
+data. Based on code analysis in <code>signalViewerGUI.m</code> and
+conversion functions, here is the required structure:</p>
+<h3 id="required-variables">Required Variables:</h3>
+<ol type="1">
+<li><strong><code>lfp</code></strong> - LFP (Local Field Potential) data
+matrix
+<ul>
+<li>Size: <code>[N, numChannels]</code> or
+<code>[N, numChannels, numSweeps]</code></li>
+<li>Where N is the number of time points, numChannels is the number of
+channels</li>
+<li>If sweeps are present, the third dimension is the number of
+sweeps</li>
+</ul></li>
+<li><strong><code>hd</code></strong> - header structure with metadata
+<ul>
+<li><code>fFileSignature</code> - file signature (e.g., “ABF2”,
+“Neuralynx”)</li>
+<li><code>nOperationMode</code> - operation mode</li>
+<li><code>lActualEpisodes</code> - number of episodes/sweeps</li>
+<li><code>nADCNumChannels</code> - number of channels</li>
+<li><code>recChNames</code> - array of channel names (cell array)</li>
+<li><code>recChUnits</code> - array of channel units (cell array)</li>
+<li><code>ch_si</code> - sampling intervals for each channel (in
+microseconds)</li>
+<li><code>dataPtsPerChan</code> - number of data points per channel</li>
+<li><code>dataPts</code> - total number of data points</li>
+<li><code>si</code> - sampling interval (in microseconds)</li>
+<li><code>fADCSampleInterval</code> - ADC sampling interval</li>
+<li><code>recTime</code> - recording time [start, end]</li>
+</ul></li>
+<li><strong><code>zavp</code></strong> - ZAV parameters structure
+<ul>
+<li><code>file</code> - path to source file</li>
+<li><code>siS</code> - sampling interval in seconds</li>
+<li><code>dwnSmplFrq</code> - downsampled sampling frequency (in
+Hz)</li>
+<li><code>stimCh</code> - stimulation channel (may be empty)</li>
+<li><code>realStim</code> - structure with real stimuli
+<ul>
+<li><code>r</code> - array of stimulation times (in time units)</li>
+</ul></li>
+</ul></li>
+<li><strong><code>spks</code></strong> - spikes structure
+<ul>
+<li>Array of structures for each channel</li>
+<li>Each structure contains:
+<ul>
+<li><code>tStamp</code> - spike timestamps (in milliseconds)</li>
+<li><code>ampl</code> - spike amplitudes</li>
+<li><code>shape</code> - spike shapes (may be empty)</li>
+</ul></li>
+</ul></li>
+<li><strong><code>lfpVar</code></strong> - LFP data variation
+<ul>
+<li>Vector of variations for each channel</li>
+</ul></li>
+<li><strong><code>chnlGrp</code></strong> - channel groups
+<ul>
+<li>May be empty array <code>[]</code></li>
+</ul></li>
+</ol>
+<h3 id="additional-fields-in-hd-depending-on-data-source">Additional
+Fields in <code>hd</code> (depending on data source):</h3>
+<ul>
+<li><strong>For Neuralynx data:</strong>
+<ul>
+<li><code>adBitVolts</code> - bit-to-volt conversion coefficients</li>
+<li><code>dspDelay_mks</code> - DSP delays</li>
+<li><code>inverted</code> - channel inversion flags</li>
+<li><code>DSPLowCutFilterEnabled</code> - lowpass filter enable</li>
+<li><code>DspLowCutFrequency</code> - lowpass filter frequencies</li>
+<li><code>DSPHighCutFilterEnabled</code> - highpass filter enable</li>
+<li><code>DspHighCutFrequency</code> - highpass filter frequencies</li>
+<li><code>TTLs</code> - TTL events</li>
+<li><code>EventStrings</code> - event strings</li>
+<li><code>inTTL_timestamps</code> - TTL timestamps</li>
+</ul></li>
+<li><strong>For ABF data:</strong>
+<ul>
+<li><code>sweepStartInPts</code> - sweep start points</li>
+<li><code>protocolName</code> - protocol name</li>
+<li><code>nADCSamplingSeq</code> - ADC sampling sequence</li>
+<li><code>fTelegraphAdditGain</code> - additional gain coefficients</li>
+<li><code>fInstrumentScaleFactor</code> - instrument scale factors</li>
+<li><code>fSignalGain</code> - signal gain coefficients</li>
+<li><code>fADCProgrammableGain</code> - programmable ADC gain
+coefficients</li>
+<li><code>fInstrumentOffset</code> - instrument offsets</li>
+<li><code>fSignalOffset</code> - signal offsets</li>
+</ul></li>
+</ul>
+<h3 id="sweep-processing">Sweep Processing:</h3>
+<p>If data contains sweeps (third dimension of <code>lfp</code> &gt; 1),
+the <code>sweepProcessData</code> function “unfolds” the data by
+combining all sweeps into one continuous time series, and also corrects
+stimulus and spike timestamps.</p>
+<p>This structure ensures compatibility with Easy Viewer and allows
+correct display and analysis of electrophysiological data in various
+formats.</p>
+</body>
+</html>

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Documentation for load_zav_file.m Script</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="documentation-for-load_zav_file.m-script">Documentation for
+load_zav_file.m Script</h1>
+<h2 id="description">Description</h2>
+<p>The <code>load_zav_file.m</code> script is designed for loading ZAV
+files while preserving all functionality from the main signalViewerGUI
+application. It ensures full compatibility with the original code and
+can be used standalone or as part of other projects.</p>
+<h2 id="main-features">Main Features</h2>
+<ul>
+<li>✅ Loading ZAV files (.mat)</li>
+<li>✅ Automatic detection and conversion of Heka format</li>
+<li>✅ Sweep data processing</li>
+<li>✅ Stimulus extraction</li>
+<li>✅ Event loading (optional)</li>
+<li>✅ Channel settings loading (optional)</li>
+<li>✅ Automatic time parameter configuration</li>
+<li>✅ Detailed loading process logging</li>
+</ul>
+<h2 id="syntax">Syntax</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>[<span class="va">lfp</span><span class="op">,</span> <span class="va">spks</span><span class="op">,</span> <span class="va">hd</span><span class="op">,</span> <span class="va">zavp</span><span class="op">,</span> <span class="va">lfpVar</span><span class="op">,</span> <span class="va">chnlGrp</span><span class="op">,</span> <span class="va">time</span><span class="op">,</span> <span class="va">stims</span><span class="op">,</span> <span class="va">sweep_info</span><span class="op">,</span> <span class="kw">events</span><span class="op">,</span> <span class="va">event_comments</span><span class="op">,</span> <span class="va">event_amplitudes</span><span class="op">,</span> <span class="va">event_channels</span><span class="op">,</span> <span class="va">event_widths</span><span class="op">,</span> <span class="va">event_prominences</span><span class="op">,</span> <span class="va">event_metadata</span>] <span class="op">=</span> <span class="va">load_zav_file</span>(<span class="va">filepath</span><span class="op">,</span> <span class="va">varargin</span>)</span></code></pre></div>
+<h2 id="input-parameters">Input Parameters</h2>
+<h3 id="required">Required</h3>
+<ul>
+<li><code>filepath</code> - path to .mat file (ZAV or Heka format)</li>
+</ul>
+<h3 id="optional-varargin">Optional (varargin)</h3>
+<ul>
+<li><code>'load_events'</code> - whether to load events (default
+<code>false</code>)</li>
+<li><code>'load_settings'</code> - whether to load channel settings
+(default <code>false</code>)</li>
+<li><code>'auto_set_time_windows'</code> - automatically set time
+windows for sweeps (default <code>true</code>)</li>
+<li><code>'auto_set_fs'</code> - automatically set newFs based on Fs
+(default <code>true</code>)</li>
+</ul>
+<h2 id="output-parameters">Output Parameters</h2>
+<h3 id="main-data">Main Data</h3>
+<ul>
+<li><code>lfp</code> - LFP data matrix</li>
+<li><code>spks</code> - spike data</li>
+<li><code>hd</code> - recording header</li>
+<li><code>zavp</code> - ZAV parameters</li>
+<li><code>lfpVar</code> - LFP variation</li>
+<li><code>chnlGrp</code> - channel groups</li>
+</ul>
+<h3 id="time-parameters">Time Parameters</h3>
+<ul>
+<li><code>time</code> - time axis</li>
+<li><code>stims</code> - stimulus times</li>
+<li><code>sweep_info</code> - sweep information</li>
+</ul>
+<h3 id="events-if-loaded">Events (if loaded)</h3>
+<ul>
+<li><code>events</code> - event times</li>
+<li><code>event_comments</code> - event comments</li>
+<li><code>event_amplitudes</code> - event amplitudes</li>
+<li><code>event_channels</code> - event channels</li>
+<li><code>event_widths</code> - event peak widths</li>
+<li><code>event_prominences</code> - event peak prominences</li>
+<li><code>event_metadata</code> - event metadata</li>
+</ul>
+<h2 id="usage-examples">Usage Examples</h2>
+<h3 id="basic-file-loading">1. Basic File Loading</h3>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>[<span class="va">lfp</span><span class="op">,</span> <span class="va">spks</span><span class="op">,</span> <span class="va">hd</span><span class="op">,</span> <span class="va">zavp</span><span class="op">,</span> <span class="va">lfpVar</span><span class="op">,</span> <span class="va">chnlGrp</span><span class="op">,</span> <span class="va">time</span><span class="op">,</span> <span class="va">stims</span><span class="op">,</span> <span class="va">sweep_info</span>] <span class="op">=</span> <span class="va">load_zav_file</span>(<span class="ss">&#39;data.mat&#39;</span>)<span class="op">;</span></span></code></pre></div>
+<h3 id="loading-with-events">2. Loading with Events</h3>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>[<span class="va">lfp</span><span class="op">,</span> <span class="va">spks</span><span class="op">,</span> <span class="va">hd</span><span class="op">,</span> <span class="va">zavp</span><span class="op">,</span> <span class="va">lfpVar</span><span class="op">,</span> <span class="va">chnlGrp</span><span class="op">,</span> <span class="va">time</span><span class="op">,</span> <span class="va">stims</span><span class="op">,</span> <span class="va">sweep_info</span><span class="op">,</span> <span class="kw">events</span>] <span class="op">=</span> <span class="va">load_zav_file</span>(<span class="ss">&#39;data.mat&#39;</span><span class="op">,</span> <span class="ss">&#39;load_events&#39;</span><span class="op">,</span> <span class="va">true</span>)<span class="op">;</span></span></code></pre></div>
+<h3 id="loading-with-channel-settings">3. Loading with Channel
+Settings</h3>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>[<span class="va">lfp</span><span class="op">,</span> <span class="va">spks</span><span class="op">,</span> <span class="va">hd</span><span class="op">,</span> <span class="va">zavp</span><span class="op">,</span> <span class="va">lfpVar</span><span class="op">,</span> <span class="va">chnlGrp</span><span class="op">,</span> <span class="va">time</span><span class="op">,</span> <span class="va">stims</span><span class="op">,</span> <span class="va">sweep_info</span><span class="op">,</span> <span class="kw">events</span><span class="op">,</span> <span class="va">event_comments</span><span class="op">,</span> <span class="va">event_amplitudes</span><span class="op">,</span> <span class="va">event_channels</span><span class="op">,</span> <span class="va">event_widths</span><span class="op">,</span> <span class="va">event_prominences</span><span class="op">,</span> <span class="va">event_metadata</span><span class="op">,</span> <span class="va">channelNames</span><span class="op">,</span> <span class="va">channelEnabled</span><span class="op">,</span> <span class="va">scalingCoefficients</span><span class="op">,</span> <span class="va">colorsIn</span><span class="op">,</span> <span class="va">lineCoefficients</span><span class="op">,</span> <span class="va">mean_group_ch</span><span class="op">,</span> <span class="va">csd_avaliable</span><span class="op">,</span> <span class="va">filter_avaliable</span><span class="op">,</span> <span class="va">filterSettings</span>] <span class="op">=</span> <span class="va">load_zav_file</span>(<span class="ss">&#39;data.mat&#39;</span><span class="op">,</span> <span class="ss">&#39;load_events&#39;</span><span class="op">,</span> <span class="va">true</span><span class="op">,</span> <span class="ss">&#39;load_settings&#39;</span><span class="op">,</span> <span class="va">true</span>)<span class="op">;</span></span></code></pre></div>
+<h3 id="disabling-automatic-settings">4. Disabling Automatic
+Settings</h3>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>[<span class="va">lfp</span><span class="op">,</span> <span class="va">spks</span><span class="op">,</span> <span class="va">hd</span><span class="op">,</span> <span class="va">zavp</span><span class="op">,</span> <span class="va">lfpVar</span><span class="op">,</span> <span class="va">chnlGrp</span><span class="op">,</span> <span class="va">time</span><span class="op">,</span> <span class="va">stims</span><span class="op">,</span> <span class="va">sweep_info</span>] <span class="op">=</span> <span class="va">load_zav_file</span>(<span class="ss">&#39;data.mat&#39;</span><span class="op">,</span> <span class="ss">&#39;auto_set_time_windows&#39;</span><span class="op">,</span> <span class="va">false</span><span class="op">,</span> <span class="ss">&#39;auto_set_fs&#39;</span><span class="op">,</span> <span class="va">false</span>)<span class="op">;</span></span></code></pre></div>
+<h2 id="operation-features">Operation Features</h2>
+<h3 id="automatic-format-detection">Automatic Format Detection</h3>
+<p>The script automatically detects file format: - If it’s Heka format -
+automatically converts to ZAV - If it’s ZAV format - loads directly</p>
+<h3 id="sweep-processing">Sweep Processing</h3>
+<ul>
+<li>Automatically detects presence of sweeps in data</li>
+<li>Processes data through <code>sweepProcessData</code></li>
+<li>Sets appropriate time parameters</li>
+</ul>
+<h3 id="time-parameters-1">Time Parameters</h3>
+<ul>
+<li>Automatically creates time axis based on sampling frequency</li>
+<li>For sweeps, automatically sets time windows</li>
+<li>Supports manual configuration through parameters</li>
+</ul>
+<h3 id="stimuli">Stimuli</h3>
+<ul>
+<li>Extracts stimuli from <code>zavp.realStim</code></li>
+<li>Supports both data with and without sweeps</li>
+</ul>
+<h2 id="dependencies">Dependencies</h2>
+<p>The script uses the following functions from signalViewerGUI: -
+<code>detectHekaFormat</code> - Heka format detection -
+<code>hekaToZav</code> - Heka to ZAV conversion -
+<code>sweepProcessData</code> - sweep data processing -
+<code>np_flatten</code> - array processing</p>
+<h2 id="error-handling">Error Handling</h2>
+<p>The script includes built-in error handling: - File existence check -
+Try-catch blocks for loading events and settings - Warnings when loading
+old formats - Default settings creation on errors</p>
+<h2 id="logging">Logging</h2>
+<p>The script outputs detailed information about the loading process: -
+Name of loaded file - Detected format - Data parameters (sizes, sampling
+frequency) - Sweep and stimulus information - Final summary</p>
+<h2 id="compatibility">Compatibility</h2>
+<ul>
+<li>Fully compatible with signalViewerGUI v1.12.04</li>
+<li>Supports old and new channel settings formats</li>
+<li>Backward compatibility with event formats</li>
+<li>Works with data with and without sweeps</li>
+</ul>
+<h2 id="files">Files</h2>
+<ul>
+<li><code>load_zav_file.m</code> - main loading script</li>
+<li><code>example_load_zav.m</code> - usage examples</li>
+<li><code>README_load_zav_eng.md</code> - this documentation</li>
+</ul>
+<h2 id="notes">Notes</h2>
+<ol type="1">
+<li>The script creates temporary variables that do not conflict with
+signalViewerGUI global variables</li>
+<li>All signalViewerGUI functions must be available in the current
+MATLAB path</li>
+<li>When loading channel settings, variables are created that can be
+used for further work</li>
+<li>The script automatically handles various data loading scenarios</li>
+</ol>
+</body>
+</html>

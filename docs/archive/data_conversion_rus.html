@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Конвертация данных</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="конвертация-данных">Конвертация данных</h1>
+<p>Программа поддерживает конвертацию данных из различных форматов в
+формат ZAV (.mat).</p>
+<h2 id="доступные-форматы">Доступные форматы</h2>
+<h3 id="neuralynx-nlx-to-zav">Neuralynx (NLX) to ZAV</h3>
+<p>Конвертация файлов Neuralynx (.nlx) в формат ZAV.</p>
+<p><strong>Открытие:</strong> Меню <strong>File/Import</strong> →
+выберите <strong>NLX</strong> или <strong>File/convert NLX to
+ZAV</strong></p>
+<p><strong>Параметры конвертации:</strong></p>
+<ul>
+<li><strong>Select Record Path</strong> - выбор папки с файлами
+Neuralynx</li>
+<li><strong>Detect MUA</strong> - включить обнаружение мультиюнитной
+активности</li>
+<li>**threshold (n*STD)** - порог детекции MUA в единицах стандартного
+отклонения</li>
+<li><strong>all channels</strong> / <strong>specific channels</strong> -
+выбор каналов для конвертации</li>
+<li><strong>Fs, Hz</strong> - частота дискретизации выходных данных (по
+умолчанию 1000 Гц)</li>
+<li><strong>Resample</strong> - выполнять ли ресемплинг данных</li>
+</ul>
+<p><strong>Процесс:</strong> Нажмите <strong>Start Conversion</strong>
+для начала конвертации. Прогресс отображается в окне.</p>
+<figure>
+<img src="../user_docs/screenshots/convert_nlx.png" alt="Конвертация NLX to ZAV" />
+<figcaption aria-hidden="true">Конвертация NLX to ZAV</figcaption>
+</figure>
+<h3 id="abf-to-zav">ABF to ZAV</h3>
+<p>Конвертация файлов Axon Binary Format (.abf) в формат ZAV.</p>
+<p><strong>Открытие:</strong> Меню <strong>File/Import</strong> →
+выберите <strong>ABF</strong></p>
+<p><strong>Параметры конвертации:</strong></p>
+<ul>
+<li><strong>Select ABF File</strong> - выбор файла .abf</li>
+<li><strong>Select Channels</strong> - выбор каналов для
+конвертации</li>
+<li><strong>Fs, Hz</strong> - частота дискретизации выходных данных</li>
+<li><strong>Resample</strong> - выполнять ли ресемплинг данных</li>
+</ul>
+<figure>
+<img src="../user_docs/screenshots/convert_abf.png" alt="Конвертация ABF to ZAV" />
+<figcaption aria-hidden="true">Конвертация ABF to ZAV</figcaption>
+</figure>
+<h3 id="open-ephys-to-zav">Open Ephys to ZAV</h3>
+<p>Конвертация файлов Open Ephys в формат ZAV.</p>
+<p><strong>Открытие:</strong> Меню <strong>File/Import</strong> →
+выберите <strong>Open Ephys</strong></p>
+<p><strong>Параметры конвертации:</strong></p>
+<ul>
+<li><strong>Select Record Path</strong> - выбор папки с файлами Open
+Ephys</li>
+<li><strong>Select Channels</strong> - выбор каналов для
+конвертации</li>
+<li><strong>Fs, Hz</strong> - частота дискретизации выходных данных</li>
+<li><strong>Resample</strong> - выполнять ли ресемплинг данных</li>
+</ul>
+<figure>
+<img src="../user_docs/screenshots/convert_oep.png"
+alt="Конвертация Open Ephys to ZAV" />
+<figcaption aria-hidden="true">Конвертация Open Ephys to
+ZAV</figcaption>
+</figure>
+<h3 id="импорт-lfp">Импорт LFP</h3>
+<p>Импорт LFP данных из других форматов или прямого ввода.</p>
+<p><strong>Открытие:</strong> Меню <strong>File/Import</strong> →
+выберите <strong>ZAV (.mat)</strong></p>
+<p><strong>Параметры импорта:</strong></p>
+<ul>
+<li>Выбор файла с данными</li>
+<li>Настройка параметров сигнала (частота дискретизации, каналы)</li>
+</ul>
+<figure>
+<img src="../user_docs/screenshots/import_lfp.png" alt="Импорт LFP" />
+<figcaption aria-hidden="true">Импорт LFP</figcaption>
+</figure>
+<h2 id="формат-zav">Формат ZAV</h2>
+<p>ZAV формат представляет собой .mat файл MATLAB со следующей
+структурой:</p>
+<ul>
+<li><strong>lfp</strong> - массив данных сигнала [время × каналы ×
+свипы]</li>
+<li><strong>time</strong> - вектор времени</li>
+<li><strong>Fs</strong> - частота дискретизации</li>
+<li><strong>hd</strong> - заголовок с метаданными</li>
+<li><strong>channelNames</strong> - названия каналов</li>
+<li>Дополнительные поля в зависимости от типа данных</li>
+</ul>
+<p>Подробное описание формата: <a
+href="../dev_docs/Zav_mat_format_rus.html">ZAV Format</a></p>
+<h2 id="настройки-конвертации">Настройки конвертации</h2>
+<h3 id="частота-дискретизации">Частота дискретизации</h3>
+<p>Поле <strong>Fs, Hz</strong> определяет частоту дискретизации
+выходных данных. Если исходная частота отличается, выполняется
+ресемплинг.</p>
+<h3 id="ресемплинг">Ресемплинг</h3>
+<p>Чекбокс <strong>Resample</strong> включает ресемплинг данных к
+указанной частоте дискретизации. Если выключен, данные сохраняются с
+исходной частотой.</p>
+<h3 id="выбор-каналов">Выбор каналов</h3>
+<p>Для всех форматов доступен выбор конкретных каналов или конвертация
+всех каналов.</p>
+<h3 id="обнаружение-mua">Обнаружение MUA</h3>
+<p>Для формата NLX доступно обнаружение мультиюнитной активности во
+время конвертации:</p>
+<ul>
+<li><strong>Detect MUA</strong> - включить детекцию</li>
+<li>**threshold (n*STD)** - порог в единицах стандартного
+отклонения</li>
+</ul>
+<h2 id="сохранение-результатов">Сохранение результатов</h2>
+<p>Результаты конвертации сохраняются в .mat файлы в формате ZAV. Файлы
+могут быть сразу открыты в Signal Viewer или Signal Analysis.</p>
+<h2 id="обработка-ошибок">Обработка ошибок</h2>
+<p>При ошибках конвертации в окне отображается сообщение об ошибке.
+Проверьте:</p>
+<ul>
+<li>Корректность формата исходных файлов</li>
+<li>Доступность всех необходимых файлов</li>
+<li>Достаточность места на диске</li>
+<li>Корректность параметров конвертации</li>
+</ul>
+</body>
+</html>

@@ -1421,7 +1421,7 @@ function signalViewerGUI(filePath)
             case help_functions{3} % 'About Current File'
                 showAboutCurrentFile();
             case help_functions{5} % 'Help'
-                showHelp();
+                showHelp('signal_viewer');
             case ''
                 dont_close_menu = true;
         end

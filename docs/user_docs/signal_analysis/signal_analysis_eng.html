@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Signal Analysis</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="signal-analysis">Signal Analysis</h1>
+<p>The analysis window is designed for measuring signal parameters
+relative to stimuli or events.</p>
+<figure>
+<img src="../screenshots/signal_analysis_main.png"
+alt="Signal Analysis main window" />
+<figcaption aria-hidden="true">Signal Analysis main window</figcaption>
+</figure>
+<h2 id="main-window">Main Window</h2>
+<p>The window consists of the following elements:</p>
+<ul>
+<li><strong>Graphical area</strong> - signal display with measurement
+markers</li>
+<li><strong>Measurement settings panel</strong> - parameters for
+calculating slope, peak, onset, baseline</li>
+<li><strong>Smoothing panel</strong> - signal smoothing settings</li>
+<li><strong>Current results table</strong> - results for current
+measurement</li>
+<li><strong>Results table</strong> - accumulated measurement
+results</li>
+<li><strong>Average values table</strong> - average values across all
+measurements</li>
+</ul>
+<h2 id="loading-files">Loading Files</h2>
+<h3 id="loading-zav-file">Loading ZAV File</h3>
+<p>The <strong>Open File</strong> button opens a ZAV file selection
+dialog. After loading a file, the signal of the selected channel is
+displayed.</p>
+<h3 id="loading-ev-file">Loading EV File</h3>
+<p>The <strong>Load Events</strong> button opens an EV file selection
+dialog. LFP data for events and the events themselves are loaded.</p>
+<h3 id="file-manager">File Manager</h3>
+<p>The <strong>File Manager</strong> button opens the file manager for
+working with projects and file groups.</p>
+<h2 id="measurement-settings">Measurement Settings</h2>
+<h3 id="channel-selection">Channel Selection</h3>
+<p>The <strong>Channel</strong> dropdown allows selection of a channel
+for analysis. When the channel is changed, the graph updates
+automatically.</p>
+<figure>
+<img src="../screenshots/analysis_channel.png" alt="Channel selection" />
+<figcaption aria-hidden="true">Channel selection</figcaption>
+</figure>
+<h3 id="peak-polarity">Peak Polarity</h3>
+<p>The <strong>Polarity</strong> dropdown determines the direction of
+peak search:</p>
+<ul>
+<li><strong>Positive</strong> - search for positive peak (maximum)</li>
+<li><strong>Negative</strong> - search for negative peak (minimum)</li>
+</ul>
+<figure>
+<img src="../screenshots/analysis_polarity.png" alt="Peak polarity" />
+<figcaption aria-hidden="true">Peak polarity</figcaption>
+</figure>
+<h3 id="slope-percent">Slope Percent</h3>
+<p>The <strong>Slope Percent</strong> field sets the percentage of peak
+amplitude used for slope calculation. Value from 0 to 100.</p>
+<h3 id="baseline-range">Baseline Range</h3>
+<p>The <strong>Baseline Start</strong> and <strong>Baseline End</strong>
+fields define the time range for baseline calculation. Values are
+specified in selected time units relative to the current reference
+point.</p>
+<p>The <strong>★</strong> button next to the field allows selecting a
+point on the graph with a mouse click.</p>
+<figure>
+<img src="../screenshots/analysis_baseline.png" alt="Baseline range" />
+<figcaption aria-hidden="true">Baseline range</figcaption>
+</figure>
+<h3 id="peak-range">Peak Range</h3>
+<p>The <strong>Peak Start</strong> and <strong>Peak End</strong> fields
+define the time range for peak search. Values are specified in selected
+time units relative to the current reference point.</p>
+<p>The <strong>★</strong> button next to the field allows selecting a
+point on the graph with a mouse click.</p>
+<figure>
+<img src="../screenshots/analysis_peak.png" alt="Peak range" />
+<figcaption aria-hidden="true">Peak range</figcaption>
+</figure>
+<h3 id="time-window">Time Window</h3>
+<p>The <strong>before</strong> and <strong>after</strong> fields define
+the size of the time window displayed around the current point. Values
+are specified in selected time units.</p>
+<figure>
+<img src="../screenshots/analysis_time_window.png" alt="Time window" />
+<figcaption aria-hidden="true">Time window</figcaption>
+</figure>
+<h2 id="results-visualization">Results Visualization</h2>
+<h3 id="displaying-measurement-elements">Displaying Measurement
+Elements</h3>
+<p>Checkboxes in the <strong>Results</strong> section control visibility
+of elements on the graph:</p>
+<ul>
+<li><strong>Baseline</strong> - display baseline range</li>
+<li><strong>Peak</strong> - display peak search range and peak
+marker</li>
+<li><strong>Slope</strong> - display slope regression line</li>
+<li><strong>Onset</strong> - display onset marker</li>
+</ul>
+<figure>
+<img src="../screenshots/analysis_visualization.png"
+alt="Results visualization" />
+<figcaption aria-hidden="true">Results visualization</figcaption>
+</figure>
+<h3 id="current-results-table">Current Results Table</h3>
+<p>The table shows results for the current measurement:</p>
+<ul>
+<li><strong>Slope</strong> - slope value</li>
+<li><strong>Peak Time (rel)</strong> - peak time relative to reference
+point</li>
+<li><strong>Peak Amplitude</strong> - peak amplitude</li>
+<li><strong>Onset Time (rel)</strong> - onset time relative to reference
+point</li>
+<li><strong>Baseline</strong> - baseline value</li>
+</ul>
+<figure>
+<img src="../screenshots/analysis_current_results.png"
+alt="Current results table" />
+<figcaption aria-hidden="true">Current results table</figcaption>
+</figure>
+<h2 id="signal-smoothing">Signal Smoothing</h2>
+<h3 id="enabling-smoothing">Enabling Smoothing</h3>
+<p>The <strong>Enable</strong> checkbox enables or disables signal
+smoothing before measurement calculations.</p>
+<h3 id="smoothing-parameters">Smoothing Parameters</h3>
+<ul>
+<li><strong>Kernel</strong> - smoothing kernel size (number of
+points)</li>
+<li><strong>Method</strong>:
+<ul>
+<li><strong>Moving</strong> - moving average</li>
+<li><strong>Median</strong> - median filter</li>
+</ul></li>
+<li><strong>Show Raw</strong> - display original signal together with
+smoothed</li>
+</ul>
+<figure>
+<img src="../screenshots/analysis_smoothing.png"
+alt="Smoothing settings" />
+<figcaption aria-hidden="true">Smoothing settings</figcaption>
+</figure>
+<h2 id="navigation">Navigation</h2>
+<h3 id="navigation-mode">Navigation Mode</h3>
+<p>The <strong>Mode</strong> status line shows the current navigation
+mode:</p>
+<ul>
+<li><strong>time</strong> - time navigation</li>
+<li><strong>stimulus</strong> - navigation by stimuli</li>
+<li><strong>event</strong> - navigation by events</li>
+<li><strong>sweep</strong> - navigation by sweeps</li>
+</ul>
+<p>The mode is determined automatically based on loaded data.</p>
+<figure>
+<img src="../screenshots/analysis_navigation_mode.png"
+alt="Navigation mode" />
+<figcaption aria-hidden="true">Navigation mode</figcaption>
+</figure>
+<h3 id="navigation-buttons">Navigation Buttons</h3>
+<p>The <strong>◀ Previous</strong> and <strong>Next ▶</strong> buttons
+move the displayed interval one step backward or forward depending on
+the navigation mode.</p>
+<h3 id="automatic-measurement">Automatic Measurement</h3>
+<p>The <strong>Auto Measure All</strong> button automatically measures
+parameters for all stimuli/events/sweeps and adds results to the
+table.</p>
+<h2 id="working-with-results-table">Working with Results Table</h2>
+<h3 id="adding-result">Adding Result</h3>
+<p>The <strong>Add</strong> button adds the current measurement to the
+results table. The result includes all parameters from the current
+results table and metadata.</p>
+<h3 id="removing-result">Removing Result</h3>
+<p>Select a row in the results table and press the
+<strong>Remove</strong> button to delete the result.</p>
+<h3 id="replacing-result">Replacing Result</h3>
+<p>Select a row in the results table and press the
+<strong>Replace</strong> button to replace the result with the current
+measurement.</p>
+<h3 id="clearing-table">Clearing Table</h3>
+<p>The <strong>Clear Table</strong> button removes all results from the
+table.</p>
+<h3 id="results-table">Results Table</h3>
+<p>The table contains the following columns:</p>
+<ul>
+<li><strong>Stimulus</strong> - stimulus/event/sweep number</li>
+<li><strong>Slope</strong> - slope value</li>
+<li><strong>Peak Time (rel)</strong> - peak time relative to reference
+point</li>
+<li><strong>Peak Time (abs)</strong> - absolute peak time</li>
+<li><strong>Peak Amplitude</strong> - peak amplitude</li>
+<li><strong>Peak Value (rel)</strong> - peak value relative to
+baseline</li>
+<li><strong>Onset Time (rel)</strong> - onset time relative to reference
+point</li>
+<li><strong>Onset Time (abs)</strong> - absolute onset time</li>
+<li><strong>Peak - Onset</strong> - difference between peak and
+onset</li>
+<li><strong>Baseline</strong> - baseline value</li>
+<li><strong>Channel</strong> - channel number</li>
+<li><strong>Stim Time</strong> - stimulus/event time</li>
+<li><strong>Info</strong> - additional information</li>
+</ul>
+<figure>
+<img src="../screenshots/analysis_results_table.png" alt="Results table" />
+<figcaption aria-hidden="true">Results table</figcaption>
+</figure>
+<h3 id="average-values-table">Average Values Table</h3>
+<p>The table shows average values across all measurements in the results
+table:</p>
+<ul>
+<li><strong>Slope</strong> - average slope value</li>
+<li><strong>Peak Time (rel)</strong> - average peak time</li>
+<li><strong>Peak Amplitude</strong> - average peak amplitude</li>
+<li><strong>Onset Time (rel)</strong> - average onset time</li>
+<li><strong>Baseline</strong> - average baseline value</li>
+<li><strong>Peak - Onset</strong> - average difference between peak and
+onset</li>
+</ul>
+<figure>
+<img src="../screenshots/analysis_average_table.png"
+alt="Average values table" />
+<figcaption aria-hidden="true">Average values table</figcaption>
+</figure>
+<h2 id="mean-trace">Mean Trace</h2>
+<p>The <strong>Av. Trace</strong> button toggles the mean signal display
+mode across all measurements in the results table. In this mode, the
+graph shows the averaged signal, and measurements are performed relative
+to this mean signal.</p>
+<h2 id="saving-and-loading-results">Saving and Loading Results</h2>
+<h3 id="saving-results">Saving Results</h3>
+<p>The <strong>Save</strong> button saves results to an Excel file. If a
+file was loaded previously, results are saved to the same file.
+Otherwise, a save path selection dialog opens.</p>
+<p>The <strong>Save As</strong> button always opens a path selection
+dialog to save results to a new file.</p>
+<h3 id="hot-resave">Hot Resave</h3>
+<p>The <strong>Hot Resave</strong> checkbox enables automatic re-saving
+of results on each addition or modification of a result. Works only if a
+file was loaded previously.</p>
+<figure>
+<img src="../screenshots/analysis_hot_resave.png" alt="Hot Resave" />
+<figcaption aria-hidden="true">Hot Resave</figcaption>
+</figure>
+<h3 id="loading-results">Loading Results</h3>
+<p>The <strong>Load</strong> button opens an Excel file selection dialog
+with results. Loaded results are added to the results table.</p>
+<p>The <strong>Results</strong> dropdown shows results from the File
+Manager database for the current file. Selecting a result loads it into
+the table.</p>
+<h3 id="collecting-all-metadata">Collecting All Metadata</h3>
+<p>The <strong>Collect All</strong> button collects metadata from all
+results in the table and saves them in structured form.</p>
+<h2 id="graph-tools">Graph Tools</h2>
+<h3 id="zoom">Zoom</h3>
+<p>The <strong>Zoom</strong> button activates zoom mode. Allows
+selecting an area for zooming.</p>
+<h3 id="pan">Pan</h3>
+<p>The <strong>Pan</strong> button activates panning mode. Allows moving
+the graph with the mouse.</p>
+<h3 id="cursor">Cursor</h3>
+<p>The <strong>Cursor</strong> button activates the data cursor. Shows
+coordinates of a point when clicking on the graph.</p>
+<h3 id="brush">Brush</h3>
+<p>The <strong>Brush</strong> button activates data selection mode on
+the graph.</p>
+<h3 id="home">Home</h3>
+<p>The <strong>Home</strong> button resets all tools and restores the
+original graph view.</p>
+<figure>
+<img src="../screenshots/analysis_graph_tools.png" alt="Graph tools" />
+<figcaption aria-hidden="true">Graph tools</figcaption>
+</figure>
+<h2 id="saving-image">Saving Image</h2>
+<p>The <strong>Save Image</strong> button saves the current graph to an
+image file (PNG, FIG, etc.).</p>
+<h2 id="settings">Settings</h2>
+<p>The <strong>Settings</strong> button opens the artifact removal
+settings window (similar to Signal Viewer).</p>
+<h2 id="keyboard-shortcuts">Keyboard Shortcuts</h2>
+<ul>
+<li><strong>Left/Right arrows</strong> - time
+navigation/stimuli/events</li>
+<li><strong>Navigation keys</strong> - depend on navigation mode</li>
+</ul>
+</body>
+</html>

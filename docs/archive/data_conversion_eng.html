@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Data Conversion</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="data-conversion">Data Conversion</h1>
+<p>The program supports conversion of data from various formats to ZAV
+(.mat) format.</p>
+<h2 id="available-formats">Available Formats</h2>
+<h3 id="neuralynx-nlx-to-zav">Neuralynx (NLX) to ZAV</h3>
+<p>Conversion of Neuralynx (.nlx) files to ZAV format.</p>
+<p><strong>Opening:</strong> Menu <strong>File/Import</strong> → select
+<strong>NLX</strong> or <strong>File/convert NLX to ZAV</strong></p>
+<p><strong>Conversion parameters:</strong></p>
+<ul>
+<li><strong>Select Record Path</strong> - select folder with Neuralynx
+files</li>
+<li><strong>Detect MUA</strong> - enable multi-unit activity
+detection</li>
+<li>**threshold (n*STD)** - MUA detection threshold in standard
+deviation units</li>
+<li><strong>all channels</strong> / <strong>specific channels</strong> -
+channel selection for conversion</li>
+<li><strong>Fs, Hz</strong> - output data sampling frequency (default
+1000 Hz)</li>
+<li><strong>Resample</strong> - whether to resample data</li>
+</ul>
+<p><strong>Process:</strong> Press <strong>Start Conversion</strong> to
+begin conversion. Progress is displayed in the window.</p>
+<figure>
+<img src="../user_docs/screenshots/convert_nlx.png" alt="NLX to ZAV conversion" />
+<figcaption aria-hidden="true">NLX to ZAV conversion</figcaption>
+</figure>
+<h3 id="abf-to-zav">ABF to ZAV</h3>
+<p>Conversion of Axon Binary Format (.abf) files to ZAV format.</p>
+<p><strong>Opening:</strong> Menu <strong>File/Import</strong> → select
+<strong>ABF</strong></p>
+<p><strong>Conversion parameters:</strong></p>
+<ul>
+<li><strong>Select ABF File</strong> - select .abf file</li>
+<li><strong>Select Channels</strong> - channel selection for
+conversion</li>
+<li><strong>Fs, Hz</strong> - output data sampling frequency</li>
+<li><strong>Resample</strong> - whether to resample data</li>
+</ul>
+<figure>
+<img src="../user_docs/screenshots/convert_abf.png" alt="ABF to ZAV conversion" />
+<figcaption aria-hidden="true">ABF to ZAV conversion</figcaption>
+</figure>
+<h3 id="open-ephys-to-zav">Open Ephys to ZAV</h3>
+<p>Conversion of Open Ephys files to ZAV format.</p>
+<p><strong>Opening:</strong> Menu <strong>File/Import</strong> → select
+<strong>Open Ephys</strong></p>
+<p><strong>Conversion parameters:</strong></p>
+<ul>
+<li><strong>Select Record Path</strong> - select folder with Open Ephys
+files</li>
+<li><strong>Select Channels</strong> - channel selection for
+conversion</li>
+<li><strong>Fs, Hz</strong> - output data sampling frequency</li>
+<li><strong>Resample</strong> - whether to resample data</li>
+</ul>
+<figure>
+<img src="../user_docs/screenshots/convert_oep.png"
+alt="Open Ephys to ZAV conversion" />
+<figcaption aria-hidden="true">Open Ephys to ZAV conversion</figcaption>
+</figure>
+<h3 id="lfp-import">LFP Import</h3>
+<p>Import of LFP data from other formats or direct input.</p>
+<p><strong>Opening:</strong> Menu <strong>File/Import</strong> → select
+<strong>ZAV (.mat)</strong></p>
+<p><strong>Import parameters:</strong></p>
+<ul>
+<li>File selection with data</li>
+<li>Signal parameter configuration (sampling frequency, channels)</li>
+</ul>
+<figure>
+<img src="../user_docs/screenshots/import_lfp.png" alt="LFP import" />
+<figcaption aria-hidden="true">LFP import</figcaption>
+</figure>
+<h2 id="zav-format">ZAV Format</h2>
+<p>ZAV format is a MATLAB .mat file with the following structure:</p>
+<ul>
+<li><strong>lfp</strong> - signal data array [time × channels ×
+sweeps]</li>
+<li><strong>time</strong> - time vector</li>
+<li><strong>Fs</strong> - sampling frequency</li>
+<li><strong>hd</strong> - header with metadata</li>
+<li><strong>channelNames</strong> - channel names</li>
+<li>Additional fields depending on data type</li>
+</ul>
+<p>Detailed format description: <a
+href="../dev_docs/Zav_mat_format_eng.html">ZAV Format</a></p>
+<h2 id="conversion-settings">Conversion Settings</h2>
+<h3 id="sampling-frequency">Sampling Frequency</h3>
+<p>The <strong>Fs, Hz</strong> field determines the output data sampling
+frequency. If the source frequency differs, resampling is performed.</p>
+<h3 id="resampling">Resampling</h3>
+<p>The <strong>Resample</strong> checkbox enables resampling of data to
+the specified sampling frequency. If disabled, data is saved with the
+source frequency.</p>
+<h3 id="channel-selection">Channel Selection</h3>
+<p>For all formats, selection of specific channels or conversion of all
+channels is available.</p>
+<h3 id="mua-detection">MUA Detection</h3>
+<p>For NLX format, multi-unit activity detection is available during
+conversion:</p>
+<ul>
+<li><strong>Detect MUA</strong> - enable detection</li>
+<li>**threshold (n*STD)** - threshold in standard deviation units</li>
+</ul>
+<h2 id="saving-results">Saving Results</h2>
+<p>Conversion results are saved to .mat files in ZAV format. Files can
+be immediately opened in Signal Viewer or Signal Analysis.</p>
+<h2 id="error-handling">Error Handling</h2>
+<p>When conversion errors occur, an error message is displayed in the
+window. Check:</p>
+<ul>
+<li>Correctness of source file format</li>
+<li>Availability of all necessary files</li>
+<li>Sufficient disk space</li>
+<li>Correctness of conversion parameters</li>
+</ul>
+</body>
+</html>

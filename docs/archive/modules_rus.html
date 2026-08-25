@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Модули автоматизации</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="модули-автоматизации">Модули автоматизации</h1>
+<p>Модули автоматизации позволяют выполнять анализ данных для множества
+файлов без ручного вмешательства.</p>
+<h2 id="доступные-модули">Доступные модули</h2>
+<h3 id="autoclusterpermutationtest">autoClusterPermutationTest</h3>
+<p>Кластерный пермутационный тест для статистического анализа временных
+рядов.</p>
+<p><strong>Параметры визуализации:</strong> - <strong>xLimits</strong> -
+временное окно анализа в миллисекундах [до стимула, после стимула] -
+<strong>removeBaseline</strong> - удалять ли среднее значение baseline -
+<strong>removeArtifact</strong> - удалять ли артефакт стимула -
+<strong>artifactWindow_ms</strong> - длительность окна артефакта в
+миллисекундах - <strong>showBaselinePeriod</strong> - показывать ли
+baseline период на графике - <strong>showMeanSignal</strong> -
+показывать ли средний сигнал</p>
+<p><strong>Параметры теста:</strong> - <strong>numPermutations</strong>
+- количество пермутаций (рекомендуется 1000-10000) -
+<strong>clusterThreshold</strong> - уровень значимости для порога
+t-статистики (обычно 0.05) - <strong>minClusterSize_ms</strong> -
+минимальный размер кластера в миллисекундах -
+<strong>startTrial</strong> / <strong>endTrial</strong> - диапазон
+триалов для анализа (пусто для всех) - <strong>removeEdgeTrials</strong>
+- удалять ли триалы на краях</p>
+<p><strong>Выходные данные:</strong> - График с t-статистикой и
+значимыми кластерами - Файл .meta с результатами анализа</p>
+<p>Подробное описание метода: <a
+href="cluster_permutation_test_rus.html">Кластерный пермутационный
+тест</a></p>
+<figure>
+<img src="../user_docs/screenshots/module_cluster_test.png"
+alt="Результат кластерного теста" />
+<figcaption aria-hidden="true">Результат кластерного теста</figcaption>
+</figure>
+<h3 id="automeanstimulus">autoMeanStimulus</h3>
+<p>Усреднение сигнала по стимулам с автоматическим обнаружением
+пиков.</p>
+<p><strong>Параметры визуализации:</strong> - <strong>autoScale</strong>
+- автоматическое масштабирование - <strong>xLimits</strong> - временное
+окно в миллисекундах - <strong>showOriginalTraces</strong> - показывать
+исходные трейсы - <strong>removeBaseline</strong> - удалять baseline -
+<strong>removeArtifact</strong> - удалять артефакт -
+<strong>artifactWindow_ms</strong> - размер окна артефакта</p>
+<p><strong>Параметры детекции:</strong> - <strong>Polarity</strong> -
+полярность пиков (positive/negative) -
+<strong>MinPeakProminence</strong> - минимальная выраженность пика -
+<strong>MinPeakDistance_s</strong> - минимальное расстояние между пиками
+- <strong>MaxPeakWidth_s</strong> - максимальная ширина пика -
+<strong>SmoothingKernel_s</strong> - размер ядра сглаживания -
+<strong>UseOriginalData</strong> - использовать исходные данные для
+детекции</p>
+<p><strong>Выходные данные:</strong> - График усредненного сигнала с
+обнаруженными пиками - Таблица с результатами детекции - Файл
+изображения (PNG или FIG)</p>
+<figure>
+<img src="../user_docs/screenshots/module_mean_stimulus.png"
+alt="Результат усреднения по стимулам" />
+<figcaption aria-hidden="true">Результат усреднения по
+стимулам</figcaption>
+</figure>
+<h3 id="autodetectstimuli">autoDetectStimuli</h3>
+<p>Автоматическое обнаружение стимулов в сигнале.</p>
+<p><strong>Параметры детекции:</strong> - <strong>Polarity</strong> -
+полярность стимулов (positive/negative) -
+<strong>MinPeakProminence</strong> - минимальная выраженность пика -
+<strong>MinPeakDistance_s</strong> - минимальное расстояние между
+стимулами - <strong>MaxPeakWidth_s</strong> - максимальная ширина
+стимула - <strong>SmoothingKernel_s</strong> - размер ядра сглаживания -
+<strong>Channel</strong> - номер канала для детекции</p>
+<p><strong>Выходные данные:</strong> - Временные метки обнаруженных
+стимулов - Сохранение стимулов в файл настроек</p>
+<figure>
+<img src="../user_docs/screenshots/module_detect_stimuli.png"
+alt="Результат обнаружения стимулов" />
+<figcaption aria-hidden="true">Результат обнаружения
+стимулов</figcaption>
+</figure>
+<h3 id="autoslopemeasurement">autoSlopeMeasurement</h3>
+<p>Автоматическое измерение slope для всех стимулов.</p>
+<p><strong>Параметры измерения:</strong> - <strong>Channel</strong> -
+номер канала - <strong>BaselineStart_s</strong> - начало baseline
+диапазона (относительно стимула) - <strong>BaselineEnd_s</strong> -
+конец baseline диапазона - <strong>PeakStart_s</strong> - начало peak
+диапазона - <strong>PeakEnd_s</strong> - конец peak диапазона -
+<strong>SlopePercent</strong> - процент для расчета slope -
+<strong>PeakPolarity</strong> - полярность пика (positive/negative)</p>
+<p><strong>Параметры временного окна:</strong> -
+<strong>TimeBack_s</strong> - время до стимула -
+<strong>TimeForward_s</strong> - время после стимула</p>
+<p><strong>Параметры обработки:</strong> -
+<strong>SmoothingEnabled</strong> - включить сглаживание -
+<strong>SmoothingSpan</strong> - размер ядра сглаживания -
+<strong>SmoothingMethod</strong> - метод сглаживания (moving/median) -
+<strong>RemoveArtifact</strong> - удалять артефакт -
+<strong>ArtifactWindow_ms</strong> - размер окна артефакта</p>
+<p><strong>Выходные данные:</strong> - Excel файл с результатами
+измерений для всех стимулов - Метаданные измерений</p>
+<figure>
+<img src="../user_docs/screenshots/module_slope_measurement.png"
+alt="Результат измерения slope" />
+<figcaption aria-hidden="true">Результат измерения slope</figcaption>
+</figure>
+<h2 id="использование-модулей">Использование модулей</h2>
+<h3 id="настройка-параметров">Настройка параметров</h3>
+<ol type="1">
+<li>Откройте File Manager</li>
+<li>Выберите модуль из выпадающего списка <strong>Module</strong></li>
+<li>Нажмите кнопку <strong>Edit Module Params</strong></li>
+<li>Настройте параметры в открывшемся окне</li>
+<li>Сохраните параметры</li>
+</ol>
+<figure>
+<img src="../user_docs/screenshots/module_edit_params.png"
+alt="Настройка параметров модуля" />
+<figcaption aria-hidden="true">Настройка параметров модуля</figcaption>
+</figure>
+<h3 id="запуск-модуля">Запуск модуля</h3>
+<ol type="1">
+<li>Выберите файлы в списке File Manager</li>
+<li>Выберите модуль</li>
+<li>Нажмите кнопку <strong>Launch Module</strong></li>
+<li>Дождитесь завершения обработки</li>
+</ol>
+<h3 id="очередь-модулей">Очередь модулей</h3>
+<p>Модули могут быть добавлены в очередь для последовательного
+выполнения:</p>
+<ol type="1">
+<li>Настройте параметры модуля</li>
+<li>Нажмите кнопку <strong>Add to queue</strong></li>
+<li>Повторите для других модулей</li>
+<li>Нажмите кнопку <strong>Launch Module</strong> для выполнения всей
+очереди</li>
+</ol>
+<figure>
+<img src="../user_docs/screenshots/module_queue.png" alt="Очередь модулей" />
+<figcaption aria-hidden="true">Очередь модулей</figcaption>
+</figure>
+<h3 id="просмотр-результатов">Просмотр результатов</h3>
+<p>Результаты анализа сохраняются в базу данных File Manager. Для
+просмотра:</p>
+<ol type="1">
+<li>Выберите файл в списке</li>
+<li>Результаты отображаются в таблице <strong>Results</strong></li>
+<li>Выберите результат и нажмите <strong>Open Result</strong> для
+просмотра</li>
+</ol>
+<figure>
+<img src="../user_docs/screenshots/module_results.png"
+alt="Просмотр результатов модуля" />
+<figcaption aria-hidden="true">Просмотр результатов модуля</figcaption>
+</figure>
+<h2 id="формат-параметров">Формат параметров</h2>
+<p>Параметры модулей хранятся в JSON формате. Файлы конфигурации
+находятся в папке <code>modules/</code>:</p>
+<ul>
+<li><code>autoClusterPermutationTest.json</code></li>
+<li><code>autoMeanStimulus.json</code></li>
+<li><code>autoDetectStimuli.json</code></li>
+<li><code>autoSlopeMeasurement.json</code></li>
+</ul>
+<h2 id="результаты-анализа">Результаты анализа</h2>
+<p>Результаты сохраняются в базу данных File Manager в таблице
+<code>analysis_results</code>:</p>
+<ul>
+<li><strong>module_name</strong> - название модуля</li>
+<li><strong>module_display_name</strong> - отображаемое название</li>
+<li><strong>module_description</strong> - описание модуля</li>
+<li><strong>analysis_timestamp</strong> - временная метка анализа</li>
+<li><strong>report_path</strong> - путь к файлу отчета</li>
+<li><strong>parameters_json</strong> - JSON с параметрами анализа</li>
+</ul>
+<p>Файлы отчетов (графики, таблицы) сохраняются в папке с исходными
+данными.</p>
+</body>
+</html>

@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Signal Viewer</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="signal-viewer">Signal Viewer</h1>
+<p>The signal viewing window is designed for visualization of
+multi-channel LFP signals, management of events and stimuli, signal
+processing, and basic analysis.</p>
+<figure>
+<img src="../screenshots/signal_viewer_main.png"
+alt="Signal Viewer main window" />
+<figcaption aria-hidden="true">Signal Viewer main window</figcaption>
+</figure>
+<h2 id="main-window">Main Window</h2>
+<p>The window consists of the following elements:</p>
+<ul>
+<li><strong>Graphical area</strong> - display of multi-channel
+signals</li>
+<li><strong>Side panel</strong> - channel, stimulus, and event
+settings</li>
+<li><strong>Time control panel</strong> - data navigation</li>
+<li><strong>Menus</strong> - File, View, Options, Analysis</li>
+</ul>
+<h2 id="loading-files">Loading Files</h2>
+<h3 id="loading-zav-file">Loading ZAV File</h3>
+<p>To load a file in ZAV format (.mat), use:</p>
+<ul>
+<li><strong>Load .mat File</strong> button on the toolbar</li>
+<li>Menu <strong>File/Open ZAV(.mat) file</strong></li>
+</ul>
+<p>After selecting a file, a selection dialog opens. On first load,
+signals are displayed on all channels by default.</p>
+<figure>
+<img src="../screenshots/load_zav_file.png" alt="Loading ZAV file" />
+<figcaption aria-hidden="true">Loading ZAV file</figcaption>
+</figure>
+<h3 id="loading-ev-file">Loading EV File</h3>
+<p>To load events in EV format (.ev), use:</p>
+<ul>
+<li><strong>Load Events</strong> button on the toolbar</li>
+<li>Menu <strong>File/Open event (.ev) file</strong></li>
+</ul>
+<p>After selecting a file, LFP data for corresponding events and the
+events themselves are loaded. Events are displayed in the events table
+on the side panel.</p>
+<figure>
+<img src="../screenshots/load_ev_file.png" alt="Loading EV file" />
+<figcaption aria-hidden="true">Loading EV file</figcaption>
+</figure>
+<h3 id="saving-file">Saving File</h3>
+<p>To save the current file, use menu <strong>File/Save ZAV(.mat)
+file</strong>. All channel settings, events, and stimuli are saved.</p>
+<h2 id="time-management-and-navigation">Time Management and
+Navigation</h2>
+<h3 id="time-slider">Time Slider</h3>
+<p>The slider at the bottom of the window allows navigation along the
+time axis of the data. Dragging the slider changes the displayed time
+interval.</p>
+<figure>
+<img src="../screenshots/time_slider.png" alt="Time slider" />
+<figcaption aria-hidden="true">Time slider</figcaption>
+</figure>
+<h3 id="time-units">Time Units</h3>
+<p>The time units dropdown allows selection of:</p>
+<ul>
+<li><strong>s</strong> - seconds</li>
+<li><strong>ms</strong> - milliseconds</li>
+<li><strong>min</strong> - minutes</li>
+</ul>
+<p>The selected unit is applied to all time parameters and time axis
+display.</p>
+<figure>
+<img src="../screenshots/time_units.png" alt="Time units" />
+<figcaption aria-hidden="true">Time units</figcaption>
+</figure>
+<h3 id="view-mode">View Mode</h3>
+<p>The view mode dropdown determines the reference point for
+navigation:</p>
+<ul>
+<li><strong>time</strong> - regular time</li>
+<li><strong>stimulus</strong> - navigation by stimuli</li>
+<li><strong>event</strong> - navigation by events</li>
+<li><strong>sweep</strong> - navigation by sweeps</li>
+</ul>
+<p>When stimulus/event/sweep mode is selected, the slider and navigation
+buttons move between corresponding points.</p>
+<figure>
+<img src="../screenshots/time_center_mode.png" alt="View mode" />
+<figcaption aria-hidden="true">View mode</figcaption>
+</figure>
+<h3 id="time-window">Time Window</h3>
+<p>The <strong>before</strong> and <strong>after</strong> fields define
+the size of the time window displayed around the current point. Values
+are specified in the selected units.</p>
+<figure>
+<img src="../screenshots/time_window.png" alt="Time window" />
+<figcaption aria-hidden="true">Time window</figcaption>
+</figure>
+<h3 id="navigation-buttons">Navigation Buttons</h3>
+<p>The <strong>Previous</strong> and <strong>Next</strong> buttons move
+the displayed interval one step backward or forward. Step size is
+determined by the time window size.</p>
+<figure>
+<img src="../screenshots/navigation_buttons.png"
+alt="Navigation buttons" />
+<figcaption aria-hidden="true">Navigation buttons</figcaption>
+</figure>
+<h3 id="additional-parameters">Additional Parameters</h3>
+<ul>
+<li><strong>Fs</strong> - sampling frequency of the displayed signal.
+Changing the value applies to the display.</li>
+<li><strong>Ch. Shift</strong> - vertical offset between channels in
+signal amplitude units.</li>
+</ul>
+<figure>
+<img src="../screenshots/additional_params.png"
+alt="Additional parameters" />
+<figcaption aria-hidden="true">Additional parameters</figcaption>
+</figure>
+<h2 id="channel-settings">Channel Settings</h2>
+<p>The side panel contains a channel settings table. Each channel has
+the following parameters:</p>
+<ul>
+<li><strong>Channel</strong> - channel name (not editable)</li>
+<li><strong>Enabled</strong> - enable/disable channel display</li>
+<li><strong>Scale</strong> - amplitude scaling coefficient</li>
+<li><strong>Color</strong> - signal line color</li>
+<li><strong>Line Width</strong> - line thickness</li>
+<li><strong>Averaging</strong> - channel participation in averaging for
+mean subtraction</li>
+<li><strong>CSD</strong> - channel participation in CSD calculation</li>
+<li><strong>Filter</strong> - application of filtering to the
+channel</li>
+<li><strong>Baseline</strong> - baseline subtraction</li>
+</ul>
+<figure>
+<img src="../screenshots/channel_table.png" alt="Channel table" />
+<figcaption aria-hidden="true">Channel table</figcaption>
+</figure>
+<h3 id="quick-channel-management">Quick Channel Management</h3>
+<p>Buttons below the channel table:</p>
+<ul>
+<li><strong>(De)select ch</strong> - toggle visibility of all
+channels</li>
+<li><strong>(De)select CSD</strong> - toggle participation of all
+channels in CSD</li>
+<li><strong>(De)select Baseline</strong> - toggle baseline subtraction
+for all channels</li>
+</ul>
+<h3 id="hiding-side-panel">Hiding Side Panel</h3>
+<p>The <strong>×</strong> button at the top of the side panel hides the
+panel to increase the graph area. The <strong>□</strong> button restores
+the panel.</p>
+<p>Alternatively, use menu <strong>View/Hide Channel Settings</strong>
+or <strong>View/show Channel Settings</strong>.</p>
+<h2 id="event-management">Event Management</h2>
+<h3 id="events-table">Events Table</h3>
+<p>The events table is displayed in the lower part of the side panel.
+Contains columns:</p>
+<ul>
+<li><strong>Time</strong> - event timestamp</li>
+<li><strong>Comment</strong> - event comment</li>
+</ul>
+<figure>
+<img src="../screenshots/events_table.png" alt="Events table" />
+<figcaption aria-hidden="true">Events table</figcaption>
+</figure>
+<h3 id="adding-event">Adding Event</h3>
+<p>To add an event:</p>
+<ul>
+<li>Press the <strong>Add Event</strong> button below the events
+table</li>
+<li>Or hold <strong>Ctrl</strong> and click the mouse on the graph at
+the desired point</li>
+</ul>
+<p>Event addition behavior depends on manual addition settings (see
+“Manual Event Addition Settings” section).</p>
+<h3 id="deleting-event">Deleting Event</h3>
+<ul>
+<li>Select an event in the table (enter the number in the field below
+the table)</li>
+<li>Press the <strong>Delete Event</strong> button</li>
+</ul>
+<p>The <strong>Clear Table</strong> button removes all events from the
+table.</p>
+<h3 id="manual-event-addition-settings">Manual Event Addition
+Settings</h3>
+<p>Menu <strong>Options/Manual events settings</strong> opens the
+settings window:</p>
+<ul>
+<li><strong>Detection Mode</strong>:
+<ul>
+<li><strong>manual</strong> - event is added at the specified point</li>
+<li><strong>locked</strong> - event is corrected to local extremum in
+the specified window</li>
+</ul></li>
+<li><strong>Channel Number</strong> - channel number for adding
+event</li>
+<li><strong>Polarity</strong> - extremum search polarity
+(positive/negative)</li>
+<li><strong>Time Window</strong> - extremum search time window in
+milliseconds (for locked mode)</li>
+</ul>
+<figure>
+<img src="../screenshots/manual_event_settings.png"
+alt="Manual event addition settings" />
+<figcaption aria-hidden="true">Manual event addition
+settings</figcaption>
+</figure>
+<h3 id="automatic-event-detection">Automatic Event Detection</h3>
+<p>Menu <strong>Analysis/Autodetection</strong> or <strong>Auto Event
+Detection</strong> button opens the automatic event detection
+window.</p>
+<p>Detection parameters:</p>
+<ul>
+<li><strong>Detection Type</strong>:
+<ul>
+<li><strong>one channel positive</strong> - detection of positive peaks
+on one channel</li>
+<li><strong>one channel negative</strong> - detection of negative peaks
+on one channel</li>
+<li><strong>two channels difference</strong> - detection based on
+difference between two channels</li>
+</ul></li>
+<li><strong>Minimal Peak Amplitude</strong> - minimum peak
+amplitude</li>
+<li><strong>Positive Channel</strong> / <strong>Negative
+Channel</strong> - channels for two channels mode</li>
+<li><strong>Minimal Time Between Peaks</strong> - minimum time between
+peaks</li>
+<li><strong>Smooth Coefficient</strong> - signal smoothing
+coefficient</li>
+<li><strong>Detection Mode</strong> - peaks or onsets</li>
+</ul>
+<p>The <strong>Check Detection</strong> button shows preliminary results
+on the graph. The <strong>Apply</strong> button applies detection and
+adds events to the table.</p>
+<figure>
+<img src="../screenshots/auto_detection.png"
+alt="Automatic event detection" />
+<figcaption aria-hidden="true">Automatic event detection</figcaption>
+</figure>
+<h3 id="editing-events">Editing Events</h3>
+<p>Menu <strong>Options/Edit events</strong> opens the events editing
+window. Allows changing event timestamps and comments.</p>
+<figure>
+<img src="../screenshots/edit_events.png" alt="Editing events" />
+<figcaption aria-hidden="true">Editing events</figcaption>
+</figure>
+<h3 id="saving-and-loading-events">Saving and Loading Events</h3>
+<p>Events are automatically saved when saving a ZAV file. For separate
+event saving, use the <strong>Save Events</strong> button below the
+events table.</p>
+<h2 id="stimulus-management">Stimulus Management</h2>
+<h3 id="stimuli-table">Stimuli Table</h3>
+<p>Stimuli are displayed in the middle part of the side panel. The list
+shows stimulus timestamps.</p>
+<figure>
+<img src="../screenshots/stimuli_table.png" alt="Stimuli table" />
+<figcaption aria-hidden="true">Stimuli table</figcaption>
+</figure>
+<h3 id="editing-stimuli">Editing Stimuli</h3>
+<p>The <strong>Edit</strong> button next to the “Stimuli” header or menu
+<strong>Options/Edit stimulus times</strong> opens the stimulus
+timestamp editing window.</p>
+<figure>
+<img src="../screenshots/edit_stimuli.png" alt="Editing stimuli" />
+<figcaption aria-hidden="true">Editing stimuli</figcaption>
+</figure>
+<h3 id="hiding-stimuli">Hiding Stimuli</h3>
+<p>Menu <strong>View/Hide stimulus</strong> hides or shows stimulus
+display on the graph.</p>
+<h3 id="importing-events-from-stimuli">Importing Events from
+Stimuli</h3>
+<p>Menu <strong>Options/Import events from stimulus</strong> creates
+events based on stimulus timestamps.</p>
+<h2 id="signal-processing">Signal Processing</h2>
+<h3 id="filtering">Filtering</h3>
+<p>Menu <strong>Options/Filtering</strong> opens the filtering settings
+window.</p>
+<p>The left panel contains a list of channels with checkboxes for
+selecting channels for filtering.</p>
+<p>The right panel contains filter parameters:</p>
+<ul>
+<li><strong>Filter Type</strong> - filter type:
+<ul>
+<li><strong>bandpass</strong> - bandpass filter</li>
+<li><strong>lowpass</strong> - lowpass filter</li>
+<li><strong>highpass</strong> - highpass filter</li>
+</ul></li>
+<li><strong>Lower Frequency</strong> - lower frequency limit (Hz)</li>
+<li><strong>Upper Frequency</strong> - upper frequency limit (Hz)</li>
+<li><strong>Filter Order</strong> - filter order</li>
+</ul>
+<p><strong>Select ALL</strong> and <strong>Deselect ALL</strong> buttons
+control channel selection.</p>
+<p>The <strong>Check Filtration</strong> button shows the filter
+frequency response on the graph at the bottom of the window.</p>
+<p><strong>Apply</strong> and <strong>Cancel</strong> buttons apply or
+cancel settings.</p>
+<figure>
+<img src="../screenshots/filtering.png" alt="Filtering settings" />
+<figcaption aria-hidden="true">Filtering settings</figcaption>
+</figure>
+<h3 id="mean-subtraction">Mean Subtraction</h3>
+<p>Menu <strong>Options/Average subtraction</strong> opens the mean
+subtraction settings window.</p>
+<p>The left panel contains a list of channels with checkboxes. Selected
+channels participate in calculating the mean value, which is then
+subtracted from each channel.</p>
+<p><strong>Select ALL</strong> and <strong>Deselect ALL</strong> buttons
+control channel selection.</p>
+<p>The <strong>Apply</strong> button applies settings.</p>
+<figure>
+<img src="../screenshots/average_subtraction.png"
+alt="Average subtraction" />
+<figcaption aria-hidden="true">Average subtraction</figcaption>
+</figure>
+<h3 id="csd-display">CSD Display</h3>
+<p>Menu <strong>View/CSD displaying</strong> or <strong>CSD</strong>
+checkbox on the toolbar opens the CSD (Current Source Density) settings
+window.</p>
+<p>The left panel contains a list of channels with checkboxes for
+selecting channels for CSD calculation.</p>
+<p>Visualization parameters:</p>
+<ul>
+<li><strong>Contrast Coef.</strong> - display contrast coefficient</li>
+<li><strong>Smooth Coef.</strong> - smoothing coefficient</li>
+</ul>
+<p><strong>Select ALL</strong> and <strong>Deselect ALL</strong> buttons
+control channel selection.</p>
+<p>The <strong>Apply</strong> button applies settings.</p>
+<figure>
+<img src="../screenshots/csd_settings.png" alt="CSD settings" />
+<figcaption aria-hidden="true">CSD settings</figcaption>
+</figure>
+<h3 id="artifact-removal">Artifact Removal</h3>
+<p>Menu <strong>Options/Removal of Artifacts</strong> opens the artifact
+removal settings window.</p>
+<p>The <strong>Artifact Window (ms)</strong> parameter sets the size of
+the time window after stimulus that is excluded from display.</p>
+<figure>
+<img src="../screenshots/artifact_removal.png" alt="Artifact removal" />
+<figcaption aria-hidden="true">Artifact removal</figcaption>
+</figure>
+<h3 id="mua-display">MUA Display</h3>
+<p>The <strong>MUA</strong> checkbox on the toolbar enables multi-unit
+activity display.</p>
+<p>The <strong>MUA coef</strong> field sets the display threshold in
+standard deviation units.</p>
+<h2 id="mean-trace-by-events">Mean Trace by Events</h2>
+<p>Menu <strong>Options/Mean Events</strong> opens the settings window
+for averaging signal around events.</p>
+<p>Parameters:</p>
+<ul>
+<li><strong>Time Window</strong> - time window around event</li>
+<li><strong>Remove Baseline</strong> - baseline subtraction</li>
+<li><strong>Remove Artifact</strong> - artifact removal</li>
+<li><strong>Artifact Window</strong> - artifact window size</li>
+<li><strong>Show Original Traces</strong> - show original traces</li>
+<li><strong>Auto Scale</strong> - automatic scaling</li>
+</ul>
+<p>The <strong>Calculate</strong> button builds the averaged signal
+graph.</p>
+<figure>
+<img src="../screenshots/mean_events.png" alt="Mean trace by events" />
+<figcaption aria-hidden="true">Mean trace by events</figcaption>
+</figure>
+<h2 id="file-menu">File Menu</h2>
+<ul>
+<li><strong>Open ZAV(.mat) file</strong> - open ZAV file</li>
+<li><strong>Open event (.ev) file</strong> - open events file</li>
+<li><strong>Save ZAV(.mat) file</strong> - save current file</li>
+<li><strong>File manager</strong> - open file manager</li>
+<li><strong>Open figure</strong> - open saved figure</li>
+<li><strong>Import</strong> - import data (ABF, NLX, Open Ephys,
+ZAV)</li>
+<li><strong>Save figure snapshot</strong> - save graph snapshot</li>
+</ul>
+<h2 id="view-menu">View Menu</h2>
+<ul>
+<li><strong>Close all windows</strong> - close all windows</li>
+<li><strong>Hide Channel Settings</strong> / <strong>show Channel
+Settings</strong> - hide/show side panel</li>
+<li><strong>Hide stimulus</strong> - hide/show stimuli</li>
+<li><strong>Lines and styles</strong> - event and stimulus line style
+settings</li>
+<li><strong>CSD displaying</strong> - CSD settings</li>
+<li><strong>Built-in Zoom</strong> - activate built-in zoom</li>
+<li><strong>Built-in Pan</strong> - activate built-in pan</li>
+<li><strong>Data Cursor</strong> - activate data cursor</li>
+</ul>
+<h2 id="options-menu">Options Menu</h2>
+<ul>
+<li><strong>Manual events settings</strong> - manual event addition
+settings</li>
+<li><strong>Removal of Artifacts</strong> - artifact removal
+settings</li>
+<li><strong>Average subtraction</strong> - mean subtraction
+settings</li>
+<li><strong>Filtering</strong> - filtering settings</li>
+<li><strong>Edit events</strong> - edit events</li>
+<li><strong>Edit stimulus times</strong> - edit stimuli</li>
+<li><strong>Mean Events</strong> - averaging by events</li>
+<li><strong>Reset record’s settings</strong> - reset all record
+settings</li>
+</ul>
+<h2 id="analysis-menu">Analysis Menu</h2>
+<ul>
+<li><strong>Autodetection</strong> - automatic event detection</li>
+<li><strong>Z-score</strong> - Z-score normalization</li>
+<li><strong>Spectral Density</strong> - power spectral density</li>
+<li><strong>Signal Analysis</strong> - open signal analysis window</li>
+<li><strong>Cross-Correlation</strong> - event cross-correlation</li>
+<li><strong>PCA</strong> - principal component analysis</li>
+<li><strong>Data Operations</strong> - channel data operations</li>
+<li><strong>Compare average data</strong> - compare averaged data</li>
+<li><strong>Boxplot from Table</strong> - build boxplots from table</li>
+</ul>
+<h2 id="keyboard-shortcuts">Keyboard Shortcuts</h2>
+<ul>
+<li><strong>Ctrl + click</strong> - add event at click point</li>
+<li><strong>Left/Right arrows</strong> - time navigation (depending on
+view mode)</li>
+</ul>
+</body>
+</html>

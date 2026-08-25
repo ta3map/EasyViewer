@@ -1,57 +1,125 @@
-function showHelp()
-    % SHOWHELP Показывает список markdown файлов из папки docs для просмотра
-    
-    docsPath = fullfile(getAppRoot(), 'docs');
-    
+function showHelp(section)
+    % SHOWHELP Справка раздела: вкладки English / Русский
+    %   showHelp('signal_viewer') или showHelp('signal_analysis')
+
+    docsPath = fullfile(getAppRoot(), 'docs', 'user_docs', section);
+
     if ~exist(docsPath, 'dir')
-        errordlg(['Папка docs не найдена: ' docsPath], 'Ошибка');
+        errordlg(['Help folder not found: ' docsPath], 'Error');
         return;
     end
-    
-    mdFiles = dir(fullfile(docsPath, '*.md'));
-    
-    if isempty(mdFiles)
-        msgbox('В папке docs не найдено markdown файлов.', 'Справка');
+
+    htmlFiles = dir(fullfile(docsPath, '*.html'));
+    if isempty(htmlFiles)
+        msgbox('No HTML help files found.', 'Help');
         return;
     end
-    
-    filePaths = cellfun(@(f) fullfile(docsPath, f), {mdFiles.name}, 'UniformOutput', false);
-    displayNames = cell(size(filePaths));
-    
-    for i = 1:length(filePaths)
-        title = extractFirstHeading(filePaths{i});
-        displayNames{i} = title;
+
+    rusPaths = {};
+    rusNames = {};
+    engPaths = {};
+    engNames = {};
+
+    for i = 1:numel(htmlFiles)
+        name = htmlFiles(i).name;
+        path = fullfile(docsPath, name);
+        title = extractHtmlTitle(path);
+        if endsWith(name, '_rus.html')
+            rusPaths{end+1} = path; %#ok<AGROW>
+            rusNames{end+1} = title; %#ok<AGROW>
+        elseif endsWith(name, '_eng.html')
+            engPaths{end+1} = path; %#ok<AGROW>
+            engNames{end+1} = title; %#ok<AGROW>
+        end
     end
-    
-    [selection, ok] = listdlg('ListString', displayNames, ...
-        'SelectionMode', 'single', ...
-        'PromptString', 'Выберите документ для просмотра:', ...
-        'Name', 'Справка', ...
-        'ListSize', [400, 200]);
-    
-    if ok && ~isempty(selection)
-        showMarkdownHelp(filePaths{selection});
+
+    fig = figure( ...
+        'Name', 'Help', ...
+        'NumberTitle', 'off', ...
+        'MenuBar', 'none', ...
+        'ToolBar', 'none', ...
+        'Resize', 'on', ...
+        'Units', 'pixels', ...
+        'Position', [200 200 480 360], ...
+        'Color', get(0, 'DefaultUicontrolBackgroundColor'));
+
+    tg = uitabgroup(fig, 'Units', 'normalized', 'Position', [0.04 0.14 0.92 0.82]);
+
+    tabEn = uitab(tg, 'Title', 'English');
+    lbEn = uicontrol(tabEn, ...
+        'Style', 'listbox', ...
+        'Units', 'normalized', ...
+        'Position', [0.03 0.03 0.94 0.94], ...
+        'String', engNames, ...
+        'FontSize', 11, ...
+        'Callback', @onListActivate);
+
+    tabRu = uitab(tg, 'Title', 'Russian');
+    lbRu = uicontrol(tabRu, ...
+        'Style', 'listbox', ...
+        'Units', 'normalized', ...
+        'Position', [0.03 0.03 0.94 0.94], ...
+        'String', rusNames, ...
+        'FontSize', 11, ...
+        'Callback', @onListActivate);
+
+    uicontrol(fig, ...
+        'Style', 'pushbutton', ...
+        'Units', 'normalized', ...
+        'Position', [0.55 0.03 0.2 0.08], ...
+        'String', 'Open', ...
+        'FontSize', 11, ...
+        'Callback', @onOpen);
+
+    uicontrol(fig, ...
+        'Style', 'pushbutton', ...
+        'Units', 'normalized', ...
+        'Position', [0.76 0.03 0.2 0.08], ...
+        'String', 'Close', ...
+        'FontSize', 11, ...
+        'Callback', @(~, ~) delete(fig));
+
+    function onListActivate(~, ~)
+        if ~strcmp(get(fig, 'SelectionType'), 'open')
+            return;
+        end
+        onOpen();
+    end
+
+    function onOpen(~, ~)
+        selectedTab = tg.SelectedTab;
+        paths = rusPaths;
+        lb = lbRu;
+        if selectedTab == tabEn
+            paths = engPaths;
+            lb = lbEn;
+        end
+        idx = lb.Value;
+        if isempty(paths) || isempty(idx)
+            return;
+        end
+        web(paths{idx}, '-browser');
     end
 end
 
-function title = extractFirstHeading(mdFile)
+function title = extractHtmlTitle(htmlFile)
     title = '';
     try
-        content = fileread(mdFile);
-        lines = strsplit(content, {'\r\n', '\n', '\r'}, 'CollapseDelimiters', false);
-        
-        for i = 1:length(lines)
-            line = strtrim(lines{i});
-            if ~isempty(line) && line(1) == '#'
-                title = regexprep(line, '^#+\s*', '');
-                break;
+        content = fileread(htmlFile);
+        h1 = regexp(content, '<h1[^>]*>(.*?)</h1>', 'tokens', 'once', 'dotexceptnewline');
+        if ~isempty(h1)
+            title = strtrim(regexprep(h1{1}, '<[^>]+>', ''));
+        else
+            t = regexp(content, '<title[^>]*>(.*?)</title>', 'tokens', 'once', 'dotexceptnewline');
+            if ~isempty(t)
+                title = strtrim(t{1});
             end
         end
     catch
     end
-    
+
     if isempty(title)
-        [~, fileName, ~] = fileparts(mdFile);
+        [~, fileName, ~] = fileparts(htmlFile);
         title = fileName;
     end
 end

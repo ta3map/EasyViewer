@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Events and Stimuli</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="events-and-stimuli">Events and Stimuli</h1>
+<p>Managing events and stimuli is a key function of the program for
+analyzing electrophysiological data.</p>
+<h2 id="events">Events</h2>
+<p>Events represent timestamps of significant moments in the signal
+(peaks, dips, onsets, etc.).</p>
+<h3 id="events-table">Events Table</h3>
+<p>The events table is displayed in the lower part of the Signal Viewer
+side panel. Contains columns:</p>
+<ul>
+<li><strong>Time</strong> - event timestamp</li>
+<li><strong>Comment</strong> - event comment</li>
+</ul>
+<figure>
+<img src="../screenshots/events_table.png" alt="Events table" />
+<figcaption aria-hidden="true">Events table</figcaption>
+</figure>
+<h3 id="adding-event">Adding Event</h3>
+<h4 id="simple-addition">Simple Addition</h4>
+<ul>
+<li>Press the <strong>Add Event</strong> button below the events
+table</li>
+<li>Or hold <strong>Ctrl</strong> and click the mouse on the graph at
+the desired point</li>
+</ul>
+<p>The event is added at the specified time point.</p>
+<h4 id="addition-with-settings">Addition with Settings</h4>
+<p>Menu <strong>Options/Manual events settings</strong> opens the
+settings window:</p>
+<ul>
+<li><strong>Detection Mode</strong>:
+<ul>
+<li><strong>manual</strong> - event is added at the specified point</li>
+<li><strong>locked</strong> - event is corrected to local extremum</li>
+</ul></li>
+<li><strong>Channel Number</strong> - channel number for adding
+event</li>
+<li><strong>Polarity</strong> - extremum search polarity
+(positive/negative)</li>
+<li><strong>Time Window</strong> - extremum search time window in
+milliseconds (for locked mode)</li>
+</ul>
+<p>In <strong>locked</strong> mode, the program searches for a local
+extremum (maximum or minimum depending on polarity) in the specified
+time window and places the event at the found point.</p>
+<figure>
+<img src="../screenshots/manual_event_settings.png"
+alt="Manual event addition settings" />
+<figcaption aria-hidden="true">Manual event addition
+settings</figcaption>
+</figure>
+<h3 id="automatic-event-detection">Automatic Event Detection</h3>
+<p>Menu <strong>Analysis/Autodetection</strong> or <strong>Auto Event
+Detection</strong> button opens the automatic detection window.</p>
+<p><strong>Detection parameters:</strong></p>
+<ul>
+<li><strong>Detection Type</strong>:
+<ul>
+<li><strong>one channel positive</strong> - detection of positive peaks
+on one channel</li>
+<li><strong>one channel negative</strong> - detection of negative peaks
+on one channel</li>
+<li><strong>two channels difference</strong> - detection based on
+difference between two channels</li>
+</ul></li>
+<li><strong>Minimal Peak Amplitude</strong> - minimum peak
+amplitude</li>
+<li><strong>Positive Channel</strong> / <strong>Negative
+Channel</strong> - channels for two channels mode</li>
+<li><strong>Minimal Time Between Peaks</strong> - minimum time between
+peaks</li>
+<li><strong>Smooth Coefficient</strong> - signal smoothing
+coefficient</li>
+<li><strong>Detection Mode</strong> - peaks or onsets</li>
+</ul>
+<p><strong>Usage:</strong></p>
+<ol type="1">
+<li>Configure detection parameters</li>
+<li>Press <strong>Check Detection</strong> for preliminary preview</li>
+<li>Press <strong>Apply</strong> to apply detection and add events to
+the table</li>
+</ol>
+<figure>
+<img src="../screenshots/auto_detection.png"
+alt="Automatic event detection" />
+<figcaption aria-hidden="true">Automatic event detection</figcaption>
+</figure>
+<h3 id="editing-events">Editing Events</h3>
+<p>Menu <strong>Options/Edit events</strong> opens the events editing
+window. Allows:</p>
+<ul>
+<li>Changing event timestamps</li>
+<li>Changing event comments</li>
+<li>Deleting events</li>
+</ul>
+<figure>
+<img src="../screenshots/edit_events.png" alt="Editing events" />
+<figcaption aria-hidden="true">Editing events</figcaption>
+</figure>
+<h3 id="deleting-event">Deleting Event</h3>
+<ul>
+<li>Select an event in the table (enter the number in the field below
+the table)</li>
+<li>Press the <strong>Delete Event</strong> button</li>
+</ul>
+<p>The <strong>Clear Table</strong> button removes all events from the
+table.</p>
+<h3 id="importing-events-from-stimuli">Importing Events from
+Stimuli</h3>
+<p>Menu <strong>Options/Import events from stimulus</strong> creates
+events based on stimulus timestamps.</p>
+<h3 id="saving-and-loading-events">Saving and Loading Events</h3>
+<p>Events are automatically saved when saving a ZAV file. For separate
+saving, use the <strong>Save Events</strong> button below the events
+table.</p>
+<p>Events are loaded when opening an EV file or ZAV file with saved
+events.</p>
+<h2 id="stimuli">Stimuli</h2>
+<p>Stimuli represent timestamps of stimulus delivery in the
+experiment.</p>
+<h3 id="stimuli-table">Stimuli Table</h3>
+<p>Stimuli are displayed in the middle part of the Signal Viewer side
+panel. The list shows stimulus timestamps.</p>
+<figure>
+<img src="../screenshots/stimuli_table.png" alt="Stimuli table" />
+<figcaption aria-hidden="true">Stimuli table</figcaption>
+</figure>
+<h3 id="editing-stimuli">Editing Stimuli</h3>
+<p>The <strong>Edit</strong> button next to the “Stimuli” header or menu
+<strong>Options/Edit stimulus times</strong> opens the stimulus
+timestamp editing window.</p>
+<figure>
+<img src="../screenshots/edit_stimuli.png" alt="Editing stimuli" />
+<figcaption aria-hidden="true">Editing stimuli</figcaption>
+</figure>
+<h3 id="hiding-stimuli">Hiding Stimuli</h3>
+<p>Menu <strong>View/Hide stimulus</strong> hides or shows stimulus
+display on the graph.</p>
+<h3 id="automatic-stimulus-detection">Automatic Stimulus Detection</h3>
+<p>The <strong>autoDetectStimuli</strong> module can automatically
+detect stimuli in the signal. Used through File Manager.</p>
+<h3 id="loading-stimuli-from-settings">Loading Stimuli from
+Settings</h3>
+<p>Stimuli can be loaded from the channel settings file
+(<code>*_channelSettings.stn</code>) when opening a file, if the
+<code>stims_loaded_from_settings</code> flag is set.</p>
+<h2 id="mean-trace-by-events">Mean Trace by Events</h2>
+<p>Menu <strong>Options/Mean Events</strong> opens the settings window
+for averaging signal around events.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><strong>Time Window</strong> - time window around event</li>
+<li><strong>Remove Baseline</strong> - baseline subtraction</li>
+<li><strong>Remove Artifact</strong> - artifact removal</li>
+<li><strong>Artifact Window</strong> - artifact window size</li>
+<li><strong>Show Original Traces</strong> - show original traces</li>
+<li><strong>Auto Scale</strong> - automatic scaling</li>
+</ul>
+<p>The <strong>Calculate</strong> button builds the averaged signal
+graph.</p>
+<figure>
+<img src="../screenshots/mean_events.png" alt="Mean trace by events" />
+<figcaption aria-hidden="true">Mean trace by events</figcaption>
+</figure>
+<h2 id="mean-trace-by-stimuli">Mean Trace by Stimuli</h2>
+<p>Similarly to events, a mean trace by stimuli can be built. The
+<strong>autoMeanStimulus</strong> module is used through File Manager or
+similar settings in the Mean Events window when selecting stimuli as the
+source.</p>
+<h2 id="navigation-by-events-and-stimuli">Navigation by Events and
+Stimuli</h2>
+<p>Navigation by events and stimuli is available in Signal Viewer and
+Signal Analysis:</p>
+<ul>
+<li>Select <strong>event</strong> or <strong>stimulus</strong> mode in
+the view mode dropdown</li>
+<li><strong>Previous</strong> and <strong>Next</strong> buttons move the
+displayed interval to the previous/next event or stimulus</li>
+<li>The time slider also works in event/stimulus navigation mode</li>
+</ul>
+<h2 id="event-and-stimulus-visualization">Event and Stimulus
+Visualization</h2>
+<p>Events and stimuli are displayed on the graph as vertical lines. Line
+color and style are configured through menu <strong>View/Lines and
+styles</strong>.</p>
+<figure>
+<img src="../screenshots/lines_styles.png"
+alt="Event and stimulus line styles" />
+<figcaption aria-hidden="true">Event and stimulus line
+styles</figcaption>
+</figure>
+<h2 id="event-metadata">Event Metadata</h2>
+<p>When automatically detecting events, metadata is saved:</p>
+<ul>
+<li><strong>Amplitude</strong> - event amplitude</li>
+<li><strong>Channel</strong> - event channel</li>
+<li><strong>Width</strong> - peak width</li>
+<li><strong>Prominence</strong> - peak prominence</li>
+</ul>
+<p>Metadata is available through the events table and used in
+analysis.</p>
+</body>
+</html>

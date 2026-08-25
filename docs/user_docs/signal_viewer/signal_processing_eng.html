@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Signal Processing</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="signal-processing">Signal Processing</h1>
+<p>The program provides various signal processing methods to improve
+data quality and extract components of interest.</p>
+<h2 id="filtering">Filtering</h2>
+<p>Signal filtering allows extraction of frequency components of
+interest.</p>
+<p><strong>Opening:</strong> Menu <strong>Options/Filtering</strong> in
+Signal Viewer</p>
+<h3 id="channel-selection">Channel Selection</h3>
+<p>The left panel contains a list of all channels with checkboxes.
+Select channels to which filtering will be applied.</p>
+<p><strong>Select ALL</strong> and <strong>Deselect ALL</strong> buttons
+control selection of all channels.</p>
+<figure>
+<img src="../screenshots/filtering_channels.png"
+alt="Channel selection for filtering" />
+<figcaption aria-hidden="true">Channel selection for
+filtering</figcaption>
+</figure>
+<h3 id="filter-types">Filter Types</h3>
+<p>The <strong>Filter Type</strong> dropdown allows selection of filter
+type:</p>
+<ul>
+<li><strong>bandpass</strong> - bandpass filter (passes frequencies in
+specified range)</li>
+<li><strong>lowpass</strong> - lowpass filter (passes frequencies below
+specified)</li>
+<li><strong>highpass</strong> - highpass filter (passes frequencies
+above specified)</li>
+</ul>
+<h3 id="filter-parameters">Filter Parameters</h3>
+<ul>
+<li><strong>Lower Frequency</strong> - lower frequency limit (Hz)</li>
+<li><strong>Upper Frequency</strong> - upper frequency limit (Hz)</li>
+<li><strong>Filter Order</strong> - filter order (determines slope
+steepness)</li>
+</ul>
+<figure>
+<img src="../screenshots/filtering_params.png" alt="Filter parameters" />
+<figcaption aria-hidden="true">Filter parameters</figcaption>
+</figure>
+<h3 id="preview">Preview</h3>
+<p>The <strong>Check Filtration</strong> button shows the filter
+frequency response on the graph at the bottom of the window. This allows
+evaluating the filtering effect before application.</p>
+<figure>
+<img src="../screenshots/filtering_response.png"
+alt="Filter frequency response" />
+<figcaption aria-hidden="true">Filter frequency response</figcaption>
+</figure>
+<h3 id="application">Application</h3>
+<p>The <strong>Apply</strong> button applies filtering to selected
+channels. The <strong>Cancel</strong> button cancels changes.</p>
+<h2 id="mean-subtraction">Mean Subtraction</h2>
+<p>Mean subtraction helps eliminate background noise common to all
+channels.</p>
+<p><strong>Opening:</strong> Menu <strong>Options/Average
+subtraction</strong> in Signal Viewer</p>
+<h3 id="channel-selection-1">Channel Selection</h3>
+<p>The left panel contains a list of channels with checkboxes. Select
+channels that will participate in mean value calculation.</p>
+<p>The mean value is calculated across all selected channels and
+subtracted from each channel.</p>
+<p><strong>Select ALL</strong> and <strong>Deselect ALL</strong> buttons
+control channel selection.</p>
+<figure>
+<img src="../screenshots/average_subtraction.png" alt="Mean subtraction" />
+<figcaption aria-hidden="true">Mean subtraction</figcaption>
+</figure>
+<h3 id="application-1">Application</h3>
+<p>The <strong>Apply</strong> button applies mean subtraction to
+selected channels.</p>
+<h2 id="csd-current-source-density">CSD (Current Source Density)</h2>
+<p>CSD visualizes spatial distribution of current sources and sinks.</p>
+<p><strong>Opening:</strong> Menu <strong>View/CSD displaying</strong>
+or <strong>CSD</strong> checkbox on toolbar in Signal Viewer</p>
+<h3 id="channel-selection-2">Channel Selection</h3>
+<p>The left panel contains a list of channels with checkboxes. Select
+channels that will participate in CSD calculation.</p>
+<p><strong>Select ALL</strong> and <strong>Deselect ALL</strong> buttons
+control channel selection.</p>
+<h3 id="visualization-parameters">Visualization Parameters</h3>
+<ul>
+<li><strong>Contrast Coef.</strong> - display contrast coefficient
+(improves region distinction)</li>
+<li><strong>Smooth Coef.</strong> - smoothing coefficient (reduces
+noise)</li>
+</ul>
+<figure>
+<img src="../screenshots/csd_settings.png" alt="CSD settings" />
+<figcaption aria-hidden="true">CSD settings</figcaption>
+</figure>
+<h3 id="application-2">Application</h3>
+<p>The <strong>Apply</strong> button applies CSD settings to selected
+channels and updates visualization.</p>
+<h2 id="artifact-removal">Artifact Removal</h2>
+<p>Artifact removal excludes a short period immediately after stimulus
+from display.</p>
+<p><strong>Opening:</strong> Menu <strong>Options/Removal of
+Artifacts</strong> in Signal Viewer or Signal Analysis</p>
+<h3 id="parameters">Parameters</h3>
+<ul>
+<li><strong>Artifact Window (ms)</strong> - size of time window after
+stimulus that is excluded from display</li>
+</ul>
+<figure>
+<img src="../screenshots/artifact_removal.png" alt="Artifact removal" />
+<figcaption aria-hidden="true">Artifact removal</figcaption>
+</figure>
+<h3 id="application-3">Application</h3>
+<p>Settings are applied automatically when the parameter is changed.</p>
+<h2 id="smoothing">Smoothing</h2>
+<p>Signal smoothing reduces high-frequency noise.</p>
+<p><strong>Available in:</strong> Signal Analysis</p>
+<h3 id="enabling-smoothing">Enabling Smoothing</h3>
+<p>The <strong>Enable</strong> checkbox enables or disables signal
+smoothing.</p>
+<h3 id="smoothing-parameters">Smoothing Parameters</h3>
+<ul>
+<li><strong>Kernel</strong> - smoothing kernel size (number of
+points)</li>
+<li><strong>Method</strong>:
+<ul>
+<li><strong>Moving</strong> - moving average</li>
+<li><strong>Median</strong> - median filter</li>
+</ul></li>
+<li><strong>Show Raw</strong> - display original signal together with
+smoothed</li>
+</ul>
+<figure>
+<img src="../screenshots/smoothing.png" alt="Smoothing settings" />
+<figcaption aria-hidden="true">Smoothing settings</figcaption>
+</figure>
+<h2 id="channel-processing-settings">Channel Processing Settings</h2>
+<p>In the channel table on the Signal Viewer side panel, you can control
+application of processing to each channel:</p>
+<ul>
+<li><strong>Filter</strong> - application of filtering</li>
+<li><strong>Averaging</strong> - participation in averaging for mean
+subtraction</li>
+<li><strong>CSD</strong> - participation in CSD calculation</li>
+<li><strong>Baseline</strong> - baseline subtraction</li>
+</ul>
+<p>Changes in the table are applied immediately.</p>
+<figure>
+<img src="../screenshots/channel_processing.png"
+alt="Channel processing settings" />
+<figcaption aria-hidden="true">Channel processing settings</figcaption>
+</figure>
+<h2 id="saving-processing-settings">Saving Processing Settings</h2>
+<p>Signal processing settings are saved to the channel settings file
+(<code>*_channelSettings.stn</code>) together with the data file. On
+next file load, settings are automatically restored.</p>
+</body>
+</html>

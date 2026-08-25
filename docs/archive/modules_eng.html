@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Automation Modules</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="automation-modules">Automation Modules</h1>
+<p>Automation modules allow performing data analysis for multiple files
+without manual intervention.</p>
+<h2 id="available-modules">Available Modules</h2>
+<h3 id="autoclusterpermutationtest">autoClusterPermutationTest</h3>
+<p>Cluster permutation test for statistical analysis of time series.</p>
+<p><strong>Visualization parameters:</strong> - <strong>xLimits</strong>
+- analysis time window in milliseconds [before stimulus, after stimulus]
+- <strong>removeBaseline</strong> - whether to remove baseline mean
+value - <strong>removeArtifact</strong> - whether to remove stimulus
+artifact - <strong>artifactWindow_ms</strong> - artifact window duration
+in milliseconds - <strong>showBaselinePeriod</strong> - whether to show
+baseline period on graph - <strong>showMeanSignal</strong> - whether to
+show mean signal</p>
+<p><strong>Test parameters:</strong> - <strong>numPermutations</strong>
+- number of permutations (recommended 1000-10000) -
+<strong>clusterThreshold</strong> - significance level for t-statistic
+threshold (usually 0.05) - <strong>minClusterSize_ms</strong> - minimum
+cluster size in milliseconds - <strong>startTrial</strong> /
+<strong>endTrial</strong> - trial range for analysis (empty for all) -
+<strong>removeEdgeTrials</strong> - whether to remove edge trials</p>
+<p><strong>Output data:</strong> - Graph with t-statistics and
+significant clusters - .meta file with analysis results</p>
+<p>Detailed method description: <a
+href="cluster_permutation_test_eng.html">Cluster Permutation Test</a></p>
+<figure>
+<img src="../user_docs/screenshots/module_cluster_test.png"
+alt="Cluster test result" />
+<figcaption aria-hidden="true">Cluster test result</figcaption>
+</figure>
+<h3 id="automeanstimulus">autoMeanStimulus</h3>
+<p>Signal averaging by stimuli with automatic peak detection.</p>
+<p><strong>Visualization parameters:</strong> -
+<strong>autoScale</strong> - automatic scaling -
+<strong>xLimits</strong> - time window in milliseconds -
+<strong>showOriginalTraces</strong> - show original traces -
+<strong>removeBaseline</strong> - remove baseline -
+<strong>removeArtifact</strong> - remove artifact -
+<strong>artifactWindow_ms</strong> - artifact window size</p>
+<p><strong>Detection parameters:</strong> - <strong>Polarity</strong> -
+peak polarity (positive/negative) - <strong>MinPeakProminence</strong> -
+minimum peak prominence - <strong>MinPeakDistance_s</strong> - minimum
+distance between peaks - <strong>MaxPeakWidth_s</strong> - maximum peak
+width - <strong>SmoothingKernel_s</strong> - smoothing kernel size -
+<strong>UseOriginalData</strong> - use original data for detection</p>
+<p><strong>Output data:</strong> - Averaged signal graph with detected
+peaks - Table with detection results - Image file (PNG or FIG)</p>
+<figure>
+<img src="../user_docs/screenshots/module_mean_stimulus.png"
+alt="Mean stimulus result" />
+<figcaption aria-hidden="true">Mean stimulus result</figcaption>
+</figure>
+<h3 id="autodetectstimuli">autoDetectStimuli</h3>
+<p>Automatic detection of stimuli in the signal.</p>
+<p><strong>Detection parameters:</strong> - <strong>Polarity</strong> -
+stimulus polarity (positive/negative) -
+<strong>MinPeakProminence</strong> - minimum peak prominence -
+<strong>MinPeakDistance_s</strong> - minimum distance between stimuli -
+<strong>MaxPeakWidth_s</strong> - maximum stimulus width -
+<strong>SmoothingKernel_s</strong> - smoothing kernel size -
+<strong>Channel</strong> - channel number for detection</p>
+<p><strong>Output data:</strong> - Timestamps of detected stimuli -
+Saving stimuli to settings file</p>
+<figure>
+<img src="../user_docs/screenshots/module_detect_stimuli.png"
+alt="Stimulus detection result" />
+<figcaption aria-hidden="true">Stimulus detection result</figcaption>
+</figure>
+<h3 id="autoslopemeasurement">autoSlopeMeasurement</h3>
+<p>Automatic slope measurement for all stimuli.</p>
+<p><strong>Measurement parameters:</strong> - <strong>Channel</strong> -
+channel number - <strong>BaselineStart_s</strong> - baseline range start
+(relative to stimulus) - <strong>BaselineEnd_s</strong> - baseline range
+end - <strong>PeakStart_s</strong> - peak range start -
+<strong>PeakEnd_s</strong> - peak range end -
+<strong>SlopePercent</strong> - percentage for slope calculation -
+<strong>PeakPolarity</strong> - peak polarity (positive/negative)</p>
+<p><strong>Time window parameters:</strong> -
+<strong>TimeBack_s</strong> - time before stimulus -
+<strong>TimeForward_s</strong> - time after stimulus</p>
+<p><strong>Processing parameters:</strong> -
+<strong>SmoothingEnabled</strong> - enable smoothing -
+<strong>SmoothingSpan</strong> - smoothing kernel size -
+<strong>SmoothingMethod</strong> - smoothing method (moving/median) -
+<strong>RemoveArtifact</strong> - remove artifact -
+<strong>ArtifactWindow_ms</strong> - artifact window size</p>
+<p><strong>Output data:</strong> - Excel file with measurement results
+for all stimuli - Measurement metadata</p>
+<figure>
+<img src="../user_docs/screenshots/module_slope_measurement.png"
+alt="Slope measurement result" />
+<figcaption aria-hidden="true">Slope measurement result</figcaption>
+</figure>
+<h2 id="using-modules">Using Modules</h2>
+<h3 id="parameter-configuration">Parameter Configuration</h3>
+<ol type="1">
+<li>Open File Manager</li>
+<li>Select a module from the <strong>Module</strong> dropdown</li>
+<li>Press the <strong>Edit Module Params</strong> button</li>
+<li>Configure parameters in the opened window</li>
+<li>Save parameters</li>
+</ol>
+<figure>
+<img src="../user_docs/screenshots/module_edit_params.png"
+alt="Module parameters configuration" />
+<figcaption aria-hidden="true">Module parameters
+configuration</figcaption>
+</figure>
+<h3 id="running-module">Running Module</h3>
+<ol type="1">
+<li>Select files in the File Manager list</li>
+<li>Select a module</li>
+<li>Press the <strong>Launch Module</strong> button</li>
+<li>Wait for processing to complete</li>
+</ol>
+<h3 id="module-queue">Module Queue</h3>
+<p>Modules can be added to a queue for sequential execution:</p>
+<ol type="1">
+<li>Configure module parameters</li>
+<li>Press the <strong>Add to queue</strong> button</li>
+<li>Repeat for other modules</li>
+<li>Press the <strong>Launch Module</strong> button to execute the
+entire queue</li>
+</ol>
+<figure>
+<img src="../user_docs/screenshots/module_queue.png" alt="Module queue" />
+<figcaption aria-hidden="true">Module queue</figcaption>
+</figure>
+<h3 id="viewing-results">Viewing Results</h3>
+<p>Analysis results are saved to the File Manager database. To view:</p>
+<ol type="1">
+<li>Select a file in the list</li>
+<li>Results are displayed in the <strong>Results</strong> table</li>
+<li>Select a result and press <strong>Open Result</strong> to view</li>
+</ol>
+<figure>
+<img src="../user_docs/screenshots/module_results.png" alt="Module results" />
+<figcaption aria-hidden="true">Module results</figcaption>
+</figure>
+<h2 id="parameter-format">Parameter Format</h2>
+<p>Module parameters are stored in JSON format. Configuration files are
+located in the <code>modules/</code> folder:</p>
+<ul>
+<li><code>autoClusterPermutationTest.json</code></li>
+<li><code>autoMeanStimulus.json</code></li>
+<li><code>autoDetectStimuli.json</code></li>
+<li><code>autoSlopeMeasurement.json</code></li>
+</ul>
+<h2 id="analysis-results">Analysis Results</h2>
+<p>Results are saved to the File Manager database in the
+<code>analysis_results</code> table:</p>
+<ul>
+<li><strong>module_name</strong> - module name</li>
+<li><strong>module_display_name</strong> - display name</li>
+<li><strong>module_description</strong> - module description</li>
+<li><strong>analysis_timestamp</strong> - analysis timestamp</li>
+<li><strong>report_path</strong> - path to report file</li>
+<li><strong>parameters_json</strong> - JSON with analysis
+parameters</li>
+</ul>
+<p>Report files (graphs, tables) are saved in the folder with source
+data.</p>
+</body>
+</html>

@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Signal Viewer</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="signal-viewer">Signal Viewer</h1>
+<p>Окно просмотра сигналов предназначено для визуализации многоканальных
+LFP сигналов, управления событиями и стимулами, обработки сигналов и
+базового анализа.</p>
+<figure>
+<img src="../screenshots/signal_viewer_main.png"
+alt="Основное окно Signal Viewer" />
+<figcaption aria-hidden="true">Основное окно Signal Viewer</figcaption>
+</figure>
+<h2 id="основное-окно">Основное окно</h2>
+<p>Окно состоит из следующих элементов:</p>
+<ul>
+<li><strong>Графическая область</strong> - отображение многоканальных
+сигналов</li>
+<li><strong>Боковая панель</strong> - настройки каналов, стимулов и
+событий</li>
+<li><strong>Панель управления временем</strong> - навигация по
+данным</li>
+<li><strong>Меню</strong> - File, View, Options, Analysis</li>
+</ul>
+<h2 id="загрузка-файлов">Загрузка файлов</h2>
+<h3 id="загрузка-zav-файла">Загрузка ZAV файла</h3>
+<p>Для загрузки файла в формате ZAV (.mat) используйте:</p>
+<ul>
+<li>Кнопку <strong>Load .mat File</strong> на панели инструментов</li>
+<li>Меню <strong>File/Open ZAV(.mat) file</strong></li>
+</ul>
+<p>После выбора файла откроется диалог выбора. При первой загрузке файла
+сигналы отображаются на всех каналах по умолчанию.</p>
+<figure>
+<img src="../screenshots/load_zav_file.png" alt="Загрузка ZAV файла" />
+<figcaption aria-hidden="true">Загрузка ZAV файла</figcaption>
+</figure>
+<h3 id="загрузка-ev-файла">Загрузка EV файла</h3>
+<p>Для загрузки событий в формате EV (.ev) используйте:</p>
+<ul>
+<li>Кнопку <strong>Load Events</strong> на панели инструментов</li>
+<li>Меню <strong>File/Open event (.ev) file</strong></li>
+</ul>
+<p>После выбора файла загружаются LFP данные для соответствующих событий
+и сами события. События отображаются в таблице событий на боковой
+панели.</p>
+<figure>
+<img src="../screenshots/load_ev_file.png" alt="Загрузка EV файла" />
+<figcaption aria-hidden="true">Загрузка EV файла</figcaption>
+</figure>
+<h3 id="сохранение-файла">Сохранение файла</h3>
+<p>Для сохранения текущего файла используйте меню <strong>File/Save
+ZAV(.mat) file</strong>. Сохраняются все настройки каналов, события и
+стимулы.</p>
+<h2 id="управление-временем-и-навигация">Управление временем и
+навигация</h2>
+<h3 id="слайдер-времени">Слайдер времени</h3>
+<p>Слайдер в нижней части окна позволяет перемещаться по временной оси
+данных. Перетаскивание ползунка изменяет отображаемый временной
+интервал.</p>
+<figure>
+<img src="../screenshots/time_slider.png" alt="Слайдер времени" />
+<figcaption aria-hidden="true">Слайдер времени</figcaption>
+</figure>
+<h3 id="единицы-измерения-времени">Единицы измерения времени</h3>
+<p>Выпадающий список единиц измерения позволяет выбрать: -
+<strong>s</strong> - секунды - <strong>ms</strong> - миллисекунды<br />
+- <strong>min</strong> - минуты</p>
+<p>Выбранная единица применяется ко всем временным параметрам и
+отображению на оси времени.</p>
+<figure>
+<img src="../screenshots/time_units.png" alt="Единицы измерения времени" />
+<figcaption aria-hidden="true">Единицы измерения времени</figcaption>
+</figure>
+<h3 id="режим-просмотра">Режим просмотра</h3>
+<p>Выпадающий список режима просмотра определяет точку отсчета для
+навигации:</p>
+<ul>
+<li><strong>time</strong> - обычное время</li>
+<li><strong>stimulus</strong> - навигация по стимулам</li>
+<li><strong>event</strong> - навигация по событиям</li>
+<li><strong>sweep</strong> - навигация по свипам</li>
+</ul>
+<p>При выборе режима стимул/событие/свип слайдер и кнопки навигации
+перемещаются между соответствующими точками.</p>
+<figure>
+<img src="../screenshots/time_center_mode.png" alt="Режим просмотра" />
+<figcaption aria-hidden="true">Режим просмотра</figcaption>
+</figure>
+<h3 id="временное-окно">Временное окно</h3>
+<p>Поля <strong>before</strong> и <strong>after</strong> определяют
+размер временного окна отображаемого вокруг текущей точки. Значения
+задаются в выбранных единицах измерения.</p>
+<figure>
+<img src="../screenshots/time_window.png" alt="Временное окно" />
+<figcaption aria-hidden="true">Временное окно</figcaption>
+</figure>
+<h3 id="кнопки-навигации">Кнопки навигации</h3>
+<p>Кнопки <strong>Previous</strong> и <strong>Next</strong> перемещают
+отображаемый интервал на один шаг назад или вперед. Размер шага
+определяется размером временного окна.</p>
+<figure>
+<img src="../screenshots/navigation_buttons.png" alt="Кнопки навигации" />
+<figcaption aria-hidden="true">Кнопки навигации</figcaption>
+</figure>
+<h3 id="дополнительные-параметры">Дополнительные параметры</h3>
+<ul>
+<li><strong>Fs</strong> - частота дискретизации отображаемого сигнала.
+Изменение значения применяется к отображению.</li>
+<li><strong>Ch. Shift</strong> - величина вертикального смещения между
+каналами в единицах амплитуды сигнала.</li>
+</ul>
+<figure>
+<img src="../screenshots/additional_params.png"
+alt="Дополнительные параметры" />
+<figcaption aria-hidden="true">Дополнительные параметры</figcaption>
+</figure>
+<h2 id="настройки-каналов">Настройки каналов</h2>
+<p>Боковая панель содержит таблицу настроек каналов. Каждый канал имеет
+следующие параметры:</p>
+<ul>
+<li><strong>Channel</strong> - название канала (не редактируется)</li>
+<li><strong>Enabled</strong> - включение/выключение отображения
+канала</li>
+<li><strong>Scale</strong> - коэффициент масштабирования амплитуды</li>
+<li><strong>Color</strong> - цвет линии сигнала</li>
+<li><strong>Line Width</strong> - толщина линии</li>
+<li><strong>Averaging</strong> - участие канала в усреднении для
+вычитания среднего</li>
+<li><strong>CSD</strong> - участие канала в расчете CSD</li>
+<li><strong>Filter</strong> - применение фильтрации к каналу</li>
+<li><strong>Baseline</strong> - вычитание базовой линии</li>
+</ul>
+<figure>
+<img src="../screenshots/channel_table.png" alt="Таблица каналов" />
+<figcaption aria-hidden="true">Таблица каналов</figcaption>
+</figure>
+<h3 id="быстрое-управление-каналами">Быстрое управление каналами</h3>
+<p>Кнопки под таблицей каналов:</p>
+<ul>
+<li><strong>(De)select ch</strong> - переключение видимости всех
+каналов</li>
+<li><strong>(De)select CSD</strong> - переключение участия всех каналов
+в CSD</li>
+<li><strong>(De)select Baseline</strong> - переключение вычитания
+базовой линии для всех каналов</li>
+</ul>
+<h3 id="скрытие-боковой-панели">Скрытие боковой панели</h3>
+<p>Кнопка <strong>×</strong> в верхней части боковой панели скрывает
+панель для увеличения области графика. Кнопка <strong>□</strong>
+восстанавливает панель.</p>
+<p>Альтернативно используйте меню <strong>View/Hide Channel
+Settings</strong> или <strong>View/show Channel Settings</strong>.</p>
+<h2 id="управление-событиями">Управление событиями</h2>
+<h3 id="таблица-событий">Таблица событий</h3>
+<p>Таблица событий отображается в нижней части боковой панели. Содержит
+колонки:</p>
+<ul>
+<li><strong>Time</strong> - временная метка события</li>
+<li><strong>Comment</strong> - комментарий к событию</li>
+</ul>
+<figure>
+<img src="../screenshots/events_table.png" alt="Таблица событий" />
+<figcaption aria-hidden="true">Таблица событий</figcaption>
+</figure>
+<h3 id="добавление-события">Добавление события</h3>
+<p>Для добавления события:</p>
+<ul>
+<li>Нажмите кнопку <strong>Add Event</strong> под таблицей событий</li>
+<li>Или зажмите <strong>Ctrl</strong> и кликните мышью на графике в
+нужной точке</li>
+</ul>
+<p>Поведение добавления события зависит от настроек ручного добавления
+(см. раздел “Настройки ручного добавления событий”).</p>
+<h3 id="удаление-события">Удаление события</h3>
+<ul>
+<li>Выберите событие в таблице (введите номер в поле под таблицей)</li>
+<li>Нажмите кнопку <strong>Delete Event</strong></li>
+</ul>
+<p>Кнопка <strong>Clear Table</strong> удаляет все события из
+таблицы.</p>
+<h3 id="настройки-ручного-добавления-событий">Настройки ручного
+добавления событий</h3>
+<p>Меню <strong>Options/Manual events settings</strong> открывает окно
+настроек:</p>
+<ul>
+<li><strong>Detection Mode</strong>:
+<ul>
+<li><strong>manual</strong> - событие добавляется в указанную точку</li>
+<li><strong>locked</strong> - событие корректируется к локальному
+экстремуму в заданном окне</li>
+</ul></li>
+<li><strong>Channel Number</strong> - номер канала для добавления
+события</li>
+<li><strong>Polarity</strong> - полярность поиска экстремума
+(positive/negative)</li>
+<li><strong>Time Window</strong> - временное окно поиска экстремума в
+миллисекундах (для режима locked)</li>
+</ul>
+<figure>
+<img src="../screenshots/manual_event_settings.png"
+alt="Настройки ручного добавления событий" />
+<figcaption aria-hidden="true">Настройки ручного добавления
+событий</figcaption>
+</figure>
+<h3 id="автоматическое-обнаружение-событий">Автоматическое обнаружение
+событий</h3>
+<p>Меню <strong>Analysis/Autodetection</strong> или кнопка <strong>Auto
+Event Detection</strong> открывает окно автоматического обнаружения
+событий.</p>
+<p>Параметры детекции:</p>
+<ul>
+<li><strong>Detection Type</strong>:
+<ul>
+<li><strong>one channel positive</strong> - обнаружение положительных
+пиков на одном канале</li>
+<li><strong>one channel negative</strong> - обнаружение отрицательных
+пиков на одном канале</li>
+<li><strong>two channels difference</strong> - обнаружение на основе
+разницы между двумя каналами</li>
+</ul></li>
+<li><strong>Minimal Peak Amplitude</strong> - минимальная амплитуда
+пика</li>
+<li><strong>Positive Channel</strong> / <strong>Negative
+Channel</strong> - каналы для режима two channels</li>
+<li><strong>Minimal Time Between Peaks</strong> - минимальное время
+между пиками</li>
+<li><strong>Smooth Coefficient</strong> - коэффициент сглаживания
+сигнала</li>
+<li><strong>Detection Mode</strong> - peaks (пики) или onsets
+(онсеты)</li>
+</ul>
+<p>Кнопка <strong>Check Detection</strong> показывает предварительные
+результаты на графике. Кнопка <strong>Apply</strong> применяет
+обнаружение и добавляет события в таблицу.</p>
+<figure>
+<img src="../screenshots/auto_detection.png"
+alt="Автоматическое обнаружение событий" />
+<figcaption aria-hidden="true">Автоматическое обнаружение
+событий</figcaption>
+</figure>
+<h3 id="редактирование-событий">Редактирование событий</h3>
+<p>Меню <strong>Options/Edit events</strong> открывает окно
+редактирования событий. Позволяет изменять временные метки и комментарии
+событий.</p>
+<figure>
+<img src="../screenshots/edit_events.png" alt="Редактирование событий" />
+<figcaption aria-hidden="true">Редактирование событий</figcaption>
+</figure>
+<h3 id="сохранение-и-загрузка-событий">Сохранение и загрузка
+событий</h3>
+<p>События сохраняются автоматически при сохранении ZAV файла. Для
+отдельного сохранения событий используйте кнопку <strong>Save
+Events</strong> под таблицей событий.</p>
+<h2 id="управление-стимулами">Управление стимулами</h2>
+<h3 id="таблица-стимулов">Таблица стимулов</h3>
+<p>Стимулы отображаются в средней части боковой панели. Список
+показывает временные метки стимулов.</p>
+<figure>
+<img src="../screenshots/stimuli_table.png" alt="Таблица стимулов" />
+<figcaption aria-hidden="true">Таблица стимулов</figcaption>
+</figure>
+<h3 id="редактирование-стимулов">Редактирование стимулов</h3>
+<p>Кнопка <strong>Edit</strong> рядом с заголовком “Stimuli” или меню
+<strong>Options/Edit stimulus times</strong> открывает окно
+редактирования временных меток стимулов.</p>
+<figure>
+<img src="../screenshots/edit_stimuli.png" alt="Редактирование стимулов" />
+<figcaption aria-hidden="true">Редактирование стимулов</figcaption>
+</figure>
+<h3 id="скрытие-стимулов">Скрытие стимулов</h3>
+<p>Меню <strong>View/Hide stimulus</strong> скрывает или показывает
+отображение стимулов на графике.</p>
+<h3 id="импорт-событий-из-стимулов">Импорт событий из стимулов</h3>
+<p>Меню <strong>Options/Import events from stimulus</strong> создает
+события на основе временных меток стимулов.</p>
+<h2 id="обработка-сигналов">Обработка сигналов</h2>
+<h3 id="фильтрация">Фильтрация</h3>
+<p>Меню <strong>Options/Filtering</strong> открывает окно настройки
+фильтрации.</p>
+<p>Левая панель содержит список каналов с чекбоксами для выбора каналов
+фильтрации.</p>
+<p>Правая панель содержит параметры фильтра:</p>
+<ul>
+<li><strong>Filter Type</strong> - тип фильтра:
+<ul>
+<li><strong>bandpass</strong> - полосовой фильтр</li>
+<li><strong>lowpass</strong> - низкочастотный фильтр</li>
+<li><strong>highpass</strong> - высокочастотный фильтр</li>
+</ul></li>
+<li><strong>Lower Frequency</strong> - нижняя граница частоты (Гц)</li>
+<li><strong>Upper Frequency</strong> - верхняя граница частоты (Гц)</li>
+<li><strong>Filter Order</strong> - порядок фильтра</li>
+</ul>
+<p>Кнопки <strong>Select ALL</strong> и <strong>Deselect ALL</strong>
+управляют выбором каналов.</p>
+<p>Кнопка <strong>Check Filtration</strong> показывает частотную
+характеристику фильтра на графике в нижней части окна.</p>
+<p>Кнопки <strong>Apply</strong> и <strong>Cancel</strong> применяют или
+отменяют настройки.</p>
+<figure>
+<img src="../screenshots/filtering.png" alt="Настройки фильтрации" />
+<figcaption aria-hidden="true">Настройки фильтрации</figcaption>
+</figure>
+<h3 id="вычитание-среднего">Вычитание среднего</h3>
+<p>Меню <strong>Options/Average subtraction</strong> открывает окно
+настройки вычитания среднего значения.</p>
+<p>Левая панель содержит список каналов с чекбоксами. Выбранные каналы
+участвуют в расчете среднего значения, которое затем вычитается из
+каждого канала.</p>
+<p>Кнопки <strong>Select ALL</strong> и <strong>Deselect ALL</strong>
+управляют выбором каналов.</p>
+<p>Кнопка <strong>Apply</strong> применяет настройки.</p>
+<figure>
+<img src="../screenshots/average_subtraction.png"
+alt="Вычитание среднего" />
+<figcaption aria-hidden="true">Вычитание среднего</figcaption>
+</figure>
+<h3 id="отображение-csd">Отображение CSD</h3>
+<p>Меню <strong>View/CSD displaying</strong> или чекбокс
+<strong>CSD</strong> на панели инструментов открывает окно настройки CSD
+(Current Source Density).</p>
+<p>Левая панель содержит список каналов с чекбоксами для выбора каналов
+расчета CSD.</p>
+<p>Параметры визуализации:</p>
+<ul>
+<li><strong>Contrast Coef.</strong> - коэффициент контрастности
+отображения</li>
+<li><strong>Smooth Coef.</strong> - коэффициент сглаживания</li>
+</ul>
+<p>Кнопки <strong>Select ALL</strong> и <strong>Deselect ALL</strong>
+управляют выбором каналов.</p>
+<p>Кнопка <strong>Apply</strong> применяет настройки.</p>
+<figure>
+<img src="../screenshots/csd_settings.png" alt="Настройки CSD" />
+<figcaption aria-hidden="true">Настройки CSD</figcaption>
+</figure>
+<h3 id="удаление-артефактов">Удаление артефактов</h3>
+<p>Меню <strong>Options/Removal of Artifacts</strong> открывает окно
+настройки удаления артефактов.</p>
+<p>Параметр <strong>Artifact Window (ms)</strong> задает размер
+временного окна после стимула, которое исключается из отображения.</p>
+<figure>
+<img src="../screenshots/artifact_removal.png" alt="Удаление артефактов" />
+<figcaption aria-hidden="true">Удаление артефактов</figcaption>
+</figure>
+<h3 id="отображение-mua">Отображение MUA</h3>
+<p>Чекбокс <strong>MUA</strong> на панели инструментов включает
+отображение мультиюнитной активности.</p>
+<p>Поле <strong>MUA coef</strong> задает порог отображения в единицах
+стандартного отклонения.</p>
+<h2 id="средний-трейс-по-событиям">Средний трейс по событиям</h2>
+<p>Меню <strong>Options/Mean Events</strong> открывает окно настройки
+усреднения сигнала вокруг событий.</p>
+<p>Параметры:</p>
+<ul>
+<li><strong>Time Window</strong> - временное окно вокруг события</li>
+<li><strong>Remove Baseline</strong> - вычитание базовой линии</li>
+<li><strong>Remove Artifact</strong> - удаление артефакта</li>
+<li><strong>Artifact Window</strong> - размер окна артефакта</li>
+<li><strong>Show Original Traces</strong> - показывать исходные
+трейсы</li>
+<li><strong>Auto Scale</strong> - автоматическое масштабирование</li>
+</ul>
+<p>Кнопка <strong>Calculate</strong> строит график усредненного
+сигнала.</p>
+<figure>
+<img src="../screenshots/mean_events.png"
+alt="Средний трейс по событиям" />
+<figcaption aria-hidden="true">Средний трейс по событиям</figcaption>
+</figure>
+<h2 id="меню-file">Меню File</h2>
+<ul>
+<li><strong>Open ZAV(.mat) file</strong> - открыть ZAV файл</li>
+<li><strong>Open event (.ev) file</strong> - открыть файл событий</li>
+<li><strong>Save ZAV(.mat) file</strong> - сохранить текущий файл</li>
+<li><strong>File manager</strong> - открыть файловый менеджер</li>
+<li><strong>Open figure</strong> - открыть сохраненную фигуру</li>
+<li><strong>Import</strong> - импорт данных (ABF, NLX, Open Ephys,
+ZAV)</li>
+<li><strong>Save figure snapshot</strong> - сохранить снимок
+графика</li>
+</ul>
+<h2 id="меню-view">Меню View</h2>
+<ul>
+<li><strong>Close all windows</strong> - закрыть все окна</li>
+<li><strong>Hide Channel Settings</strong> / <strong>show Channel
+Settings</strong> - скрыть/показать боковую панель</li>
+<li><strong>Hide stimulus</strong> - скрыть/показать стимулы</li>
+<li><strong>Lines and styles</strong> - настройки стилей линий событий и
+стимулов</li>
+<li><strong>CSD displaying</strong> - настройки CSD</li>
+<li><strong>Built-in Zoom</strong> - активация встроенного зума</li>
+<li><strong>Built-in Pan</strong> - активация встроенного пана</li>
+<li><strong>Data Cursor</strong> - активация курсора данных</li>
+</ul>
+<h2 id="меню-options">Меню Options</h2>
+<ul>
+<li><strong>Manual events settings</strong> - настройки ручного
+добавления событий</li>
+<li><strong>Removal of Artifacts</strong> - настройки удаления
+артефактов</li>
+<li><strong>Average subtraction</strong> - настройки вычитания
+среднего</li>
+<li><strong>Filtering</strong> - настройки фильтрации</li>
+<li><strong>Edit events</strong> - редактирование событий</li>
+<li><strong>Edit stimulus times</strong> - редактирование стимулов</li>
+<li><strong>Mean Events</strong> - усреднение по событиям</li>
+<li><strong>Reset record’s settings</strong> - сброс всех настроек
+записи</li>
+</ul>
+<h2 id="меню-analysis">Меню Analysis</h2>
+<ul>
+<li><strong>Autodetection</strong> - автоматическое обнаружение
+событий</li>
+<li><strong>Z-score</strong> - Z-score нормализация</li>
+<li><strong>Spectral Density</strong> - спектральная плотность
+мощности</li>
+<li><strong>Signal Analysis</strong> - открыть окно анализа
+сигналов</li>
+<li><strong>Cross-Correlation</strong> - кросс-корреляция событий</li>
+<li><strong>PCA</strong> - анализ главных компонент</li>
+<li><strong>Data Operations</strong> - операции с данными каналов</li>
+<li><strong>Compare average data</strong> - сравнение усредненных
+данных</li>
+<li><strong>Boxplot from Table</strong> - построение боксплотов из
+таблицы</li>
+</ul>
+<h2 id="горячие-клавиши">Горячие клавиши</h2>
+<ul>
+<li><strong>Ctrl + клик</strong> - добавление события в точке клика</li>
+<li><strong>Стрелки влево/вправо</strong> - навигация по времени (в
+зависимости от режима просмотра)</li>
+</ul>
+</body>
+</html>

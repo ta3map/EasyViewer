@@ -28,6 +28,7 @@ else
     branch_plus = prctile(csd_image, coefForPrctile, 'all');
 end
 
+branch_plus = max(abs(branch_plus), eps);
 caxis([-branch_plus, branch_plus]);
 
 end

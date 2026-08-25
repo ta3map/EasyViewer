@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>File Manager</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="file-manager">File Manager</h1>
+<p>Файловый менеджер с поддержкой SQL базы данных для организации
+проектов, групп файлов и метаданных.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_main.png"
+alt="Основное окно File Manager" />
+<figcaption aria-hidden="true">Основное окно File Manager</figcaption>
+</figure>
+<h2 id="структура-базы-данных">Структура базы данных</h2>
+<p>File Manager использует SQLite базу данных для хранения информации о
+проектах, группах, файлах и результатах анализа.</p>
+<h3 id="таблицы-базы-данных">Таблицы базы данных</h3>
+<ul>
+<li><strong>projects</strong> - проекты</li>
+<li><strong>groups</strong> - группы файлов внутри проектов</li>
+<li><strong>group_metadata</strong> - метаданные групп</li>
+<li><strong>files</strong> - файлы</li>
+<li><strong>project_files</strong> - связь проектов и файлов
+(many-to-many)</li>
+<li><strong>file_metadata</strong> - метаданные файлов</li>
+<li><strong>analysis_results</strong> - результаты анализа модулей</li>
+</ul>
+<p>Подробное описание схемы: <a
+href="../dev_docs/sql_storage_eng.html">SQL Storage</a></p>
+<h2 id="выбор-базы-данных">Выбор базы данных</h2>
+<p>В верхней части окна отображается путь к текущей базе данных. Кнопка
+<strong>Select Database</strong> позволяет выбрать существующую базу
+данных или создать новую.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_database.png"
+alt="Выбор базы данных" />
+<figcaption aria-hidden="true">Выбор базы данных</figcaption>
+</figure>
+<h2 id="проекты">Проекты</h2>
+<h3 id="создание-проекта">Создание проекта</h3>
+<p>Кнопка <strong>New Project</strong> открывает диалог создания нового
+проекта. Укажите название и описание проекта.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_new_project.png"
+alt="Создание проекта" />
+<figcaption aria-hidden="true">Создание проекта</figcaption>
+</figure>
+<h3 id="список-проектов">Список проектов</h3>
+<p>Левая панель содержит список всех проектов в базе данных. Выбор
+проекта загружает его файлы и группы.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_projects_list.png"
+alt="Список проектов" />
+<figcaption aria-hidden="true">Список проектов</figcaption>
+</figure>
+<h3 id="редактирование-проекта">Редактирование проекта</h3>
+<p>Выберите проект и используйте кнопку <strong>Edit Project</strong>
+для изменения названия и описания.</p>
+<h3 id="удаление-проекта">Удаление проекта</h3>
+<p>Выберите проект и используйте кнопку <strong>Delete Project</strong>
+для удаления. Удаляются все связанные группы, файлы и результаты.</p>
+<h2 id="группы">Группы</h2>
+<h3 id="создание-группы">Создание группы</h3>
+<p>Кнопка <strong>New Group</strong> создает новую группу в текущем
+проекте. Укажите название группы.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_new_group.png"
+alt="Создание группы" />
+<figcaption aria-hidden="true">Создание группы</figcaption>
+</figure>
+<h3 id="список-групп">Список групп</h3>
+<p>Средняя панель содержит список групп в текущем проекте. Выбор группы
+фильтрует файлы по группе.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_groups_list.png"
+alt="Список групп" />
+<figcaption aria-hidden="true">Список групп</figcaption>
+</figure>
+<h3 id="редактирование-группы">Редактирование группы</h3>
+<p>Выберите группу и используйте кнопку <strong>Edit Group</strong> для
+изменения названия.</p>
+<h3 id="удаление-группы">Удаление группы</h3>
+<p>Выберите группу и используйте кнопку <strong>Delete Group</strong>
+для удаления. Файлы остаются в проекте, но теряют связь с группой.</p>
+<h3 id="метаданные-группы">Метаданные группы</h3>
+<p>Кнопка <strong>Group Metadata</strong> открывает окно редактирования
+метаданных группы. Метаданные хранятся как пары поле-значение.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_group_metadata.png"
+alt="Метаданные группы" />
+<figcaption aria-hidden="true">Метаданные группы</figcaption>
+</figure>
+<h2 id="файлы">Файлы</h2>
+<h3 id="добавление-файлов">Добавление файлов</h3>
+<p>Кнопка <strong>Add File</strong> открывает диалог выбора файлов.
+Выбранные файлы добавляются в текущий проект.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_add_file.png"
+alt="Добавление файлов" />
+<figcaption aria-hidden="true">Добавление файлов</figcaption>
+</figure>
+<h3 id="список-файлов">Список файлов</h3>
+<p>Правая панель содержит список файлов в текущем проекте. Таблица
+показывает:</p>
+<ul>
+<li>Путь к файлу</li>
+<li>Название файла</li>
+<li>Группа (если назначена)</li>
+<li>Метаданные (если заданы)</li>
+</ul>
+<figure>
+<img src="../user_docs/screenshots/file_manager_files_list.png"
+alt="Список файлов" />
+<figcaption aria-hidden="true">Список файлов</figcaption>
+</figure>
+<h3 id="назначение-группы">Назначение группы</h3>
+<p>Выберите файл(ы) в списке и используйте выпадающий список
+<strong>Assign to Group</strong> для назначения группы.</p>
+<h3 id="метаданные-файла">Метаданные файла</h3>
+<p>Выберите файл и используйте кнопку <strong>File Metadata</strong> для
+редактирования метаданных файла.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_file_metadata.png"
+alt="Метаданные файла" />
+<figcaption aria-hidden="true">Метаданные файла</figcaption>
+</figure>
+<h3 id="удаление-файла">Удаление файла</h3>
+<p>Выберите файл и используйте кнопку <strong>Remove File</strong> для
+удаления из проекта. Файл остается в базе данных, но теряет связь с
+проектом.</p>
+<h3 id="открытие-файла">Открытие файла</h3>
+<p>Выберите файл и используйте кнопку <strong>Open File</strong> для
+открытия в Signal Viewer или Signal Analysis (в зависимости от
+контекста).</p>
+<h2 id="модули-автоматизации">Модули автоматизации</h2>
+<h3 id="выбор-модуля">Выбор модуля</h3>
+<p>Выпадающий список <strong>Module</strong> содержит доступные модули
+автоматизации:</p>
+<ul>
+<li><strong>autoClusterPermutationTest</strong> - кластерный
+пермутационный тест</li>
+<li><strong>autoMeanStimulus</strong> - усреднение по стимулам</li>
+<li><strong>autoDetectStimuli</strong> - автоматическое обнаружение
+стимулов</li>
+<li><strong>autoSlopeMeasurement</strong> - автоматическое измерение
+slope</li>
+</ul>
+<figure>
+<img src="../user_docs/screenshots/file_manager_module_selection.png"
+alt="Выбор модуля" />
+<figcaption aria-hidden="true">Выбор модуля</figcaption>
+</figure>
+<h3 id="настройка-параметров-модуля">Настройка параметров модуля</h3>
+<p>Кнопка <strong>Edit Module Params</strong> открывает окно
+редактирования параметров выбранного модуля. Параметры сохраняются в
+JSON формате.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_module_params.png"
+alt="Настройка параметров модуля" />
+<figcaption aria-hidden="true">Настройка параметров модуля</figcaption>
+</figure>
+<h3 id="запуск-модуля">Запуск модуля</h3>
+<p>Кнопка <strong>Run Module</strong> запускает выбранный модуль для
+выбранных файлов. Результаты сохраняются в базу данных и отображаются в
+списке результатов.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_run_module.png"
+alt="Запуск модуля" />
+<figcaption aria-hidden="true">Запуск модуля</figcaption>
+</figure>
+<h3 id="очередь-модулей">Очередь модулей</h3>
+<p>Модули могут быть добавлены в очередь для последовательного
+выполнения. Кнопка <strong>Add to Queue</strong> добавляет текущую
+конфигурацию модуля в очередь.</p>
+<h2 id="результаты-анализа">Результаты анализа</h2>
+<h3 id="просмотр-результатов">Просмотр результатов</h3>
+<p>Выберите файл и используйте кнопку <strong>View Results</strong> для
+просмотра результатов анализа. Отображается список всех результатов для
+выбранного файла.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_view_results.png"
+alt="Просмотр результатов" />
+<figcaption aria-hidden="true">Просмотр результатов</figcaption>
+</figure>
+<h3 id="удаление-результатов">Удаление результатов</h3>
+<p>Выберите результат и используйте кнопку <strong>Delete
+Result</strong> для удаления из базы данных.</p>
+<h2 id="импорт-из-excel">Импорт из Excel</h2>
+<p>Кнопка <strong>Import from Excel</strong> позволяет импортировать
+список файлов из Excel таблицы. Укажите колонку с путями к файлам.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_import_excel.png"
+alt="Импорт из Excel" />
+<figcaption aria-hidden="true">Импорт из Excel</figcaption>
+</figure>
+<h2 id="экспорт">Экспорт</h2>
+<p>Кнопка <strong>Export</strong> позволяет экспортировать список файлов
+текущего проекта в Excel таблицу.</p>
+<h2 id="фильтрация-и-поиск">Фильтрация и поиск</h2>
+<p>Поле <strong>Search</strong> позволяет фильтровать файлы по названию
+или пути.</p>
+<figure>
+<img src="../user_docs/screenshots/file_manager_search.png" alt="Поиск файлов" />
+<figcaption aria-hidden="true">Поиск файлов</figcaption>
+</figure>
+<h2 id="настройки">Настройки</h2>
+<p>Кнопка <strong>Settings</strong> открывает окно настроек File
+Manager:</p>
+<ul>
+<li>Путь к базе данных по умолчанию</li>
+<li>Настройки отображения</li>
+<li>Настройки модулей</li>
+</ul>
+<figure>
+<img src="../user_docs/screenshots/file_manager_settings.png"
+alt="Настройки File Manager" />
+<figcaption aria-hidden="true">Настройки File Manager</figcaption>
+</figure>
+</body>
+</html>

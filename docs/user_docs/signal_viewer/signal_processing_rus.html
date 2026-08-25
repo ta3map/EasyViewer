@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Обработка сигналов</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="обработка-сигналов">Обработка сигналов</h1>
+<p>Программа предоставляет различные методы обработки сигналов для
+улучшения качества данных и выделения интересующих компонентов.</p>
+<h2 id="фильтрация">Фильтрация</h2>
+<p>Фильтрация сигнала позволяет выделить частотные компоненты
+интереса.</p>
+<p><strong>Открытие:</strong> Меню <strong>Options/Filtering</strong> в
+Signal Viewer</p>
+<h3 id="выбор-каналов">Выбор каналов</h3>
+<p>Левая панель содержит список всех каналов с чекбоксами. Выберите
+каналы, к которым будет применена фильтрация.</p>
+<p>Кнопки <strong>Select ALL</strong> и <strong>Deselect ALL</strong>
+управляют выбором всех каналов.</p>
+<figure>
+<img src="../screenshots/filtering_channels.png"
+alt="Выбор каналов для фильтрации" />
+<figcaption aria-hidden="true">Выбор каналов для фильтрации</figcaption>
+</figure>
+<h3 id="типы-фильтров">Типы фильтров</h3>
+<p>Выпадающий список <strong>Filter Type</strong> позволяет выбрать тип
+фильтра:</p>
+<ul>
+<li><strong>bandpass</strong> - полосовой фильтр (пропускает частоты в
+заданном диапазоне)</li>
+<li><strong>lowpass</strong> - низкочастотный фильтр (пропускает частоты
+ниже заданной)</li>
+<li><strong>highpass</strong> - высокочастотный фильтр (пропускает
+частоты выше заданной)</li>
+</ul>
+<h3 id="параметры-фильтра">Параметры фильтра</h3>
+<ul>
+<li><strong>Lower Frequency</strong> - нижняя граница частоты (Гц)</li>
+<li><strong>Upper Frequency</strong> - верхняя граница частоты (Гц)</li>
+<li><strong>Filter Order</strong> - порядок фильтра (определяет крутизну
+склона)</li>
+</ul>
+<figure>
+<img src="../screenshots/filtering_params.png" alt="Параметры фильтра" />
+<figcaption aria-hidden="true">Параметры фильтра</figcaption>
+</figure>
+<h3 id="предпросмотр">Предпросмотр</h3>
+<p>Кнопка <strong>Check Filtration</strong> показывает частотную
+характеристику фильтра на графике в нижней части окна. Это позволяет
+оценить эффект фильтрации перед применением.</p>
+<figure>
+<img src="../screenshots/filtering_response.png"
+alt="Частотная характеристика фильтра" />
+<figcaption aria-hidden="true">Частотная характеристика
+фильтра</figcaption>
+</figure>
+<h3 id="применение">Применение</h3>
+<p>Кнопка <strong>Apply</strong> применяет фильтрацию к выбранным
+каналам. Кнопка <strong>Cancel</strong> отменяет изменения.</p>
+<h2 id="вычитание-среднего">Вычитание среднего</h2>
+<p>Вычитание среднего значения помогает устранить общий для всех каналов
+фоновый шум.</p>
+<p><strong>Открытие:</strong> Меню <strong>Options/Average
+subtraction</strong> в Signal Viewer</p>
+<h3 id="выбор-каналов-1">Выбор каналов</h3>
+<p>Левая панель содержит список каналов с чекбоксами. Выберите каналы,
+которые будут участвовать в расчете среднего значения.</p>
+<p>Среднее значение вычисляется по всем выбранным каналам и вычитается
+из каждого канала.</p>
+<p>Кнопки <strong>Select ALL</strong> и <strong>Deselect ALL</strong>
+управляют выбором каналов.</p>
+<figure>
+<img src="../screenshots/average_subtraction.png"
+alt="Вычитание среднего" />
+<figcaption aria-hidden="true">Вычитание среднего</figcaption>
+</figure>
+<h3 id="применение-1">Применение</h3>
+<p>Кнопка <strong>Apply</strong> применяет вычитание среднего к
+выбранным каналам.</p>
+<h2 id="csd-current-source-density">CSD (Current Source Density)</h2>
+<p>CSD визуализирует пространственное распределение источников и стоков
+тока.</p>
+<p><strong>Открытие:</strong> Меню <strong>View/CSD displaying</strong>
+или чекбокс <strong>CSD</strong> на панели инструментов в Signal
+Viewer</p>
+<h3 id="выбор-каналов-2">Выбор каналов</h3>
+<p>Левая панель содержит список каналов с чекбоксами. Выберите каналы,
+которые будут участвовать в расчете CSD.</p>
+<p>Кнопки <strong>Select ALL</strong> и <strong>Deselect ALL</strong>
+управляют выбором каналов.</p>
+<h3 id="параметры-визуализации">Параметры визуализации</h3>
+<ul>
+<li><strong>Contrast Coef.</strong> - коэффициент контрастности
+отображения (улучшает различимость областей)</li>
+<li><strong>Smooth Coef.</strong> - коэффициент сглаживания (уменьшает
+шум)</li>
+</ul>
+<figure>
+<img src="../screenshots/csd_settings.png" alt="Настройки CSD" />
+<figcaption aria-hidden="true">Настройки CSD</figcaption>
+</figure>
+<h3 id="применение-2">Применение</h3>
+<p>Кнопка <strong>Apply</strong> применяет настройки CSD к выбранным
+каналам и обновляет визуализацию.</p>
+<h2 id="удаление-артефактов">Удаление артефактов</h2>
+<p>Удаление артефактов исключает короткий период сразу после стимула из
+отображения.</p>
+<p><strong>Открытие:</strong> Меню <strong>Options/Removal of
+Artifacts</strong> в Signal Viewer или Signal Analysis</p>
+<h3 id="параметры">Параметры</h3>
+<ul>
+<li><strong>Artifact Window (ms)</strong> - размер временного окна после
+стимула, которое исключается из отображения</li>
+</ul>
+<figure>
+<img src="../screenshots/artifact_removal.png" alt="Удаление артефактов" />
+<figcaption aria-hidden="true">Удаление артефактов</figcaption>
+</figure>
+<h3 id="применение-3">Применение</h3>
+<p>Настройки применяются автоматически при изменении параметра.</p>
+<h2 id="сглаживание">Сглаживание</h2>
+<p>Сглаживание сигнала уменьшает высокочастотный шум.</p>
+<p><strong>Доступно в:</strong> Signal Analysis</p>
+<h3 id="включение-сглаживания">Включение сглаживания</h3>
+<p>Чекбокс <strong>Enable</strong> включает или выключает сглаживание
+сигнала.</p>
+<h3 id="параметры-сглаживания">Параметры сглаживания</h3>
+<ul>
+<li><strong>Kernel</strong> - размер ядра сглаживания (количество
+точек)</li>
+<li><strong>Method</strong>:
+<ul>
+<li><strong>Moving</strong> - скользящее среднее</li>
+<li><strong>Median</strong> - медианный фильтр</li>
+</ul></li>
+<li><strong>Show Raw</strong> - отображение исходного сигнала вместе со
+сглаженным</li>
+</ul>
+<figure>
+<img src="../screenshots/smoothing.png" alt="Настройки сглаживания" />
+<figcaption aria-hidden="true">Настройки сглаживания</figcaption>
+</figure>
+<h2 id="настройки-каналов-для-обработки">Настройки каналов для
+обработки</h2>
+<p>В таблице каналов на боковой панели Signal Viewer можно управлять
+применением обработки к каждому каналу:</p>
+<ul>
+<li><strong>Filter</strong> - применение фильтрации</li>
+<li><strong>Averaging</strong> - участие в усреднении для вычитания
+среднего</li>
+<li><strong>CSD</strong> - участие в расчете CSD</li>
+<li><strong>Baseline</strong> - вычитание базовой линии</li>
+</ul>
+<p>Изменения в таблице применяются немедленно.</p>
+<figure>
+<img src="../screenshots/channel_processing.png" alt="Настройки каналов" />
+<figcaption aria-hidden="true">Настройки каналов</figcaption>
+</figure>
+<h2 id="сохранение-настроек-обработки">Сохранение настроек
+обработки</h2>
+<p>Настройки обработки сигналов сохраняются в файл настроек каналов
+(<code>*_channelSettings.stn</code>) вместе с файлом данных. При
+следующей загрузке файла настройки восстанавливаются автоматически.</p>
+</body>
+</html>

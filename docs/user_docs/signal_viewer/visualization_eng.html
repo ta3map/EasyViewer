@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Visualization</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="visualization">Visualization</h1>
+<p>The program provides various tools for configuring signal and
+analysis results display.</p>
+<h2 id="channel-display-settings">Channel Display Settings</h2>
+<h3 id="channel-table">Channel Table</h3>
+<p>The Signal Viewer side panel contains a channel settings table:</p>
+<ul>
+<li><strong>Channel</strong> - channel name</li>
+<li><strong>Enabled</strong> - enable/disable channel display</li>
+<li><strong>Scale</strong> - amplitude scaling coefficient</li>
+<li><strong>Color</strong> - signal line color</li>
+<li><strong>Line Width</strong> - line thickness</li>
+<li><strong>Averaging</strong> - participation in averaging</li>
+<li><strong>CSD</strong> - participation in CSD</li>
+<li><strong>Filter</strong> - application of filtering</li>
+<li><strong>Baseline</strong> - baseline subtraction</li>
+</ul>
+<figure>
+<img src="../screenshots/channel_table.png" alt="Channel table" />
+<figcaption aria-hidden="true">Channel table</figcaption>
+</figure>
+<h3 id="quick-management">Quick Management</h3>
+<p>Buttons below the channel table:</p>
+<ul>
+<li><strong>(De)select ch</strong> - toggle visibility of all
+channels</li>
+<li><strong>(De)select CSD</strong> - toggle participation of all
+channels in CSD</li>
+<li><strong>(De)select Baseline</strong> - toggle baseline
+subtraction</li>
+</ul>
+<h3 id="vertical-offset">Vertical Offset</h3>
+<p>The <strong>Ch. Shift</strong> field determines the vertical offset
+between channels in signal amplitude units. Increasing the value
+increases distance between channels on the graph.</p>
+<h2 id="colors-and-line-styles">Colors and Line Styles</h2>
+<h3 id="channel-color-configuration">Channel Color Configuration</h3>
+<p>Color of each channel is configured in the channel table. Standard
+MATLAB colors (r, g, b, k, m, c, y) or RGB values are available.</p>
+<h3 id="event-and-stimulus-line-styles">Event and Stimulus Line
+Styles</h3>
+<p>Menu <strong>View/Lines and styles</strong> opens the line style
+settings window for events and stimuli.</p>
+<p><strong>Parameters for each line type:</strong></p>
+<ul>
+<li><strong>Line Color</strong> - line color</li>
+<li><strong>Line Style</strong> - line style (-, –, :, -.)</li>
+<li><strong>Line Width</strong> - line thickness</li>
+<li><strong>Label Text</strong> - label text</li>
+<li><strong>Label Color</strong> - label color</li>
+<li><strong>Label Font Size</strong> - label font size</li>
+<li><strong>Label Background Color</strong> - label background
+color</li>
+<li><strong>Label Font Weight</strong> - font weight (normal/bold)</li>
+</ul>
+<figure>
+<img src="../screenshots/lines_styles.png" alt="Line style settings" />
+<figcaption aria-hidden="true">Line style settings</figcaption>
+</figure>
+<h2 id="zoom-and-pan">Zoom and Pan</h2>
+<h3 id="built-in-zoom">Built-in Zoom</h3>
+<p>Menu <strong>View/Built-in Zoom</strong> or <strong>Zoom</strong>
+button activates the built-in zoom tool.</p>
+<p><strong>Usage:</strong></p>
+<ol type="1">
+<li>Activate Zoom</li>
+<li>Select an area on the graph for zooming</li>
+<li>Right-click to zoom out</li>
+</ol>
+<figure>
+<img src="../screenshots/zoom.png" alt="Zoom tool" />
+<figcaption aria-hidden="true">Zoom tool</figcaption>
+</figure>
+<h3 id="built-in-pan">Built-in Pan</h3>
+<p>Menu <strong>View/Built-in Pan</strong> or <strong>Pan</strong>
+button activates the built-in panning tool.</p>
+<p><strong>Usage:</strong></p>
+<ol type="1">
+<li>Activate Pan</li>
+<li>Hold left mouse button and move the graph</li>
+<li>Release button to finish</li>
+</ol>
+<figure>
+<img src="../screenshots/pan.png" alt="Pan tool" />
+<figcaption aria-hidden="true">Pan tool</figcaption>
+</figure>
+<h3 id="home">Home</h3>
+<p>The <strong>Home</strong> button resets all tools (Zoom, Pan, Cursor)
+and restores the original graph view with automatic scaling.</p>
+<h2 id="data-cursor">Data Cursor</h2>
+<p>Menu <strong>View/Data Cursor</strong> or <strong>Cursor</strong>
+button activates the data cursor.</p>
+<p><strong>Usage:</strong></p>
+<ol type="1">
+<li>Activate Data Cursor</li>
+<li>Click on the graph at the point of interest</li>
+<li>Coordinates are displayed (time, amplitude, channel)</li>
+</ol>
+<figure>
+<img src="../screenshots/data_cursor.png" alt="Data Cursor" />
+<figcaption aria-hidden="true">Data Cursor</figcaption>
+</figure>
+<h2 id="brush">Brush</h2>
+<p>The <strong>Brush</strong> button activates the data selection tool
+on the graph. Allows selecting data points for further analysis.</p>
+<figure>
+<img src="../screenshots/brush.png" alt="Brush tool" />
+<figcaption aria-hidden="true">Brush tool</figcaption>
+</figure>
+<h2 id="saving-graphs">Saving Graphs</h2>
+<h3 id="saving-graph-snapshot">Saving Graph Snapshot</h3>
+<p>Menu <strong>File/Save figure snapshot</strong> in Signal Viewer
+saves the current graph to an image file.</p>
+<p><strong>Formats:</strong></p>
+<ul>
+<li>PNG</li>
+<li>FIG (MATLAB figure)</li>
+<li>PDF</li>
+<li>EPS</li>
+</ul>
+<figure>
+<img src="../screenshots/save_figure.png" alt="Saving graph" />
+<figcaption aria-hidden="true">Saving graph</figcaption>
+</figure>
+<h3 id="saving-image-in-signal-analysis">Saving Image in Signal
+Analysis</h3>
+<p>The <strong>Save Image</strong> button in Signal Analysis saves the
+current analysis graph.</p>
+<h2 id="axis-settings">Axis Settings</h2>
+<h3 id="time-units">Time Units</h3>
+<p>The time units dropdown allows selection of:</p>
+<ul>
+<li><strong>s</strong> - seconds</li>
+<li><strong>ms</strong> - milliseconds</li>
+<li><strong>min</strong> - minutes</li>
+</ul>
+<p>The selected unit is applied to all time parameters and time axis
+display.</p>
+<h3 id="automatic-scaling">Automatic Scaling</h3>
+<p>Graphs are automatically scaled for optimal data display. When using
+Zoom/Pan, scaling can be changed manually.</p>
+<h3 id="restoring-scale">Restoring Scale</h3>
+<p>The <strong>Home</strong> button restores automatic scaling and
+original graph view.</p>
+<h2 id="hiding-interface-elements">Hiding Interface Elements</h2>
+<h3 id="hiding-side-panel">Hiding Side Panel</h3>
+<p>The <strong>×</strong> button at the top of the side panel or menu
+<strong>View/Hide Channel Settings</strong> hides the side panel to
+increase the graph area.</p>
+<p>The <strong>□</strong> button or menu <strong>View/show Channel
+Settings</strong> restores the panel.</p>
+<h3 id="hiding-stimuli">Hiding Stimuli</h3>
+<p>Menu <strong>View/Hide stimulus</strong> hides or shows stimulus
+display on the graph.</p>
+<h2 id="csd-and-mua-display">CSD and MUA Display</h2>
+<h3 id="csd">CSD</h3>
+<p>The <strong>CSD</strong> checkbox on the toolbar enables Current
+Source Density display. CSD settings are available through menu
+<strong>View/CSD displaying</strong>.</p>
+<h3 id="mua">MUA</h3>
+<p>The <strong>MUA</strong> checkbox enables multi-unit activity
+display. The <strong>MUA coef</strong> field sets the display threshold
+in standard deviation units.</p>
+<h2 id="graph-settings-in-signal-analysis">Graph Settings in Signal
+Analysis</h2>
+<p>In Signal Analysis, additional settings are available:</p>
+<ul>
+<li>Display of measurement elements (baseline, peak, slope, onset)</li>
+<li>Toggle between original and smoothed signal</li>
+<li>Mean trace display</li>
+</ul>
+<p>All settings are applied immediately to the graph.</p>
+<h2 id="graph-export">Graph Export</h2>
+<p>Graphs can be exported to various formats:</p>
+<ul>
+<li><strong>PNG</strong> - raster image</li>
+<li><strong>FIG</strong> - MATLAB figure file</li>
+<li><strong>PDF</strong> - vector format</li>
+<li><strong>EPS</strong> - vector format for publications</li>
+</ul>
+<p>Resolution for raster formats: 300 DPI.</p>
+</body>
+</html>

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Quick Start Guide</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="quick-start-guide">Quick Start Guide</h1>
+<p>This guide will help you get started with Easy Viewer quickly.</p>
+<h2 id="opening-files">Opening Files</h2>
+<h3 id="zav-format-files">ZAV Format Files</h3>
+<p>To open a ZAV format file: 1. Click <strong>File</strong> →
+<strong>open ZAV(.mat) file</strong> 2. Select your <code>.mat</code>
+file 3. The signal will be displayed automatically</p>
+<h3 id="event-files">Event Files</h3>
+<p>To load events: 1. Click <strong>File</strong> → <strong>open event
+(.ev) file</strong> 2. Select your <code>.ev</code> file 3. Events will
+be loaded and displayed in the events table</p>
+<h2 id="basic-navigation">Basic Navigation</h2>
+<h3 id="time-navigation">Time Navigation</h3>
+<ul>
+<li>Use the <strong>time slider</strong> to navigate through the
+signal</li>
+<li>Click <strong>Previous</strong> and <strong>Next</strong> buttons to
+move by time window</li>
+<li>Use arrow keys (← →) for quick navigation</li>
+</ul>
+<h3 id="zoom">Zoom</h3>
+<ol type="1">
+<li>Click the <strong>Zoom</strong> button</li>
+<li>Click two points on the graph to define zoom area</li>
+<li>Click <strong>Reset Zoom</strong> to return to full view</li>
+</ol>
+<h2 id="channel-settings">Channel Settings</h2>
+<h3 id="enabledisable-channels">Enable/Disable Channels</h3>
+<ul>
+<li>Use the channel table to enable or disable specific channels</li>
+<li>Click the checkbox in the <strong>Enabled</strong> column</li>
+</ul>
+<h3 id="adjust-scaling">Adjust Scaling</h3>
+<ul>
+<li>Modify the <strong>Scale</strong> value in the channel table</li>
+<li>Higher values increase signal amplitude</li>
+</ul>
+<h3 id="change-colors">Change Colors</h3>
+<ul>
+<li>Edit the <strong>Color</strong> field in the channel table</li>
+<li>Use MATLAB color codes (e.g., ‘r’ for red, ‘b’ for blue)</li>
+</ul>
+<h2 id="event-management">Event Management</h2>
+<h3 id="adding-events">Adding Events</h3>
+<ul>
+<li>Press <strong>Shift</strong> and click on the graph to add an
+event</li>
+<li>Or use <strong>Add Event</strong> button</li>
+</ul>
+<h3 id="deleting-events">Deleting Events</h3>
+<ul>
+<li>Enter event number in the delete field</li>
+<li>Click <strong>Delete Event</strong> button</li>
+<li>Or press <strong>Delete</strong> key</li>
+</ul>
+<h3 id="saving-events">Saving Events</h3>
+<ul>
+<li>Click <strong>Save Events</strong> button</li>
+<li>Events will be saved with metadata</li>
+</ul>
+<h2 id="analysis-tools">Analysis Tools</h2>
+<h3 id="auto-event-detection">Auto Event Detection</h3>
+<ol type="1">
+<li>Click <strong>Analysis</strong> → <strong>Auto Event
+Detection</strong></li>
+<li>Configure detection parameters</li>
+<li>Click <strong>Detect</strong> to find events automatically</li>
+</ol>
+<h3 id="mean-events">Mean Events</h3>
+<ol type="1">
+<li>Load events or stimuli</li>
+<li>Click <strong>Mean Events</strong> button</li>
+<li>Average trace will be calculated and displayed</li>
+</ol>
+<h3 id="csd-current-source-density">CSD (Current Source Density)</h3>
+<ol type="1">
+<li>Enable CSD in channel settings</li>
+<li>Click <strong>CSD</strong> checkbox</li>
+<li>CSD map will be displayed</li>
+</ol>
+<h2 id="tips">Tips</h2>
+<ul>
+<li>Use <strong>File Manager</strong> to organize and search your
+files</li>
+<li>Save channel settings for quick reuse</li>
+<li>Export figures using <strong>File</strong> → <strong>save figure
+snapshot</strong></li>
+</ul>
+<h2 id="keyboard-shortcuts">Keyboard Shortcuts</h2>
+<ul>
+<li><strong>←</strong> / <strong>→</strong> : Navigate time</li>
+<li><strong>Delete</strong> : Delete selected event</li>
+<li><strong>Ctrl + Click</strong> : Add marker on graph</li>
+<li><strong>Shift + Click</strong> : Add event</li>
+</ul>
+</body>
+</html>

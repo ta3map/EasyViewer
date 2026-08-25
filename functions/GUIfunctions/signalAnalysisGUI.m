@@ -524,6 +524,9 @@ end
     hSettingsButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Settings', ...
         'Position', getElementPosition('settings_btn'), 'Callback', @(~,~)optionsRemovalArtifactsGUI(), 'Tag', 'settings_btn');
     btnIcon(hSettingsButton, fullfile(assetsPath, 'settings_btn.png'), false);
+
+    hHelpButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Help', ...
+        'Position', getElementPosition('help_btn'), 'Callback', @(~,~)showHelp('signal_analysis'), 'Tag', 'help_btn');
     
     % Кнопка открытия файла
     hOpenFileButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Open File', ...
@@ -551,6 +554,8 @@ end
     % Плейсхолдер пока файл не загружен
     set(hPlotAxes, 'Visible', 'off');
     text(hPlotAxes, 0.5, 0.5, 'Load ZAV or EV file', 'color', 'r', 'horizontalalignment', 'center');
+
+    uistack([hOpenFileButton, hFileManagerButton, hSettingsButton, hHelpButton], 'top');
     
     % Кнопки управления инструментами графика
     hZoomButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Zoom', ...

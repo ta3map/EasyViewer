@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Analysis Tools</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="analysis-tools">Analysis Tools</h1>
+<p>The program provides various tools for analyzing electrophysiological
+signals.</p>
+<h2 id="z-score">Z-score</h2>
+<p>Z-score normalization transforms the signal to a standard normal
+distribution.</p>
+<p><strong>Opening:</strong> Menu <strong>Analysis/Z-score</strong> in
+Signal Viewer</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li>Channel selection for normalization</li>
+<li>Calculation method (across entire signal or by window)</li>
+</ul>
+<figure>
+<img src="../screenshots/zscore.png" alt="Z-score normalization" />
+<figcaption aria-hidden="true">Z-score normalization</figcaption>
+</figure>
+<h2 id="spectral-density">Spectral Density</h2>
+<p>Power spectral density shows the distribution of signal power across
+frequencies.</p>
+<p><strong>Opening:</strong> Menu <strong>Analysis/Spectral
+Density</strong> in Signal Viewer</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li>Channel selection for analysis</li>
+<li>Calculation method (FFT, Welch, etc.)</li>
+<li>Window size</li>
+<li>Window overlap</li>
+</ul>
+<p><strong>Output data:</strong></p>
+<ul>
+<li>Spectral density graph</li>
+<li>Table with results</li>
+</ul>
+<figure>
+<img src="../screenshots/spectral_density.png" alt="Spectral density" />
+<figcaption aria-hidden="true">Spectral density</figcaption>
+</figure>
+<h2 id="cross-correlation">Cross-Correlation</h2>
+<p>Cross-correlation shows relationships between events or channels.</p>
+<p><strong>Opening:</strong> Menu
+<strong>Analysis/Cross-Correlation</strong> in Signal Viewer</p>
+<h3 id="event-cross-correlation">Event Cross-Correlation</h3>
+<p>Analysis of temporal relationships between events.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li>Event selection for analysis</li>
+<li>Correlation time window</li>
+<li>Normalization method</li>
+</ul>
+<figure>
+<img src="../screenshots/event_crosscorrelation.png"
+alt="Event cross-correlation" />
+<figcaption aria-hidden="true">Event cross-correlation</figcaption>
+</figure>
+<h3 id="channel-cross-correlation">Channel Cross-Correlation</h3>
+<p>Analysis of relationships between channels.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li>Channel selection for analysis</li>
+<li>Correlation time window</li>
+<li>Normalization method</li>
+</ul>
+<figure>
+<img src="../screenshots/channel_crosscorrelation.png"
+alt="Channel cross-correlation" />
+<figcaption aria-hidden="true">Channel cross-correlation</figcaption>
+</figure>
+<h2 id="pca-principal-component-analysis">PCA (Principal Component
+Analysis)</h2>
+<p>Principal component analysis identifies main patterns in
+multi-channel data.</p>
+<p><strong>Opening:</strong> Menu <strong>Analysis/PCA</strong> in
+Signal Viewer</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li>Channel selection for analysis</li>
+<li>Number of principal components</li>
+<li>Data normalization method</li>
+</ul>
+<p><strong>Output data:</strong></p>
+<ul>
+<li>Principal components graph</li>
+<li>Table with coefficients</li>
+<li>Explained variance graph</li>
+</ul>
+<figure>
+<img src="../screenshots/pca.png" alt="PCA analysis" />
+<figcaption aria-hidden="true">PCA analysis</figcaption>
+</figure>
+<h2 id="data-operations">Data Operations</h2>
+<p>Channel data operations allow performing mathematical operations
+between channels.</p>
+<p><strong>Opening:</strong> Menu <strong>Analysis/Data
+Operations</strong> in Signal Viewer</p>
+<p><strong>Available operations:</strong></p>
+<ul>
+<li>Channel addition</li>
+<li>Channel subtraction</li>
+<li>Channel multiplication</li>
+<li>Channel division</li>
+<li>Channel averaging</li>
+</ul>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li>Channel selection for operation</li>
+<li>Operation type</li>
+<li>Saving result as new channel</li>
+</ul>
+<figure>
+<img src="../screenshots/data_operations.png" alt="Data operations" />
+<figcaption aria-hidden="true">Data operations</figcaption>
+</figure>
+<h2 id="compare-average-data">Compare Average Data</h2>
+<p>Comparing averaged data allows comparing mean traces between
+different conditions.</p>
+<p><strong>Opening:</strong> Menu <strong>Analysis/Compare average
+data</strong> in Signal Viewer</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li>Selection of two datasets for comparison</li>
+<li>Comparison time window</li>
+<li>Statistical comparison method</li>
+</ul>
+<p><strong>Output data:</strong></p>
+<ul>
+<li>Graph with overlaid mean traces</li>
+<li>Statistical difference indicators</li>
+</ul>
+<figure>
+<img src="../screenshots/compare_average.png" alt="Compare average data" />
+<figcaption aria-hidden="true">Compare average data</figcaption>
+</figure>
+<h2 id="boxplot-from-table">Boxplot from Table</h2>
+<p>Building boxplots from measurement results table.</p>
+<p><strong>Opening:</strong> Menu <strong>Analysis/Boxplot from
+Table</strong> in Signal Viewer</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li>Excel file selection with data</li>
+<li>Column selection for boxplot construction</li>
+<li>Data grouping</li>
+<li>Visualization settings</li>
+</ul>
+<p><strong>Output data:</strong></p>
+<ul>
+<li>Graph with boxplots</li>
+<li>Statistical indicators</li>
+</ul>
+<p>Detailed description: <a href="boxplotFromTableGUI_eng.html">Boxplot
+from Table</a></p>
+<figure>
+<img src="../screenshots/boxplot_table.png" alt="Boxplots from table" />
+<figcaption aria-hidden="true">Boxplots from table</figcaption>
+</figure>
+<h2 id="using-analysis-tools">Using Analysis Tools</h2>
+<h3 id="data-selection">Data Selection</h3>
+<p>Most tools require preliminary data loading in Signal Viewer or
+Signal Analysis.</p>
+<h3 id="parameter-configuration">Parameter Configuration</h3>
+<p>Each tool has its own settings window with parameters specific to the
+analysis method.</p>
+<h3 id="saving-results">Saving Results</h3>
+<p>Analysis results can be saved:</p>
+<ul>
+<li>As graphs (PNG, FIG)</li>
+<li>As tables (Excel)</li>
+<li>As data (MAT)</li>
+</ul>
+<h3 id="file-manager-integration">File Manager Integration</h3>
+<p>Analysis results can be saved to the File Manager database for
+subsequent viewing and comparison.</p>
+</body>
+</html>

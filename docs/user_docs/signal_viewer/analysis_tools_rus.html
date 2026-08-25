@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Инструменты анализа</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="инструменты-анализа">Инструменты анализа</h1>
+<p>Программа предоставляет различные инструменты для анализа
+электрофизиологических сигналов.</p>
+<h2 id="z-score">Z-score</h2>
+<p>Z-score нормализация преобразует сигнал к стандартному нормальному
+распределению.</p>
+<p><strong>Открытие:</strong> Меню <strong>Analysis/Z-score</strong> в
+Signal Viewer</p>
+<p><strong>Параметры:</strong></p>
+<ul>
+<li>Выбор каналов для нормализации</li>
+<li>Метод расчета (по всему сигналу или по окну)</li>
+</ul>
+<figure>
+<img src="../screenshots/zscore.png" alt="Z-score нормализация" />
+<figcaption aria-hidden="true">Z-score нормализация</figcaption>
+</figure>
+<h2 id="spectral-density">Spectral Density</h2>
+<p>Спектральная плотность мощности показывает распределение мощности
+сигнала по частотам.</p>
+<p><strong>Открытие:</strong> Меню <strong>Analysis/Spectral
+Density</strong> в Signal Viewer</p>
+<p><strong>Параметры:</strong></p>
+<ul>
+<li>Выбор каналов для анализа</li>
+<li>Метод расчета (FFT, Welch и др.)</li>
+<li>Размер окна</li>
+<li>Перекрытие окон</li>
+</ul>
+<p><strong>Выходные данные:</strong></p>
+<ul>
+<li>График спектральной плотности</li>
+<li>Таблица с результатами</li>
+</ul>
+<figure>
+<img src="../screenshots/spectral_density.png"
+alt="Спектральная плотность" />
+<figcaption aria-hidden="true">Спектральная плотность</figcaption>
+</figure>
+<h2 id="cross-correlation">Cross-Correlation</h2>
+<p>Кросс-корреляция показывает взаимосвязь между событиями или
+каналами.</p>
+<p><strong>Открытие:</strong> Меню
+<strong>Analysis/Cross-Correlation</strong> в Signal Viewer</p>
+<h3 id="кросс-корреляция-событий">Кросс-корреляция событий</h3>
+<p>Анализ временных взаимосвязей между событиями.</p>
+<p><strong>Параметры:</strong></p>
+<ul>
+<li>Выбор событий для анализа</li>
+<li>Временное окно корреляции</li>
+<li>Метод нормализации</li>
+</ul>
+<figure>
+<img src="../screenshots/event_crosscorrelation.png"
+alt="Кросс-корреляция событий" />
+<figcaption aria-hidden="true">Кросс-корреляция событий</figcaption>
+</figure>
+<h3 id="кросс-корреляция-каналов">Кросс-корреляция каналов</h3>
+<p>Анализ взаимосвязей между каналами.</p>
+<p><strong>Параметры:</strong></p>
+<ul>
+<li>Выбор каналов для анализа</li>
+<li>Временное окно корреляции</li>
+<li>Метод нормализации</li>
+</ul>
+<figure>
+<img src="../screenshots/channel_crosscorrelation.png"
+alt="Кросс-корреляция каналов" />
+<figcaption aria-hidden="true">Кросс-корреляция каналов</figcaption>
+</figure>
+<h2 id="pca-principal-component-analysis">PCA (Principal Component
+Analysis)</h2>
+<p>Анализ главных компонент выявляет основные паттерны в многоканальных
+данных.</p>
+<p><strong>Открытие:</strong> Меню <strong>Analysis/PCA</strong> в
+Signal Viewer</p>
+<p><strong>Параметры:</strong></p>
+<ul>
+<li>Выбор каналов для анализа</li>
+<li>Количество главных компонент</li>
+<li>Метод нормализации данных</li>
+</ul>
+<p><strong>Выходные данные:</strong></p>
+<ul>
+<li>График главных компонент</li>
+<li>Таблица с коэффициентами</li>
+<li>График объясненной дисперсии</li>
+</ul>
+<figure>
+<img src="../screenshots/pca.png" alt="PCA анализ" />
+<figcaption aria-hidden="true">PCA анализ</figcaption>
+</figure>
+<h2 id="data-operations">Data Operations</h2>
+<p>Операции с данными каналов позволяют выполнять математические
+операции между каналами.</p>
+<p><strong>Открытие:</strong> Меню <strong>Analysis/Data
+Operations</strong> в Signal Viewer</p>
+<p><strong>Доступные операции:</strong></p>
+<ul>
+<li>Сложение каналов</li>
+<li>Вычитание каналов</li>
+<li>Умножение каналов</li>
+<li>Деление каналов</li>
+<li>Усреднение каналов</li>
+</ul>
+<p><strong>Параметры:</strong></p>
+<ul>
+<li>Выбор каналов для операции</li>
+<li>Тип операции</li>
+<li>Сохранение результата как нового канала</li>
+</ul>
+<figure>
+<img src="../screenshots/data_operations.png" alt="Операции с данными" />
+<figcaption aria-hidden="true">Операции с данными</figcaption>
+</figure>
+<h2 id="compare-average-data">Compare Average Data</h2>
+<p>Сравнение усредненных данных позволяет сравнивать средние трейсы
+между различными условиями.</p>
+<p><strong>Открытие:</strong> Меню <strong>Analysis/Compare average
+data</strong> в Signal Viewer</p>
+<p><strong>Параметры:</strong></p>
+<ul>
+<li>Выбор двух наборов данных для сравнения</li>
+<li>Временное окно сравнения</li>
+<li>Метод статистического сравнения</li>
+</ul>
+<p><strong>Выходные данные:</strong></p>
+<ul>
+<li>График с наложенными средними трейсами</li>
+<li>Статистические показатели различий</li>
+</ul>
+<figure>
+<img src="../screenshots/compare_average.png"
+alt="Сравнение средних данных" />
+<figcaption aria-hidden="true">Сравнение средних данных</figcaption>
+</figure>
+<h2 id="boxplot-from-table">Boxplot from Table</h2>
+<p>Построение боксплотов из таблицы результатов измерений.</p>
+<p><strong>Открытие:</strong> Меню <strong>Analysis/Boxplot from
+Table</strong> в Signal Viewer</p>
+<p><strong>Параметры:</strong></p>
+<ul>
+<li>Выбор Excel файла с данными</li>
+<li>Выбор колонок для построения боксплотов</li>
+<li>Группировка данных</li>
+<li>Настройки визуализации</li>
+</ul>
+<p><strong>Выходные данные:</strong></p>
+<ul>
+<li>График с боксплотами</li>
+<li>Статистические показатели</li>
+</ul>
+<p>Подробное описание: <a href="boxplotFromTableGUI_eng.html">Boxplot from
+Table</a></p>
+<figure>
+<img src="../screenshots/boxplot_table.png" alt="Боксплоты из таблицы" />
+<figcaption aria-hidden="true">Боксплоты из таблицы</figcaption>
+</figure>
+<h2 id="применение-инструментов-анализа">Применение инструментов
+анализа</h2>
+<h3 id="выбор-данных">Выбор данных</h3>
+<p>Большинство инструментов требуют предварительной загрузки данных в
+Signal Viewer или Signal Analysis.</p>
+<h3 id="настройка-параметров">Настройка параметров</h3>
+<p>Каждый инструмент имеет собственное окно настроек с параметрами,
+специфичными для метода анализа.</p>
+<h3 id="сохранение-результатов">Сохранение результатов</h3>
+<p>Результаты анализа могут быть сохранены:</p>
+<ul>
+<li>Как графики (PNG, FIG)</li>
+<li>Как таблицы (Excel)</li>
+<li>Как данные (MAT)</li>
+</ul>
+<h3 id="интеграция-с-file-manager">Интеграция с File Manager</h3>
+<p>Результаты анализа могут быть сохранены в базу данных File Manager
+для последующего просмотра и сравнения.</p>
+</body>
+</html>

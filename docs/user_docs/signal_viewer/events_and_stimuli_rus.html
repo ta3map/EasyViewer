@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>События и стимулы</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="события-и-стимулы">События и стимулы</h1>
+<p>Управление событиями и стимулами является ключевой функцией программы
+для анализа электрофизиологических данных.</p>
+<h2 id="события">События</h2>
+<p>События представляют собой временные метки значимых моментов в
+сигнале (пики, спады, онсеты и др.).</p>
+<h3 id="таблица-событий">Таблица событий</h3>
+<p>Таблица событий отображается в нижней части боковой панели Signal
+Viewer. Содержит колонки:</p>
+<ul>
+<li><strong>Time</strong> - временная метка события</li>
+<li><strong>Comment</strong> - комментарий к событию</li>
+</ul>
+<figure>
+<img src="../screenshots/events_table.png" alt="Таблица событий" />
+<figcaption aria-hidden="true">Таблица событий</figcaption>
+</figure>
+<h3 id="ручное-добавление-событий">Ручное добавление событий</h3>
+<h4 id="простое-добавление">Простое добавление</h4>
+<ul>
+<li>Нажмите кнопку <strong>Add Event</strong> под таблицей событий</li>
+<li>Или зажмите <strong>Ctrl</strong> и кликните мышью на графике в
+нужной точке</li>
+</ul>
+<p>Событие добавляется в указанную точку времени.</p>
+<h4 id="добавление-с-настройками">Добавление с настройками</h4>
+<p>Меню <strong>Options/Manual events settings</strong> открывает окно
+настроек:</p>
+<ul>
+<li><strong>Detection Mode</strong>:
+<ul>
+<li><strong>manual</strong> - событие добавляется в указанную точку</li>
+<li><strong>locked</strong> - событие корректируется к локальному
+экстремуму</li>
+</ul></li>
+<li><strong>Channel Number</strong> - номер канала для добавления
+события</li>
+<li><strong>Polarity</strong> - полярность поиска экстремума
+(positive/negative)</li>
+<li><strong>Time Window</strong> - временное окно поиска экстремума в
+миллисекундах (для режима locked)</li>
+</ul>
+<p>В режиме <strong>locked</strong> программа ищет локальный экстремум
+(максимум или минимум в зависимости от полярности) в заданном временном
+окне и размещает событие в найденной точке.</p>
+<figure>
+<img src="../screenshots/manual_event_settings.png"
+alt="Настройки ручного добавления событий" />
+<figcaption aria-hidden="true">Настройки ручного добавления
+событий</figcaption>
+</figure>
+<h3 id="автоматическое-обнаружение-событий">Автоматическое обнаружение
+событий</h3>
+<p>Меню <strong>Analysis/Autodetection</strong> или кнопка <strong>Auto
+Event Detection</strong> открывает окно автоматического обнаружения.</p>
+<p><strong>Параметры детекции:</strong></p>
+<ul>
+<li><strong>Detection Type</strong>:
+<ul>
+<li><strong>one channel positive</strong> - обнаружение положительных
+пиков на одном канале</li>
+<li><strong>one channel negative</strong> - обнаружение отрицательных
+пиков на одном канале</li>
+<li><strong>two channels difference</strong> - обнаружение на основе
+разницы между двумя каналами</li>
+</ul></li>
+<li><strong>Minimal Peak Amplitude</strong> - минимальная амплитуда
+пика</li>
+<li><strong>Positive Channel</strong> / <strong>Negative
+Channel</strong> - каналы для режима two channels</li>
+<li><strong>Minimal Time Between Peaks</strong> - минимальное время
+между пиками</li>
+<li><strong>Smooth Coefficient</strong> - коэффициент сглаживания
+сигнала</li>
+<li><strong>Detection Mode</strong> - peaks (пики) или onsets
+(онсеты)</li>
+</ul>
+<p><strong>Использование:</strong></p>
+<ol type="1">
+<li>Настройте параметры детекции</li>
+<li>Нажмите <strong>Check Detection</strong> для предварительного
+просмотра</li>
+<li>Нажмите <strong>Apply</strong> для применения и добавления событий в
+таблицу</li>
+</ol>
+<figure>
+<img src="../screenshots/auto_detection.png"
+alt="Автоматическое обнаружение событий" />
+<figcaption aria-hidden="true">Автоматическое обнаружение
+событий</figcaption>
+</figure>
+<h3 id="редактирование-событий">Редактирование событий</h3>
+<p>Меню <strong>Options/Edit events</strong> открывает окно
+редактирования событий. Позволяет:</p>
+<ul>
+<li>Изменять временные метки событий</li>
+<li>Изменять комментарии событий</li>
+<li>Удалять события</li>
+</ul>
+<figure>
+<img src="../screenshots/edit_events.png" alt="Редактирование событий" />
+<figcaption aria-hidden="true">Редактирование событий</figcaption>
+</figure>
+<h3 id="удаление-событий">Удаление событий</h3>
+<ul>
+<li>Выберите событие в таблице (введите номер в поле под таблицей)</li>
+<li>Нажмите кнопку <strong>Delete Event</strong></li>
+</ul>
+<p>Кнопка <strong>Clear Table</strong> удаляет все события из
+таблицы.</p>
+<h3 id="импорт-событий-из-стимулов">Импорт событий из стимулов</h3>
+<p>Меню <strong>Options/Import events from stimulus</strong> создает
+события на основе временных меток стимулов.</p>
+<h3 id="сохранение-и-загрузка-событий">Сохранение и загрузка
+событий</h3>
+<p>События сохраняются автоматически при сохранении ZAV файла. Для
+отдельного сохранения используйте кнопку <strong>Save Events</strong>
+под таблицей событий.</p>
+<p>События загружаются при открытии EV файла или ZAV файла с
+сохраненными событиями.</p>
+<h2 id="стимулы">Стимулы</h2>
+<p>Стимулы представляют собой временные метки подачи стимулов в
+эксперименте.</p>
+<h3 id="таблица-стимулов">Таблица стимулов</h3>
+<p>Стимулы отображаются в средней части боковой панели Signal Viewer.
+Список показывает временные метки стимулов.</p>
+<figure>
+<img src="../screenshots/stimuli_table.png" alt="Таблица стимулов" />
+<figcaption aria-hidden="true">Таблица стимулов</figcaption>
+</figure>
+<h3 id="редактирование-стимулов">Редактирование стимулов</h3>
+<p>Кнопка <strong>Edit</strong> рядом с заголовком “Stimuli” или меню
+<strong>Options/Edit stimulus times</strong> открывает окно
+редактирования временных меток стимулов.</p>
+<figure>
+<img src="../screenshots/edit_stimuli.png" alt="Редактирование стимулов" />
+<figcaption aria-hidden="true">Редактирование стимулов</figcaption>
+</figure>
+<h3 id="скрытие-стимулов">Скрытие стимулов</h3>
+<p>Меню <strong>View/Hide stimulus</strong> скрывает или показывает
+отображение стимулов на графике.</p>
+<h3 id="автоматическое-обнаружение-стимулов">Автоматическое обнаружение
+стимулов</h3>
+<p>Модуль <strong>autoDetectStimuli</strong> может автоматически
+обнаруживать стимулы в сигнале. Используется через File Manager.</p>
+<h3 id="загрузка-стимулов-из-настроек">Загрузка стимулов из
+настроек</h3>
+<p>Стимулы могут быть загружены из файла настроек каналов
+(<code>*_channelSettings.stn</code>) при открытии файла, если флаг
+<code>stims_loaded_from_settings</code> установлен.</p>
+<h2 id="средний-трейс-по-событиям">Средний трейс по событиям</h2>
+<p>Меню <strong>Options/Mean Events</strong> открывает окно настройки
+усреднения сигнала вокруг событий.</p>
+<p><strong>Параметры:</strong></p>
+<ul>
+<li><strong>Time Window</strong> - временное окно вокруг события</li>
+<li><strong>Remove Baseline</strong> - вычитание базовой линии</li>
+<li><strong>Remove Artifact</strong> - удаление артефакта</li>
+<li><strong>Artifact Window</strong> - размер окна артефакта</li>
+<li><strong>Show Original Traces</strong> - показывать исходные
+трейсы</li>
+<li><strong>Auto Scale</strong> - автоматическое масштабирование</li>
+</ul>
+<p>Кнопка <strong>Calculate</strong> строит график усредненного
+сигнала.</p>
+<figure>
+<img src="../screenshots/mean_events.png"
+alt="Средний трейс по событиям" />
+<figcaption aria-hidden="true">Средний трейс по событиям</figcaption>
+</figure>
+<h2 id="средний-трейс-по-стимулам">Средний трейс по стимулам</h2>
+<p>Аналогично событиям, можно построить средний трейс по стимулам.
+Используется модуль <strong>autoMeanStimulus</strong> через File Manager
+или аналогичные настройки в окне Mean Events при выборе стимулов как
+источника.</p>
+<h2 id="навигация-по-событиям-и-стимулам">Навигация по событиям и
+стимулам</h2>
+<p>В Signal Viewer и Signal Analysis доступна навигация по событиям и
+стимулам:</p>
+<ul>
+<li>Выберите режим <strong>event</strong> или <strong>stimulus</strong>
+в выпадающем списке режима просмотра</li>
+<li>Кнопки <strong>Previous</strong> и <strong>Next</strong> перемещают
+отображаемый интервал к предыдущему/следующему событию или стимулу</li>
+<li>Слайдер времени также работает в режиме навигации по
+событиям/стимулам</li>
+</ul>
+<h2 id="визуализация-событий-и-стимулов">Визуализация событий и
+стимулов</h2>
+<p>События и стимулы отображаются на графике в виде вертикальных линий.
+Цвет и стиль линий настраиваются через меню <strong>View/Lines and
+styles</strong>.</p>
+<figure>
+<img src="../screenshots/lines_styles.png"
+alt="Стили линий событий и стимулов" />
+<figcaption aria-hidden="true">Стили линий событий и
+стимулов</figcaption>
+</figure>
+<h2 id="метаданные-событий">Метаданные событий</h2>
+<p>При автоматическом обнаружении событий сохраняются метаданные:</p>
+<ul>
+<li><strong>Amplitude</strong> - амплитуда события</li>
+<li><strong>Channel</strong> - канал события</li>
+<li><strong>Width</strong> - ширина пика</li>
+<li><strong>Prominence</strong> - выраженность пика</li>
+</ul>
+<p>Метаданные доступны через таблицу событий и используются в
+анализе.</p>
+</body>
+</html>

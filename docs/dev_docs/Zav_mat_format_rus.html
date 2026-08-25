@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Структура zav файлов для mat файлов</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="структура-zav-файлов-для-mat-файлов">Структура zav файлов для
+mat файлов</h1>
+<h2 id="структура-zav-файлов">Структура ZAV файлов</h2>
+<p>ZAV файлы - это MAT файлы с определенной структурой переменных,
+которые используются в приложении Eviewer и Easy Viewer для анализа
+электрофизиологических данных. Основываясь на анализе кода в
+<code>signalViewerGUI.m</code> и функций конвертации, вот обязательная
+структура:</p>
+<h3 id="обязательные-переменные">Обязательные переменные:</h3>
+<ol type="1">
+<li><strong><code>lfp</code></strong> - матрица LFP (Local Field
+Potential) данных
+<ul>
+<li>Размер: <code>[N, numChannels]</code> или
+<code>[N, numChannels, numSweeps]</code></li>
+<li>Где N - количество временных точек, numChannels - количество
+каналов</li>
+<li>Если есть свипы (sweeps), то третий размер - количество свипов</li>
+</ul></li>
+<li><strong><code>hd</code></strong> - структура заголовка с метаданными
+<ul>
+<li><code>fFileSignature</code> - подпись файла (например, “ABF2”,
+“Neuralynx”)</li>
+<li><code>nOperationMode</code> - режим работы</li>
+<li><code>lActualEpisodes</code> - количество эпизодов/свипов</li>
+<li><code>nADCNumChannels</code> - количество каналов</li>
+<li><code>recChNames</code> - массив имен каналов (cell array)</li>
+<li><code>recChUnits</code> - массив единиц измерения каналов (cell
+array)</li>
+<li><code>ch_si</code> - интервалы сэмплирования для каждого канала (в
+микросекундах)</li>
+<li><code>dataPtsPerChan</code> - количество точек данных на канал</li>
+<li><code>dataPts</code> - общее количество точек данных</li>
+<li><code>si</code> - интервал сэмплирования (в микросекундах)</li>
+<li><code>fADCSampleInterval</code> - интервал сэмплирования ADC</li>
+<li><code>recTime</code> - время записи [начало, конец]</li>
+</ul></li>
+<li><strong><code>zavp</code></strong> - структура параметров ZAV
+<ul>
+<li><code>file</code> - путь к исходному файлу</li>
+<li><code>siS</code> - интервал сэмплирования в секундах</li>
+<li><code>dwnSmplFrq</code> - частота дискретизации после понижения (в
+Гц)</li>
+<li><code>stimCh</code> - канал стимуляции (может быть пустым)</li>
+<li><code>realStim</code> - структура с реальными стимулами
+<ul>
+<li><code>r</code> - массив времен стимуляции (в единицах времени)</li>
+</ul></li>
+</ul></li>
+<li><strong><code>spks</code></strong> - структура спайков
+<ul>
+<li>Массив структур для каждого канала</li>
+<li>Каждая структура содержит:
+<ul>
+<li><code>tStamp</code> - временные метки спайков (в миллисекундах)</li>
+<li><code>ampl</code> - амплитуды спайков</li>
+<li><code>shape</code> - формы спайков (может быть пустым)</li>
+</ul></li>
+</ul></li>
+<li><strong><code>lfpVar</code></strong> - вариация LFP данных
+<ul>
+<li>Вектор вариаций для каждого канала</li>
+</ul></li>
+<li><strong><code>chnlGrp</code></strong> - группы каналов
+<ul>
+<li>Может быть пустым массивом <code>[]</code></li>
+</ul></li>
+</ol>
+<h3
+id="дополнительные-поля-в-hd-в-зависимости-от-источника-данных">Дополнительные
+поля в <code>hd</code> (в зависимости от источника данных):</h3>
+<ul>
+<li><strong>Для Neuralynx данных:</strong>
+<ul>
+<li><code>adBitVolts</code> - коэффициенты преобразования бит-вольт</li>
+<li><code>dspDelay_mks</code> - задержки DSP</li>
+<li><code>inverted</code> - флаги инверсии каналов</li>
+<li><code>DSPLowCutFilterEnabled</code> - включение низкочастотных
+фильтров</li>
+<li><code>DspLowCutFrequency</code> - частоты низкочастотных
+фильтров</li>
+<li><code>DSPHighCutFilterEnabled</code> - включение высокочастотных
+фильтров</li>
+<li><code>DspHighCutFrequency</code> - частоты высокочастотных
+фильтров</li>
+<li><code>TTLs</code> - TTL события</li>
+<li><code>EventStrings</code> - строки событий</li>
+<li><code>inTTL_timestamps</code> - временные метки TTL</li>
+</ul></li>
+<li><strong>Для ABF данных:</strong>
+<ul>
+<li><code>sweepStartInPts</code> - начальные точки свипов</li>
+<li><code>protocolName</code> - имя протокола</li>
+<li><code>nADCSamplingSeq</code> - последовательность сэмплирования
+ADC</li>
+<li><code>fTelegraphAdditGain</code> - дополнительные коэффициенты
+усиления</li>
+<li><code>fInstrumentScaleFactor</code> - масштабные коэффициенты
+инструмента</li>
+<li><code>fSignalGain</code> - коэффициенты усиления сигнала</li>
+<li><code>fADCProgrammableGain</code> - программируемые коэффициенты
+усиления ADC</li>
+<li><code>fInstrumentOffset</code> - смещения инструмента</li>
+<li><code>fSignalOffset</code> - смещения сигнала</li>
+</ul></li>
+</ul>
+<h3 id="обработка-свипов">Обработка свипов:</h3>
+<p>Если данные содержат свипы (третий размер <code>lfp</code> &gt; 1),
+то функция <code>sweepProcessData</code> “распрямляет” данные, объединяя
+все свипы в один непрерывный временной ряд, а также корректирует
+временные метки стимулов и спайков.</p>
+<p>Эта структура обеспечивает совместимость с Easy Viewer и позволяет
+корректно отображать и анализировать электрофизиологические данные
+различных форматов.</p>
+</body>
+</html>

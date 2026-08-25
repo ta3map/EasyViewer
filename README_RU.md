@@ -26,7 +26,7 @@ Easy Viewer предназначен для визуализации и анал
 - **Signal Viewer** - режим просмотра сигналов
 - **Signal Analysis** - режим анализа и измерения параметров
 
-![Главное окно приложения](docs/screenshots/app_main.png)
+![Главное окно приложения](docs/user_docs/screenshots/app_main.png)
 
 ### Выбор режима работы
 
@@ -48,7 +48,7 @@ Easy Viewer предназначен для визуализации и анал
 - Обработка сигналов (фильтрация, вычитание среднего, CSD)
 - Инструменты анализа (Z-score, спектральная плотность, PCA, корреляция)
 
-Подробное описание: [Signal Viewer](docs/signal_viewer_rus.md)
+Подробное описание: [Signal Viewer](docs/user_docs/signal_viewer/signal_viewer_rus.html)
 
 ### Signal Analysis
 
@@ -62,41 +62,19 @@ Easy Viewer предназначен для визуализации и анал
 - Hot Resave для автоматического пересохранения
 - Просмотр среднего трейса по измерениям
 
-Подробное описание: [Signal Analysis](docs/signal_analysis_rus.md)
-
-### File Manager
-
-Файловый менеджер с поддержкой SQL базы данных для организации проектов, групп файлов и метаданных.
-
-Основные возможности:
-- Создание и управление проектами
-- Группировка файлов
-- Хранение метаданных
-- Запуск модулей автоматизации
-- Просмотр результатов анализа
-
-Подробное описание: [File Manager](docs/file_manager_rus.md)
+Подробное описание: [Signal Analysis](docs/user_docs/signal_analysis/signal_analysis_rus.html)
 
 ## Детальная документация
 
 ### Основные компоненты
 
-- [Signal Viewer](docs/signal_viewer_rus.md) - просмотр сигналов и управление событиями
-- [Signal Analysis](docs/signal_analysis_rus.md) - измерение параметров сигнала
-- [File Manager](docs/file_manager_rus.md) - управление файлами и проектами
+- [Signal Viewer](docs/user_docs/signal_viewer/signal_viewer_rus.html) - просмотр сигналов и управление событиями
+- [Signal Analysis](docs/user_docs/signal_analysis/signal_analysis_rus.html) - измерение параметров сигнала
 
 ### Обработка и анализ
 
-- [Обработка сигналов](docs/signal_processing_rus.md) - фильтрация, CSD, вычитание среднего
-- [Инструменты анализа](docs/analysis_tools_rus.md) - Z-score, спектральная плотность, PCA, корреляция
-- [События и стимулы](docs/events_and_stimuli_rus.md) - управление событиями и стимулами
-- [Измерения параметров](docs/measurements_rus.md) - slope, peak, onset, baseline
-
-### Автоматизация
-
-- [Модули автоматизации](docs/modules_rus.md) - автоматический анализ через модули
-
-### Работа с данными
-
-- [Конвертация данных](docs/data_conversion_rus.md) - конвертация из различных форматов
-- [Визуализация](docs/visualization_rus.md) - настройки отображения и графиков
+- [Обработка сигналов](docs/user_docs/signal_viewer/signal_processing_rus.html) - фильтрация, CSD, вычитание среднего
+- [Инструменты анализа](docs/user_docs/signal_viewer/analysis_tools_rus.html) - Z-score, спектральная плотность, PCA, корреляция
+- [События и стимулы](docs/user_docs/signal_viewer/events_and_stimuli_rus.html) - управление событиями и стимулами
+- [Измерения параметров](docs/user_docs/signal_analysis/measurements_rus.html) - slope, peak, onset, baseline
+- [Визуализация](docs/user_docs/signal_viewer/visualization_rus.html) - настройки отображения и графиков

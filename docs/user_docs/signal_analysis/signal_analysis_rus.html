@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Signal Analysis</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="_docstyle.css" />
+</head>
+<body>
+<h1 id="signal-analysis">Signal Analysis</h1>
+<p>Окно анализа предназначено для измерения параметров сигнала
+относительно стимулов или событий.</p>
+<figure>
+<img src="../screenshots/signal_analysis_main.png"
+alt="Основное окно Signal Analysis" />
+<figcaption aria-hidden="true">Основное окно Signal
+Analysis</figcaption>
+</figure>
+<h2 id="основное-окно">Основное окно</h2>
+<p>Окно состоит из следующих элементов:</p>
+<ul>
+<li><strong>Графическая область</strong> - отображение сигнала с
+маркерами измерений</li>
+<li><strong>Панель настроек измерений</strong> - параметры расчета
+slope, peak, onset, baseline</li>
+<li><strong>Панель сглаживания</strong> - настройки сглаживания
+сигнала</li>
+<li><strong>Таблица текущих результатов</strong> - результаты для
+текущего измерения</li>
+<li><strong>Таблица результатов</strong> - накопленные результаты
+измерений</li>
+<li><strong>Таблица средних значений</strong> - средние значения по всем
+измерениям</li>
+</ul>
+<h2 id="загрузка-файлов">Загрузка файлов</h2>
+<h3 id="загрузка-zav-файла">Загрузка ZAV файла</h3>
+<p>Кнопка <strong>Open File</strong> открывает диалог выбора ZAV файла.
+После загрузки файла отображается сигнал выбранного канала.</p>
+<h3 id="загрузка-ev-файла">Загрузка EV файла</h3>
+<p>Кнопка <strong>Load Events</strong> открывает диалог выбора EV файла.
+Загружаются LFP данные для событий и сами события.</p>
+<h3 id="file-manager">File Manager</h3>
+<p>Кнопка <strong>File Manager</strong> открывает файловый менеджер для
+работы с проектами и группами файлов.</p>
+<h2 id="настройки-измерений">Настройки измерений</h2>
+<h3 id="выбор-канала">Выбор канала</h3>
+<p>Выпадающий список <strong>Channel</strong> позволяет выбрать канал
+для анализа. При изменении канала график обновляется автоматически.</p>
+<figure>
+<img src="../screenshots/analysis_channel.png" alt="Выбор канала" />
+<figcaption aria-hidden="true">Выбор канала</figcaption>
+</figure>
+<h3 id="полярность-пика">Полярность пика</h3>
+<p>Выпадающий список <strong>Polarity</strong> определяет направление
+поиска пика:</p>
+<ul>
+<li><strong>Positive</strong> - поиск положительного пика
+(максимума)</li>
+<li><strong>Negative</strong> - поиск отрицательного пика
+(минимума)</li>
+</ul>
+<figure>
+<img src="../screenshots/analysis_polarity.png" alt="Полярность пика" />
+<figcaption aria-hidden="true">Полярность пика</figcaption>
+</figure>
+<h3 id="процент-для-slope">Процент для slope</h3>
+<p>Поле <strong>Slope Percent</strong> задает процент от амплитуды пика,
+используемый для расчета slope. Значение от 0 до 100.</p>
+<h3 id="baseline-диапазон">Baseline диапазон</h3>
+<p>Поля <strong>Baseline Start</strong> и <strong>Baseline End</strong>
+определяют временной диапазон для расчета базовой линии. Значения
+задаются в выбранных единицах времени относительно текущей точки
+отсчета.</p>
+<p>Кнопка <strong>★</strong> рядом с полем позволяет выбрать точку на
+графике кликом мыши.</p>
+<figure>
+<img src="../screenshots/analysis_baseline.png" alt="Baseline диапазон" />
+<figcaption aria-hidden="true">Baseline диапазон</figcaption>
+</figure>
+<h3 id="peak-диапазон">Peak диапазон</h3>
+<p>Поля <strong>Peak Start</strong> и <strong>Peak End</strong>
+определяют временной диапазон для поиска пика. Значения задаются в
+выбранных единицах времени относительно текущей точки отсчета.</p>
+<p>Кнопка <strong>★</strong> рядом с полем позволяет выбрать точку на
+графике кликом мыши.</p>
+<figure>
+<img src="../screenshots/analysis_peak.png" alt="Peak диапазон" />
+<figcaption aria-hidden="true">Peak диапазон</figcaption>
+</figure>
+<h3 id="временное-окно">Временное окно</h3>
+<p>Поля <strong>before</strong> и <strong>after</strong> определяют
+размер временного окна отображаемого вокруг текущей точки. Значения
+задаются в выбранных единицах времени.</p>
+<figure>
+<img src="../screenshots/analysis_time_window.png" alt="Временное окно" />
+<figcaption aria-hidden="true">Временное окно</figcaption>
+</figure>
+<h2 id="визуализация-результатов">Визуализация результатов</h2>
+<h3 id="отображение-элементов-измерения">Отображение элементов
+измерения</h3>
+<p>Чекбоксы в разделе <strong>Results</strong> управляют видимостью
+элементов на графике:</p>
+<ul>
+<li><strong>Baseline</strong> - отображение диапазона базовой линии</li>
+<li><strong>Peak</strong> - отображение диапазона поиска пика и маркера
+пика</li>
+<li><strong>Slope</strong> - отображение линии регрессии slope</li>
+<li><strong>Onset</strong> - отображение маркера онсета</li>
+</ul>
+<figure>
+<img src="../screenshots/analysis_visualization.png"
+alt="Визуализация результатов" />
+<figcaption aria-hidden="true">Визуализация результатов</figcaption>
+</figure>
+<h3 id="таблица-текущих-результатов">Таблица текущих результатов</h3>
+<p>Таблица показывает результаты для текущего измерения:</p>
+<ul>
+<li><strong>Slope</strong> - значение slope</li>
+<li><strong>Peak Time (rel)</strong> - время пика относительно точки
+отсчета</li>
+<li><strong>Peak Amplitude</strong> - амплитуда пика</li>
+<li><strong>Onset Time (rel)</strong> - время онсета относительно точки
+отсчета</li>
+<li><strong>Baseline</strong> - значение базовой линии</li>
+</ul>
+<figure>
+<img src="../screenshots/analysis_current_results.png"
+alt="Таблица текущих результатов" />
+<figcaption aria-hidden="true">Таблица текущих результатов</figcaption>
+</figure>
+<h2 id="сглаживание-сигнала">Сглаживание сигнала</h2>
+<h3 id="включение-сглаживания">Включение сглаживания</h3>
+<p>Чекбокс <strong>Enable</strong> включает или выключает сглаживание
+сигнала перед расчетом измерений.</p>
+<h3 id="параметры-сглаживания">Параметры сглаживания</h3>
+<ul>
+<li><strong>Kernel</strong> - размер ядра сглаживания (количество
+точек)</li>
+<li><strong>Method</strong>:
+<ul>
+<li><strong>Moving</strong> - скользящее среднее</li>
+<li><strong>Median</strong> - медианный фильтр</li>
+</ul></li>
+<li><strong>Show Raw</strong> - отображение исходного сигнала вместе со
+сглаженным</li>
+</ul>
+<figure>
+<img src="../screenshots/analysis_smoothing.png"
+alt="Настройки сглаживания" />
+<figcaption aria-hidden="true">Настройки сглаживания</figcaption>
+</figure>
+<h2 id="навигация">Навигация</h2>
+<h3 id="режим-навигации">Режим навигации</h3>
+<p>Статусная строка <strong>Mode</strong> показывает текущий режим
+навигации:</p>
+<ul>
+<li><strong>time</strong> - навигация по времени</li>
+<li><strong>stimulus</strong> - навигация по стимулам</li>
+<li><strong>event</strong> - навигация по событиям</li>
+<li><strong>sweep</strong> - навигация по свипам</li>
+</ul>
+<p>Режим определяется автоматически на основе загруженных данных.</p>
+<figure>
+<img src="../screenshots/analysis_navigation_mode.png"
+alt="Режим навигации" />
+<figcaption aria-hidden="true">Режим навигации</figcaption>
+</figure>
+<h3 id="кнопки-навигации">Кнопки навигации</h3>
+<p>Кнопки <strong>◀ Previous</strong> и <strong>Next ▶</strong>
+перемещают отображаемый интервал на один шаг назад или вперед в
+зависимости от режима навигации.</p>
+<h3 id="автоматическое-измерение">Автоматическое измерение</h3>
+<p>Кнопка <strong>Auto Measure All</strong> автоматически измеряет
+параметры для всех стимулов/событий/свипов и добавляет результаты в
+таблицу.</p>
+<h2 id="работа-с-таблицей-результатов">Работа с таблицей
+результатов</h2>
+<h3 id="добавление-результата">Добавление результата</h3>
+<p>Кнопка <strong>Add</strong> добавляет текущее измерение в таблицу
+результатов. Результат включает все параметры из таблицы текущих
+результатов и метаданные.</p>
+<h3 id="удаление-результата">Удаление результата</h3>
+<p>Выберите строку в таблице результатов и нажмите кнопку
+<strong>Remove</strong> для удаления результата.</p>
+<h3 id="замена-результата">Замена результата</h3>
+<p>Выберите строку в таблице результатов и нажмите кнопку
+<strong>Replace</strong> для замены результата текущим измерением.</p>
+<h3 id="очистка-таблицы">Очистка таблицы</h3>
+<p>Кнопка <strong>Clear Table</strong> удаляет все результаты из
+таблицы.</p>
+<h3 id="таблица-результатов">Таблица результатов</h3>
+<p>Таблица содержит следующие колонки:</p>
+<ul>
+<li><strong>Stimulus</strong> - номер стимула/события/свипа</li>
+<li><strong>Slope</strong> - значение slope</li>
+<li><strong>Peak Time (rel)</strong> - время пика относительно точки
+отсчета</li>
+<li><strong>Peak Time (abs)</strong> - абсолютное время пика</li>
+<li><strong>Peak Amplitude</strong> - амплитуда пика</li>
+<li><strong>Peak Value (rel)</strong> - значение пика относительно
+baseline</li>
+<li><strong>Onset Time (rel)</strong> - время онсета относительно точки
+отсчета</li>
+<li><strong>Onset Time (abs)</strong> - абсолютное время онсета</li>
+<li><strong>Peak - Onset</strong> - разница между пиком и онсетом</li>
+<li><strong>Baseline</strong> - значение базовой линии</li>
+<li><strong>Channel</strong> - номер канала</li>
+<li><strong>Stim Time</strong> - время стимула/события</li>
+<li><strong>Info</strong> - дополнительная информация</li>
+</ul>
+<figure>
+<img src="../screenshots/analysis_results_table.png"
+alt="Таблица результатов" />
+<figcaption aria-hidden="true">Таблица результатов</figcaption>
+</figure>
+<h3 id="таблица-средних-значений">Таблица средних значений</h3>
+<p>Таблица показывает средние значения по всем измерениям в таблице
+результатов:</p>
+<ul>
+<li><strong>Slope</strong> - среднее значение slope</li>
+<li><strong>Peak Time (rel)</strong> - среднее время пика</li>
+<li><strong>Peak Amplitude</strong> - средняя амплитуда пика</li>
+<li><strong>Onset Time (rel)</strong> - среднее время онсета</li>
+<li><strong>Baseline</strong> - среднее значение baseline</li>
+<li><strong>Peak - Onset</strong> - средняя разница между пиком и
+онсетом</li>
+</ul>
+<figure>
+<img src="../screenshots/analysis_average_table.png"
+alt="Таблица средних значений" />
+<figcaption aria-hidden="true">Таблица средних значений</figcaption>
+</figure>
+<h2 id="средний-трейс">Средний трейс</h2>
+<p>Кнопка <strong>Av. Trace</strong> переключает режим отображения
+среднего сигнала по всем измерениям в таблице результатов. В этом режиме
+график показывает усредненный сигнал, а измерения выполняются
+относительно этого среднего сигнала.</p>
+<h2 id="сохранение-и-загрузка-результатов">Сохранение и загрузка
+результатов</h2>
+<h3 id="сохранение-результатов">Сохранение результатов</h3>
+<p>Кнопка <strong>Save</strong> сохраняет результаты в Excel файл. Если
+файл был загружен ранее, результаты сохраняются в тот же файл. Иначе
+открывается диалог выбора пути сохранения.</p>
+<p>Кнопка <strong>Save As</strong> всегда открывает диалог выбора пути
+для сохранения результатов в новый файл.</p>
+<h3 id="hot-resave">Hot Resave</h3>
+<p>Чекбокс <strong>Hot Resave</strong> включает автоматическое
+пересохранение результатов при каждом добавлении или изменении
+результата. Работает только если файл был загружен ранее.</p>
+<figure>
+<img src="../screenshots/analysis_hot_resave.png" alt="Hot Resave" />
+<figcaption aria-hidden="true">Hot Resave</figcaption>
+</figure>
+<h3 id="загрузка-результатов">Загрузка результатов</h3>
+<p>Кнопка <strong>Load</strong> открывает диалог выбора Excel файла с
+результатами. Загруженные результаты добавляются в таблицу
+результатов.</p>
+<p>Выпадающий список <strong>Results</strong> показывает результаты из
+базы данных File Manager для текущего файла. Выбор результата загружает
+его в таблицу.</p>
+<h3 id="сбор-всех-метаданных">Сбор всех метаданных</h3>
+<p>Кнопка <strong>Collect All</strong> собирает метаданные из всех
+результатов в таблице и сохраняет их в структурированном виде.</p>
+<h2 id="инструменты-графика">Инструменты графика</h2>
+<h3 id="zoom">Zoom</h3>
+<p>Кнопка <strong>Zoom</strong> активирует режим зума. Позволяет
+выделить область для увеличения.</p>
+<h3 id="pan">Pan</h3>
+<p>Кнопка <strong>Pan</strong> активирует режим панорамирования.
+Позволяет перемещать график мышью.</p>
+<h3 id="cursor">Cursor</h3>
+<p>Кнопка <strong>Cursor</strong> активирует курсор данных. Показывает
+координаты точки при клике на графике.</p>
+<h3 id="brush">Brush</h3>
+<p>Кнопка <strong>Brush</strong> активирует режим выделения данных на
+графике.</p>
+<h3 id="home">Home</h3>
+<p>Кнопка <strong>Home</strong> сбрасывает все инструменты и
+восстанавливает исходный вид графика.</p>
+<figure>
+<img src="../screenshots/analysis_graph_tools.png"
+alt="Инструменты графика" />
+<figcaption aria-hidden="true">Инструменты графика</figcaption>
+</figure>
+<h2 id="сохранение-изображения">Сохранение изображения</h2>
+<p>Кнопка <strong>Save Image</strong> сохраняет текущий график в файл
+изображения (PNG, FIG и др.).</p>
+<h2 id="настройки">Настройки</h2>
+<p>Кнопка <strong>Settings</strong> открывает окно настройки удаления
+артефактов (аналогично Signal Viewer).</p>
+<h2 id="горячие-клавиши">Горячие клавиши</h2>
+<ul>
+<li><strong>Стрелки влево/вправо</strong> - навигация по
+времени/стимулам/событиям</li>
+<li><strong>Клавиши для навигации</strong> - зависят от режима
+навигации</li>
+</ul>
+</body>
+</html>
