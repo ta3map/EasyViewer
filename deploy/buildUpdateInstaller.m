@@ -13,13 +13,19 @@ function buildUpdateInstaller()
     payloadZip = fullfile(p.updateDir, 'payload.zip');
     zip(payloadZip, {'EasyView.exe', 'splash.png', 'assets', 'configs', 'docs'}, p.applicationDir);
 
-    installerExe = fullfile(p.updateDir, ['EasyView_' p.version '.exe']);
+    versionFile = fullfile(p.updateDir, 'update_version.txt');
+    fid = fopen(versionFile, 'w');
+    fprintf(fid, '%s', p.version);
+    fclose(fid);
+
+    installerExe = fullfile(p.updateDir, ['EasyView_' p.version '_update.exe']);
     csc = fullfile(getenv('WINDIR'), 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');
 
-    cmd = sprintf('"%s" /nologo /target:winexe /utf8output /win32icon:"%s" /reference:System.Windows.Forms.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /resource:"%s",payload.zip /out:"%s" "%s"', ...
-        csc, p.iconIco, payloadZip, installerExe, p.updateStub);
+    cmd = sprintf('"%s" /nologo /target:winexe /utf8output /win32icon:"%s" /reference:System.Windows.Forms.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /resource:"%s",payload.zip /resource:"%s",UpdateVersion /out:"%s" "%s"', ...
+        csc, p.iconIco, payloadZip, versionFile, installerExe, p.updateStub);
     status = system(cmd);
     delete(payloadZip);
+    delete(versionFile);
     if status ~= 0
         error('Failed to build update installer');
     end
