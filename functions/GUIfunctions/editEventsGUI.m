@@ -288,15 +288,8 @@ function editEventsGUI()
         tableData = get(eventTable, 'Data');
         
         if isempty(tableData)
-            events = [];
-            event_indices = [];
-            event_comments = {};
-            event_amplitudes = [];
-            event_channels = [];
-            event_widths = [];
-            event_prominences = [];
-            event_metadata = [];
-            events_exist = false;
+            clearEventsState();
+            syncEventTable();
         else
             numEvents = size(tableData, 1);
             numericTimes = cellfun(@toNumericValue, tableData(:, 2));
@@ -307,41 +300,26 @@ function editEventsGUI()
                 return;
             end
             
-            [sortedTimes, sortIdx] = sort(newEventTimes);
-            events = sortedTimes(:);
-            
             newComments = cell(numEvents, 1);
             newAmplitudes = NaN(numEvents, 1);
             newChannels = ones(numEvents, 1);
             newWidths = NaN(numEvents, 1);
             newProminences = NaN(numEvents, 1);
-            newMetadata = createDefaultEventMetadata('manual_edit', numEvents);
-            
             for i = 1:numEvents
-                origIdx = sortIdx(i);
-                newComments{i} = tableData{origIdx, 3};
-                newAmplitudes(i) = toNumericValue(tableData{origIdx, 4});
-                newChannels(i) = toNumericValue(tableData{origIdx, 5});
-                newWidths(i) = toNumericValue(tableData{origIdx, 6});
-                newProminences(i) = toNumericValue(tableData{origIdx, 7});
+                newComments{i} = tableData{i, 3};
+                newAmplitudes(i) = toNumericValue(tableData{i, 4});
+                newChannels(i) = toNumericValue(tableData{i, 5});
+                newWidths(i) = toNumericValue(tableData{i, 6});
+                newProminences(i) = toNumericValue(tableData{i, 7});
             end
             
-            event_comments = newComments;
-            event_amplitudes = newAmplitudes;
-            event_channels = newChannels;
-            event_widths = newWidths;
-            event_prominences = newProminences;
-            event_metadata = newMetadata;
-            event_indices = timeToIndices(time, events);
-            events_exist = true;
-        end
-        
-        if exist('table_calling', 'var') && ~isempty(table_calling)
-            try
-                table_calling();
-            catch ME
-                warning('Failed to update event table: %s', ME.message);
-            end
+            setEventsState(newEventTimes, ...
+                'comments', newComments, ...
+                'amplitudes', newAmplitudes, ...
+                'channels', newChannels, ...
+                'widths', newWidths, ...
+                'prominences', newProminences, ...
+                'source', 'manual_edit');
         end
         
         if exist('updatePlotFunc', 'var') && ~isempty(updatePlotFunc)
@@ -578,7 +556,8 @@ function editEventsGUI()
             end
             
             if isfield(eventStruct, 'metadata')
-                newMetadata = [eventStruct.metadata]';
+                newMetadata = {eventStruct.metadata};
+                newMetadata = normalizeEventMetadata(newMetadata, numNewEvents, 'imported');
             end
             
             sourceName = fileName;
@@ -603,13 +582,15 @@ function editEventsGUI()
         end
         
         if isReplace
-            events = newEventTimes;
-            event_comments = newComments;
-            event_amplitudes = newAmplitudes;
-            event_channels = newChannels;
-            event_widths = newWidths;
-            event_prominences = newProminences;
-            event_metadata = newMetadata;
+            setEventsState(newEventTimes, ...
+                'comments', newComments, ...
+                'amplitudes', newAmplitudes, ...
+                'channels', newChannels, ...
+                'widths', newWidths, ...
+                'prominences', newProminences, ...
+                'metadata', newMetadata, ...
+                'source', 'imported', ...
+                'sync', false);
         else
             tableData = get(eventTable, 'Data');
             if isempty(tableData)
@@ -630,31 +611,28 @@ function editEventsGUI()
                 currentProminences = cellfun(@toNumericValue, tableData(:, 7));
                 currentMetadata = createDefaultEventMetadata('manual_edit', size(tableData, 1));
             end
-            
+            nCur = numel(currentTimes);
+            nNew = numel(newEventTimes);
             allTimes = [currentTimes(:); newEventTimes(:)];
+            allComments = [currentComments(:); newComments(:)];
+            allAmps = [padEventColumn(currentAmplitudes, nCur, NaN); padEventColumn(newAmplitudes, nNew, NaN)];
+            allCh = stackEventChannels(currentChannels, nCur, newChannels, nNew);
+            allW = [padEventColumn(currentWidths, nCur, NaN); padEventColumn(newWidths, nNew, NaN)];
+            allP = [padEventColumn(currentProminences, nCur, NaN); padEventColumn(newProminences, nNew, NaN)];
+            allMeta = [normalizeEventMetadata(currentMetadata, nCur, 'manual_edit'); ...
+                normalizeEventMetadata(newMetadata, nNew, 'imported')];
             [sortedTimes, sortIdx] = sort(allTimes);
             [uniqueTimes, uniqueIdx] = unique(sortedTimes, 'stable');
-            
-            events = uniqueTimes(:);
-            numEvents = length(events);
-            
-            allComments = [currentComments(:); newComments(:)];
-            event_comments = allComments(sortIdx(uniqueIdx));
-            
-            allAmplitudes = [currentAmplitudes(:); newAmplitudes(:)];
-            event_amplitudes = allAmplitudes(sortIdx(uniqueIdx));
-            
-            allChannels = [currentChannels(:); newChannels(:)];
-            event_channels = allChannels(sortIdx(uniqueIdx));
-            
-            allWidths = [currentWidths(:); newWidths(:)];
-            event_widths = allWidths(sortIdx(uniqueIdx));
-            
-            allProminences = [currentProminences(:); newProminences(:)];
-            event_prominences = allProminences(sortIdx(uniqueIdx));
-            
-            allMetadata = [currentMetadata(:); newMetadata(:)];
-            event_metadata = allMetadata(sortIdx(uniqueIdx));
+            keep = sortIdx(uniqueIdx);
+            setEventsState(uniqueTimes, ...
+                'comments', allComments(keep), ...
+                'amplitudes', allAmps(keep), ...
+                'channels', allCh(keep, :), ...
+                'widths', allW(keep), ...
+                'prominences', allP(keep), ...
+                'metadata', allMeta(keep), ...
+                'source', 'imported', ...
+                'sync', false);
         end
         
         updateTableWithEvents();
@@ -778,74 +756,37 @@ function editEventsGUI()
                 'add_event_settings', add_event_settings, ...
                 'EV_version', EV_version);
         else
-            if isReplace
-                [sortedTimes, sortIdx] = sort(eventTimes);
-                events = sortedTimes(:);
-                event_comments = eventComments(sortIdx);
-                event_amplitudes = eventAmplitudes(sortIdx);
-                event_channels = eventChannels(sortIdx);
-                event_widths = eventWidths(sortIdx);
-                event_prominences = eventProminences(sortIdx);
-                event_metadata = eventMetadata(sortIdx);
-                event_indices = timeToIndices(time, events);
-                events_exist = true;
+            if isReplace || isempty(events)
+                setEventsState(eventTimes, ...
+                    'comments', eventComments, ...
+                    'amplitudes', eventAmplitudes, ...
+                    'channels', eventChannels, ...
+                    'widths', eventWidths, ...
+                    'prominences', eventProminences, ...
+                    'metadata', eventMetadata, ...
+                    'source', 'exported');
             else
-                if isempty(events)
-                    [sortedTimes, sortIdx] = sort(eventTimes);
-                    events = sortedTimes(:);
-                    event_comments = eventComments(sortIdx);
-                    event_amplitudes = eventAmplitudes(sortIdx);
-                    event_channels = eventChannels(sortIdx);
-                    event_widths = eventWidths(sortIdx);
-                    event_prominences = eventProminences(sortIdx);
-                    event_metadata = eventMetadata(sortIdx);
-                else
-                    existingEvents = events(:);
-                    existingComments = event_comments;
-                    existingAmplitudes = event_amplitudes;
-                    existingChannels = event_channels;
-                    existingWidths = event_widths;
-                    existingProminences = event_prominences;
-                    existingMetadata = event_metadata;
-                    
-                    allEvents = [existingEvents; eventTimes(:)];
-                    [sortedEvents, sortIdx] = sort(allEvents);
-                    [uniqueEvents, uniqueIdx] = unique(sortedEvents, 'stable');
-                    
-                    events = uniqueEvents(:);
-                    
-                    allComments = [existingComments(:); eventComments(:)];
-                    event_comments = allComments(sortIdx(uniqueIdx));
-                    
-                    allAmplitudes = [existingAmplitudes(:); eventAmplitudes(:)];
-                    event_amplitudes = allAmplitudes(sortIdx(uniqueIdx));
-                    
-                    if size(existingChannels, 2) == 1
-                        allChannels = [existingChannels(:); eventChannels(:)];
-                    else
-                        allChannels = [existingChannels(:, 1); eventChannels(:)];
-                    end
-                    event_channels = allChannels(sortIdx(uniqueIdx));
-                    
-                    allWidths = [existingWidths(:); eventWidths(:)];
-                    event_widths = allWidths(sortIdx(uniqueIdx));
-                    
-                    allProminences = [existingProminences(:); eventProminences(:)];
-                    event_prominences = allProminences(sortIdx(uniqueIdx));
-                    
-                    allMetadata = [existingMetadata(:); eventMetadata(:)];
-                    event_metadata = allMetadata(sortIdx(uniqueIdx));
-                end
-                event_indices = timeToIndices(time, events);
-                events_exist = true;
-            end
-            
-            if exist('table_calling', 'var') && ~isempty(table_calling)
-                try
-                    table_calling();
-                catch ME
-                    warning('Failed to update event table: %s', ME.message);
-                end
+                nOld = numel(events);
+                nNew = numel(eventTimes);
+                allTimes = [events(:); eventTimes(:)];
+                allComments = [event_comments(:); eventComments(:)];
+                allAmps = [padEventColumn(event_amplitudes, nOld, NaN); padEventColumn(eventAmplitudes, nNew, NaN)];
+                allCh = stackEventChannels(event_channels, nOld, eventChannels, nNew);
+                allW = [padEventColumn(event_widths, nOld, NaN); padEventColumn(eventWidths, nNew, NaN)];
+                allP = [padEventColumn(event_prominences, nOld, NaN); padEventColumn(eventProminences, nNew, NaN)];
+                allMeta = [normalizeEventMetadata(event_metadata, nOld, 'unknown'); ...
+                    normalizeEventMetadata(eventMetadata, nNew, 'exported')];
+                [sortedEvents, sortIdx] = sort(allTimes);
+                [uniqueEvents, uniqueIdx] = unique(sortedEvents, 'stable');
+                keep = sortIdx(uniqueIdx);
+                setEventsState(uniqueEvents, ...
+                    'comments', allComments(keep), ...
+                    'amplitudes', allAmps(keep), ...
+                    'channels', allCh(keep, :), ...
+                    'widths', allW(keep), ...
+                    'prominences', allP(keep), ...
+                    'metadata', allMeta(keep), ...
+                    'source', 'exported');
             end
             
             if exist('updatePlotFunc', 'var') && ~isempty(updatePlotFunc)

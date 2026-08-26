@@ -1,9 +1,12 @@
 function activeChannels = CSDSettingsGUI()
 
     activeChannels = [];
-    min_coef = 98;
-    max_coef = 200;
+    contrastCoefMin = 10;
+    contrastCoefMax = 250;
     slider_max = 100;
+
+    global channelNames csd_avaliable matFilePath csd_smooth_coef csd_contrast_coef
+    global csd_contrast_is_display csd_split_by_channel_gaps
 
     % Идентификатор (tag) для GUI фигуры
     figTag = 'CSDSettingsGUI';
@@ -18,9 +21,8 @@ function activeChannels = CSDSettingsGUI()
         return
     end
     
-    % Инициализация таблиц
-    global channelNames csd_avaliable matFilePath csd_smooth_coef csd_contrast_coef
-    global csd_split_by_channel_gaps
+    csd_contrast_coef = normalizeCsdContrastCoef(csd_contrast_coef);
+    csd_contrast_is_display = true;
     
     label = 'CSD Displaying Settings';
     CSDSettingsFig = figure('Name', label, 'Tag', figTag, 'NumberTitle', 'off', ...
@@ -46,18 +48,14 @@ function activeChannels = CSDSettingsGUI()
     % Кнопка для отжатия всех каналов
     uicontrol('Style', 'pushbutton', 'String', 'Deselect ALL', 'Position', [220, 320, 110, 25], 'Callback', @deselectAll);
     
-    % Поле для выбора значения contrast_coef
-    uicontrol('Style', 'text', 'String', 'Contrast Coef:', 'Position', [220, 290, 100, 15], 'HorizontalAlignment', 'left');
+    uicontrol('Style', 'text', 'String', 'Contrast, %:', 'Position', [220, 290, 100, 15], 'HorizontalAlignment', 'left');
     
-    % Calculate the initial slider value based on the csd_contrast_coef
-    initial_slider_value = slider_inverse_formula(csd_contrast_coef, min_coef, max_coef, slider_max);
+    initial_slider_value = slider_inverse_formula(csd_contrast_coef, contrastCoefMin, contrastCoefMax, slider_max);
     
-    % Слайдер для выбора значения csd_contrast_coef
     csdContrastSlider = uicontrol('Style', 'slider', 'Min', 0, 'Max', slider_max, 'Value', initial_slider_value, ...
                                   'Position', [220, 270, 100, 20], 'Callback', @slider_callback);
     
-    % Поле для отображения значения csd_contrast_coef
-    csdContrastCoeffEdit = uicontrol('Style', 'edit', 'String', num2str(csd_contrast_coef), 'Position', [220, 240, 100, 20], 'BackgroundColor', 'white', 'Enable', 'inactive');
+    csdContrastCoeffEdit = uicontrol('Style', 'edit', 'String', num2str(csd_contrast_coef, '%.3g'), 'Position', [220, 240, 100, 20], 'BackgroundColor', 'white', 'Enable', 'inactive');
     
     splitCheckbox = uicontrol('Style', 'checkbox', 'String', 'Split channel groups', ...
         'Position', [220, 200, 120, 20], 'Value', logical(csd_split_by_channel_gaps), ...
@@ -82,37 +80,29 @@ function activeChannels = CSDSettingsGUI()
     
     function slider_callback(~, ~)
         slider_value = csdContrastSlider.Value;
-        % Update csd_contrast_coef based on the slider value
-        csd_contrast_coef = slider_formula(slider_value, min_coef, max_coef, slider_max);
-        set(csdContrastCoeffEdit, 'String', num2str(csd_contrast_coef));
+        csd_contrast_coef = slider_formula(slider_value, contrastCoefMin, contrastCoefMax, slider_max);
+        set(csdContrastCoeffEdit, 'String', num2str(csd_contrast_coef, '%.3g'));
     end
     
-function csd_contrast_coef = slider_formula(slider_value, min_coef, max_coef, slider_max)
-    % min_coef - минимальное значение диапазона csd_contrast_coef
-    % max_coef - максимальное значение диапазона csd_contrast_coef
-    % slider_max - максимальное значение диапазона слайдера
-    csd_contrast_coef = min_coef + ((max_coef - min_coef) * slider_value / slider_max);
+function outCoef = slider_formula(slider_value, min_coef, max_coef, slider_max_local)
+    outCoef = min_coef + ((max_coef - min_coef) * slider_value / slider_max_local);
 end
 
-function slider_value = slider_inverse_formula(csd_contrast_coef, min_coef, max_coef, slider_max)
-    % min_coef - минимальное значение диапазона csd_contrast_coef
-    % max_coef - максимальное значение диапазона csd_contrast_coef
-    % slider_max - максимальное значение диапазона слайдера
-    slider_value = round((slider_max * (csd_contrast_coef - min_coef) / (max_coef - min_coef)));
+function slider_value = slider_inverse_formula(inCoef, min_coef, max_coef, slider_max_local)
+    slider_value = round((slider_max_local * (inCoef - min_coef) / (max_coef - min_coef)));
+    slider_value = min(max(slider_value, 0), slider_max_local);
 end
     function saveSettings(~, ~)
         updatedData = get(hTable, 'Data');
         csd_avaliable = np_flatten([updatedData{:, 2}]);
         activeChannels = find(csd_avaliable);
-        % Update csd_contrast_coef from the slider value
         slider_value = csdContrastSlider.Value;
-        csd_contrast_coef = slider_formula(slider_value, min_coef, max_coef, slider_max);
-        csd_smooth_coef = str2double(get(csdSmoothCoefEdit, 'String')); % Обновление значения коэффициента
+        csd_contrast_coef = normalizeCsdContrastCoef(slider_formula(slider_value, contrastCoefMin, contrastCoefMax, slider_max));
+        csd_contrast_is_display = true;
+        csd_smooth_coef = str2double(get(csdSmoothCoefEdit, 'String'));
         csd_split_by_channel_gaps = logical(get(splitCheckbox, 'Value'));
         updatePlot();
-        [path, name, ~] = fileparts(matFilePath);
-        channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
-        save(channelSettingsFilePath, 'csd_avaliable', 'csd_smooth_coef', 'csd_contrast_coef', 'csd_split_by_channel_gaps', '-append');
+        saveChannelSettings('csd_avaliable', 'csd_smooth_coef', 'csd_contrast_coef', 'csd_contrast_is_display', 'csd_split_by_channel_gaps');
         uiresume(CSDSettingsFig);
         close(CSDSettingsFig);
     end

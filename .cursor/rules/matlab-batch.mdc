@@ -1,0 +1,35 @@
+---
+description: Headless запуск MATLAB через matlab -batch без bat-файлов
+alwaysApply: true
+---
+
+# MATLAB headless
+
+Когда агенту нужно выполнить MATLAB-скрипт или проверить код — только headless через `-batch`.
+
+## Как запускать
+
+- Команда: `matlab -batch "..."` (`matlab` из PATH = R2023a).
+- **Не** создавать `.bat` / `.cmd` обёртки.
+- **Не** запускать с `-desktop` / GUI ради прогона скрипта.
+- Рабочая директория Shell = корень EasyViewer (`working_directory`), чтобы не городить `cd(...)` в кавычках.
+
+```bat
+matlab -batch "restoredefaultpath; matlabrc; example_wr_mean_events"
+```
+
+или одна функция:
+
+```bat
+matlab -batch "restoredefaultpath; matlabrc; myFunction('arg')"
+```
+
+`restoredefaultpath; matlabrc` — если pathdef сломан (типично на этой машине).
+
+## Кавычки
+
+Shell часто идёт через PowerShell: избегайте вложенных `\"...\"` с `cd('...')` внутри. Предпочитайте `working_directory` + короткий `-batch` без `cd`.
+
+## Path проекта
+
+Перед вызовом пакета `wr` / `functions` скрипт сам делает `addpath` (как `example_wr_mean_events`), либо агент передаёт это в `-batch`.

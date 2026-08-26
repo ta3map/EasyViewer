@@ -44,6 +44,7 @@ function saveEventsToFile(events, time, matFilePath, varargin)
     addParameter(p, 'saveExcel', false, @islogical);
     addParameter(p, 'event_indices', [], @isnumeric);
     addParameter(p, 'event_inx', [], @isnumeric);
+    addParameter(p, 'filepath', '', @(x) ischar(x) || isstring(x));
     
     parse(p, varargin{:});
     params = p.Results;
@@ -55,9 +56,13 @@ function saveEventsToFile(events, time, matFilePath, varargin)
     waitbar(0.05, wb, 'Preparing file path...');
     [path, name, ~] = fileparts(matFilePath);
     
-    % Диалог выбора файла в зависимости от формата
+    % Путь: явный filepath или диалог
     waitbar(0.1, wb, 'Selecting save location...');
-    if params.saveExcel
+    if ~isempty(params.filepath)
+        filepath = char(params.filepath);
+        [path, file, ext] = fileparts(filepath);
+        file = [file, ext];
+    elseif params.saveExcel
         defaultFileName = fullfile(path, [name params.defaultFileNameSuffix '.xlsx']);
         [file, path] = uiputfile('*.xlsx', params.dialogTitle, defaultFileName);
         if isequal(file, 0)

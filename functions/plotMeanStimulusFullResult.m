@@ -1,5 +1,5 @@
 function figPath = plotMeanStimulusFullResult(calcResult, plotParams, events, metadata, params)
-global ch_inxs shiftCoeff channelTable matFilePath
+global ch_inxs shiftCoeff matFilePath
 
 [folder, baseName, ~] = fileparts(metadata.filePath);
 baseName = updateBaseName(baseName, params);
@@ -18,7 +18,7 @@ plotParams.tiledlayout = t;
 [~, calculation_result] = plotMeanEvents(plotParams);
 calculation_result.xLimits = calcResult.xLimits;
 
-channelSettings = get(channelTable, 'Data');
+channelSettings = buildChannelSettingsTable();
 Xlims = calculation_result.xLimits;
 numChannels = numel(ch_inxs);
 offsets = zeros(1, numChannels);

@@ -23,6 +23,8 @@ function updatePlot()
     global timeCenterPopup
     global full_channel_trace_state
     global mainPlotGfx
+    global channelNames channelEnabled
+    global channelLayoutNameGrid
 
     if ~isempty(full_channel_trace_state) && isstruct(full_channel_trace_state)
         full_channel_trace_state.active = false;
@@ -60,6 +62,8 @@ function updatePlot()
     uistack(loading_text_handle, 'top');
     
     if isempty(ch_inxs)
+        clearChannelGrid();
+        set(multiax, 'Visible', 'on');
         clearMainAxesPlotContent(multiax, keepLoading);
         mainPlotGfx = emptyMainPlotGfx();
         xlabel('Time, s');
@@ -137,6 +141,130 @@ function updatePlot()
     
     time_in_transformed = (time_res - time_origin) * timeUnitFactor;
 
+    layoutActive = ~isempty(channelLayoutNameGrid);
+
+    if layoutActive
+        indexGrid = matchChannelLayout(channelLayoutNameGrid, channelNames, channelEnabled);
+
+        if visualSettings.auto_shift
+            shiftCoeff = max(std(data_res)) * 2;
+        end
+
+        Xlims = (plot_time_interval - time_origin) * timeUnitFactor;
+        timeSpan = diff(Xlims);
+
+        if show_events && ~isempty(events)
+            cond2 = events >= plot_time_interval(1) & events < plot_time_interval(2);
+            events_x = (events(cond2) - time_origin) * timeUnitFactor;
+            eventIndices = find(cond2);
+        else
+            cond2 = [];
+            events_x = [];
+            eventIndices = [];
+        end
+
+        if isempty(events_x)
+            eventTexts = {};
+        else
+            event_times_absolute = events(cond2) * timeUnitFactor;
+            event_times_relative = (events(cond2) - time_origin) * timeUnitFactor;
+            fmtOpts = {'%.3f', '%.0f'};
+            timeFmt = fmtOpts{1 + strcmp(selectedUnit, 'ms')};
+            eventTexts = arrayfun( ...
+                @(i) sprintf(['#%d\n', timeFmt, ' ', selectedUnit, '\nrel ', timeFmt, ' ', selectedUnit], ...
+                    eventIndices(i), event_times_absolute(i), event_times_relative(i)), ...
+                1:numel(eventIndices), 'UniformOutput', false);
+        end
+
+        stimIndices = find(cond3);
+        if isempty(stims_x)
+            stimTexts = {};
+        else
+            stimTexts = arrayfun(@(i) sprintf('%d', stimIndices(i)), 1:numel(stimIndices), 'UniformOutput', false);
+        end
+
+        [~, name, ~] = fileparts(matFilePath);
+        titleLabel = name;
+        eventFileLabel = strtrim(event_title_string);
+        if ~isempty(eventFileLabel) && ~strcmp(eventFileLabel, 'Events')
+            titleLabel = sprintf('%s | %s', name, eventFileLabel);
+        end
+        centerModes = {'stimulus', 'events', 'continuous'};
+        centerLabels = {'Stimuli', 'Events', 'Continuos'};
+        centerLabel = centerLabels{find(strcmp(centerModes, selectedCenter), 1)};
+        timeFmtOpts = {'%.3f', '%.0f'};
+        timeFmt = timeFmtOpts{1 + strcmp(selectedUnit, 'ms')};
+        centerLabelParts = { ...
+            ['Mode: ', centerLabel], ...
+            sprintf([timeFmt, ' %s'], time_origin * timeUnitFactor, selectedUnit) ...
+        };
+        switch selectedCenter
+            case 'events'
+                centerLabelParts{end + 1} = sprintf('%d/%d', event_inx, numel(events));
+            case 'stimulus'
+                centerLabelParts{end + 1} = sprintf('%d/%d', stim_inx, numel(stims));
+        end
+        centerLabel = strjoin(centerLabelParts, ' | ');
+
+        clearMainAxesPlotContent(multiax, keepLoading);
+        mainPlotGfx = emptyMainPlotGfx();
+
+        manualYlimValid = viewerYlimManual && numel(viewerYlim) == 2 ...
+            && all(isfinite(viewerYlim)) && viewerYlim(1) < viewerYlim(2);
+        if manualYlimValid
+            Ylims = [viewerYlim(1), viewerYlim(2)];
+        else
+            Ylims = [-shiftCoeff / 2, shiftCoeff / 2];
+        end
+        if viewerYlimManual && ~manualYlimValid
+            viewerYlimManual = false;
+        end
+
+        params = struct();
+        params.indexGrid = indexGrid;
+        params.time = time_in_transformed;
+        params.data = data_res;
+        params.ch_inxs = ch_inxs;
+        params.colors = colors_in_l;
+        params.widths = widths_in_l;
+        params.labels = ch_labels_l;
+        params.shiftCoeff = shiftCoeff;
+        params.Ylims = Ylims;
+        params.Xlims = Xlims;
+        params.timeSpan = timeSpan;
+        params.selectedUnit = selectedUnit;
+        params.show_events = show_events;
+        params.show_stim = logical(visualSettings.stim_show);
+        params.events_x = events_x;
+        params.stims_x = stims_x;
+        params.eventTexts = eventTexts;
+        params.stimTexts = stimTexts;
+        params.eventIndices = eventIndices;
+        params.stimIndices = stimIndices;
+        params.titleLabel = titleLabel;
+        params.centerLabel = centerLabel;
+        plotChannelGrid(params);
+
+        sliderMin = get(timeSlider, 'Min');
+        sliderMax = get(timeSlider, 'Max');
+        sliderValue = chosen_time_interval(1);
+        sliderValue = max(sliderMin, min(sliderMax, sliderValue));
+        set(timeSlider, 'Value', sliderValue);
+        previousSliderValue = sliderValue;
+        set(timeZeroEdit, 'String', num2str(time_origin * timeUnitFactor));
+        set(yLimMinEdit, 'String', sprintf('%.6g', Ylims(1)));
+        set(yLimMaxEdit, 'String', sprintf('%.6g', Ylims(2)));
+        if isgraphics(shiftCoeffEdit)
+            set(shiftCoeffEdit, 'String', sprintf('%.6g', shiftCoeff));
+        end
+        set(loading_text_handle, 'Visible', 'off');
+        plot_updating = false;
+        return;
+    end
+
+    clearChannelGrid();
+    set(multiax, 'Visible', 'on');
+
     use_mua_mask = isfield(visualSettings, 'mua_use_mask') && visualSettings.mua_use_mask;
     [~, gapIdx] = splitConsecutiveChannels(ch_inxs);
 
@@ -192,7 +320,8 @@ function updatePlot()
         if canReuse && ~isempty(mainPlotGfx.csdImage) && isgraphics(mainPlotGfx.csdImage)
             hCsd = mainPlotGfx.csdImage;
         end
-        mainPlotGfx.csdImage = csdPlotting(csd_image, csd_t_range, csd_ch_range, csd_contrast_coef, hCsd);
+        mainPlotGfx.csdImage = csdPlotting(csd_image, csd_t_range, csd_ch_range, hCsd);
+        applyHeatmapContrast(multiax, get(multiax, 'CLim'), csd_contrast_coef);
     else
         mainPlotGfx.csdImage = gobjects(0);
     end
@@ -635,6 +764,10 @@ function updatePlot()
         end
     else
         textMod(text_x, text_y, text_text, lines_and_styles, 'stimulus_lines')
+    end
+
+    if isfield(visualSettings, 'show_scale_bars') && visualSettings.show_scale_bars
+        drawPlotScaleBars(multiax, shiftCoeff, diff(Xlims), selectedUnit);
     end
     
     sliderMin = get(timeSlider, 'Min');

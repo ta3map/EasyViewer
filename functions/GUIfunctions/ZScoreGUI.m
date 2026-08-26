@@ -118,84 +118,12 @@ function ZScoreGUI()
 end
 
 function [timeAxis, zscore_all] = plotZScore(params, axesHandle)
-    % Распаковка переменных из params
-    events = params.events;
-    meanWindow = params.meanWindow;
-    Fs = params.Fs;
-    lfp = params.lfp;
-    N = params.N;
-    time = params.time;
-    binsize = params.binsize;
-    spks = params.spks;
-    ch_inxs = params.ch_inxs; % Индексы активированных каналов
-    lfpVar = params.lfpVar;
-    prg = params.spk_threshold;
-    titlename = params.titlename;
+    [timeAxis, zscore_all] = computeEventSpikeZScore(params);
 
-    if isfield(params, 'timeUnitFactor')
-        timeUnitFactor = params.timeUnitFactor;
-    else
-        timeUnitFactor = 1;
-    end
-
-    % Подготовка данных для среднего
-    numEvents = length(events);
-
-    % Считаем все спайки и их Z-score
-    all_hists = [];
-    if not(isempty(spks))
-        for i = 1:numEvents
-            % Вычисление индексов окна вокруг события
-            eventIdx = round(events(i) * Fs);
-            windowStart = max(eventIdx - round(meanWindow * Fs / 2), 1);
-            windowEnd = min(windowStart + round(meanWindow * Fs) - 1, N);
-
-            if windowEnd < size(lfp, 1)
-                % Окно события
-                time_start = time(windowStart);
-                time_end = time(windowEnd);
-
-                time_interval = [time_start, time_end]; % s
-                edges = time_interval(1):binsize:time_interval(2);
-
-                % Смотрим что на каждом канале для этого эвента
-                for ch_inx = ch_inxs
-                    % Порог ZAV метод
-                    ii = double(spks(ch_inx).ampl) <= (-lfpVar(ch_inx) * prg);
-                    spks_in(ch_inx).tStamp = spks(ch_inx).tStamp(ii);
-                    spks_in(ch_inx).ampl = spks(ch_inx).ampl(ii);
-
-                    spk = spks_in(ch_inx).tStamp / 1000;
-
-                    hist_data = histcounts(spk, edges);
-                    all_hists = [all_hists; hist_data];
-                end
-            end
-            disp(['event #' num2str(i) ' of ' num2str(numEvents)])
-        end
-    end
-
-    % Рассчитываем Z-score
-    if ~isempty(all_hists)
-        mean_hists = mean(all_hists, 1);
-        std_hists = std(all_hists, 0, 1);
-        zscore_all = (mean_hists - mean(mean_hists)) / std(mean_hists);
-    else
-        zscore_all = [];
-    end
-
-    % Отображение Z-score
-    hold(axesHandle, 'on')
-
-    start_time = -meanWindow / 2;
-    end_time = meanWindow / 2;
-
-    timeAxis = linspace(start_time * timeUnitFactor, end_time * timeUnitFactor, length(zscore_all));
-    
+    hold(axesHandle, 'on');
     plot(axesHandle, timeAxis, zscore_all, 'k');
     xlabel(axesHandle, 'Time');
     ylabel(axesHandle, 'Z-Score');
-    title(axesHandle, [titlename, ' Z-Score', ', ', num2str(numEvents), ' events'], 'interpreter', 'none');
-    
+    title(axesHandle, [params.titlename, ' Z-Score', ', ', num2str(numel(params.events)), ' events'], 'interpreter', 'none');
     hold(axesHandle, 'off');
 end

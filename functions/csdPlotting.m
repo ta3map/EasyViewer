@@ -1,6 +1,6 @@
-function hImg = csdPlotting(csd_image, csd_t_range, csd_ch_range, csd_contrast_coef, hImg)
+function hImg = csdPlotting(csd_image, csd_t_range, csd_ch_range, hImg)
 
-if nargin < 5
+if nargin < 4
     hImg = [];
 end
 
@@ -12,23 +12,11 @@ end
 set(hImg, 'Tag', 'csd_layer');
 colormap jet
 
-rawCoef = double(csd_contrast_coef);
-rawCoef = rawCoef(:).';
-rawCoef = rawCoef(isfinite(rawCoef) & isreal(rawCoef));
-rawCoef = [rawCoef, 99.9];
-rawCoef = rawCoef(1);
-rawCoef = rawCoef .* (1 + 99 * (rawCoef <= 1));
-rawCoef = max(rawCoef, 0);
-
-coefForPrctile = min(rawCoef, 100);
-
-if rawCoef > 100
-    branch_plus = prctile(csd_image, 100, 'all') * (rawCoef / 100);
-else
-    branch_plus = prctile(csd_image, coefForPrctile, 'all');
+branch_plus = abs(prctile(csd_image, 99, 'all'));
+if ~(isfinite(branch_plus) && branch_plus > 0)
+    branch_plus = max(abs(csd_image(:)));
+    branch_plus = max(branch_plus, 1);
 end
-
-branch_plus = max(abs(branch_plus), eps);
 caxis([-branch_plus, branch_plus]);
 
 end

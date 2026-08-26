@@ -27,13 +27,15 @@ function signalViewerGUI(filePath)
     global previousSliderValue % сохраняем предыдущее значение слайдера
     global data_loaded
     global SettingsFilepath
-    global csd_smooth_coef csd_contrast_coef
+    global csd_smooth_coef csd_contrast_coef csd_contrast_is_display
     global csd_split_by_channel_gaps
     global autodetection_settings
     global lfpVar windowSize
     global timeCenterPopup
     global event_title_string evfilename eventDeleteEdit StimuliTitle
     global lastEventsFilePath
+    global channelLayoutFilePath
+    global channelLayoutNameGrid
     global art_rem_settings
     global lines_and_styles
     global auto_open_last_file
@@ -90,35 +92,9 @@ function signalViewerGUI(filePath)
         axes_background_color = '#FFFFFF';
     end
     
-    % Загружаем координаты элементов из JSON файла
-    coordsFile = getGUIConfigPath('signalViewerGUI_coords.json');
-    if exist(coordsFile, 'file')
-        coordsData = jsondecode(fileread(coordsFile));
-    else
-        error('Coordinates file not found: %s', coordsFile);
-    end
-    
-    % Вспомогательная функция для получения координат элемента
-    function pos = getElementPosition(tag)
-        if isfield(coordsData.elements, tag)
-            pos = coordsData.elements.(tag);
-            
-            % Проверяем, не является ли элемент осью или панелью - для них оставляем относительные координаты
-            if ~strcmp(tag, 'main_axes') && ~strcmp(tag, 'multiax') && ...
-               ~strcmp(tag, 'main_panel') && ~strcmp(tag, 'side_panel')
-                % Преобразуем относительные координаты в абсолютные на основе base_figure_position
-                base_pos = coordsData.base_figure_position;
-                pos = [
-                    pos(1) * base_pos(3),  % x
-                    pos(2) * base_pos(4),  % y
-                    pos(3) * base_pos(3),  % width
-                    pos(4) * base_pos(4)   % height
-                ];
-            end
-        else
-            error('Coordinates for element %s not found in JSON file', tag);
-        end
-    end
+    [coordsData, coordsFile] = loadGUICoords('signalViewerGUI_coords.json');
+    relativeTags = {'main_axes', 'multiax', 'main_panel', 'side_panel'};
+    getElementPosition = @(tag) getGUIElementPosition(coordsData, tag, relativeTags);
     
     t_mean_profile = 0;
     
@@ -191,6 +167,8 @@ function signalViewerGUI(filePath)
     
     matFileName = '';
     lastEventsFilePath = '';
+    channelLayoutFilePath = '';
+    channelLayoutNameGrid = [];
     
     visualSettings.stim_show = true;
     
@@ -199,7 +177,8 @@ function signalViewerGUI(filePath)
     csd_split_by_channel_gaps = false;
     
     event_title_string = 'Events';
-    csd_contrast_coef = 99.9;
+    csd_contrast_coef = 100;
+    csd_contrast_is_display = true;
     
     data_loaded = false;
     viewerYlimManual = false;
@@ -239,7 +218,7 @@ function signalViewerGUI(filePath)
     % добавляем возможность вызвать функцию извне
     zav_calling = @loadMatFile;
     zav_saving = @saveMatFile;
-    table_calling = @UpdateEventTable;
+    table_calling = @syncEventTable;
     event_calling = @loadEvents;
     outside_calling_filepath = [];
     call_mean_events = @meanEventsCallback;
@@ -275,6 +254,9 @@ function signalViewerGUI(filePath)
     end
     if ~isfield(visualSettings, 'events_show')
         visualSettings.events_show = true;
+    end
+    if ~isfield(visualSettings, 'show_scale_bars')
+        visualSettings.show_scale_bars = true;
     end
     std_coef = 0;
     time_back = 0.6;
@@ -317,7 +299,7 @@ function signalViewerGUI(filePath)
     timer('TimerFcn', @resetParametersCallback, 'StartDelay', 1, 'ExecutionMode', 'singleShot');
     
     % Создание фигуры и панелей
-    f = figure('Name', 'Signal Viewer', ...
+    f = figure('Name', 'View Signals', ...
            'NumberTitle', 'off',...
            'MenuBar', 'none', ...
            'ToolBar', 'figure', ...
@@ -337,7 +319,13 @@ function signalViewerGUI(filePath)
     mainPanel = uipanel('Parent', f, 'Position', getElementPosition('main_panel'), 'Tag', 'main_panel');
     multiax_position_a = getElementPosition('multiax_position_a');
     multiax_position_b = getElementPosition('multiax_position_b');
-    multiax = axes('Position', multiax_position_a, 'Tag', 'multiax');
+    plotPanel = uipanel('Parent', f, ...
+        'Position', multiax_position_a, ...
+        'BorderType', 'none', ...
+        'BackgroundColor', get(f, 'Color'), ...
+        'Tag', 'plot_panel');
+    multiax = axes('Parent', plotPanel, 'Units', 'normalized', ...
+        'Position', [0.08 0.07 0.90 0.86], 'Tag', 'multiax');
     set(multiax,'TickLabelInterpreter','none')
 
     if ~isempty(axes_background_color)
@@ -514,6 +502,7 @@ function signalViewerGUI(filePath)
     showStimButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Stim', 'Position', getElementPosition('show_stim_button'), 'Value', visualSettings.stim_show, 'Callback', @ShowStimButtonCallback, 'Tag', 'show_stim_button');
     showStimLogoButton = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Logo', 'Position', getElementPosition('show_stim_logo_button'), 'Value', lines_and_styles.stimulus_lines.LabelVisible, 'Callback', @ShowStimLogoButtonCallback, 'Tag', 'show_stim_logo_button');
     showFullSignalCheckbox = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Full signal', 'Position', getElementPosition('show_full_signal_checkbox'), 'Value', visualSettings.show_full_signal, 'Callback', @fullSignalCheckboxCallback, 'Tag', 'show_full_signal_checkbox');
+    showScaleBarsCheckbox = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Scale bars', 'Position', getElementPosition('show_scale_bars_checkbox'), 'Value', visualSettings.show_scale_bars, 'Callback', @scaleBarsCheckboxCallback, 'Tag', 'show_scale_bars_checkbox');
     showAmpLabelsCheckbox = uicontrol('Parent', mainPanel, 'Style', 'checkbox', 'String', 'Amp', ...
         'Position', getElementPosition('show_amplitude_labels_checkbox'), ...
         'Value', visualSettings.show_amplitude_labels, ...
@@ -547,7 +536,7 @@ function signalViewerGUI(filePath)
         '',...
         'Spectral Density', ...
         '', ...
-        'Signal Analysis', ...
+        'Analyze Responses', ...
         '', ...
         'Cross-Correlation', ...
         '', ...
@@ -594,7 +583,11 @@ function signalViewerGUI(filePath)
         '', ...
         'Convert to MAT File', ...
         '----------', ...
-        'Save figure snapshot'};
+        'Save figure snapshot', ...
+        '', ...
+        'Load channel profile', ...
+        '', ...
+        'Clear channel profile'};
         
     % Создание выпадающего списка
     file_menu = uicontrol('Style', 'listbox',...
@@ -733,7 +726,7 @@ function signalViewerGUI(filePath)
     
     % Применяем полное состояние боковой панели после создания всех элементов
     if ~visualSettings.side_panel_visible
-        set(multiax,'Position', multiax_position_b);
+        set(plotPanel,'Position', multiax_position_b);
     end
     
     % Обновляем текст в меню View в соответствии с состоянием
@@ -767,24 +760,47 @@ function signalViewerGUI(filePath)
     function ButtonDownFcn(ax, fig)
         % Проверяем, зажата ли клавиша Ctrl
         modifiers = get(fig, 'CurrentModifier');
+        clickAx = resolveClickAxes(fig, ax);
         if ismember('control', modifiers) % Если зажата Ctrl
             % Добавление интерактивного маркера при клике на график 
-            addMarker(ax);
-            updateMarkersDiff(ax);
+            addMarker(clickAx);
+            updateMarkersDiff(clickAx);
             
         elseif ismember('shift', modifiers) % Добавление события по клику (та же логика, что у маркера)
-            cp = get(ax, 'CurrentPoint');
+            cp = get(clickAx, 'CurrentPoint');
             x = cp(1, 1);
             time_origin = chosen_time_interval(1);
             t_absolute = time_origin + x / timeUnitFactor;
             addEventAtTime(t_absolute);
         elseif add_event_pending
-            cp = get(ax, 'CurrentPoint');
+            cp = get(clickAx, 'CurrentPoint');
             x = cp(1, 1);
             time_origin = chosen_time_interval(1);
             t_absolute = time_origin + x / timeUnitFactor;
             addEventAtTime(t_absolute);
             add_event_pending = false;
+        end
+    end
+
+    function clickAx = resolveClickAxes(fig, fallbackAx)
+        clickAx = fallbackAx;
+        global channelGridGfx
+        if isempty(channelGridGfx) || ~isstruct(channelGridGfx)
+            return;
+        end
+        if isempty(channelGridGfx.axes) || ~any(isgraphics(channelGridGfx.axes(:)))
+            return;
+        end
+        hit = hittest(fig);
+        while ~isempty(hit) && isgraphics(hit)
+            if strcmp(get(hit, 'Type'), 'axes')
+                tag = get(hit, 'Tag');
+                if strcmp(tag, 'channelGridAx')
+                    clickAx = hit;
+                    return;
+                end
+            end
+            hit = get(hit, 'Parent');
         end
     end
     
@@ -1048,6 +1064,10 @@ function signalViewerGUI(filePath)
                 showImportFormatDialog();
             case file_functions{19}
                 saveMainAxisAs();
+            case file_functions{21}
+                loadChannelProfile();
+            case file_functions{23}
+                clearChannelProfile();
             case ''
                 dont_close_menu = true;
         end
@@ -1057,23 +1077,44 @@ function signalViewerGUI(filePath)
         end
     end
 
+    function loadChannelProfile()
+        initialDirLocal = '';
+        if ~isempty(lastOpenedFiles)
+            initialDirLocal = fileparts(lastOpenedFiles{end});
+        end
+        [file, path] = uigetfile( ...
+            {'*.xlsx;*.xls', 'Excel channel profile (*.xlsx, *.xls)'}, ...
+            'Load channel profile', initialDirLocal);
+        if isequal(file, 0) || isequal(path, 0)
+            return;
+        end
+        channelLayoutFilePath = fullfile(path, file);
+        channelLayoutNameGrid = parseChannelLayout(channelLayoutFilePath);
+        saveChannelSettings('channelLayoutFilePath', 'channelLayoutNameGrid');
+        updatePlot();
+    end
+
+    function clearChannelProfile()
+        channelLayoutFilePath = '';
+        channelLayoutNameGrid = [];
+        clearChannelGrid();
+        set(multiax, 'Visible', 'on');
+        saveChannelSettings('channelLayoutFilePath', 'channelLayoutNameGrid');
+        updatePlot();
+    end
+
 
     function importEventsFromSimulus()
         if not(isempty(stims))
-            
             importEventsFromSimulusGUI()
-            
             if not(isempty(events))
-                sliderValue = get(timeSlider, 'Value'); % Текущее значение слайдера
-                event_inx = ClosestIndex(sliderValue, events);% Индекс текущего эвента во времени
-                event_comments = repmat({'...'}, numel(events), 1); % Инициализация комментариев
                 event_title_string = [matFileName, ' stimulus imported'];
                 evfilename = matFileName;
-                events_exist = true;
+                event_inx = ClosestIndex(get(timeSlider, 'Value'), events);
                 selectedCenter = 'events';
                 syncTimeCenterPopup();
                 changeTimeCenter(timeCenterPopup);
-                UpdateEventTable();
+                syncEventTable();
                 updatePlot();
             end
         end
@@ -1095,13 +1136,20 @@ function signalViewerGUI(filePath)
         else
            filename = fullfile(path, file);
            [~, ~, ext] = fileparts(filename);
+           exportTarget = multiax;
+           global channelGridGfx
+           if ~isempty(channelGridGfx) && isstruct(channelGridGfx) ...
+                   && isfield(channelGridGfx, 'host') && ~isempty(channelGridGfx.host) ...
+                   && isgraphics(channelGridGfx.host)
+               exportTarget = plotPanel;
+           end
            switch lower(ext)
                case {'.pdf', '.eps'}
-                   exportgraphics(multiax, filename, 'ContentType', 'vector');
+                   exportgraphics(exportTarget, filename, 'ContentType', 'vector');
                case '.png'
-                   exportgraphics(multiax, filename, 'Resolution', 300);
+                   exportgraphics(exportTarget, filename, 'Resolution', 300);
                otherwise
-                   exportgraphics(multiax, filename);
+                   exportgraphics(exportTarget, filename);
            end
            debugState('saveMainAxisAs', 'Image saved to %s', filename);
         end
@@ -1200,15 +1248,15 @@ function signalViewerGUI(filePath)
         if visualSettings.side_panel_visible
             debugState('showHideSidePanel', 'Hiding Side Panel')
             set(sidePanel, 'Visible', 'off');
-            set(multiax,'Position', multiax_position_b);
+            set(plotPanel,'Position', multiax_position_b);
             str_out = 'View Channel Settings';
         else
             debugState('showHideSidePanel', 'Showing Side Panel')
             set(sidePanel, 'Visible', 'on');            
-            set(multiax,'Position', multiax_position_a);
+            set(plotPanel,'Position', multiax_position_a);
             str_out = 'Hide Channel Settings';
         end
-        
+
         updateViewMenuLabel(1, str_out);
         visualSettings.side_panel_visible = ~visualSettings.side_panel_visible;
         
@@ -1224,7 +1272,7 @@ function signalViewerGUI(filePath)
         % Сохраняем состояние в общие настройки
         save(SettingsFilepath, 'visualSettings', '-append');
     end
-    
+
     function toggleSidePanelCallback(~, ~)
         showHideSidePanel();
     end
@@ -1435,21 +1483,12 @@ function signalViewerGUI(filePath)
             % Применяем текущее состояние боковой панели без изменения настройки
             if visualSettings.side_panel_visible
                 set(sidePanel, 'Visible', 'on');
-                set(multiax,'Position', multiax_position_a);
+                set(plotPanel,'Position', multiax_position_a);
             else
                 set(sidePanel, 'Visible', 'off');
-                set(multiax,'Position', multiax_position_b);
+                set(plotPanel,'Position', multiax_position_b);
             end
-            
-            % Путь к файлу координат
-            coordsFile = getGUIConfigPath('signalViewerGUI_coords.json');
-            
-            % Загружаем базовый размер из JSON для правильного вычисления коэффициентов масштабирования
-            if exist(coordsFile, 'file')
-                coordsData = jsondecode(fileread(coordsFile));
-                base_figure_position = coordsData.base_figure_position;
-                ResizeElements(f, coordsFile, base_figure_position);
-            end
+            ResizeElements(f, coordsFile);
         catch ME
         end
     end
@@ -1603,6 +1642,11 @@ function signalViewerGUI(filePath)
 
     function fullSignalCheckboxCallback(src, ~)
         setVisualSetting('show_full_signal', logical(get(src, 'Value')), showFullSignalCheckbox, true, 5, {'Show full signal','Hide full signal'});
+        updatePlot();
+    end
+
+    function scaleBarsCheckboxCallback(src, ~)
+        setVisualSetting('show_scale_bars', logical(get(src, 'Value')), showScaleBarsCheckbox, true, [], {});
         updatePlot();
     end
 
@@ -1937,21 +1981,22 @@ function signalViewerGUI(filePath)
         if plot_updating
             return;
         end
-        ycur = ylim(multiax);
         ymin = str2double(get(yLimMinEdit, 'String'));
         ymax = str2double(get(yLimMaxEdit, 'String'));
         if isnan(ymin) || isnan(ymax) || ymin >= ymax
-            set(yLimMinEdit, 'String', sprintf('%.6g', ycur(1)));
-            set(yLimMaxEdit, 'String', sprintf('%.6g', ycur(2)));
+            set(yLimMinEdit, 'String', sprintf('%.6g', viewerYlim(1)));
+            set(yLimMaxEdit, 'String', sprintf('%.6g', viewerYlim(2)));
             return;
         end
         viewerYlimManual = true;
         viewerYlim = [ymin ymax];
-        ylim(multiax, viewerYlim);
+        saveChannelSettings('viewerYlim', 'viewerYlimManual');
+        updatePlot();
     end
 
     function yLimResetCallback(~, ~)
         viewerYlimManual = false;
+        saveChannelSettings('viewerYlimManual');
         setUIControlsEnable({sidePanel, mainPanel}, 'on');
         set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit, yLimResetBtn, fullTraceBtn], 'Enable', 'on');
         set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit], 'Visible', 'on');
@@ -2321,9 +2366,26 @@ function signalViewerGUI(filePath)
         end
 
         axes_background_color = selectedColorHex;
-        set(multiax, 'Color', hex2rgb_local(selectedColorHex));
+        bgRgb = hex2rgb_local(selectedColorHex);
+        set(multiax, 'Color', bgRgb);
+        applyAxesBackgroundToChannelGrid(bgRgb);
         saveChannelSettings('axes_background_color');
         close(dialogFig);
+    end
+
+    function applyAxesBackgroundToChannelGrid(bgRgb)
+        global channelGridGfx
+        if isempty(channelGridGfx) || ~isstruct(channelGridGfx)
+            return;
+        end
+        if isgraphics(channelGridGfx.host)
+            set(channelGridGfx.host, 'BackgroundColor', bgRgb);
+        end
+        if isempty(channelGridGfx.axes)
+            return;
+        end
+        axMask = isgraphics(channelGridGfx.axes);
+        set(channelGridGfx.axes(axMask), 'Color', bgRgb);
     end
 
     function cancelChannelColorEdit(src)
@@ -2414,22 +2476,10 @@ function signalViewerGUI(filePath)
         end
         filepath = fullfile(path, file);
         
-        % Очистка таблицы событий ДО загрузки файла
-        events = [];
-        event_indices = [];
-        event_amplitudes = [];
-        event_channels = [];
-        event_widths = [];
-        event_prominences = [];
-        event_metadata = [];
-        event_comments = {};
-        event_title_string = 'Events';
-        event_inx = 1;
-        events_exist = false;
-        
+        clearEventsState();
         loadMatFile(filepath)
         
-        UpdateEventTable();
+        syncEventTable();
         set(eventDeleteEdit, 'String', num2str(event_inx));   
         
         saveSettings();
@@ -2530,101 +2580,68 @@ function signalViewerGUI(filePath)
             end
         end
         
-         % Сохранение пути к загруженному .mat файлу
-        matFilePath = filepath;        
-        [~, matFileName, ~] = fileparts(matFilePath);
-        evfilename = matFileName;
-        debugState('loadMatFile', '%s', matFileName);       
-        
-        % Используем универсальную функцию загрузки
+        debugState('loadMatFile', '%s', filepath);
+
         if isRestoringStartupState && ~isempty(restorationWaitBar) && isvalid(restorationWaitBar)
-            data = load_zav_file(filepath, ...
+            loadZavSession(filepath, ...
                 'auto_set_time_windows', autoSetTimeWindowsFromSweeps, ...
                 'auto_set_fs', autoSetNewFsFromFs, ...
                 'waitbar_handle', restorationWaitBar, ...
                 'keep_waitbar_open', true);
         else
-            data = load_zav_file(filepath, ...
+            loadZavSession(filepath, ...
                 'auto_set_time_windows', autoSetTimeWindowsFromSweeps, ...
                 'auto_set_fs', autoSetNewFsFromFs);
         end
-        [lfp_file, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
-        spks_events = {};
 
-        N = length(time);
-        Fs = zavp.dwnSmplFrq;
-        
-        % Устанавливаем флаги
-        stims_exist = ~isempty(stims);
-        sweep_inx = 1;
-        debugState('loadMatFile', 'stims_exist=%d', stims_exist);
-        
-        % Обновляем заголовок стимулов
+        debugState('loadMatFile', 'stims_exist=%d, selectedCenter=%s, stim_inx=%d', ...
+            stims_exist, selectedCenter, stim_inx);
+
         if stims_exist
             set(StimuliTitle, 'String', ['Stimuli: ', num2str(numel(stims))]);
         else
             set(StimuliTitle, 'String', 'Stimuli');
         end
-        
-        % Устанавливаем временные параметры
-        shiftCoeff = 200;
-        
-        % Устанавливаем newFs
-        if autoSetNewFsFromFs
-            newFs = Fs;
-        else
-            newFs = 1000;
-        end
-        
-        % Автоматический выбор режима центра
-        if stims_exist && numel(stims) > 1
-            selectedCenter = 'stimulus';
-        else
-            selectedCenter = 'continuous';
-        end
-        stim_inx = 1;
-        debugState('loadMatFile', 'selectedCenter=%s, stim_inx=%d', selectedCenter, stim_inx);
-        
-        % Правильно устанавливаем chosen_time_interval в зависимости от выбранного режима
-        % Используем time_forward, который был установлен load_zav_file (или значение по умолчанию)
-        windowSize = time_forward;
-        switch selectedCenter
-            case 'stimulus'
-                if stims_exist && stim_inx > 0 && stim_inx <= numel(stims)
-                    chosen_time_interval(1) = stims(stim_inx);
-                    chosen_time_interval(2) = stims(stim_inx) + windowSize;
-                else
-                    chosen_time_interval = [0, windowSize];
-                end
-            case 'continuous'
-                chosen_time_interval = [0, windowSize];
-        end
-        
-        visualSettings.show_spikes = false;
-        visualSettings.show_CSD = false;
-        channelNames = hd.recChNames;
-        numChannels = length(channelNames);
-        
-        resetMainWindowButtons()
-        
 
-        
-        % Обновление и сохранение списка последних открытых файлов
+        resetMainWindowButtons()
         lastOpenedFiles{end + 1} = filepath;
-        
-            % Попытка загрузить настройки каналов
-    % Сначала проверяются индивидуальные настройки, затем групповые
-       loadChannelSettings();
-       metadata = struct('hd', hd, 'stims', stims, 'filePath', filepath);
-   end
+
+        [path, name, ~] = fileparts(matFilePath);
+        channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
+        if isfile(channelSettingsFilePath)
+            syncViewerControlsFromSession();
+            updateTable();
+            updateLocalCoefs();
+        else
+            loadGroupSettingsAndCreateIndividual(matFilePath, numChannels, Fs, EV_version);
+        end
+
+        clearChannelGrid();
+        syncEventTable();
+
+        metadata = struct('hd', hd, 'stims', stims, 'filePath', filepath);
+    end
+
+    function syncViewerControlsFromSession()
+        set(FsCoeffEdit, 'String', num2str(newFs));
+        set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
+        set(showCSDbutton, 'Value', visualSettings.show_CSD);
+        set(timeBackEdit, 'String', num2str(time_back * timeUnitFactor));
+        set(timeForwardEdit, 'String', num2str(time_forward * timeUnitFactor));
+        if ~isempty(axes_background_color)
+            bgRgb = hex2rgb_local(axes_background_color);
+            set(multiax, 'Color', bgRgb);
+            applyAxesBackgroundToChannelGrid(bgRgb);
+        end
+        syncMUAControlsState();
+    end
 
     function resetToNoFileState()
         lfp_file = []; spks = []; spks_events = {}; hd = []; zavp = []; lfpVar = []; chnlGrp = []; time = []; stims = [];
         ch_inxs = [];
         sweep_info = struct('is_sweep_data', false, 'sweep_count', 0, 'sweep_times', []);
         time_forward = []; time_back = []; matFilePath = ''; matFileName = ''; stims_exist = false;
-        events = []; event_indices = []; event_comments = {}; event_amplitudes = []; event_channels = [];
-        event_widths = []; event_prominences = []; event_metadata = [];
+        clearEventsState();
         N = []; Fs = []; newFs = []; sweep_inx = 1; selectedCenter = 'continuous'; stim_inx = 1;
         chosen_time_interval = [0, 0];
         viewerYlimManual = false;
@@ -2636,6 +2653,9 @@ function signalViewerGUI(filePath)
         end
         clearMainAxesPlotContent(multiax, keepLoading);
         mainPlotGfx = emptyMainPlotGfx();
+        clearChannelGrid();
+        channelLayoutFilePath = '';
+        channelLayoutNameGrid = [];
         text(multiax, 0.5, 0.5, 'Open MAT or EV file', 'color', 'r', 'horizontalalignment', 'center', 'Units', 'normalized');
         set(multiax, 'Visible', 'off');
         if ~isempty(loading_text_handle) && isvalid(loading_text_handle)
@@ -2650,6 +2670,7 @@ function signalViewerGUI(filePath)
         set(FMbutton, 'Enable', 'on');
         set(loadEventsBtn, 'Enable', 'on');
         updateMUAControlsVisibility();
+        syncEventTable();
         data_loaded = false;
     end
 
@@ -2740,7 +2761,9 @@ function signalViewerGUI(filePath)
         end
         
         % включаем multiax
-        set(multiax, 'Visible', 'on')
+        if isgraphics(multiax)
+            set(multiax, 'Visible', 'on')
+        end
     end
 
     function updateMUAControlsVisibility()
@@ -2793,25 +2816,13 @@ function signalViewerGUI(filePath)
     end
 
     function updateTable()
-        numCh = length(channelNames);
-        tableData = cell(numCh, 9);
-        for i = 1:numCh
-            tableData{i, 1} = channelNames{i};
-            tableData{i, 2} = channelEnabled(i);
-            tableData{i, 3} = scalingCoefficients(i);
-            tableData{i, 4} = colorsIn{i};
-            tableData{i, 5} = lineCoefficients(i);
-            tableData{i, 6} = mean_group_ch(i);
-            tableData{i, 7} = csd_avaliable(i);
-            tableData{i, 8} = filter_avaliable(i);
-            tableData{i, 9} = baseline_subtract_available(i);
-        end
+        tableData = buildChannelSettingsTable();
 
-        set(channelTable, 'Data', tableData, ... % Обновляем данные в таблице
+        set(channelTable, 'Data', tableData, ...
                    'ColumnName', {'Channel', 'Enabled', 'Scale', 'Color', 'Line Width', 'Averaging', 'CSD', 'Filter', 'Baseline'}, ...
                    'ColumnFormat', {'char', 'logical', 'numeric', 'char', 'numeric', 'logical', 'logical', 'logical', 'logical'}, ...
                    'ColumnEditable', [false true true true true true true true true]);
-        
+
         updateLocalCoefs()
     end
 
@@ -2885,6 +2896,20 @@ function loadSettingsFile()
         if isfield(loadedSettings, 'lastEventsFilePath')
             lastEventsFilePath = loadedSettings.lastEventsFilePath;
         end
+        channelLayoutFilePath = '';
+        channelLayoutNameGrid = [];
+        if isfield(loadedSettings, 'channelLayoutNameGrid') && ~isempty(loadedSettings.channelLayoutNameGrid)
+            channelLayoutNameGrid = loadedSettings.channelLayoutNameGrid;
+        end
+        if isfield(loadedSettings, 'channelLayoutFilePath')
+            channelLayoutFilePath = loadedSettings.channelLayoutFilePath;
+        end
+        if isfield(loadedSettings, 'viewerYlim') && numel(loadedSettings.viewerYlim) == 2
+            viewerYlim = double(loadedSettings.viewerYlim(:)');
+        end
+        if isfield(loadedSettings, 'viewerYlimManual')
+            viewerYlimManual = logical(loadedSettings.viewerYlimManual);
+        end
         if isfield(loadedSettings, 'event_inx')
             loaded_event_inx = round(double(loadedSettings.event_inx));
             if isfinite(loaded_event_inx) && loaded_event_inx >= 1
@@ -2944,12 +2969,8 @@ function loadSettingsFile()
             csd_smooth_coef = 5;
             debugState('loadSettingsFile', 'settings were without CSD smooth coef');
         end
-        if isfield(loadedSettings, 'csd_contrast_coef')
-            csd_contrast_coef = loadedSettings.csd_contrast_coef;
-        else
-            csd_contrast_coef = 99.99;
-            debugState('loadSettingsFile', 'settings were without CSD contrast coef');
-        end
+        csd_contrast_coef = loadCsdContrastCoefFromSettings(loadedSettings);
+        csd_contrast_is_display = true;
         
         if isfield(loadedSettings, 'csd_split_by_channel_gaps')
             csd_split_by_channel_gaps = logical(loadedSettings.csd_split_by_channel_gaps);
@@ -2974,10 +2995,14 @@ function loadSettingsFile()
 
         if isfield(loadedSettings, 'axes_background_color') && ~isempty(loadedSettings.axes_background_color)
             axes_background_color = loadedSettings.axes_background_color;
-            set(multiax, 'Color', hex2rgb_local(axes_background_color));
+            bgRgb = hex2rgb_local(axes_background_color);
+            set(multiax, 'Color', bgRgb);
+            applyAxesBackgroundToChannelGrid(bgRgb);
         else
             axes_background_color = '#FFFFFF';
-            set(multiax, 'Color', hex2rgb_local(axes_background_color));
+            bgRgb = hex2rgb_local(axes_background_color);
+            set(multiax, 'Color', bgRgb);
+            applyAxesBackgroundToChannelGrid(bgRgb);
         end
         
         % Правильно устанавливаем chosen_time_interval в зависимости от режима
@@ -3017,7 +3042,13 @@ end
         setStandardChannelSettings();
         
         csd_smooth_coef = 5;
-        csd_contrast_coef = 99.99;
+        csd_contrast_coef = 100;
+        csd_contrast_is_display = true;
+        channelLayoutFilePath = '';
+        channelLayoutNameGrid = [];
+        viewerYlimManual = false;
+        viewerYlim = [0 1];
+        clearChannelGrid();
         
         saveChannelSettings();
         
@@ -3120,40 +3151,8 @@ end
         end
     end
 
-    function UpdateEventTable()        
-        [events, ev_inxs] = sort(events(:));
-        event_comments = event_comments(ev_inxs);
-        
-        % Сортируем все метаданные в том же порядке что и события
-        if ~isempty(event_amplitudes) && length(event_amplitudes) == length(events)
-            sorted_amplitudes = event_amplitudes(ev_inxs);
-        else
-            sorted_amplitudes = NaN(size(events));
-        end
-        
-        if ~isempty(event_channels) && size(event_channels, 1) == length(events)
-            display_channels = event_channels(ev_inxs, 1);
-        else
-            display_channels = ones(size(events));
-        end
-        
-        if ~isempty(event_metadata) && length(event_metadata) == length(events)
-            sorted_metadata = event_metadata(ev_inxs);
-            source_strings = cell(size(events));
-            for i = 1:length(sorted_metadata)
-                if isstruct(sorted_metadata(i)) && isfield(sorted_metadata(i), 'source')
-                    source_strings{i} = sorted_metadata(i).source;
-                else
-                    source_strings{i} = 'unknown';
-                end
-            end
-        else
-            source_strings = repmat({'unknown'}, size(events));
-        end
-        
-        eventTable.Data = [num2cell(events*timeUnitFactor), event_comments(:), ...
-                          num2cell(sorted_amplitudes(:)), num2cell(display_channels(:)), source_strings(:)];
-        set(EventsTableTitle, 'String', [event_title_string, ': ', num2str(numel(events))]);
+    function UpdateEventTable()
+        syncEventTable();
     end
 
     function addEvent(~, ~)
@@ -3166,13 +3165,6 @@ end
     end
 
     function addEventAtTime(t_absolute)
-        events = [events; t_absolute];
-        [~, idx] = min(abs(time - t_absolute));
-        event_indices = [event_indices; idx];
-        event_comments{numel(events), 1} = '...';
-        
-        % Амплитуда берется из уже подготовленного на экране data_res,
-        % т.е. без повторной обработки (filters/resample/baseline).
         evAmp = NaN;
         if ~isempty(lastPlotTimeResForEvents) && ~isempty(lastPlotDataResForEvents) && ~isempty(lastPlotChInxsForEvents)
             [~, idxPlot] = min(abs(lastPlotTimeResForEvents - t_absolute));
@@ -3181,14 +3173,7 @@ end
                 evAmp = lastPlotDataResForEvents(idxPlot, ch_plot_idx);
             end
         end
-        
-        event_amplitudes = [event_amplitudes; evAmp];
-        event_channels = [event_channels; manualEventChannelIdx];
-        event_widths = [event_widths; NaN];
-        event_prominences = [event_prominences; NaN];
-        event_metadata = [event_metadata; createDefaultEventMetadata('manual', 1)];
-        UpdateEventTable();
-        events_exist = true;
+        appendEvent(t_absolute, evAmp, manualEventChannelIdx, 'manual');
         updatePlot();
     end
 
@@ -3198,20 +3183,10 @@ end
                           'Yes','No','No');
         switch choice
             case 'Yes'
-                events = [];
-                event_indices = [];
-                event_comments = {};
-                event_amplitudes = [];
-                event_channels = [];
-                event_widths = [];
-                event_prominences = [];
-                event_metadata = [];
-                event_title_string = 'Events';
-                UpdateEventTable();
-                events_exist = false;
+                clearEventsState();
+                syncEventTable();
                 updatePlot();
             case 'No'
-                % Do nothing if the user selects 'No'
         end
     end
 
@@ -3249,7 +3224,6 @@ end
     end
     
     function deleteEvent(~, ~)
-        % Определяем индексы для удаления: выделенные строки или значение из поля ввода
         if ~isempty(selected_event_rows)
             idxs = selected_event_rows;
         else
@@ -3262,21 +3236,8 @@ end
             return;
         end
 
-        events(idxs) = [];
-        event_comments(idxs) = [];
-        
-        if ~isempty(event_amplitudes), event_amplitudes(idxs) = []; end
-        if ~isempty(event_channels), event_channels(idxs, :) = []; end
-        if ~isempty(event_widths), event_widths(idxs) = []; end
-        if ~isempty(event_prominences), event_prominences(idxs) = []; end
-        if ~isempty(event_metadata), event_metadata(idxs) = []; end
-        
+        deleteEventsByIndex(idxs);
         selected_event_rows = [];
-        
-        UpdateEventTable();
-        if isempty(events)
-            events_exist = false;
-        end
         
         if event_inx > numel(events)
             event_inx = max(numel(events), 1);
@@ -3339,7 +3300,6 @@ end
 function loadEvents(~, ~)
     debugState('loadEvents', '%s', outside_calling_filepath);
     if isempty(outside_calling_filepath)
-        % Получение пути к последнему открытому файлу или использование стандартной директории
         initialDir = pwd;
         if ~isempty(lastOpenedFiles)
             initialDir = fileparts(lastOpenedFiles{end});
@@ -3351,102 +3311,44 @@ function loadEvents(~, ~)
             return;
         end
         filepath = fullfile(path, file);
-        
     else
         debugState('loadEvents', 'loading file from outside');
         filepath = outside_calling_filepath;
-        [path,file,ext] = fileparts(outside_calling_filepath);
-        file = [file,ext];
-        outside_calling_filepath = [];% очищаем наружний путь
+        [path, file, ext] = fileparts(outside_calling_filepath);
+        file = [file, ext];
+        outside_calling_filepath = [];
     end
-    
-    % Обработка Excel-файлов
+
     [~, ~, fileExt] = fileparts(filepath);
     if ismember(lower(fileExt), {'.xlsx', '.xls'})
         loadEventsFromExcel(filepath, file);
         return;
     end
 
-    loadedData = load(filepath, '-mat'); % Загружаем данные в структуру
-    % Если не был загружен mat файл, инициируем поиск
+    loadedData = load(filepath, '-mat');
     if isfield(loadedData, 'viewer_data')
         if isfield(loadedData.viewer_data, 'matFilePath') && ~isempty(loadedData.viewer_data.matFilePath)
             if exist(loadedData.viewer_data.matFilePath, 'file')
-                % Загружаем файл, если путь отличается ИЛИ данные не загружены
-                if ~strcmp(loadedData.viewer_data.matFilePath, matFilePath) || ~exist('continuous', 'var') || isempty(time)
+                if ~strcmp(loadedData.viewer_data.matFilePath, matFilePath) || isempty(time)
                     loadMatFile(loadedData.viewer_data.matFilePath);
                 end
             end
         end
     end
 
-    
-    [~, ~, loadedExt] = fileparts(filepath);
-    if strcmpi(loadedExt, '.mua')
+    if strcmpi(fileExt, '.mua')
         loadMUAFromEvData(loadedData, file);
         return;
     end
 
-    if isfield(loadedData, 'manlDet')
-        event_indices = round([loadedData.manlDet.t])';
-        events = time(event_indices(:));
-        
-        if ~isfield(loadedData, 'event_comments') % если комментариев не было
-            event_comments = repmat({'...'}, numel(events), 1); % Инициализация комментариев
-        else % если были комментарии
-            event_comments = loadedData.event_comments;
-        end
-        
-        % Загрузка новых полей с обратной совместимостью
-        event_amplitudes = loadEventField(loadedData.manlDet, 'amplitude', NaN(size(events)), 'amplitude data not available');
-        
-        if isfield(loadedData.manlDet, 'channels')
-            % Проверяем, одноканальные или многоканальные данные
-            first_channels = loadedData.manlDet(1).channels;
-            if isscalar(first_channels)
-                event_channels = [loadedData.manlDet.channels]';
-            else
-                % Многоканальные данные - собираем в матрицу
-                max_channels = max(cellfun(@length, {loadedData.manlDet.channels}));
-                event_channels = NaN(length(events), max_channels);
-                for i = 1:length(events)
-                    chs = loadedData.manlDet(i).channels;
-                    event_channels(i, 1:length(chs)) = chs;
-                end
-            end
-        elseif isfield(loadedData.manlDet, 'ch')
-            event_channels = [loadedData.manlDet.ch]'; % Используем старое поле ch
-        else
-            event_channels = ones(size(events)); % default
-            debugState('loadEvents', 'Old format detected: channel data not available');
-        end
-        
-        event_widths = loadEventField(loadedData.manlDet, 'width', NaN(size(events)), 'width data not available');
-        event_prominences = loadEventField(loadedData.manlDet, 'prominence', NaN(size(events)), 'prominence data not available');
-        event_metadata = loadEventMetadata(loadedData.manlDet, length(events));
-        finalizeLoadedEventFile(filepath, file, '', true, loadedData, numel(events));
-    else
+    if ~isfield(loadedData, 'manlDet')
         debugState('loadEvents', 'No events found in the file.');
+        return;
     end
+
+    loadEventsFromFile(filepath, struct('skip_callbacks', true, 'skip_mode_change', true));
+    finalizeLoadedEventFile(filepath, file, '', true, loadedData, numel(events));
 end
-
-    function values = loadEventField(loadedStruct, fieldName, defaultValue, missingMessage)
-        if isfield(loadedStruct, fieldName)
-            values = [loadedStruct.(fieldName)]';
-        else
-            values = defaultValue;
-            debugState('loadEvents', ['Old format detected: ' missingMessage]);
-        end
-    end
-
-    function metadata = loadEventMetadata(loadedStruct, defaultCount)
-        if isfield(loadedStruct, 'metadata')
-            metadata = [loadedStruct.metadata]';
-        else
-            metadata = createDefaultEventMetadata('loaded', defaultCount);
-            debugState('loadEvents', 'Old format detected: metadata not available');
-        end
-    end
 
     function finalizeLoadedEventFile(filepath, file, titleSuffix, applyLoadedState, loadedData, eventCount)
         event_title_string = [file titleSuffix];
@@ -3499,17 +3401,11 @@ end
                 spks(ch).tStamp = ta;
                 spks(ch).ampl = aa;
             end
-            events = evtSec(:);
-            event_indices = [];
-            event_comments = repmat({'...'}, numel(events), 1);
-            event_amplitudes = [];
-            event_channels = [];
-            event_widths = [];
-            event_prominences = [];
-            event_metadata = [];
-            events_exist = true;
-            event_inx = getRestoredEventIndex(loadedData, numel(events));
-            event_title_string = [file ' (MUA trials)'];
+            setEventsState(evtSec(:), ...
+                'source', 'mua_trials', ...
+                'title', [file ' (MUA trials)'], ...
+                'event_inx', getRestoredEventIndex(loadedData, numel(evtSec)), ...
+                'sync', false);
             finalizeLoadedMUA(filepath, event_title_string, true, sprintf('Loaded MUA trials n=%d from %s', nT, file));
             return;
         end
@@ -3518,16 +3414,7 @@ end
             spks_events = {};
             spks = loadedData.spks;
             loadedCount = sum(cellfun(@numel, {spks.tStamp}));
-            events = [];
-            event_indices = [];
-            event_comments = {};
-            event_amplitudes = [];
-            event_channels = [];
-            event_widths = [];
-            event_prominences = [];
-            event_metadata = [];
-            events_exist = false;
-            event_inx = 1;
+            clearEventsState();
             event_title_string = [file ' (MUA)'];
             finalizeLoadedMUA(filepath, event_title_string, false, sprintf('Loaded %d MUA spikes from %s', loadedCount, file));
             return;
@@ -3584,16 +3471,7 @@ end
 
         spks = newSpks;
         spks_events = {};
-        events = [];
-        event_indices = [];
-        event_comments = {};
-        event_amplitudes = [];
-        event_channels = [];
-        event_widths = [];
-        event_prominences = [];
-        event_metadata = [];
-        events_exist = false;
-        event_inx = 1;
+        clearEventsState();
         event_title_string = [file ' (MUA)'];
         finalizeLoadedMUA(filepath, event_title_string, false, sprintf('Loaded %d MUA spikes from %s', numel(tStampMs), file));
     end
@@ -3612,20 +3490,11 @@ end
 
         eventTimes = T{:, colIdx};
         eventTimes = eventTimes(~isnan(eventTimes));
-        n = numel(eventTimes);
 
-        events = eventTimes(:);
-        event_indices = zeros(n, 1);
-        for k = 1:n
-            [~, event_indices(k)] = min(abs(time(:) - eventTimes(k)));
-        end
-        event_comments = repmat({'...'}, n, 1);
-        event_amplitudes = NaN(n, 1);
-        event_channels = ones(n, 1);
-        event_widths = NaN(n, 1);
-        event_prominences = NaN(n, 1);
-        event_metadata = createDefaultEventMetadata('excel', n);
-
+        setEventsState(eventTimes(:), ...
+            'source', 'excel', ...
+            'title', file, ...
+            'sync', false);
         finalizeLoadedEventFile(filepath, file, '', true, struct(), numel(events));
     end
 

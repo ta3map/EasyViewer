@@ -515,70 +515,36 @@ function editStimulusTimesGUI()
                 'EV_version', EV_version);
         else
             if isReplace
-                events = sort(stimTimes(:));
-                event_comments = repmat({'Stimulus'}, numel(events), 1);
-                event_amplitudes = NaN(numel(events), 1);
-                event_channels = ones(numel(events), 1);
-                event_widths = NaN(numel(events), 1);
-                event_prominences = NaN(numel(events), 1);
-                event_metadata = createDefaultEventMetadata('stimulus_export', numel(events));
-                events_exist = true;
+                setEventsState(stimTimes(:), ...
+                    'comments', repmat({'Stimulus'}, numel(stimTimes), 1), ...
+                    'source', 'stimulus_export');
             else
                 if isempty(events)
-                    events = sort(stimTimes(:));
-                    event_comments = repmat({'Stimulus'}, numel(events), 1);
-                    event_amplitudes = NaN(numel(events), 1);
-                    event_channels = ones(numel(events), 1);
-                    event_widths = NaN(numel(events), 1);
-                    event_prominences = NaN(numel(events), 1);
-                    event_metadata = createDefaultEventMetadata('stimulus_export', numel(events));
+                    setEventsState(stimTimes(:), ...
+                        'comments', repmat({'Stimulus'}, numel(stimTimes), 1), ...
+                        'source', 'stimulus_export');
                 else
-                    existingEvents = events(:);
-                    existingComments = event_comments;
-                    existingAmplitudes = event_amplitudes;
-                    existingChannels = event_channels;
-                    existingWidths = event_widths;
-                    existingProminences = event_prominences;
-                    existingMetadata = event_metadata;
-                    
-                    allEvents = [existingEvents; stimTimes(:)];
-                    [sortedEvents, sortIdx] = sort(allEvents);
-                    [uniqueEvents, uniqueIdx] = unique(sortedEvents);
-                    
-                    events = uniqueEvents(:);
-                    
-                    newComments = repmat({'Stimulus'}, numel(stimTimes), 1);
-                    allComments = [existingComments; newComments];
-                    event_comments = allComments(sortIdx(uniqueIdx));
-                    
-                    newAmplitudes = NaN(numel(stimTimes), 1);
-                    allAmplitudes = [existingAmplitudes; newAmplitudes];
-                    event_amplitudes = allAmplitudes(sortIdx(uniqueIdx));
-                    
-                    newChannels = ones(numel(stimTimes), 1);
-                    allChannels = [existingChannels; newChannels];
-                    event_channels = allChannels(sortIdx(uniqueIdx));
-                    
-                    newWidths = NaN(numel(stimTimes), 1);
-                    allWidths = [existingWidths; newWidths];
-                    event_widths = allWidths(sortIdx(uniqueIdx));
-                    
-                    newProminences = NaN(numel(stimTimes), 1);
-                    allProminences = [existingProminences; newProminences];
-                    event_prominences = allProminences(sortIdx(uniqueIdx));
-                    
-                    newMetadata = createDefaultEventMetadata('stimulus_export', numel(stimTimes));
-                    allMetadata = [existingMetadata; newMetadata];
-                    event_metadata = allMetadata(sortIdx(uniqueIdx));
-                end
-                events_exist = true;
-            end
-            
-            if exist('table_calling', 'var') && ~isempty(table_calling)
-                try
-                    table_calling();
-                catch ME
-                    warning('Failed to update event table: %s', ME.message);
+                    nOld = numel(events);
+                    nNew = numel(stimTimes);
+                    allTimes = [events(:); stimTimes(:)];
+                    allComments = [event_comments(:); repmat({'Stimulus'}, nNew, 1)];
+                    allAmps = [padEventColumn(event_amplitudes, nOld, NaN); NaN(nNew, 1)];
+                    allCh = stackEventChannels(event_channels, nOld, ones(nNew, 1), nNew);
+                    allW = [padEventColumn(event_widths, nOld, NaN); NaN(nNew, 1)];
+                    allP = [padEventColumn(event_prominences, nOld, NaN); NaN(nNew, 1)];
+                    allMeta = [normalizeEventMetadata(event_metadata, nOld, 'unknown'); ...
+                        createDefaultEventMetadata('stimulus_export', nNew)];
+                    [sortedEvents, sortIdx] = sort(allTimes);
+                    [uniqueEvents, uniqueIdx] = unique(sortedEvents, 'stable');
+                    keep = sortIdx(uniqueIdx);
+                    setEventsState(uniqueEvents, ...
+                        'comments', allComments(keep), ...
+                        'amplitudes', allAmps(keep), ...
+                        'channels', allCh(keep, :), ...
+                        'widths', allW(keep), ...
+                        'prominences', allP(keep), ...
+                        'metadata', allMeta(keep), ...
+                        'source', 'stimulus_export');
                 end
             end
             
@@ -594,4 +560,5 @@ function editStimulusTimesGUI()
         end
     end
 
-end 
+end
+ 

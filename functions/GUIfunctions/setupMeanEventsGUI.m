@@ -1,7 +1,7 @@
 function [wasApplied, sourceType, meanOpts] = setupMeanEventsGUI(config)
 global visualSettings shiftCoeff meanControlsState
 global time_back time_forward timeUnitFactor
-global csd_split_by_channel_gaps
+global csd_split_by_channel_gaps csd_contrast_coef csd_contrast_is_display
 
 if nargin < 1 || ~isstruct(config)
     config = struct();
@@ -49,7 +49,7 @@ end
 
 initialState = struct( ...
     'xLim', defaultXlims, ...
-    'contrastPercent', 100, ...
+    'contrastPercent', normalizeCsdContrastCoef(csd_contrast_coef), ...
     'hpCutoffHz', 100, ...
     'baselineBoundary', defaultXlims(1) / 2, ...
     'hpFilterEnabled', true, ...
@@ -105,6 +105,7 @@ end
 if isstruct(meanControlsState) && isfield(meanControlsState, modeKey) && isstruct(meanControlsState.(modeKey))
     initialState = mergeState(initialState, meanControlsState.(modeKey));
 end
+initialState.contrastPercent = normalizeCsdContrastCoef(csd_contrast_coef);
 
 if isfield(initialState, 'xLim') && isnumeric(initialState.xLim) && numel(initialState.xLim) == 2
     if initialState.xLim(1) >= initialState.xLim(2)
@@ -304,6 +305,8 @@ uiwait(fig);
         meanOpts.endIndex = calcEnd;
         meanOpts.csd_split_by_channel_gaps = splitGroupsVal;
         csd_split_by_channel_gaps = splitGroupsVal;
+        csd_contrast_coef = normalizeCsdContrastCoef(contrastVal);
+        csd_contrast_is_display = true;
         if ~isstruct(meanControlsState)
             meanControlsState = struct();
         end
@@ -331,7 +334,7 @@ uiwait(fig);
             'shiftCoeff', shiftVal, ...
             'removeBaseline', removeBaselineVal, ...
             'csd_split_by_channel_gaps', splitGroupsVal);
-        saveChannelSettings('meanControlsState');
+        saveChannelSettings('meanControlsState', 'csd_contrast_coef', 'csd_contrast_is_display', 'csd_split_by_channel_gaps');
 
         wasApplied = true;
         uiresume(fig);

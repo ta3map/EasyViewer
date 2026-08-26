@@ -241,9 +241,10 @@ function muaCrossCorrelationGUI()
             surSum = zeros(size(cc));
             for r = 1:nSurrogateRep
                 if useEv
-                    tBs = surrogateCircularShiftBUnionEvents(tB, events(:), maxLagSec);
+                    tBs = surrogateCircularShiftSpikes(tB, 'events', struct( ...
+                        'centers_sec', events(:), 'halfWindow_sec', maxLagSec));
                 else
-                    tBs = surrogateCircularShiftBInInterval(tB, t0sec, t1sec);
+                    tBs = surrogateCircularShiftSpikes(tB, 'interval', [t0sec, t1sec]);
                 end
                 [~, ccR] = muaCrossCorrelationFromBins(tA, tBs, binSec, maxLagSec, normalize, modeStr, modeParam);
                 surSum = surSum + yAxisForCcg(ccR, normalize);
@@ -484,34 +485,6 @@ function closeMuaWaitbarIfValid(h)
     end
 end
 
-function tBs = surrogateCircularShiftBInInterval(tB_sec, t0, t1)
-    tBs = tB_sec(:);
-    span = t1 - t0;
-    mask = tBs >= t0 & tBs <= t1;
-    tv = tBs(mask);
-    if numel(tv) < 2
-        return;
-    end
-    off = rand * span;
-    tv2 = mod(tv - t0 + off, span) + t0;
-    tBs(mask) = sort(tv2);
-end
-
-function tBs = surrogateCircularShiftBUnionEvents(tB_sec, centers_sec, halfWindow_sec)
-    tBs = tB_sec(:);
-    u0 = min(centers_sec) - halfWindow_sec;
-    u1 = max(centers_sec) + halfWindow_sec;
-    mask = tBs >= u0 & tBs <= u1;
-    tv = tBs(mask);
-    if numel(tv) < 2
-        return;
-    end
-    span = u1 - u0;
-    off = rand * span;
-    tv2 = mod(tv - u0 + off, span) + u0;
-    tBs(mask) = sort(tv2);
-end
-
 function y = yAxisForCcg(cc, doPercent)
     y = cc;
     if doPercent
@@ -550,43 +523,4 @@ function lab = channelLabelForIndex(c, channelNames)
         end
     end
     lab = sprintf('%d: %s', c, base);
-end
-
-function tsec = mergeSpikeTimesSec(spks, chIdx, muaCoef, lfpVarVec)
-    tsec = [];
-    for k = chIdx(:)'
-        ts = spks(k).tStamp;
-        if isempty(ts)
-            continue;
-        end
-        ts = double(ts(:));
-        if isvector(lfpVarVec) && numel(lfpVarVec) >= k && isfield(spks(k), 'ampl') && ~isempty(spks(k).ampl)
-            lv = double(lfpVarVec(k));
-            if isfinite(muaCoef) && muaCoef >= 0 && isfinite(lv) && lv > 0
-                a = double(spks(k).ampl(:));
-                n = min(numel(ts), numel(a));
-                ts = ts(1:n);
-                a = a(1:n);
-                ts = ts(abs(a) >= lv * muaCoef);
-            end
-        end
-        if isempty(ts)
-            continue;
-        end
-        tsec = [tsec; ts / 1000]; %#ok<AGROW>
-    end
-    tsec = sort(tsec);
-end
-
-function [t0, t1] = defaultIntervalSecFromSpks(spks)
-    allMs = [];
-    for k = 1:numel(spks)
-        ts = spks(k).tStamp;
-        if isempty(ts)
-            continue;
-        end
-        allMs = [allMs; double(ts(:))]; %#ok<AGROW>
-    end
-    t0 = min(allMs) / 1000;
-    t1 = max(allMs) / 1000;
 end

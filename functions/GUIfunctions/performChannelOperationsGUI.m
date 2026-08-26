@@ -55,69 +55,13 @@ function performChannelOperationsGUI()
         isSumA = get(sumChannelsA, 'Value');
         isSumB = get(sumChannelsB, 'Value');
 
-        % Get selected operation
         operations = get(operationMenu, 'String');
         selectedOperation = operations{get(operationMenu, 'Value')};
 
-        % Extract data for selected channels
-        dataA = lfp_file.lfp(:, selectedChannelsA);
-        dataB = lfp_file.lfp(:, selectedChannelsB);
-
-        % Sum channels if selected
-        if isSumA
-            dataA = sum(dataA, 2);
-        end
-
-        if isSumB
-            dataB = sum(dataB, 2);
-        end
-
-        % Ensure dataA and dataB are cell arrays if not summed
-        if ~isSumA && numel(selectedChannelsA) > 1
-            dataA = mat2cell(dataA, size(dataA,1), ones(1, size(dataA,2)));
-        else
-            dataA = {dataA};
-        end
-
-        if ~isSumB && numel(selectedChannelsB) > 1
-            dataB = mat2cell(dataB, size(dataB,1), ones(1, size(dataB,2)));
-        else
-            dataB = {dataB};
-        end
-
-        % Handle different number of channels
-        numChannelsA = numel(dataA);
-        numChannelsB = numel(dataB);
-        maxChannels = max(numChannelsA, numChannelsB);
-
-        % Extend dataA or dataB if necessary
-        if numChannelsA < maxChannels
-            dataA(end+1:maxChannels) = dataA(end);
-        end
-        if numChannelsB < maxChannels
-            dataB(end+1:maxChannels) = dataB(end);
-        end
-
-        % Perform operation
-        resultData = cell(1, maxChannels);
-        for i = 1:maxChannels
-            switch selectedOperation
-                case 'A + B'
-                    resultData{i} = dataA{i} + dataB{i};
-                case 'A - B'
-                    resultData{i} = dataA{i} - dataB{i};
-                case 'A * B'
-                    resultData{i} = dataA{i} .* dataB{i};
-                case 'A / B'
-                    resultData{i} = dataA{i} ./ dataB{i};
-                otherwise
-                    fprintf('Invalid operation selected.\n');
-                    return;
-            end
-        end
-
-        % Convert resultData back to matrix
-        resultDataMat = cell2mat(resultData);
+        resultDataMat = performChannelOperation( ...
+            lfp_file.lfp, selectedChannelsA, selectedChannelsB, ...
+            selectedOperation, isSumA ~= 0, isSumB ~= 0);
+        maxChannels = size(resultDataMat, 2);
 
         resultChannelNames = arrayfun(@(x) sprintf('Result_%d', x), 1:maxChannels, 'UniformOutput', false);
 

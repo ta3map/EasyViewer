@@ -139,122 +139,51 @@ function chCossCorrelationGUI()
             return;
         end
 
-        % Compute the sum of the selected channels
-        sumSignal1 = nansum(lfp_file.lfp(:, selectedChannels1), 2);
-        sumSignal2 = nansum(lfp_file.lfp(:, selectedChannels2), 2);
-        
-        % Invert signals if checkboxes are enabled
-        if get(invertCheckbox1, 'Value')
-            sumSignal1 = -sumSignal1;
-        end
-        if get(invertCheckbox2, 'Value')
-            sumSignal2 = -sumSignal2;
-        end
-        
-        % Apply signal preprocessing
-        switch preprocessingMethod
-            case 2 % Detrend
-                sumSignal1 = detrend(sumSignal1);
-                sumSignal2 = detrend(sumSignal2);
-            case 3 % Demean
-                sumSignal1 = sumSignal1 - nanmean(sumSignal1);
-                sumSignal2 = sumSignal2 - nanmean(sumSignal2);
-            case 4 % Baseline correction
-                sumSignal1 = sumSignal1 - nanmedian(sumSignal1);
-                sumSignal2 = sumSignal2 - nanmedian(sumSignal2);
+        opts = struct();
+        opts.chA = selectedChannels1;
+        opts.chB = selectedChannels2;
+        opts.invertA = get(invertCheckbox1, 'Value') ~= 0;
+        opts.invertB = get(invertCheckbox2, 'Value') ~= 0;
+        opts.preprocess = preprocessingMethod;
+        opts.normalize = normalize ~= 0;
+        opts.windowSize_sec = windowSize;
+        opts.resultProcessing = resultProcessing;
+        opts.useEvents = useEvents ~= 0;
+        opts.useTimeRange = useTimeRange ~= 0;
+        opts.time = time;
+        opts.events = events;
+        opts.eventWindow_sec = str2double(get(eventWindowEdit, 'String'));
+        opts.startTime = str2double(get(startTimeEdit, 'String'));
+        opts.endTime = str2double(get(endTimeEdit, 'String'));
+
+        result = channelCrossCorrelation(lfp_file.lfp, Fs, opts);
+        if ~result.ok
+            fprintf('%s\n', result.message);
+            return;
         end
 
-        % Apply events windows if enabled
-        if useEvents
-            if isempty(events) || ~exist('events', 'var')
-                fprintf('Events are not loaded. Please load events first.\n');
-                return;
-            end
-            
-            eventWindow = str2double(get(eventWindowEdit, 'String'));
-            numEvents = length(events);
-            
-            eventSegments1 = [];
-            eventSegments2 = [];
-            
-            for i = 1:numEvents
-                eventTime = events(i);
-                eventIdx = round(eventTime * Fs);
-                windowStart = max(eventIdx - round(eventWindow * Fs / 2), 1);
-                windowEnd = min(windowStart + round(eventWindow * Fs) - 1, size(lfp_file.lfp, 1));
-                
-                if windowEnd <= size(lfp_file.lfp, 1) && windowStart < windowEnd
-                    eventSegments1 = [eventSegments1; sumSignal1(windowStart:windowEnd)];
-                    eventSegments2 = [eventSegments2; sumSignal2(windowStart:windowEnd)];
-                end
-            end
-            
-            if isempty(eventSegments1)
-                fprintf('No valid event windows found.\n');
-                return;
-            end
-            
-            sumSignal1 = eventSegments1;
-            sumSignal2 = eventSegments2;
-            timeFiltered = (0:length(sumSignal1)-1) / Fs;
-        elseif useTimeRange
-            startTime = str2double(get(startTimeEdit, 'String'));
-            endTime = str2double(get(endTimeEdit, 'String'));
-            
-            timeIndices = time >= startTime & time <= endTime;
-            sumSignal1 = sumSignal1(timeIndices);
-            sumSignal2 = sumSignal2(timeIndices);
-            timeFiltered = time(timeIndices);
-        else
-            timeFiltered = time;
-        end
+        lagTimes = result.lagTimes;
+        crossCorr = result.crossCorr;
+        peakLag = result.peakLag;
+        peakValue = result.peakValue;
 
-        % Compute cross-correlation
-        sampleRate = 1 / (timeFiltered(2) - timeFiltered(1));
-        
-        % Normalize if required
-        if normalize
-            [crossCorr, lags] = xcorr(sumSignal1, sumSignal2, 'normalized');
-        else
-            [crossCorr, lags] = xcorr(sumSignal1, sumSignal2);
-        end
-        
-        % Convert lags to time in seconds
-        lagTimes = lags / sampleRate;
-
-        % Convert lag times to desired unit
         switch xAxisUnit
-            case 1 % Seconds
+            case 1
                 xAxisLabel = 'Time (s)';
-            case 2 % Minutes
+            case 2
                 lagTimes = lagTimes / 60;
+                if ~isempty(peakLag)
+                    peakLag = peakLag / 60;
+                end
                 xAxisLabel = 'Time (min)';
-                windowSize = windowSize/60;
-            case 3 % Milliseconds
+            case 3
                 lagTimes = lagTimes * 1000;
+                if ~isempty(peakLag)
+                    peakLag = peakLag * 1000;
+                end
                 xAxisLabel = 'Time (ms)';
-                windowSize = windowSize * 1000;
         end
 
-        % Trim the cross-correlation result to the specified window size
-        validIndices = abs(lagTimes) <= windowSize/2;
-        lagTimes = lagTimes(validIndices);
-        crossCorr = crossCorr(validIndices);
-
-        % Apply result processing
-        peakLag = [];
-        peakValue = [];
-        switch resultProcessing
-            case 2 % Smoothing
-                windowSize_samples = round(length(crossCorr) * 0.05); % 5% of data points
-                windowSize_samples = max(3, windowSize_samples); % Minimum 3 points
-                crossCorr = smooth(crossCorr, windowSize_samples);
-            case 3 % Peak detection
-                [peakValue, peakIdx] = max(crossCorr);
-                peakLag = lagTimes(peakIdx);
-        end
-
-        % Plot the result
         figure('Name', 'Cross-Correlation Result', 'NumberTitle', 'off');
         plot(lagTimes, crossCorr);
         xline(0, 'r:')
@@ -262,11 +191,10 @@ function chCossCorrelationGUI()
         ylabel('Cross-Correlation');
         
         titleStr = 'Cross-Correlation Between Selected Channels';
-        if useEvents && exist('numEvents', 'var')
-            titleStr = sprintf('%s (using %d events)', titleStr, numEvents);
+        if useEvents
+            titleStr = sprintf('%s (using %d events)', titleStr, numel(events));
         end
         if resultProcessing == 3 && ~isempty(peakLag)
-            % Extract unit from xAxisLabel (e.g., "Time (s)" -> "s")
             unitMatch = regexp(xAxisLabel, '\(([^)]+)\)', 'tokens');
             if ~isempty(unitMatch)
                 unit = unitMatch{1}{1};

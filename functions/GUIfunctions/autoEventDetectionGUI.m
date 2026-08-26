@@ -1,10 +1,18 @@
 function autoEventDetectionGUI()
     % Загрузка настроек только из локального *_channelSettings.stn
+    global events event_comments hd evfilename eventDeleteEdit
     global events_exist event_inx
-    global table_calling event_title_string
-    global timeUnitFactor selectedUnit
-    global matFilePath
-    
+    global table_calling event_title_string updatePlotFunc
+    global timeUnitFactor selectedUnit matFilePath
+    global hMinPeakProminence hDetectionType hMainChannel hSubtractChannelCheck hSubtractChannel hMaxPeakWidth
+    global hMinPeakDistance
+    global hSourceType selectedCenter timeCenterPopup windowSize chosen_time_interval
+    global hSearchAroundStimuli hSearchWindow hSearchAroundDirection stims_exist stims
+    global hUseTimeRange hStartTime hEndTime time
+    global hShowMeanPreview
+    global wb
+    global autodetection_settings
+
     settings = [];
     if ~isempty(matFilePath)
         [settingsPath, settingsName, ~] = fileparts(matFilePath);
@@ -16,50 +24,25 @@ function autoEventDetectionGUI()
             end
         end
     end
-    
-    % Загружаем координаты элементов из JSON файла
-    coordsFile = getGUIConfigPath('autoEventDetectionGUI_coords.json');
-    if exist(coordsFile, 'file')
-        coordsData = jsondecode(fileread(coordsFile));
-    else
-        error('Coordinates file not found: %s', coordsFile);
+    if isempty(settings) && isstruct(autodetection_settings) && isfield(autodetection_settings, 'MinPeakProminence')
+        settings = autodetection_settings;
+    end
+    if ~isempty(settings)
+        autodetection_settings = settings;
     end
     
-    % Вспомогательная функция для получения координат элемента
-    function pos = getElementPosition(tag)
-        if isfield(coordsData.elements, tag)
-            pos = coordsData.elements.(tag);
-            % Для панели (plotPanel) оставляем относительные координаты
-            if strcmp(tag, 'plotPanel')
-                % Панель уже использует относительные координаты, возвращаем как есть
-                return;
-            end
-            % Преобразуем относительные координаты в абсолютные
-            base_pos = coordsData.base_figure_position;
-            pos = [
-                pos(1) * base_pos(3),  % x
-                pos(2) * base_pos(4),  % y
-                pos(3) * base_pos(3),  % width
-                pos(4) * base_pos(4)   % height
-            ];
-        else
-            error('Coordinates for element %s not found in JSON file', tag);
-        end
-    end
+    [coordsData, coordsFile] = loadGUICoords('autoEventDetectionGUI_coords.json');
+    relativeTags = {'plotPanel'};
+    getElementPosition = @(tag) getGUIElementPosition(coordsData, tag, relativeTags);
     
-    global events event_comments hd events_detected evfilename eventDeleteEdit
-    global hMinPeakProminence hDetectionType hMainChannel hSubtractChannelCheck hSubtractChannel hMaxPeakWidth
-    global hMinPeakDistance
-    global hSourceType selectedCenter timeCenterPopup windowSize chosen_time_interval
-    global hSearchAroundStimuli hSearchWindow hSearchAroundDirection stims_exist stims
-    global hUseTimeRange hStartTime hEndTime time
-    
-    % Переменные для хранения результатов детекции в области видимости GUI
+    % Результаты детекции — только локально в этом GUI (не global)
     amplitudes_detected = [];
     widths_detected = [];
     channels_detected = [];
     metadata_detected = [];
     indices_detected = [];
+    prominences_detected = [];
+    events_detected = [];
     
     % Идентификатор (tag) для GUI фигуры
     figTag = 'EventDetection';
@@ -116,7 +99,6 @@ function autoEventDetectionGUI()
     hUseTimeRange = uicontrol(detectionFig, 'Style', 'checkbox', 'Position', getElementPosition('useTimeRange'), 'String', 'Use time range', 'Value', 0, 'Callback', @timeRangeCallback, 'Tag', 'useTimeRange');
     
     % Поля ввода времени начала и конца
-    global time
     hStartTimeLabel = uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('startTimeLabel'), 'String', ['Start (' selectedUnit '):'], 'Visible', 'off', 'Tag', 'startTimeLabel');
     hStartTime = uicontrol(detectionFig, 'Style', 'edit', 'Position', getElementPosition('startTime'), 'String', num2str(time(1)*timeUnitFactor), 'Visible', 'off', 'Tag', 'startTime');
     
@@ -141,6 +123,11 @@ function autoEventDetectionGUI()
         'Value', 2, ...
         'Tag', 'searchDirection', 'Visible', 'off');
 
+    hShowMeanPreview = uicontrol(detectionFig, 'Style', 'checkbox', ...
+        'Position', getElementPosition('showMeanPreview'), ...
+        'String', 'Show mean preview', 'Value', 0, ...
+        'Tag', 'showMeanPreview');
+
     % Инициализация видимости элементов в зависимости от наличия стимулов
     changeDetectionType();
 
@@ -149,7 +136,8 @@ function autoEventDetectionGUI()
         'Position', getElementPosition('plotPanel'), ...
         'Tag', 'plotPanel');
     
-    % Инициализация значений из настроек (только новый формат; при отсутствии — стандарт)
+    % Инициализация значений из настроек (без колбэков — иначе autoThreshold затирает порог)
+    set([hDetectionType, hMainChannel, hSubtractChannelCheck, hSubtractChannel, hUseTimeRange], 'Callback', []);
     nCh = numel(hd.recChNames);
     validMode = ~isempty(settings) && isfield(settings, 'PolarityIndex') && isfield(settings, 'MainChannel') && ...
         isfield(settings, 'SubtractChannelEnabled') && isfield(settings, 'SubtractChannel');
@@ -242,6 +230,9 @@ function autoEventDetectionGUI()
         if isfield(settings, 'EndTime')
             set(hEndTime, 'String', num2str(settings.EndTime*timeUnitFactor));
         end
+        if isfield(settings, 'ShowMeanPreview')
+            set(hShowMeanPreview, 'Value', settings.ShowMeanPreview);
+        end
         
         % Обновляем видимость полей временного диапазона после загрузки настроек
         useTimeRange = get(hUseTimeRange, 'Value');
@@ -258,6 +249,11 @@ function autoEventDetectionGUI()
         end
         changeDetectionType();
     end
+    set(hDetectionType, 'Callback', @detectionControlsCallback);
+    set(hMainChannel, 'Callback', @mainChannelCallback);
+    set(hSubtractChannelCheck, 'Callback', @detectionControlsCallback);
+    set(hSubtractChannel, 'Callback', @detectionControlsCallback);
+    set(hUseTimeRange, 'Callback', @timeRangeCallback);
 
     % Кнопка сброса настроек (слева от Check Detection)
     uicontrol(detectionFig, 'Style', 'pushbutton', 'String', 'Reset settings',...
@@ -265,8 +261,8 @@ function autoEventDetectionGUI()
     % Кнопка 'Check Detection'
     uicontrol(detectionFig, 'Style', 'pushbutton', 'String', 'Check Detection',...
         'Position', getElementPosition('checkDetectionBtn'), 'Callback', @checkDetectionCallback, 'Tag', 'checkDetectionBtn');
-    set([hMinPeakProminence, hMinPeakDistance, hMaxPeakWidth, hStartTime, hEndTime, hSearchWindow], ...
-        'Callback', @previewData);
+    set(hMinPeakProminence, 'Callback', @previewThresholdOnly);
+    set([hStartTime, hEndTime], 'Callback', @previewData);
 
     % Кнопка 'Apply'
     applybutton = uicontrol(detectionFig, 'Style', 'pushbutton', 'String', 'Apply',...
@@ -276,10 +272,20 @@ function autoEventDetectionGUI()
     % Устанавливаем обработчик изменения размера окна
     set(detectionFig, 'SizeChangedFcn', @(~,~) resizeComponentsCallback(detectionFig, coordsFile));
     
+    detectionFig.WindowState = 'maximized';
+    
     hasPlotSnapshot = ~isempty(settings) && isfield(settings, 'plotSnapshot') && isstruct(settings.plotSnapshot) ...
         && isfield(settings.plotSnapshot, 'Trace_out');
     if hasPlotSnapshot
         snap = settings.plotSnapshot;
+        if ~get(hShowMeanPreview, 'Value')
+            snap.meanTrace = [];
+            snap.meanMin = [];
+            snap.meanMax = [];
+            snap.meanRaster = [];
+            snap.meanTime = [];
+            snap.meanN = 0;
+        end
         events_detected = snap.events_detected;
         amplitudes_detected = [];
         widths_detected = [];
@@ -302,7 +308,7 @@ function autoEventDetectionGUI()
             indices_detected = snap.indices_detected;
         end
         drawPlotsFromSnapshot(snap);
-        set(applybutton, 'Enable', 'on');
+        updateApplyButton();
         if isfield(settings, 'MinPeakProminence')
             set(hMinPeakProminence, 'String', num2str(settings.MinPeakProminence));
         end
@@ -313,21 +319,12 @@ function autoEventDetectionGUI()
         end
     end
     
-    % Показываем окно после превью
     set(detectionFig, 'Visible', 'on');
-    drawnow;
-    
-    % Разворачиваем окно после успешной инициализации
-    detectionFig.WindowState = 'maximized';
     
     % Функция обратного вызова для изменения размера
     function resizeComponentsCallback(figHandle, coordsFile)
         try
-            if exist(coordsFile, 'file')
-                coordsData = jsondecode(fileread(coordsFile));
-                base_figure_position = coordsData.base_figure_position;
-                ResizeElements(figHandle, coordsFile, base_figure_position);
-            end
+            ResizeElements(figHandle, coordsFile);
         catch ME
             warning('Error scaling elements: %s', ME.message);
         end
@@ -409,6 +406,7 @@ function autoEventDetectionGUI()
         set(hSearchAroundStimuli, 'Value', 0);
         set(hSearchWindow, 'String', num2str(0.5*timeUnitFactor));
         set(hSearchAroundDirection, 'Value', 2);
+        set(hShowMeanPreview, 'Value', 0);
         changeDetectionType();
     end
 
@@ -470,9 +468,7 @@ function autoEventDetectionGUI()
     end
 
     function previewData(src, ~)
-        % Предварительная прорисовка
-        set(applybutton, 'Enable', 'off');
-        global wb
+        % Пересчёт трассы: канал / polarity / subtract / time range.
         if isempty(wb) || ~isvalid(wb)
             wb = createCancelableWaitbar(0, 'Preview: preparing...', 'Event Detection');
         else
@@ -480,7 +476,6 @@ function autoEventDetectionGUI()
             waitbar(0, wb, 'Preview: preparing...');
         end
         drawnow;
-        % Сбор значений параметров и упаковка их в структуру
         [params.DetectionType, params.ChPos, params.ChNeg] = uiToDetectionParams();
         params.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
         params.MinPeakDistance = str2double(get(hMinPeakDistance, 'String')) / timeUnitFactor;
@@ -494,20 +489,163 @@ function autoEventDetectionGUI()
         params.UseTimeRange = get(hUseTimeRange, 'Value');
         params.StartTime = str2double(get(hStartTime, 'String')) / timeUnitFactor;
         params.EndTime = str2double(get(hEndTime, 'String')) / timeUnitFactor;
-               
-        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, ~, wasCanceled] = autoEventDetection(params);
+        params.ShowMeanPreview = get(hShowMeanPreview, 'Value');
+
+        [~, Trace_out, time_res, ~, ~, ~, ~, ~, ~, wasCanceled] = autoEventDetection(params);
         if wasCanceled
             return;
         end
-        
+
         Trace_out(isnan(Trace_out)) = 0;
         Trace_out(isinf(Trace_out)) = 0;
-        
-        if strcmp(get(applybutton, 'Enable'), 'on')
+
+        autoThreshold = nargin > 0 && ischar(src);
+        updatePreviewPlots(Trace_out, time_res, params, autoThreshold);
+    end
+
+    function previewThresholdOnly(~, ~)
+        chosen_th = str2double(get(hMinPeakProminence, 'String'));
+        plotPanelLocal = findobj(detectionFig, 'Tag', 'plotPanel');
+        ax1 = findobj(plotPanelLocal, 'Tag', 'axPreviewTrace');
+        ax2 = findobj(plotPanelLocal, 'Tag', 'axPreviewHist');
+        if isempty(ax1) || isempty(ax2)
             return;
         end
-        autoThreshold = nargin > 0 && ischar(src);
-        plotRequest(events_detected, Trace_out, time_res, params, prominences_detected, amplitudes_detected, autoThreshold);
+        set(findobj(ax1, 'Tag', 'ylChosenTh'), 'Value', chosen_th);
+        set(findobj(ax2, 'Tag', 'ylChosenTh'), 'Value', chosen_th);
+        yl = ylim(ax2);
+        ySpan = yl(2) - yl(1);
+        labelLift = 0.05 * ySpan;
+        valueLift = 0.02 * ySpan;
+        topPad = 0.01 * ySpan;
+        hLabel = findobj(ax2, 'Tag', 'txtChosenThLabel');
+        hValue = findobj(ax2, 'Tag', 'txtChosenThValue');
+        set(hLabel, 'Position', [hLabel.Position(1), min(chosen_th + labelLift, yl(2) - topPad), 0]);
+        set(hValue, 'String', num2str(chosen_th, 3), ...
+            'Position', [hValue.Position(1), min(chosen_th + valueLift, yl(2) - topPad), 0]);
+    end
+
+    function updatePreviewPlots(Trace_out, time_res, params, autoThreshold)
+        useTimeRange = isfield(params, 'UseTimeRange') && params.UseTimeRange;
+        if useTimeRange
+            inWindow = time_res >= params.StartTime & time_res <= params.EndTime;
+            Trace_out = Trace_out(inWindow);
+            time_res = time_res(inWindow);
+        end
+
+        numSegments = min(100, numel(Trace_out));
+        Trace_out = findSegmentMaxima(Trace_out, numSegments);
+        time_res = linspace(time_res(1), time_res(end), numSegments);
+
+        yMin = quantile(Trace_out, 0.02);
+        yMax = quantile(Trace_out, 0.98);
+        if yMax <= yMin
+            yMax = yMin + 1;
+        end
+        inRange = Trace_out >= yMin & Trace_out <= yMax;
+        dataInRange = Trace_out(inRange);
+        if isempty(dataInRange)
+            dataInRange = Trace_out;
+        end
+        outlier = quantile(dataInRange, 0.999);
+        std3 = 3 * nanstd(dataInRange);
+        std2 = 2 * nanstd(dataInRange);
+
+        chosen_th = params.MinPeakProminence;
+        if autoThreshold
+            chosen_th = std2;
+            set(hMinPeakProminence, 'String', num2str(std2));
+        end
+
+        nBins = max(25, min(80, round(3 * sqrt(numel(Trace_out)))));
+        peakEdges = linspace(yMin, yMax, nBins + 1);
+        peakCounts = histcounts(Trace_out, peakEdges);
+        peakValues = peakCounts / max(sum(peakCounts), 1);
+
+        plotPanelLocal = findobj(detectionFig, 'Tag', 'plotPanel');
+        ax1 = findobj(plotPanelLocal, 'Tag', 'axPreviewTrace');
+        ax2 = findobj(plotPanelLocal, 'Tag', 'axPreviewHist');
+        if isempty(ax1) || isempty(ax2)
+            snap = struct();
+            snap.Trace_out = Trace_out(:);
+            snap.time_res = time_res(:);
+            snap.events_detected = events_detected;
+            snap.amplitudes_detected = amplitudes_detected;
+            snap.widths_detected = widths_detected;
+            snap.channels_detected = [];
+            snap.metadata_detected = [];
+            snap.indices_detected = [];
+            snap.prominences_detected = prominences_detected;
+            snap.yMin = yMin;
+            snap.yMax = yMax;
+            snap.outlier = outlier;
+            snap.std3 = std3;
+            snap.chosen_th = chosen_th;
+            snap.detect = ~isempty(events_detected);
+            snap.needStimuliPlots = false;
+            snap.UseTimeRange = logical(useTimeRange);
+            snap.StartTime = 0;
+            snap.EndTime = 0;
+            if useTimeRange
+                snap.StartTime = params.StartTime;
+                snap.EndTime = params.EndTime;
+            end
+            snap.histPeak = struct('edges', peakEdges, 'values', peakValues);
+            snap.rel_times = [];
+            snap.histRel = struct('edges', [], 'values', []);
+            snap.histAmp = struct('edges', [], 'values', []);
+            snap.meanTrace = [];
+            snap.meanMin = [];
+            snap.meanMax = [];
+            snap.meanRaster = [];
+            snap.meanTime = [];
+            snap.meanN = 0;
+            snap.meanWinSec = 0;
+            drawPlotsFromSnapshot(snap);
+            return;
+        end
+
+        hBar = findobj(ax1, 'Type', 'bar');
+        set(hBar, 'XData', time_res * timeUnitFactor, 'YData', Trace_out);
+        if useTimeRange
+            xlim(ax1, [params.StartTime, params.EndTime] * timeUnitFactor);
+        else
+            xlim(ax1, [time_res(1), time_res(end)] * timeUnitFactor);
+        end
+        ylim(ax1, [yMin, yMax]);
+        hTh1 = findobj(ax1, 'Tag', 'ylChosenTh');
+        set(hTh1, 'Value', chosen_th);
+
+        cla(ax2);
+        hold(ax2, 'on');
+        histogram(ax2, 'BinEdges', peakEdges, 'BinCounts', peakValues, ...
+            'Orientation', 'horizontal', ...
+            'FaceColor', [0.3 0.6 0.9], ...
+            'EdgeColor', 'none');
+        ylim(ax2, [yMin, yMax]);
+        maxProb = max(peakValues);
+        if isempty(maxProb) || maxProb <= 0
+            maxProb = 1;
+        end
+        yl = ylim(ax2);
+        ySpan = yl(2) - yl(1);
+        labelLift = 0.05 * ySpan;
+        valueLift = 0.02 * ySpan;
+        topPad = 0.01 * ySpan;
+        yline(ax2, outlier, 'k:');
+        outlier_x = maxProb * 0.9;
+        text(ax2, outlier_x, min(outlier + labelLift, yl(2) - topPad), 'outlier', 'VerticalAlignment', 'bottom');
+        text(ax2, outlier_x, min(outlier + valueLift, yl(2) - topPad), num2str(outlier, 3), 'VerticalAlignment', 'bottom');
+        yline(ax2, std3, 'k:');
+        text(ax2, maxProb, min(std3 + labelLift, yl(2) - topPad), '3*STD', 'VerticalAlignment', 'bottom');
+        text(ax2, maxProb, min(std3 + valueLift, yl(2) - topPad), num2str(std3, 3), 'VerticalAlignment', 'bottom');
+        yline(ax2, chosen_th, 'r:', 'Tag', 'ylChosenTh');
+        text(ax2, maxProb * 0.5, min(chosen_th + labelLift, yl(2) - topPad), 'now', 'VerticalAlignment', 'bottom', 'Tag', 'txtChosenThLabel');
+        text(ax2, maxProb * 0.5, min(chosen_th + valueLift, yl(2) - topPad), num2str(chosen_th, 3), 'color', 'r', 'VerticalAlignment', 'bottom', 'Tag', 'txtChosenThValue');
+        xlabel(ax2, 'Probability');
+        ylabel(ax2, 'Peak Height');
+        title(ax2, 'Distribution of Peak Height');
+        hold(ax2, 'off');
     end
 
     function checkDetectionCallback(~, ~)
@@ -519,14 +657,24 @@ function autoEventDetectionGUI()
             
             % Проверяем, включен ли поиск вокруг стимулов
             searchEnabled = get(hSearchAroundStimuli, 'Value') && stims_exist && ~isempty(stims);
+            previewEnabled = get(hShowMeanPreview, 'Value');
             
-            % Создаем tiledlayout в зависимости от необходимости дополнительных графиков
             if searchEnabled
-                t = tiledlayout(plotPanel, 3, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-                numTiles = 6;
+                if previewEnabled
+                    t = tiledlayout(plotPanel, 4, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+                    numTiles = 8;
+                else
+                    t = tiledlayout(plotPanel, 3, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+                    numTiles = 6;
+                end
             else
-                t = tiledlayout(plotPanel, 1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-                numTiles = 2;
+                if previewEnabled
+                    t = tiledlayout(plotPanel, 2, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+                    numTiles = 4;
+                else
+                    t = tiledlayout(plotPanel, 1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+                    numTiles = 2;
+                end
             end
             
             % Показываем "Detecting ..." только на нужных осях
@@ -554,8 +702,7 @@ function autoEventDetectionGUI()
         params.UseTimeRange = get(hUseTimeRange, 'Value');
         params.StartTime = str2double(get(hStartTime, 'String')) / timeUnitFactor;
         params.EndTime = str2double(get(hEndTime, 'String')) / timeUnitFactor;
-        
-        saveSettings();
+        params.ShowMeanPreview = get(hShowMeanPreview, 'Value');
         
         [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = autoEventDetection(params);
         if wasCanceled
@@ -565,19 +712,23 @@ function autoEventDetectionGUI()
         Trace_out(isnan(Trace_out)) = 0;
         Trace_out(isinf(Trace_out)) = 0;
         
-        [~, plotSnapshot] = plotRequest(events_detected, Trace_out, time_res, params, prominences_detected, amplitudes_detected);
-        plotSnapshot.widths_detected = widths_detected;
+        [~, plotSnapshot] = plotRequest(events_detected, Trace_out, time_res, params, prominences_detected, amplitudes_detected, widths_detected);
         plotSnapshot.channels_detected = channels_detected;
         plotSnapshot.metadata_detected = metadata_detected;
         plotSnapshot.indices_detected = indices_detected;
         plotSnapshot.prominences_detected = prominences_detected;
         saveSettings(plotSnapshot);
-        
-        set(applybutton, 'Enable', 'on')
-        
+        updateApplyButton();
     end
 
-    function [std2, snap] = plotRequest(events_in, Trace_out, time_res, params, prominences_detected, amplitudes_in, autoThreshold)
+    function updateApplyButton()
+        set(applybutton, 'Enable', 'off');
+        if ~isempty(events_detected)
+            set(applybutton, 'Enable', 'on');
+        end
+    end
+
+    function [std2, snap] = plotRequest(events_in, Trace_out, time_res, params, prominences_detected, amplitudes_in, widths_in, autoThreshold)
 
         useTimeRange = isfield(params, 'UseTimeRange') && params.UseTimeRange;
         if useTimeRange
@@ -585,6 +736,52 @@ function autoEventDetectionGUI()
             Trace_out = Trace_out(inWindow);
             time_res = time_res(inWindow);
         end
+        
+        meanTrace = [];
+        meanMin = [];
+        meanMax = [];
+        meanRaster = [];
+        meanTime = [];
+        meanN = 0;
+        meanWinSec = 0;
+        if isfield(params, 'ShowMeanPreview') && params.ShowMeanPreview && ...
+                params.detect && ~isempty(events_in) && ~isempty(widths_in)
+            winSec = 8 * median(widths_in);
+            dt = (time_res(end) - time_res(1)) / max(numel(time_res) - 1, 1);
+            halfSamples = max(1, round((winSec / 2) / dt));
+            nSamples = 2 * halfSamples + 1;
+            meanTime = linspace(-winSec / 2, winSec / 2, nSamples);
+            sumTrace = zeros(1, nSamples);
+            minTrace = inf(1, nSamples);
+            maxTrace = -inf(1, nSamples);
+            rasterBuf = zeros(numel(events_in), nSamples);
+            nUsed = 0;
+            for i = 1:numel(events_in)
+                [~, centerIdx] = min(abs(time_res - events_in(i)));
+                i0 = centerIdx - halfSamples;
+                i1 = centerIdx + halfSamples;
+                if i0 >= 1 && i1 <= numel(Trace_out)
+                    seg = reshape(Trace_out(i0:i1), 1, []);
+                    nUsed = nUsed + 1;
+                    rasterBuf(nUsed, :) = seg;
+                    sumTrace = sumTrace + seg;
+                    minTrace = min(minTrace, seg);
+                    maxTrace = max(maxTrace, seg);
+                end
+            end
+            meanN = nUsed;
+            meanWinSec = winSec;
+            if nUsed > 0
+                meanTrace = (sumTrace / nUsed).';
+                meanMin = minTrace(:);
+                meanMax = maxTrace(:);
+                meanRaster = rasterBuf(1:nUsed, :);
+                meanTime = meanTime(:);
+            else
+                meanTime = [];
+            end
+        end
+        
         numSegments = min(100, numel(Trace_out));
         Trace_out = findSegmentMaxima(Trace_out, numSegments);
         time_res = linspace(time_res(1), time_res(end), numSegments);
@@ -604,7 +801,7 @@ function autoEventDetectionGUI()
         std2 = 2*nanstd(dataInRange);
         
         chosen_th = params.MinPeakProminence;
-        if nargin >= 7 && autoThreshold
+        if nargin >= 8 && autoThreshold
             chosen_th = std2;
             set(hMinPeakProminence, 'String', num2str(std2));
         end
@@ -650,7 +847,7 @@ function autoEventDetectionGUI()
         snap.time_res = time_res(:);
         snap.events_detected = events_in;
         snap.amplitudes_detected = amplitudes_in;
-        snap.widths_detected = [];
+        snap.widths_detected = widths_in;
         snap.channels_detected = [];
         snap.metadata_detected = [];
         snap.indices_detected = [];
@@ -669,6 +866,13 @@ function autoEventDetectionGUI()
         snap.rel_times = rel_times;
         snap.histRel = histRel;
         snap.histAmp = histAmp;
+        snap.meanTrace = meanTrace;
+        snap.meanMin = meanMin;
+        snap.meanMax = meanMax;
+        snap.meanRaster = meanRaster;
+        snap.meanTime = meanTime;
+        snap.meanN = meanN;
+        snap.meanWinSec = meanWinSec;
         
         drawPlotsFromSnapshot(snap);
     end
@@ -680,17 +884,27 @@ function autoEventDetectionGUI()
         end
         delete(plotPanelLocal.Children);
         
+        hasMean = isfield(snap, 'meanTrace') && ~isempty(snap.meanTrace);
         if snap.needStimuliPlots
-            t = tiledlayout(plotPanelLocal, 3, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+            if hasMean
+                t = tiledlayout(plotPanelLocal, 4, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+            else
+                t = tiledlayout(plotPanelLocal, 3, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+            end
         else
-            t = tiledlayout(plotPanelLocal, 1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+            if hasMean
+                t = tiledlayout(plotPanelLocal, 2, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+            else
+                t = tiledlayout(plotPanelLocal, 1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+            end
         end
         
         ax1 = nexttile(t);
+        ax1.Tag = 'axPreviewTrace';
         hold(ax1, 'on');
         bar(ax1, snap.time_res * timeUnitFactor, snap.Trace_out, 'FaceColor', [0.3 0.6 0.9], 'EdgeColor', 'none');
         xlabel(ax1, ['Time, ' selectedUnit]);
-        yline(ax1, snap.chosen_th, 'k:');
+        yline(ax1, snap.chosen_th, 'k:', 'Tag', 'ylChosenTh');
         if snap.UseTimeRange
             xlim(ax1, [snap.StartTime, snap.EndTime] * timeUnitFactor);
         else
@@ -702,7 +916,7 @@ function autoEventDetectionGUI()
         binIdx = round((snap.events_detected(:) - tBins(1)) / dtBin) + 1;
         binIdx = unique(max(1, min(numel(tBins), binIdx)), 'stable');
         Lines(tBins(binIdx) * timeUnitFactor, [], 'r', ':');
-        if snap.detect
+        if ~isempty(snap.events_detected)
             title(ax1, [num2str(numel(snap.events_detected)), ' events'], 'interpreter', 'none');
         else
             title(ax1, '');
@@ -710,6 +924,7 @@ function autoEventDetectionGUI()
         hold(ax1, 'off');
         
         ax2 = nexttile(t);
+        ax2.Tag = 'axPreviewHist';
         hold(ax2, 'on');
         histogram(ax2, 'BinEdges', snap.histPeak.edges, 'BinCounts', snap.histPeak.values, ...
             'Orientation', 'horizontal', ...
@@ -735,9 +950,9 @@ function autoEventDetectionGUI()
         text(ax2, maxProb, min(snap.std3 + labelLift, yl(2) - topPad), '3*STD', 'VerticalAlignment', 'bottom');
         text(ax2, maxProb, min(snap.std3 + valueLift, yl(2) - topPad), num2str(snap.std3, 3), 'VerticalAlignment', 'bottom');
         
-        yline(ax2, snap.chosen_th, 'r:');
-        text(ax2, maxProb * 0.5, min(snap.chosen_th + labelLift, yl(2) - topPad), 'now', 'VerticalAlignment', 'bottom');
-        text(ax2, maxProb * 0.5, min(snap.chosen_th + valueLift, yl(2) - topPad), num2str(snap.chosen_th, 3), 'color', 'r', 'VerticalAlignment', 'bottom');
+        yline(ax2, snap.chosen_th, 'r:', 'Tag', 'ylChosenTh');
+        text(ax2, maxProb * 0.5, min(snap.chosen_th + labelLift, yl(2) - topPad), 'now', 'VerticalAlignment', 'bottom', 'Tag', 'txtChosenThLabel');
+        text(ax2, maxProb * 0.5, min(snap.chosen_th + valueLift, yl(2) - topPad), num2str(snap.chosen_th, 3), 'color', 'r', 'VerticalAlignment', 'bottom', 'Tag', 'txtChosenThValue');
         
         xlabel(ax2, 'Probability');
         ylabel(ax2, 'Peak Height');
@@ -790,89 +1005,83 @@ function autoEventDetectionGUI()
             xlim(ax5, xlim(ax6));
             hold(ax6, 'off');
         end
+        
+        if hasMean
+            axMean = nexttile(t);
+            hold(axMean, 'on');
+            tMean = snap.meanTime * timeUnitFactor;
+            if isfield(snap, 'meanMin') && isfield(snap, 'meanMax') && ...
+                    ~isempty(snap.meanMin) && ~isempty(snap.meanMax)
+                xFill = [tMean; flipud(tMean)];
+                yFill = [snap.meanMax(:); flipud(snap.meanMin(:))];
+                fill(axMean, xFill, yFill, [0.3 0.6 0.9], 'FaceAlpha', 0.25, 'EdgeColor', 'none');
+            end
+            plot(axMean, tMean, snap.meanTrace, ...
+                'Color', [0.3 0.6 0.9], 'LineWidth', 1.5);
+            xline(axMean, 0, 'k:');
+            xlabel(axMean, ['Time relative to peak, ' selectedUnit]);
+            title(axMean, sprintf('Mean event (n=%d)', snap.meanN), 'interpreter', 'none');
+            grid(axMean, 'on');
+            hold(axMean, 'off');
+            
+            axRaster = nexttile(t);
+            if isfield(snap, 'meanRaster') && ~isempty(snap.meanRaster)
+                imagesc(axRaster, tMean, 1:size(snap.meanRaster, 1), snap.meanRaster);
+                set(axRaster, 'YDir', 'normal');
+                colormap(axRaster, parula);
+                xline(axRaster, 0, 'k:');
+                xlabel(axRaster, ['Time relative to peak, ' selectedUnit]);
+                ylabel(axRaster, 'Event #');
+                title(axRaster, 'Event slices', 'interpreter', 'none');
+            end
+        end
     end
 
 
     function detectButtonCallback(~, ~)
-        global event_amplitudes event_channels event_widths event_prominences event_metadata event_indices
-        
-        % Проверяем что переменные с результатами детекции существуют
-        if ~exist('amplitudes_detected', 'var') || ~exist('channels_detected', 'var') || ...
-           ~exist('widths_detected', 'var') || ~exist('metadata_detected', 'var') || ~exist('indices_detected', 'var')
+        if isempty(events_detected)
             fprintf('Please run "Check Detection" first before applying results.\n');
             return;
         end
-        
-        % Обновление таблицы событий
-        events = events_detected(:); % Преобразуем в столбец
-        
-        if not(isempty(events))
-            event_comments = repmat({'...'}, numel(events), 1); % Инициализация комментариев
-            
-            [events, ev_inxs] = sort(events);
-            event_comments = event_comments(ev_inxs);
-            event_indices = indices_detected(ev_inxs);
-            
-            % Сортируем метаданные в том же порядке что и события
-            event_amplitudes = amplitudes_detected(ev_inxs);
-            
-            % Безопасная обработка channels_detected (может быть матрицей или вектором)
-            if size(channels_detected, 2) > 1
-                event_channels = channels_detected(ev_inxs, :);
-            else
-                event_channels = channels_detected(ev_inxs);
-            end
-            
-            event_widths = widths_detected(ev_inxs);
-            
-            % Извлекаем prominence из metadata для сортировки
-            temp_prominences = NaN(size(events));
-            for i = 1:length(metadata_detected)
-                temp_prominences(i) = metadata_detected(i).prominence;
-            end
-            event_prominences = temp_prominences(ev_inxs);
-            
-            event_metadata = metadata_detected(ev_inxs);
-        else
-            event_amplitudes = [];
-            event_channels = [];
-            event_widths = [];
-            event_prominences = [];
-            event_metadata = [];
-            event_indices = [];
-        end
-        
+
         [~, filename, ~] = fileparts(matFilePath);
-        
         evfilename = [filename '_auto'];
-        event_title_string = 'Autodetected';
-        table_calling()
-        event_inx = 1;     
-        set(eventDeleteEdit, 'String', num2str(event_inx));
-                        
-        % Сохранение настроек перед закрытием
-        saveSettings();
-        
-        % Проверяем наличие событий перед установкой параметров
-        if ~isempty(events)
-            events_exist = true;
-            event_inx = 1;
-            selectedCenter = 'events';
-            set(timeCenterPopup, 'Value', 3);
-            
-            chosen_time_interval(1) = events(event_inx);
-            chosen_time_interval(2) = events(event_inx)+windowSize;
+
+        setEventsState(events_detected(:), ...
+            'indices', indices_detected, ...
+            'amplitudes', amplitudes_detected, ...
+            'channels', channels_detected, ...
+            'widths', widths_detected, ...
+            'prominences', prominences_detected, ...
+            'metadata', metadata_detected, ...
+            'source', 'auto', ...
+            'title', 'Autodetected', ...
+            'event_inx', 1, ...
+            'sync', false);
+
+        if ~isempty(table_calling)
+            table_calling();
         else
-            % Если событий нет, не меняем режим и не устанавливаем временной интервал
-            events_exist = false;
-            % Не меняем selectedCenter и timeCenterPopup
-            % Не меняем chosen_time_interval
+            syncEventTable();
+        end
+
+        set(eventDeleteEdit, 'String', num2str(event_inx));
+        saveSettings();
+
+        if events_exist && ~isempty(events)
+            selectedCenter = 'events';
+            set(timeCenterPopup, 'Value', timeCenterNav('popupIndex'));
+            chosen_time_interval(1) = events(event_inx);
+            chosen_time_interval(2) = events(event_inx) + windowSize;
+        else
             fprintf('No events detected. Please adjust detection parameters.\n');
         end
-                        
-        updatePlot(); % Обновление графика с новыми событиями        
-    
-        % Закрыть окно Auto Event Detection
+
+        if ~isempty(updatePlotFunc)
+            updatePlotFunc();
+        else
+            updatePlot();
+        end
         close(detectionFig);
     end
 
@@ -883,6 +1092,7 @@ function saveSettings(plotSnapshot)
     global hMinPeakDistance
     global hSourceType timeUnitFactor hSearchAroundStimuli hSearchWindow hSearchAroundDirection
     global hUseTimeRange hStartTime hEndTime
+    global hShowMeanPreview
     global autodetection_settings
 
     settings.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
@@ -899,6 +1109,7 @@ function saveSettings(plotSnapshot)
     settings.UseTimeRange = get(hUseTimeRange, 'Value');
     settings.StartTime = str2double(get(hStartTime, 'String')) / timeUnitFactor;
     settings.EndTime = str2double(get(hEndTime, 'String')) / timeUnitFactor;
+    settings.ShowMeanPreview = get(hShowMeanPreview, 'Value');
     
     if nargin >= 1 && isstruct(plotSnapshot)
         settings.plotSnapshot = plotSnapshot;
@@ -908,632 +1119,6 @@ function saveSettings(plotSnapshot)
     
     autodetection_settings = settings;
     saveChannelSettings('autodetection_settings');
-end
-
-function [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = autoEventDetection(params)
-    global Fs time newFs lfp_file wb ch_inxs csd_avaliable filterSettings filter_avaliable mean_group_ch 
-    global stims_exist stims time art_rem_settings
-    
-    wasCanceled = false;
-    fprintf('Please wait...\n');
-    
-    if isempty(wb) || ~isvalid(wb)
-        wb = createCancelableWaitbar(0, 'Initializing...', 'Event Detection');
-    else
-        setappdata(wb, 'canceling', 0);
-    end
-    drawnow;
-    waitbar(0.06, wb, 'Preparing data...');
-    drawnow;
-    if isWaitbarCanceled(wb)
-        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
-        return;
-    end
-    
-    % Распаковка параметров из структуры
-    DetectionType = params.DetectionType;
-    MinPeakProminence = params.MinPeakProminence;
-    ChPos = params.ChPos;
-    ChNeg = params.ChNeg;
-    MinPeakDistance = params.MinPeakDistance;
-    SourceType = params.SourceType;
-    
-    detect = params.detect;
-    
-    if ~detect
-        [Trace_out, time_res, wasCanceled] = previewDetectionTrace(params);
-        events_detected = [];
-        amplitudes_detected = [];
-        widths_detected = [];
-        channels_detected = [];
-        metadata_detected = [];
-        prominences_detected = [];
-        indices_detected = [];
-        if wasCanceled
-            [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
-            return;
-        end
-        waitbar(1.0, wb, 'Complete');
-        if ~isempty(wb) && isvalid(wb)
-            delete(wb);
-        end
-        return;
-    end
-    
-    data_in = lfp_file.lfp;
-    max_peak_width = params.max_peak_width;
-    
-    raw_frq = Fs;
-    lfp_frq = round(newFs);
-    
-    % Фильтруем если попросили
-    waitbar(0.08, wb, 'Preparing filters...');
-    drawnow;
-    waitbar(0.1, wb, 'Applying filters...');
-    drawnow;
-    if isWaitbarCanceled(wb)
-        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
-        return;
-    end
-    try
-        if sum(filter_avaliable)>0
-            ch_to_filter = find(filter_avaliable);
-            waitbar(0.12, wb, sprintf('Applying filters (channels: %d)...', numel(ch_to_filter)));
-            drawnow;
-            data_in(:, ch_to_filter) = applyFilter(data_in(:, ch_to_filter), filterSettings, newFs);        
-        end
-    catch ME
-        fprintf('An error occurred: %s\n', ME.message);
-    end
-    if isWaitbarCanceled(wb)
-        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
-        return;
-    end
-
-    % Убираем артефакт стимула если включено
-    waitbar(0.2, wb, 'Removing stimulus artifacts...');
-    drawnow;
-    if isWaitbarCanceled(wb)
-        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
-        return;
-    end
-    if stims_exist && ~isempty(stims) && art_rem_settings.artifact_window_ms > 0
-        win_r = round(art_rem_settings.artifact_window_ms * (Fs/1000));
-        data_in = removeStimArtifact(data_in, stims, time, win_r, art_rem_settings.interp_method);
-    end
-    
-    % Вычитаем среднее из запрошенных
-    waitbar(0.3, wb, 'Subtracting mean...');
-    drawnow;
-    if isWaitbarCanceled(wb)
-        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
-        return;
-    end
-    data_in(:, mean_group_ch) = data_in(:, mean_group_ch) - mean(data_in(:, mean_group_ch), 2); % вычитание выбранных средних каналов
-    
-    % Если источником выбран CSD
-    waitbar(0.4, wb, 'Computing CSD...');
-    drawnow;
-    if isWaitbarCanceled(wb)
-        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
-        return;
-    end
-    switch SourceType
-        case 'CSD'
-        % Выборка только разрешенных каналов, которым доступен CSD
-        allowed_ch_inxs = ch_inxs(csd_avaliable(ch_inxs) == 1);
-        waitbar(0.45, wb, sprintf('Computing CSD (channels: %d)...', numel(allowed_ch_inxs)));
-        drawnow;
-        data_in = -globalCSD(data_in, allowed_ch_inxs);
-    end
-    if isWaitbarCanceled(wb)
-        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
-        return;
-    end
-
-    % Создание Trace_out
-    waitbar(0.5, wb, 'Creating detection trace...');
-    drawnow;
-    if isWaitbarCanceled(wb)
-        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
-        return;
-    end
-    switch DetectionType
-        case 'two channels difference'
-
-            waitbar(0.55, wb, 'Resampling channels...');
-            drawnow;
-            NegTrace = resample1(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
-            PosTrace = resample1(double(data_in(:, ChPos)), lfp_frq , raw_frq)';
-            Trace_out = PosTrace - NegTrace;
-        case 'two channels multiplied'
-            waitbar(0.55, wb, 'Resampling channels...');
-            drawnow;
-            NegTrace = resample1(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
-            PosTrace = resample1(double(data_in(:, ChPos)), lfp_frq , raw_frq)';              
-            Trace_out = -(NegTrace.*PosTrace);        
-        case 'one channel negative'
-            waitbar(0.55, wb, 'Resampling channel...');
-            drawnow;
-            NegTrace = resample1(double(data_in(:, ChNeg)), lfp_frq , raw_frq)';
-            Trace_out = -NegTrace;
-        case 'one channel positive'
-            waitbar(0.55, wb, 'Resampling channel...');
-            drawnow;
-            PosTrace = resample1(double(data_in(:, ChPos)), lfp_frq , raw_frq)';
-            Trace_out = PosTrace;
-    end
-    Trace_out(isnan(Trace_out)) = nanmean(Trace_out);
-    Trace_out = Trace_out - mean(Trace_out);
-    Trace_out = np_flatten(Trace_out);
-    
-    time_res = linspace(time(1),time(end),numel(Trace_out));
-    
-    % Параметры временного диапазона (используются только для фильтрации событий)
-    UseTimeRange = false;
-    StartTime = time(1);
-    EndTime = time(end);
-    if isfield(params, 'UseTimeRange')
-        UseTimeRange = params.UseTimeRange;
-    end
-    if isfield(params, 'StartTime')
-        StartTime = params.StartTime;
-    end
-    if isfield(params, 'EndTime')
-        EndTime = params.EndTime;
-    end
-    
-    % Проверка на пустой Trace_out
-    if isempty(Trace_out) || numel(Trace_out) == 0
-        if ~isempty(wb) && isvalid(wb)
-            delete(wb);
-        end
-        
-        errorMsg = sprintf(['Error: No data available for event detection.\n\n' ...
-            'Possible causes:\n' ...
-            '1. Time range (Use time range) contains no data\n' ...
-            '2. Selected channels contain no data\n' ...
-            '3. Data filtering resulted in empty result\n\n' ...
-            'Recommendations:\n' ...
-            '- Check time range settings\n' ...
-            '- Ensure selected channels exist\n' ...
-            '- Disable filters or time range and try again']);
-        
-        uiwait(msgbox(errorMsg, 'Event Detection Error', 'error', 'modal'));
-        error('Trace_out is empty - no data available for detection');
-    end
-    
-    waitbar(0.6, wb, 'Preparing detection...');
-    drawnow;
-    if isWaitbarCanceled(wb)
-        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
-        return;
-    end
-    
-    if detect
-        fprintf('=== DEBUG: Detection parameters ===\n');
-        fprintf('MinPeakProminence: %.3f\n', MinPeakProminence);
-        fprintf('MinPeakDistance: %.6f sec (%.6f samples at %d Hz)\n', MinPeakDistance, MinPeakDistance*lfp_frq, lfp_frq);
-        fprintf('MaxPeakWidth: %.6f sec (%.6f samples at %d Hz)\n', max_peak_width, max_peak_width*lfp_frq, lfp_frq);
-        fprintf('DetectionType: %s\n', DetectionType);
-        fprintf('SourceType: %s\n', SourceType);
-        fprintf('ChPos: %d, ChNeg: %d\n', ChPos, ChNeg);
-        fprintf('\n=== DEBUG: Trace_out statistics ===\n');
-        fprintf('Trace_out length: %d samples\n', numel(Trace_out));
-        fprintf('Trace_out min: %.3f\n', min(Trace_out));
-        fprintf('Trace_out max: %.3f\n', max(Trace_out));
-        fprintf('Trace_out mean: %.3f\n', mean(Trace_out));
-        fprintf('Trace_out std: %.3f\n', std(Trace_out));
-        fprintf('Trace_out median: %.3f\n', median(Trace_out));
-        fprintf('Trace_out 99.9%% quantile: %.3f\n', quantile(Trace_out, 0.999));
-        fprintf('\n');
-        
-            % Проверяем, нужно ли искать вокруг стимулов
-            SearchAroundStimuli = false;
-            SearchWindow = 0;
-            SearchAroundDirection = 2; % 1 - two-sided, 2 - after-only
-            if isfield(params, 'SearchAroundStimuli')
-                SearchAroundStimuli = params.SearchAroundStimuli;
-            end
-            if isfield(params, 'SearchWindow')
-                SearchWindow = params.SearchWindow;
-            end
-            if isfield(params, 'SearchAroundDirection')
-                SearchAroundDirection = params.SearchAroundDirection;
-            end
-            isTwoSided = (SearchAroundDirection == 1);
-        
-        % Поиск вокруг стимулов возможен только если не включен временной диапазон
-        if SearchAroundStimuli && stims_exist && ~isempty(stims) && ~UseTimeRange
-            fprintf('=== DEBUG: Searching around stimuli ===\n');
-            fprintf('Number of stimuli: %d\n', length(stims));
-            fprintf('Search window: [%.6f..%.6f] sec\n', -SearchWindow*isTwoSided, SearchWindow);
-            fprintf('\n');
-            
-            waitbar(0.65, wb, sprintf('Detecting events around %d stimuli...', length(stims)));
-            drawnow;
-            if isWaitbarCanceled(wb)
-                [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
-                return;
-            end
-            
-            % Инициализация массивов для объединения результатов
-            all_peak_times = [];
-            all_peaks = [];
-            all_widths = [];
-            all_prominences = [];
-            mpdWarningShown = false;
-            
-            % Детекция в окнах вокруг каждого стимула
-            num_stims = length(stims);
-            for stim_idx = 1:num_stims
-                waitbar(0.65 + 0.25 * (stim_idx / num_stims), wb, ...
-                    sprintf('Processing stimulus %d of %d...', stim_idx, num_stims));
-                drawnow;
-                if isWaitbarCanceled(wb)
-                    [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
-                    return;
-                end
-                stim = stims(stim_idx);
-                window_start = stim - SearchWindow*isTwoSided;
-                window_end = stim + SearchWindow;
-                
-                % Находим индексы, попадающие в окно
-                window_mask = (time_res >= window_start) & (time_res <= window_end);
-                
-                if sum(window_mask) == 0
-                    continue;
-                end
-                
-                % Выделяем участок сигнала
-                Trace_out_window = Trace_out(window_mask);
-                time_res_window = time_res(window_mask);
-                
-                % Пропускаем окно, если данных нет
-                if isempty(Trace_out_window) || numel(Trace_out_window) == 0
-                    continue;
-                end
-                
-                % findpeaks requires MinPeakDistance < (x(end) - x(1)).
-                % Here x is time_res_window; if MinPeakDistance is larger than the
-                % available time span in the current window, MATLAB throws an error.
-                time_span_window = time_res_window(end) - time_res_window(1);
-                if MinPeakDistance >= time_span_window
-                    if ~mpdWarningShown
-                        suggested = max(0, time_span_window - eps(time_span_window));
-                        msg = sprintf(['MinPeakDistance is too large for the current search window.\n\n' ...
-                            'MATLAB requires: MinPeakDistance < (max(time) - min(time))\n' ...
-                            'Current MinPeakDistance: %.6f s\n' ...
-                            'Available window time span: %.6f s\n' ...
-                            'Suggested maximum value: %.6f s\n\n' ...
-                            'Please decrease "Minimal Time Between Peaks" in the GUI and press Detect again.'], ...
-                            MinPeakDistance, time_span_window, suggested);
-                        uiwait(msgbox(msg, 'MinPeakDistance too large', 'warn', 'modal'));
-                        mpdWarningShown = true;
-                    end
-                    
-                    % Abort full detection to avoid repeated findpeaks errors.
-                    all_peak_times = [];
-                    all_peaks = [];
-                    all_widths = [];
-                    all_prominences = [];
-                    break;
-                end
-                
-                % Детекция в окне
-                findpeaks_params = {'MinPeakDistance', MinPeakDistance, 'WidthReference', 'halfheight', 'MinPeakHeight', MinPeakProminence};
-                [peaks_window, peak_times_window, widths_window, prominences_window] = ...
-                    findpeaks(Trace_out_window, time_res_window, findpeaks_params{:});
-                
-                % Фильтрация по ширине
-                if ~isempty(widths_window)
-                    wide_mask = widths_window <= max_peak_width;
-                    peaks_window = peaks_window(wide_mask);
-                    peak_times_window = peak_times_window(wide_mask);
-                    widths_window = widths_window(wide_mask);
-                    prominences_window = prominences_window(wide_mask);
-                end
-                
-                % Добавляем результаты в общие массивы
-                if ~isempty(peak_times_window)
-                    all_peak_times = [all_peak_times; peak_times_window(:)];
-                    all_peaks = [all_peaks; peaks_window(:)];
-                    all_widths = [all_widths; widths_window(:)];
-                    all_prominences = [all_prominences; prominences_window(:)];
-                end
-            end
-            
-            fprintf('=== DEBUG: After window detection ===\n');
-            fprintf('Total peaks found in all windows: %d\n', length(all_peak_times));
-            fprintf('\n');
-            
-            waitbar(0.9, wb, 'Removing duplicates...');
-            drawnow;
-            if isWaitbarCanceled(wb)
-                [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
-                return;
-            end
-            
-            % Удаление дубликатов (если окна перекрываются)
-            if ~isempty(all_peak_times)
-                [sorted_times, sort_idx] = sort(all_peak_times);
-                sorted_peaks = all_peaks(sort_idx);
-                sorted_widths = all_widths(sort_idx);
-                sorted_prominences = all_prominences(sort_idx);
-                
-                % Удаляем события, которые слишком близко друг к другу
-                unique_mask = true(size(sorted_times));
-                for i = 2:length(sorted_times)
-                    if (sorted_times(i) - sorted_times(i-1)) < MinPeakDistance
-                        unique_mask(i) = false;
-                    end
-                end
-                
-                all_peak_times = sorted_times(unique_mask);
-                all_peaks = sorted_peaks(unique_mask);
-                all_widths = sorted_widths(unique_mask);
-                all_prominences = sorted_prominences(unique_mask);
-                
-                fprintf('=== DEBUG: After duplicate removal ===\n');
-                fprintf('Remaining peaks: %d\n', length(all_peak_times));
-                fprintf('\n');
-            end
-            
-            if ~isempty(all_peak_times)
-                events_detected = all_peak_times(:);
-                amplitudes_detected = all_peaks(:);
-                widths_detected = all_widths(:);
-                prominences = all_prominences(:);
-            else
-                events_detected = [];
-                amplitudes_detected = [];
-                widths_detected = [];
-                prominences = [];
-            end
-            
-        else
-            % Детекция по всему сигналу (как раньше)
-            waitbar(0.7, wb, 'Detecting peaks in full signal...');
-            drawnow;
-            if isWaitbarCanceled(wb)
-                [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
-                return;
-            end
-            
-            % Проверка на пустой Trace_out перед вызовом findpeaks
-            if isempty(Trace_out) || numel(Trace_out) == 0
-                if ~isempty(wb) && isvalid(wb)
-                    delete(wb);
-                end
-                
-                errorMsg = sprintf(['Ошибка: Нет данных для детекции событий.\n\n' ...
-                    'Возможные причины:\n' ...
-                    '1. Временной диапазон (Use time range) не содержит данных\n' ...
-                    '2. Выбранные каналы не содержат данных\n' ...
-                    '3. Фильтрация данных привела к пустому результату\n\n' ...
-                    'Рекомендации:\n' ...
-                    '- Проверьте настройки временного диапазона\n' ...
-                    '- Убедитесь, что выбранные каналы существуют\n' ...
-                    '- Отключите фильтры или временной диапазон и попробуйте снова']);
-                
-                uiwait(msgbox(errorMsg, 'Ошибка детекции событий', 'error', 'modal'));
-                error('Trace_out is empty - no data available for detection');
-            end
-            
-            findpeaks_params = {'MinPeakDistance', MinPeakDistance, 'WidthReference', 'halfheight', 'MinPeakHeight', MinPeakProminence};
-            [peaks,peak_times,widths,prominences] = findpeaks(Trace_out, time_res, findpeaks_params{:});
-            
-            fprintf('=== DEBUG: After findpeaks ===\n');
-            fprintf('Found %d peaks\n', length(peaks));
-            if ~isempty(peaks)
-                fprintf('Peak amplitudes range: [%.3f, %.3f]\n', min(peaks), max(peaks));
-                fprintf('Peak widths range: [%.6f, %.6f] sec\n', min(widths), max(widths));
-                fprintf('Peak prominences range: [%.3f, %.3f]\n', min(prominences), max(prominences));
-            end
-            fprintf('\n');
-            
-            waitbar(0.85, wb, 'Filtering peaks by width...');
-            drawnow;
-            if isWaitbarCanceled(wb)
-                [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
-                return;
-            end
-            
-            % убираем слишком широкие пики
-            wide_peaks_mask = widths > max_peak_width;
-            num_wide_peaks = sum(wide_peaks_mask);
-            peak_times(wide_peaks_mask) = [];
-            peaks(wide_peaks_mask) = [];
-            widths(wide_peaks_mask) = [];
-            prominences(wide_peaks_mask) = [];
-            
-            fprintf('=== DEBUG: After width filtering ===\n');
-            fprintf('Removed %d peaks (too wide, > %.6f sec)\n', num_wide_peaks, max_peak_width);
-            fprintf('Remaining peaks: %d\n', length(peaks));
-            fprintf('\n');
-            
-            events_detected = peak_times(:);
-            amplitudes_detected = peaks(:);
-            widths_detected = widths(:);
-            prominences = prominences(:);
-        end
-
-        if UseTimeRange
-            time_mask = events_detected >= StartTime & events_detected <= EndTime;
-            events_detected = events_detected(time_mask);
-            amplitudes_detected = amplitudes_detected(time_mask);
-            widths_detected = widths_detected(time_mask);
-            prominences = prominences(time_mask);
-        end
-        
-        waitbar(0.95, wb, 'Finalizing results...');
-        drawnow;
-        if isWaitbarCanceled(wb)
-            [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb);
-            return;
-        end
-        
-        % Формируем каналы и метаданные
-        channels_detected = [];
-        if strcmp(DetectionType, 'two channels difference') || strcmp(DetectionType, 'two channels multiplied')
-            % Для двухканальных методов сохраняем оба канала
-            channels_detected = repmat([ChPos, ChNeg], length(events_detected), 1);
-        elseif strcmp(DetectionType, 'one channel positive')
-            channels_detected = repmat(ChPos, length(events_detected), 1);
-        elseif strcmp(DetectionType, 'one channel negative')
-            channels_detected = repmat(ChNeg, length(events_detected), 1);
-        end
-        
-        % Создаем метаданные для каждого события
-        metadata_detected = repmat(struct(...
-            'source', 'auto', ...
-            'method', 'peaks', ...
-            'data_type', SourceType, ...
-            'polarity', DetectionType, ...
-            'prominence', NaN, ...
-            'detection_params', struct(...
-                'MinPeakProminence', MinPeakProminence, ...
-                'MinPeakDistance', MinPeakDistance, ...
-                'MaxPeakWidth', max_peak_width ...
-            ) ...
-        ), length(events_detected), 1);
-        
-        % Добавляем prominence для каждого события
-        prominences_detected = prominences(:);
-        for i = 1:length(events_detected)
-            metadata_detected(i).prominence = prominences(i);
-        end
-        
-        % Индексы в исходной шкале time (создаются при детекции, без поиска при сохранении)
-        indices_detected = ClosestIndex(events_detected, time, true);
-        
-        fprintf('=== DEBUG: Final results ===\n');
-        fprintf('Total events detected: %d\n', length(events_detected));
-        fprintf('===================================\n\n');
-        
-    end
-    
-    waitbar(1.0, wb, 'Complete');
-    fprintf('Events detected.\n');
-    if ~isempty(wb) && isvalid(wb)
-        delete(wb);
-    end
-end
-
-function [Trace_out, time_res, wasCanceled] = previewDetectionTrace(params)
-    global Fs time newFs lfp_file wb filterSettings filter_avaliable
-    global stims_exist stims art_rem_settings
-
-    wasCanceled = false;
-    DetectionType = params.DetectionType;
-    ChPos = params.ChPos;
-    ChNeg = params.ChNeg;
-    SourceType = params.SourceType;
-    nSamples = size(lfp_file.lfp, 1);
-    nChannels = size(lfp_file.lfp, 2);
-
-    switch DetectionType
-        case {'two channels difference', 'two channels multiplied'}
-            chs = [ChPos, ChNeg];
-        case 'one channel negative'
-            chs = ChNeg;
-        case 'one channel positive'
-            chs = ChPos;
-    end
-    if strcmp(SourceType, 'CSD')
-        chs = [chs, chs - 1, chs + 1];
-    end
-    chs = unique(chs);
-    chs = chs(chs >= 1 & chs <= nChannels);
-
-    step = max(1, round(Fs / newFs));
-    idx = 1:step:nSamples;
-    if params.UseTimeRange
-        idx = idx(time(idx) >= params.StartTime & time(idx) <= params.EndTime);
-    end
-
-    waitbar(0.3, wb, 'Preview: reading channel...');
-    drawnow;
-    if isWaitbarCanceled(wb)
-        wasCanceled = true;
-        Trace_out = [];
-        time_res = [];
-        return;
-    end
-    traces = double(lfp_file.lfp(idx, chs));
-
-    waitbar(0.55, wb, 'Preview: filtering...');
-    drawnow;
-    if isWaitbarCanceled(wb)
-        wasCanceled = true;
-        Trace_out = [];
-        time_res = [];
-        return;
-    end
-    filtMask = logical(filter_avaliable(chs));
-    if any(filtMask)
-        traces(:, filtMask) = applyFilter(traces(:, filtMask), filterSettings, newFs);
-    end
-
-    if stims_exist && ~isempty(stims) && art_rem_settings.artifact_window_ms > 0
-        win_r = max(1, round(art_rem_settings.artifact_window_ms * (Fs / 1000) / step));
-        traces = removeStimArtifact(traces, stims, time(idx), win_r, art_rem_settings.interp_method);
-    end
-
-    waitbar(0.75, wb, 'Preview: building trace...');
-    drawnow;
-    pos = previewSourceColumn(traces, chs, ChPos, SourceType, nChannels);
-    neg = previewSourceColumn(traces, chs, ChNeg, SourceType, nChannels);
-    switch DetectionType
-        case 'two channels difference'
-            Trace_out = pos - neg;
-        case 'two channels multiplied'
-            Trace_out = -(neg .* pos);
-        case 'one channel negative'
-            Trace_out = -neg;
-        case 'one channel positive'
-            Trace_out = pos;
-    end
-
-    Trace_out(isnan(Trace_out)) = nanmean(Trace_out);
-    Trace_out = Trace_out - mean(Trace_out);
-    Trace_out = np_flatten(Trace_out);
-    time_res = time(idx);
-end
-
-function col = previewSourceColumn(traces, chs, ch, SourceType, nChannels)
-    col = previewChannelColumn(traces, chs, ch);
-    if strcmp(SourceType, 'CSD')
-        col = zeros(size(traces, 1), 1);
-        if ch > 1 && ch < nChannels
-            col = -(previewChannelColumn(traces, chs, ch - 1) - 2 * previewChannelColumn(traces, chs, ch) + previewChannelColumn(traces, chs, ch + 1));
-        end
-    end
-end
-
-function col = previewChannelColumn(traces, chs, ch)
-    col = zeros(size(traces, 1), 1);
-    mask = (chs == ch);
-    if any(mask)
-        col = traces(:, mask);
-    end
-end
-
-function [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = stopCanceledAutoEventDetection(wb)
-    wasCanceled = true;
-    events_detected = [];
-    Trace_out = [];
-    time_res = [];
-    amplitudes_detected = [];
-    widths_detected = [];
-    channels_detected = [];
-    metadata_detected = [];
-    prominences_detected = [];
-    indices_detected = [];
-    fprintf('Event detection stopped by user.\n');
-    if ~isempty(wb) && isvalid(wb)
-        delete(wb);
-    end
 end
 
 function safeSetPopupValue(hPopup, requestedValue, maxItems, popupLabel)

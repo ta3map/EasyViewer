@@ -11,7 +11,7 @@ function loadEventsFromFile(filepath, options)
     % Глобальные переменные для данных
     global events event_inx events_exist event_comments event_indices
     global event_amplitudes event_channels event_widths event_prominences event_metadata
-    global event_title_string
+    global event_title_string lastEventsFilePath
     global time matFilePath Fs
     global selectedCenter chosen_time_interval time_forward
     global lastOpenedFiles outside_calling_filepath
@@ -81,92 +81,76 @@ function loadEventsFromFile(filepath, options)
     
     % Обработка данных событий
     if isfield(loadedData, 'manlDet')
-        event_indices = round([loadedData.manlDet.t])';
-        events = time(event_indices(:));
-        
-        % Загрузка комментариев
-        if ~isfield(loadedData, 'event_comments') % если комментариев не было
-            event_comments = repmat({'...'}, numel(events), 1); % Инициализация комментариев
-        else % если были комментарии
-            event_comments = loadedData.event_comments;
+        loadedIndices = round([loadedData.manlDet.t])';
+        loadedTimes = time(loadedIndices(:));
+
+        loadedComments = {};
+        if isfield(loadedData, 'event_comments')
+            loadedComments = loadedData.event_comments;
         end
-        
-        % Загрузка новых полей с обратной совместимостью
+
+        loadedAmps = [];
         if isfield(loadedData.manlDet, 'amplitude')
-            event_amplitudes = [loadedData.manlDet.amplitude]';
-        else
-            event_amplitudes = NaN(size(events)); % default для старых файлов
-            disp('Old format detected: amplitude data not available');
+            loadedAmps = [loadedData.manlDet.amplitude]';
         end
-        
+
+        loadedChannels = [];
         if isfield(loadedData.manlDet, 'channels')
-            % Проверяем, одноканальные или многоканальные данные
             first_channels = loadedData.manlDet(1).channels;
             if isscalar(first_channels)
-                event_channels = [loadedData.manlDet.channels]';
+                loadedChannels = [loadedData.manlDet.channels]';
             else
-                % Многоканальные данные - собираем в матрицу
                 max_channels = max(cellfun(@length, {loadedData.manlDet.channels}));
-                event_channels = NaN(length(events), max_channels);
-                for i = 1:length(events)
+                loadedChannels = NaN(length(loadedTimes), max_channels);
+                for i = 1:length(loadedTimes)
                     chs = loadedData.manlDet(i).channels;
-                    event_channels(i, 1:length(chs)) = chs;
+                    loadedChannels(i, 1:length(chs)) = chs;
                 end
             end
         elseif isfield(loadedData.manlDet, 'ch')
-            event_channels = [loadedData.manlDet.ch]'; % Используем старое поле ch
-        else
-            event_channels = ones(size(events)); % default
-            disp('Old format detected: channel data not available');
+            loadedChannels = [loadedData.manlDet.ch]';
         end
-        
+
+        loadedWidths = [];
         if isfield(loadedData.manlDet, 'width')
-            event_widths = [loadedData.manlDet.width]';
-        else
-            event_widths = NaN(size(events)); % default для старых файлов
-            disp('Old format detected: width data not available');
+            loadedWidths = [loadedData.manlDet.width]';
         end
-        
+
+        loadedProm = [];
         if isfield(loadedData.manlDet, 'prominence')
-            event_prominences = [loadedData.manlDet.prominence]';
-        else
-            event_prominences = NaN(size(events)); % default для старых файлов
-            disp('Old format detected: prominence data not available');
+            loadedProm = [loadedData.manlDet.prominence]';
         end
-        
+
+        loadedMeta = [];
         if isfield(loadedData.manlDet, 'metadata')
-            event_metadata = [loadedData.manlDet.metadata]';
-        else
-            % Создаем default metadata для старых файлов
-            event_metadata = createDefaultEventMetadata('loaded', length(events));
-            disp('Old format detected: metadata not available');
+            loadedMeta = {loadedData.manlDet.metadata};
         end
-        
-        event_title_string = file;
-        events_exist = true;
-        event_inx = 1;
-        
-        % Устанавливаем режим 'events' если нужно
+
+        setEventsState(loadedTimes, ...
+            'indices', loadedIndices(:), ...
+            'comments', loadedComments, ...
+            'amplitudes', loadedAmps, ...
+            'channels', loadedChannels, ...
+            'widths', loadedWidths, ...
+            'prominences', loadedProm, ...
+            'metadata', loadedMeta, ...
+            'source', 'loaded', ...
+            'title', file, ...
+            'event_inx', 1, ...
+            'sync', ~options.skip_callbacks);
+
+        lastEventsFilePath = filepath;
+
         if ~options.skip_mode_change
             selectedCenter = 'events';
         end
-        
-        % Обновляем временной интервал
-        if exist('time_forward', 'var') && ~isempty(time_forward)
+
+        if exist('time_forward', 'var') && ~isempty(time_forward) && ~isempty(events)
             chosen_time_interval(1) = events(event_inx);
             chosen_time_interval(2) = events(event_inx) + time_forward;
         end
-        
-        % Вызываем callback функции если они установлены и не пропущены
+
         if ~options.skip_callbacks
-            if exist('table_calling', 'var') && ~isempty(table_calling)
-                try
-                    table_calling();
-                catch ME
-                    warning('Error calling table_calling: %s', ME.message);
-                end
-            end
-            
             if exist('updatePlotFunc', 'var') && ~isempty(updatePlotFunc)
                 try
                     updatePlotFunc();
@@ -175,7 +159,7 @@ function loadEventsFromFile(filepath, options)
                 end
             end
         end
-        
+
         fprintf('✓ Events loaded: %d events from %s\n', length(events), file);
     else
         event_indices = [];

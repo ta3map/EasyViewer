@@ -14,34 +14,7 @@ function plotFromTableGUI(filePath)
         filePath = '';
     end
     
-    % Загружаем координаты элементов из JSON файла
-    coordsFile = getGUIConfigPath('plotFromTableGUI_coords.json');
-    if exist(coordsFile, 'file')
-        coordsData = jsondecode(fileread(coordsFile));
-    else
-        error('Coordinates file not found: %s', coordsFile);
-    end
-    
-    % Вспомогательная функция для получения координат элемента
-    function pos = getElementPosition(tag)
-        if isfield(coordsData.elements, tag)
-            pos = coordsData.elements.(tag);
-            
-            % Проверяем, не является ли элемент панелью - для них оставляем относительные координаты
-            if ~strcmp(tag, 'plotPanel')
-                % Преобразуем относительные координаты в абсолютные на основе base_figure_position
-                base_pos = coordsData.base_figure_position;
-                pos = [
-                    pos(1) * base_pos(3),  % x
-                    pos(2) * base_pos(4),  % y
-                    pos(3) * base_pos(3),  % width
-                    pos(4) * base_pos(4)   % height
-                ];
-            end
-        else
-            error('Coordinates for element %s not found in JSON file', tag);
-        end
-    end
+    [coordsData, coordsFile] = loadGUICoords('plotFromTableGUI_coords.json');
     
     figTag = 'plotFromTableGUI';
     guiFig = findobj('Type', 'figure', 'Tag', figTag);
@@ -156,27 +129,8 @@ end
 
 function createUI(fig, coordsData)
     state = get(fig, 'UserData');
-    
-    % Вспомогательная функция для получения координат элемента
-    function pos = getElementPosition(tag)
-        if isfield(coordsData.elements, tag)
-            pos = coordsData.elements.(tag);
-            
-            % Проверяем, не является ли элемент панелью - для них оставляем относительные координаты
-            if ~strcmp(tag, 'plotPanel')
-                % Преобразуем относительные координаты в абсолютные на основе base_figure_position
-                base_pos = coordsData.base_figure_position;
-                pos = [
-                    pos(1) * base_pos(3),  % x
-                    pos(2) * base_pos(4),  % y
-                    pos(3) * base_pos(3),  % width
-                    pos(4) * base_pos(4)   % height
-                ];
-            end
-        else
-            error('Coordinates for element %s not found in JSON file', tag);
-        end
-    end
+    relativeTags = {'plotPanel'};
+    getElementPosition = @(tag) getGUIElementPosition(coordsData, tag, relativeTags);
     
     % Загрузка данных
     loadActionPopup = uicontrol('Parent', fig, 'Style', 'popupmenu', ...
@@ -405,14 +359,8 @@ function showError(errorMsg)
 end
 
 function resizeComponentsCallback(fig, coordsFile)
-    % resizeComponentsCallback - Функция автомасштабирования элементов при изменении размера окна
     try
-        % Загружаем базовый размер из JSON для правильного вычисления коэффициентов масштабирования
-        if exist(coordsFile, 'file')
-            coordsDataResize = jsondecode(fileread(coordsFile));
-            base_figure_position_resize = coordsDataResize.base_figure_position;
-            ResizeElements(fig, coordsFile, base_figure_position_resize);
-        end
+        ResizeElements(fig, coordsFile);
     catch ME
         warning('Error scaling elements: %s', ME.message);
     end

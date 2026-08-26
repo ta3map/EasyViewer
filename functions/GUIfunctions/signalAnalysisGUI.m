@@ -9,13 +9,9 @@ function signalAnalysisGUI(editMode)
     % Загружаем глобальные настройки (включая инициализацию по умолчанию)
     loadGlobalSettings();
     
-    % Загружаем координаты элементов из JSON файла
-    coordsFile = getGUIConfigPath('signalAnalysisGUI_coords.json');
-    if exist(coordsFile, 'file')
-        coordsData = jsondecode(fileread(coordsFile));
-    else
-        error('Coordinates file not found: %s', coordsFile);
-    end
+    [coordsData, coordsFile] = loadGUICoords('signalAnalysisGUI_coords.json');
+    relativeTags = {'main_axes', 'plot_container', 'main_panel', 'side_panel', 'event_panel'};
+    getElementPosition = @(tag) getGUIElementPosition(coordsData, tag, relativeTags);
     
     % Signal Analysis GUI - анализ и измерение параметров сигнала
     
@@ -61,28 +57,6 @@ function signalAnalysisGUI(editMode)
     
     % Глобальные переменные для среднего сигнала
     global mean_signal_data mean_signal_time mean_results_active
-    
-    % Вспомогательная функция для получения координат элемента
-    function pos = getElementPosition(tag)
-        if isfield(coordsData.elements, tag)
-            pos = coordsData.elements.(tag);
-            
-            % Проверяем, не является ли элемент осью или панелью - для них оставляем относительные координаты
-            if ~strcmp(tag, 'main_axes') && ~strcmp(tag, 'plot_container') && ...
-               ~strcmp(tag, 'main_panel') && ~strcmp(tag, 'side_panel') && ~strcmp(tag, 'event_panel')
-                % Преобразуем относительные координаты в абсолютные на основе base_figure_position
-                base_pos = coordsData.base_figure_position;
-                pos = [
-                    pos(1) * base_pos(3),  % x
-                    pos(2) * base_pos(4),  % y
-                    pos(3) * base_pos(3),  % width
-                    pos(4) * base_pos(4)   % height
-                ];
-            end
-        else
-            error('Coordinates for element %s not found in JSON file', tag);
-        end
-    end
     
     % Путь к файлу настроек (аналогично signalViewerGUI.m)
     SettingsFilepath = fullfile(tempdir, 'ev_settings.mat');
@@ -274,6 +248,9 @@ end
     % Инициализация флага автоанализа
     auto_analysis_mode = false;
     
+    % Режим выбора точки на графике кликом (magnet ★)
+    magnet_pick_pending = false;
+    
     % Идентификатор (tag) для GUI фигуры
     figTag = 'SignalAnalysisGUI';
     
@@ -296,10 +273,14 @@ end
     
     % Создание главного окна с использованием базового положения из JSON
     figure_position = coordsData.base_figure_position;
-    signalFig = figure('Name', 'Signal Analysis', 'Tag', figTag, ...
+    signalFig = figure('Name', 'Analyze Responses', 'Tag', figTag, ...
         'Resize', 'on', ...
-        'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', ...
+        'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'figure', ...
         'Position', figure_position);
+    hToolbar = findall(signalFig, 'Type', 'uitoolbar');
+    if ~isempty(hToolbar)
+        set(hToolbar, 'Visible', 'off');
+    end
     if isempty(getappdata(signalFig, 'analysis_show_raw_signal'))
         setappdata(signalFig, 'analysis_show_raw_signal', false);
     end
@@ -556,27 +537,6 @@ end
     text(hPlotAxes, 0.5, 0.5, 'Load ZAV or EV file', 'color', 'r', 'horizontalalignment', 'center');
 
     uistack([hOpenFileButton, hFileManagerButton, hSettingsButton, hHelpButton], 'top');
-    
-    % Кнопки управления инструментами графика
-    hZoomButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Zoom', ...
-        'Position', getElementPosition('zoom_btn'), 'Callback', @zoomButtonCallback, 'Tag', 'zoom_btn');
-    btnIcon(hZoomButton, fullfile(assetsPath, 'zoom_btn.png'), false);
-    
-    hPanButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Pan', ...
-        'Position', getElementPosition('pan_btn'), 'Callback', @panButtonCallback, 'Tag', 'pan_btn');
-    btnIcon(hPanButton, fullfile(assetsPath, 'pan_btn.png'), false);
-    
-    hCursorButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Cursor', ...
-        'Position', getElementPosition('cursor_btn'), 'Callback', @cursorButtonCallback, 'Tag', 'cursor_btn');
-    btnIcon(hCursorButton, fullfile(assetsPath, 'cursor_btn.png'), false);
-    
-    hBrushButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Brush', ...
-        'Position', getElementPosition('brush_btn'), 'Callback', @brushButtonCallback, 'Tag', 'brush_btn');
-    btnIcon(hBrushButton, fullfile(assetsPath, 'brush_btn.png'), false);
-    
-    hHomeButton = uicontrol(signalFig, 'Style', 'pushbutton', 'String', 'Home', ...
-        'Position', getElementPosition('home_btn'), 'Callback', @homeButtonCallback, 'Tag', 'home_btn');
-    btnIcon(hHomeButton, fullfile(assetsPath, 'home_btn.png'), false);
 
     % === Кнопки управления трассами (поверх графика) ===
     % Кнопка добавления результата
@@ -691,16 +651,11 @@ end
         'Data', {NaN, NaN, NaN, NaN, NaN, NaN}, ...
         'RowName', [], 'Tag', 'average_table');
     
-    % Переменные для хранения графических объектов
-    hBaselineLines = [];  % линии baseline диапазона
-    hPeakLines = [];      % линии peak диапазона  
-    hSlopeLine = [];      % линия slope regression
-    hPeakMarker = [];     % маркер пика
-    hOnsetMarker = [];    % маркер онсета
-    hBaselineMarkers = [];% маркеры baseline
-    hPeakMarkers = [];    % маркеры peak диапазона
+    % Переменные для хранения графических объектов (синхронизируются с plotGfx)
+    hBaselineLines = [];
+    hPeakLines = [];
     
-    original_ylim = [];    % исходные границы амплитуды для восстановления
+    original_ylim = [];
     original_xlim = [];    % исходные границы времени для восстановления
     
     % Переменная для относительного сдвига времени
@@ -711,9 +666,6 @@ end
     mean_signal_data = [];
     mean_signal_time = [];
     
-    % Пытаемся автоматически открыть последний файл при запуске
-    autoOpenLastFile();
-
     % Добавляем обработку клавиш для навигации
     set(signalFig, 'KeyPressFcn', @keyPressFunction);
     
@@ -723,9 +675,14 @@ end
     % Добавляем обработчик закрытия окна для сохранения положения
     set(signalFig, 'CloseRequestFcn', @closeSignalAnalysisWindow);
     
-    % Разворачиваем окно после создания всех элементов и установки обработчиков
-    % SizeChangedFcn автоматически вызовет ResizeElements для правильного масштабирования
     signalFig.WindowState = 'maximized';
+    
+    autoOpenLastFile();
+    if ~isempty(matFilePath) && ~isempty(hd) && ishandle(hPlotAxes) && strcmp(get(hPlotAxes, 'Visible'), 'off')
+        setupAnalysisUIAfterFileReady();
+    end
+    
+    useBuiltinTool('zoom');
     
     % Загружаем позиции курсоров из настроек при первом запуске
     %loadCursorPositionsFromSettings();
@@ -995,20 +952,25 @@ updateCursorEditFields();
             debugState('magnetPickTime', '❌ Сначала загрузите данные для анализа');
             return;
         end
-        figure(signalFig);
-        axes(hPlotAxes);
-        try
-            [x, ~] = ginput(1);
-        catch
-            debugState('magnetPickTime', '❌ Выбор точки отменен');
-            return;
-        end
-        if isempty(x) || ~isfinite(x)
-            debugState('magnetPickTime', '❌ Выбор точки отменен');
-            return;
-        end
+        disableBuiltinTools();
+        magnet_pick_pending = true;
+        set(signalFig, 'Pointer', 'crosshair');
+        set(signalFig, 'WindowButtonDownFcn', @(~, ~)magnetPickClick(targetEditHandle, callbackHandle));
+    end
+    
+    function magnetPickClick(targetEditHandle, callbackHandle)
+        cp = get(hPlotAxes, 'CurrentPoint');
+        x = cp(1, 1);
+        clearMagnetPickMode();
         set(targetEditHandle, 'String', sprintf('%.3f', x));
         callbackHandle(targetEditHandle, []);
+        restoreActiveBuiltinTool();
+    end
+    
+    function clearMagnetPickMode()
+        magnet_pick_pending = false;
+        set(signalFig, 'WindowButtonDownFcn', '');
+        set(signalFig, 'Pointer', 'arrow');
     end
     
     function onsetMethodCallback(src, ~)
@@ -1159,9 +1121,7 @@ updateCursorEditFields();
     function updatePlotAndCalculation()
         % Координирует вычисление результатов и обновление графика
         
-        % Пропускаем обновление графика в режиме автоанализа
         if exist('auto_analysis_mode', 'var') & auto_analysis_mode
-            % Только вычисляем результаты, НЕ обновляем график
             [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = calculateResults();
             return;
         end
@@ -1170,20 +1130,306 @@ updateCursorEditFields();
             return;
         end
         
-        % Обновляем временной интервал на основе режима и временных окон
         timeCenterNav('applyInterval', time_forward);
+        calculateResults();
+        requestPlotUpdate('visual');
+    end
+    
+    function requestPlotUpdate(reason)
+        if nargin < 1 || isempty(reason)
+            reason = 'visual';
+        end
         
-        % Сначала вычисляем все результаты
-        [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = calculateResults();
+        switch reason
+            case 'marker_drag'
+                updateLinePositions();
+            case 'marker_commit'
+                calculateResults();
+                refreshPlotLayers(false);
+            case 'full_rebuild'
+                invalidatePlotLayers();
+                calculateResults();
+                refreshPlotLayers(true, true);
+            otherwise
+                refreshPlotLayers(true);
+        end
+    end
+    
+    function invalidatePlotLayers()
+        if ishandle(signalFig)
+            rmappdata(signalFig, 'analysis_plot_gfx');
+        end
+        hBaselineLines = [];
+        hPeakLines = [];
+        if ishandle(hPlotAxes)
+            cla(hPlotAxes);
+        end
+    end
+    
+    function gfx = getPlotGfx()
+        gfx = [];
+        if ishandle(signalFig)
+            gfx = getappdata(signalFig, 'analysis_plot_gfx');
+        end
+        if isempty(gfx)
+            gfx = struct();
+        end
+    end
+    
+    function setPlotGfx(gfx)
+        setappdata(signalFig, 'analysis_plot_gfx', gfx);
+    end
+    
+    function layerReady = plotLayersReady()
+        gfx = getPlotGfx();
+        layerReady = isfield(gfx, 'mainLine') && isgraphics(gfx.mainLine);
+    end
+    
+    function ensurePlotLayers()
+        if plotLayersReady()
+            return;
+        end
         
-        % Затем обновляем график и визуализацию
-        updatePlotVisualization();
+        axes(hPlotAxes);
+        hold(hPlotAxes, 'on');
+        
+        gfx = struct();
+        gfx.mainLine = plot(hPlotAxes, nan, nan, 'LineWidth', 1, 'Tag', 'analysis_main_line');
+        gfx.rawLine = plot(hPlotAxes, nan, nan, 'Color', [0.6 0.6 0.6], ...
+            'LineWidth', 0.75, 'LineStyle', '--', 'Tag', 'analysis_raw_line', 'Visible', 'off');
+        gfx.blStart = xline(hPlotAxes, 0, 'Color', 'b', 'LineWidth', 2, 'LineStyle', ':', 'Tag', 'analysis_bl_start');
+        gfx.blEnd = xline(hPlotAxes, 0, 'Color', 'b', 'LineWidth', 2, 'LineStyle', ':', 'Tag', 'analysis_bl_end');
+        gfx.blLevel = line(hPlotAxes, [0 1], [0 0], 'Color', 'b', 'LineWidth', 1, 'LineStyle', ':', 'Tag', 'analysis_bl_level', 'Visible', 'off');
+        gfx.blLabel = text(hPlotAxes, 0, 0, 'BL', 'HorizontalAlignment', 'center', 'Color', 'b', 'FontWeight', 'bold', 'Tag', 'analysis_bl_label', 'Visible', 'off');
+        gfx.pkStart = xline(hPlotAxes, 0, 'Color', 'g', 'LineWidth', 2, 'LineStyle', ':', 'Tag', 'analysis_pk_start');
+        gfx.pkEnd = xline(hPlotAxes, 0, 'Color', 'g', 'LineWidth', 2, 'LineStyle', ':', 'Tag', 'analysis_pk_end');
+        gfx.pkLabel = text(hPlotAxes, 0, 0, 'PK', 'HorizontalAlignment', 'center', 'Color', 'g', 'FontWeight', 'bold', 'Tag', 'analysis_pk_label', 'Visible', 'off');
+        gfx.peakMarker = plot(hPlotAxes, nan, nan, 'LineStyle', 'none', 'Tag', 'analysis_peak_marker', 'Visible', 'off');
+        gfx.peakLabel = text(hPlotAxes, 0, 0, '', 'HorizontalAlignment', 'center', 'FontWeight', 'bold', 'Tag', 'analysis_peak_label', 'Visible', 'off');
+        gfx.onsetMarker = plot(hPlotAxes, nan, nan, 'mo', 'MarkerSize', 8, 'MarkerFaceColor', 'm', 'LineStyle', 'none', 'Tag', 'analysis_onset_marker', 'Visible', 'off');
+        gfx.onsetLabel = text(hPlotAxes, 0, 0, '', 'HorizontalAlignment', 'center', 'Color', 'm', 'FontWeight', 'bold', 'Tag', 'analysis_onset_label', 'Visible', 'off');
+        gfx.slopeLine = line(hPlotAxes, [nan nan], [nan nan], 'Color', [0.85 0.33 0.1], 'LineWidth', 1.5, 'Tag', 'analysis_slope_line', 'Visible', 'off');
+        gfx.regMarkers = plot(hPlotAxes, nan, nan, 'o', 'LineStyle', 'none', 'Tag', 'analysis_reg_markers', 'Visible', 'off');
+        
+        setPlotGfx(gfx);
+        syncMarkerHandleArrays();
+        grid(hPlotAxes, 'on');
+    end
+    
+    function syncMarkerHandleArrays()
+        gfx = getPlotGfx();
+        hBaselineLines = [gfx.blStart, gfx.blEnd, gfx.blLevel];
+        hPeakLines = [gfx.pkStart, gfx.pkEnd];
+    end
+    
+    function time_display = buildTimeDisplay(time_in)
+        if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
+            time_display = time_in * timeUnitFactor;
+        else
+            time_display = (time_in - rel_shift) * timeUnitFactor;
+        end
+    end
+    
+    function marker_x = markerDisplayTime(abs_time)
+        if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
+            marker_x = abs_time * timeUnitFactor;
+        else
+            marker_x = (abs_time - rel_shift) * timeUnitFactor;
+        end
+    end
+    
+    function refreshPlotLayers(includeSignal, restoreTools)
+        if nargin < 1
+            includeSignal = true;
+        end
+        if nargin < 2
+            restoreTools = false;
+        end
+        
+        if isempty(time) || isempty(time_forward)
+            return;
+        end
+        
+        if includeSignal
+            [channel_data, time_in] = getCurrentData();
+            if isempty(channel_data) || all(isnan(channel_data)) || all(isinf(channel_data))
+                return;
+            end
+        end
+        
+        ensurePlotLayers();
+        if includeSignal
+            updateSignalLayer(channel_data, time_in);
+        end
+        updateMarkerLayer(true);
+        updateMeasurementLayer();
+        updateAxesDecorations();
+        updateCurrentResultsTable();
+        makeDraggable();
+        if restoreTools
+            restoreActiveBuiltinTool();
+        end
+    end
+    
+    function updateSignalLayer(channel_data, time_in)
+        gfx = getPlotGfx();
+        time_display = buildTimeDisplay(time_in);
+        channel_color = colorsIn{slope_measurement_settings.channel};
+        set(gfx.mainLine, 'XData', time_display, 'YData', channel_data, 'Color', channel_color, 'Visible', 'on');
+        
+        show_raw = analysis_smooth_enabled && ~mean_results_active && getShowRawFlag();
+        if show_raw
+            raw_data = getappdata(hPlotAxes, 'analysis_raw_data');
+            if ~isempty(raw_data)
+                set(gfx.rawLine, 'XData', time_display, 'YData', raw_data, 'Visible', 'on');
+            else
+                set(gfx.rawLine, 'Visible', 'off');
+            end
+        else
+            set(gfx.rawLine, 'Visible', 'off');
+        end
+    end
+    
+    function updateMarkerLayer(updateBaselineLevel)
+        if nargin < 1
+            updateBaselineLevel = true;
+        end
+        
+        gfx = getPlotGfx();
+        ylims = ylim(hPlotAxes);
+        label_y = ylims(1) + (ylims(2) - ylims(1)) * 0.05;
+        
+        if slope_measurement_settings.show_baseline
+            t_bl_start = markerDisplayTime(slope_measurement_settings.baseline_start);
+            t_bl_end = markerDisplayTime(slope_measurement_settings.baseline_end);
+            set(gfx.blStart, 'Value', t_bl_start, 'Visible', 'on');
+            set(gfx.blEnd, 'Value', t_bl_end, 'Visible', 'on');
+            set(gfx.blLabel, 'Position', [t_bl_start, label_y, 0], 'Visible', 'on');
+            if updateBaselineLevel && exist('baseline_value', 'var') && ~isnan(baseline_value)
+                xlims = xlim(hPlotAxes);
+                set(gfx.blLevel, 'XData', [xlims(1), xlims(2)], 'YData', [baseline_value, baseline_value], 'Visible', 'on');
+            end
+        else
+            set([gfx.blStart, gfx.blEnd, gfx.blLevel, gfx.blLabel], 'Visible', 'off');
+        end
+        
+        show_peak_range = slope_measurement_settings.show_peak || slope_measurement_settings.show_onset || slope_measurement_settings.show_slope;
+        if show_peak_range
+            t_pk_start = markerDisplayTime(slope_measurement_settings.peak_start);
+            t_pk_end = markerDisplayTime(slope_measurement_settings.peak_end);
+            set(gfx.pkStart, 'Value', t_pk_start, 'Visible', 'on');
+            set(gfx.pkEnd, 'Value', t_pk_end, 'Visible', 'on');
+            set(gfx.pkLabel, 'Position', [t_pk_start, label_y, 0], 'Visible', 'on');
+        else
+            set([gfx.pkStart, gfx.pkEnd, gfx.pkLabel], 'Visible', 'off');
+        end
+        
+        syncMarkerHandleArrays();
+    end
+    
+    function hideMeasurementGfx()
+        gfx = getPlotGfx();
+        set([gfx.peakMarker, gfx.peakLabel, gfx.onsetMarker, gfx.onsetLabel, gfx.slopeLine, gfx.regMarkers], 'Visible', 'off');
+    end
+    
+    function updateMeasurementLayer()
+        gfx = getPlotGfx();
+        hideMeasurementGfx();
+        
+        if ~exist('measurement_metadata', 'var') || ~isfield(measurement_metadata, 'visualization')
+            return;
+        end
+        
+        ylims = ylim(hPlotAxes);
+        
+        if slope_measurement_settings.show_peak && isfield(measurement_metadata.visualization, 'peak_marker')
+            peak_obj = measurement_metadata.visualization.peak_marker;
+            if strcmp(peak_obj.type, 'point') && ~isnan(peak_obj.coordinates.x)
+                peak_time_display = peak_obj.coordinates.x * timeUnitFactor;
+                set(gfx.peakMarker, 'XData', peak_time_display, 'YData', peak_obj.coordinates.y, ...
+                    'Marker', peak_obj.style.marker, 'Color', peak_obj.style.color, ...
+                    'MarkerSize', peak_obj.style.markersize, ...
+                    'MarkerFaceColor', peak_obj.style.markerfacecolor, 'Visible', 'on');
+                set(gfx.peakLabel, 'Position', [peak_time_display, peak_obj.coordinates.y + (ylims(2) - ylims(1)) * 0.05, 0], ...
+                    'String', sprintf('Peak: %.3f', peak_time_display), ...
+                    'Color', peak_obj.style.color, 'Visible', 'on');
+            end
+        end
+        
+        if slope_measurement_settings.show_onset && exist('onset_time', 'var') && ~isnan(onset_time)
+            onset_time_display = onset_time * timeUnitFactor;
+            set(gfx.onsetMarker, 'XData', onset_time_display, 'YData', onset_value, 'Visible', 'on');
+            set(gfx.onsetLabel, 'Position', [onset_time_display, onset_value - (ylims(2) - ylims(1)) * 0.05, 0], ...
+                'String', sprintf('Onset: %.3f', onset_time_display), 'Visible', 'on');
+        end
+        
+        if slope_measurement_settings.show_slope && isfield(measurement_metadata.visualization, 'slope_line')
+            slope_obj = measurement_metadata.visualization.slope_line;
+            if strcmp(slope_obj.type, 'line') && ~isnan(slope_obj.coordinates.x1)
+                x1_display = slope_obj.coordinates.x1 * timeUnitFactor;
+                x2_display = slope_obj.coordinates.x2 * timeUnitFactor;
+                set(gfx.slopeLine, 'XData', [x1_display, x2_display], ...
+                    'YData', [slope_obj.coordinates.y1, slope_obj.coordinates.y2], ...
+                    'Color', slope_obj.style.color, 'LineWidth', slope_obj.style.linewidth, ...
+                    'LineStyle', slope_obj.style.linestyle, 'Visible', 'on');
+                if isfield(measurement_metadata.visualization, 'regression_markers')
+                    reg_obj = measurement_metadata.visualization.regression_markers;
+                    if strcmp(reg_obj.type, 'points') && ~isempty(reg_obj.coordinates.x)
+                        set(gfx.regMarkers, 'XData', reg_obj.coordinates.x * timeUnitFactor, ...
+                            'YData', reg_obj.coordinates.y, 'Marker', reg_obj.style.marker, ...
+                            'Color', reg_obj.style.color, 'MarkerSize', reg_obj.style.markersize, ...
+                            'MarkerFaceColor', reg_obj.style.markerfacecolor, 'Visible', 'on');
+                    end
+                end
+            end
+        end
+    end
+    
+    function updateAxesDecorations()
+        xlabel(hPlotAxes, ['Time, ' selectedUnit]);
+        ylabel(hPlotAxes, 'Amplitude');
+        if mean_results_active
+            title(hPlotAxes, {['File: ' matFileName], 'Mean Signal (Average of All Results)'});
+        else
+            selected_channel = slope_measurement_settings.channel;
+            title(hPlotAxes, {['File: ' matFileName], ['Channel: ' hd.recChNames{selected_channel}]}, 'Interpreter', 'none');
+        end
+    end
+    
+    function updateCurrentResultsTable()
+        if exist('slope_value', 'var') && ~isnan(slope_value)
+            current_slope = slope_value;
+        else
+            current_slope = NaN;
+        end
+        if exist('peak_time', 'var') && ~isnan(peak_time)
+            current_peak_time = peak_time * timeUnitFactor;
+        else
+            current_peak_time = NaN;
+        end
+        if exist('peak_value', 'var') && ~isnan(peak_value)
+            current_peak_amplitude = peak_value;
+        else
+            current_peak_amplitude = NaN;
+        end
+        if exist('onset_time', 'var') && ~isnan(onset_time)
+            current_onset_time = onset_time * timeUnitFactor;
+        else
+            current_onset_time = NaN;
+        end
+        if exist('baseline_value', 'var') && ~isnan(baseline_value)
+            current_baseline = baseline_value;
+        else
+            current_baseline = NaN;
+        end
+        set(hCurrentResultsTable, 'Data', {current_slope, current_peak_time, current_peak_amplitude, current_onset_time, current_baseline});
+    end
+    
+    function updatePlotVisualization()
+        requestPlotUpdate('visual');
     end
     
     function [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = calculateResults()
-        % Вычисляет все результаты измерений без отрисовки
-        
-        % Инициализируем все выходные переменные
         slope_value = NaN;
         slope_angle = NaN;
         peak_time = NaN;
@@ -1192,14 +1438,15 @@ updateCursorEditFields();
         onset_time = NaN;
         onset_value = NaN;
         measurement_metadata = struct();
-        
-        [display_channel_data, display_time_in] = getCurrentData();
-        channel_data = display_channel_data;
-        time_in = display_time_in;
-        
+
+        [channel_data, time_in] = getCurrentData();
+
         if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
-            calc_channel_data = display_channel_data;
-            calc_time_in = display_time_in;
+            [baseline_rel, peak_rel] = getRelativePositions();
+            [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = ...
+                calculateSlopeMeasurement(channel_data, time_in, ...
+                baseline_rel.start, baseline_rel.end, peak_rel.start, peak_rel.end, ...
+                slope_measurement_settings.slope_percent, slope_measurement_settings.peak_polarity, 0);
         else
             calc_interval = getMeasurementInterval(slope_measurement_settings.baseline_start, ...
                 slope_measurement_settings.baseline_end, ...
@@ -1207,85 +1454,16 @@ updateCursorEditFields();
                 slope_measurement_settings.peak_end, ...
                 chosen_time_interval, time_back, time_forward, time);
             [calc_channel_data, calc_time_in] = getCurrentData(calc_interval);
+            [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = ...
+                calculateSlopeMeasurement(calc_channel_data, calc_time_in, ...
+                slope_measurement_settings.baseline_start, slope_measurement_settings.baseline_end, ...
+                slope_measurement_settings.peak_start, slope_measurement_settings.peak_end, ...
+                slope_measurement_settings.slope_percent, slope_measurement_settings.peak_polarity, rel_shift);
         end
-        
-        % Получаем параметры для расчета
-        baseline_start = slope_measurement_settings.baseline_start;
-        baseline_end = slope_measurement_settings.baseline_end;
-        peak_start = slope_measurement_settings.peak_start;
-        peak_end = slope_measurement_settings.peak_end;
-        slope_percent = slope_measurement_settings.slope_percent;
-        peak_polarity = slope_measurement_settings.peak_polarity;
-        
-        % Создаем структуру baseline_data для calculateMeasurementByType
-        baseline_data_struct = struct();
-        
-        if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
-            % В режиме среднего сигнала используем относительные координаты
-            [baseline_rel, peak_rel] = getRelativePositions();
-            baseline_data_struct.baseline_start = baseline_rel.start;
-            baseline_data_struct.baseline_end = baseline_rel.end;
-            baseline_data_struct.peak_start = peak_rel.start;
-            baseline_data_struct.peak_end = peak_rel.end;
-            time_in_rel = calc_time_in;
-        else
-            % В обычном режиме используем абсолютные координаты с вычитанием rel_shift
-            baseline_data_struct.baseline_start = baseline_start - rel_shift;
-            baseline_data_struct.baseline_end = baseline_end - rel_shift;
-            baseline_data_struct.peak_start = peak_start - rel_shift;
-            baseline_data_struct.peak_end = peak_end - rel_shift;
-            time_in_rel = calc_time_in - rel_shift;
-        end
-        
-        baseline_data_struct.slope_percent = slope_percent;
-        baseline_data_struct.peak_polarity = peak_polarity;
-        
-        % Расчет slope с использованием calculateMeasurementByType
-        
-        [slope_value, measurement_metadata] = calculateMeasurementByType(calc_channel_data, time_in_rel, ...
-            baseline_data_struct.peak_start, baseline_data_struct.peak_end, 'Slope', baseline_data_struct);
-        
-        % Добавляем rel_shift в метаданные для возможности получения абсолютного времени
-        measurement_metadata.rel_shift = rel_shift;
-        
-        % Сохраняем метаданные в глобальную переменную для использования в addResult
+
         current_measurement_metadata = measurement_metadata;
-        
-        % Извлекаем все необходимые значения из метаданных
-        if isfield(measurement_metadata, 'slope_angle')
-            slope_angle = measurement_metadata.slope_angle;
-        else
-            slope_angle = NaN;
-        end
-        
-        if isfield(measurement_metadata, 'peak_time')
-            peak_time = measurement_metadata.peak_time;
-        else
-            peak_time = NaN;
-        end
-        
-        if isfield(measurement_metadata, 'peak_value')
-            peak_value = measurement_metadata.peak_value;
-        else
-            peak_value = NaN;
-        end
-        
-        if isfield(measurement_metadata, 'baseline_value')
-            baseline_value = measurement_metadata.baseline_value;
-        else
-            baseline_value = NaN;
-        end
-        
-        if isfield(measurement_metadata, 'onset_time')
-            onset_time = measurement_metadata.onset_time;
-        else
-            onset_value = NaN;
-        end
-        
-        if isfield(measurement_metadata, 'onset_value')
-            onset_value = measurement_metadata.onset_value;
-        else
-            onset_value = NaN;
+        if isfield(measurement_metadata, 'onset_method')
+            onset_method = measurement_metadata.onset_method;
         end
     end
 
@@ -1479,6 +1657,7 @@ updateCursorEditFields();
         
     % Добавляем возможность перетаскивания для диапазонов
     makeDraggable();
+    restoreActiveBuiltinTool();
     end
     
     function updateSmoothingControls()
@@ -1519,6 +1698,9 @@ updateCursorEditFields();
     end
     
     function startDrag(src, ~, range_type, line_num)
+        if magnet_pick_pending
+            return;
+        end
         set(signalFig, 'WindowButtonMotionFcn', @(s,e)dragMarker(s,e,range_type,line_num));
         set(signalFig, 'WindowButtonUpFcn', @stopDrag);
     end
@@ -1781,57 +1963,54 @@ updateCursorEditFields();
         end
     end
     
-    function zoomButtonCallback(src, ~)
-        % Активация встроенного zoom
+    function disableBuiltinTools()
         zoom(signalFig, 'off');
         pan(signalFig, 'off');
         datacursormode(signalFig, 'off');
         brush(signalFig, 'off');
-        zoom(signalFig, 'on');
-        zoom(hPlotAxes, 'on');
-        debugState('zoomButtonCallback', 'Built-in zoom activated');
     end
 
-    function panButtonCallback(src, ~)
-        % Активация встроенного pan
-        zoom(signalFig, 'off');
-        pan(signalFig, 'off');
-        datacursormode(signalFig, 'off');
-        brush(signalFig, 'off');
-        pan(signalFig, 'on');
-        pan(hPlotAxes, 'on');
-        debugState('panButtonCallback', 'Built-in pan activated');
+    function useBuiltinTool(toolName)
+        clearMagnetPickMode();
+        disableBuiltinTools();
+        setappdata(signalFig, 'analysis_active_tool', toolName);
+        switch toolName
+            case 'zoom'
+                zoom(signalFig, 'on');
+                zoom(hPlotAxes, 'on');
+            case 'pan'
+                pan(signalFig, 'on');
+                pan(hPlotAxes, 'on');
+            case 'datacursor'
+                datacursormode(signalFig, 'on');
+            case 'brush'
+                brush(signalFig, 'on');
+                brush(hPlotAxes, 'on');
+        end
     end
 
-    function cursorButtonCallback(src, ~)
-        % Активация встроенного data cursor
-        zoom(signalFig, 'off');
-        pan(signalFig, 'off');
-        datacursormode(signalFig, 'off');
-        brush(signalFig, 'off');
-        datacursormode(signalFig, 'on');
-        debugState('cursorButtonCallback', 'Data cursor activated');
-    end
-
-    function brushButtonCallback(src, ~)
-        % Активация встроенного brush
-        zoom(signalFig, 'off');
-        pan(signalFig, 'off');
-        datacursormode(signalFig, 'off');
-        brush(signalFig, 'off');
-        brush(signalFig, 'on');
-        brush(hPlotAxes, 'on');
-        debugState('brushButtonCallback', 'Built-in brush activated');
-    end
-
-    function homeButtonCallback(src, ~)
-        % Сброс всех инструментов и восстановление исходного вида графика
-        zoom(signalFig, 'off');
-        pan(signalFig, 'off');
-        datacursormode(signalFig, 'off');
-        brush(signalFig, 'off');
-        applyAutoscale();
-        debugState('homeButtonCallback', 'All tools reset, view restored');
+    function restoreActiveBuiltinTool()
+        if ~ishandle(signalFig)
+            return;
+        end
+        toolName = getappdata(signalFig, 'analysis_active_tool');
+        if isempty(toolName)
+            toolName = 'zoom';
+        end
+        disableBuiltinTools();
+        switch toolName
+            case 'zoom'
+                zoom(signalFig, 'on');
+                zoom(hPlotAxes, 'on');
+            case 'pan'
+                pan(signalFig, 'on');
+                pan(hPlotAxes, 'on');
+            case 'datacursor'
+                datacursormode(signalFig, 'on');
+            case 'brush'
+                brush(signalFig, 'on');
+                brush(hPlotAxes, 'on');
+        end
     end
 
     function [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(should_apply_limits)
@@ -1901,157 +2080,19 @@ updateCursorEditFields();
     % === Функции для работы с таблицей результатов ===
     
     function addResult(~, ~)
-        % Добавляет текущий результат в таблицу
-        % Используем уже вычисленные значения вместо повторного вычисления
-        
-
-        
-        % Используем глобальные метаданные если они есть, иначе создаем новые
-        if ~isempty(current_measurement_metadata)
-            % Используем существующие метаданные с rel_shift
-            metadata = current_measurement_metadata;
-        else
-            % Создаем новые метаданные
-            metadata = struct();
-        end
-        
-        % Добавляем недостающие поля в метаданные
-        metadata.channel = slope_measurement_settings.channel;
-        metadata.baseline_start = slope_measurement_settings.baseline_start;
-        metadata.baseline_end = slope_measurement_settings.baseline_end;
-        metadata.peak_start = slope_measurement_settings.peak_start;
-        metadata.peak_end = slope_measurement_settings.peak_end;
-        metadata.slope_percent = slope_measurement_settings.slope_percent;
-        metadata.peak_polarity = slope_measurement_settings.peak_polarity;
-        metadata.chosen_time_interval = chosen_time_interval;
-        
-        metadata.selectedCenter = selectedCenter;
-        metadata.event_inx = event_inx;
-        metadata.stim_inx = stim_inx;
-        metadata.sweep_inx = sweep_inx;
-        metadata.onset_method = slope_measurement_settings.onset_method;
-        metadata.onset_threshold = slope_measurement_settings.onset_threshold;
-        metadata.show_baseline = slope_measurement_settings.show_baseline;
-        metadata.show_onset = slope_measurement_settings.show_onset;
-        metadata.show_slope = slope_measurement_settings.show_slope;
-        metadata.show_peak = slope_measurement_settings.show_peak;
-        
-        % Сохраняем настройки сглаживания
-        metadata.analysis_smooth_enabled = analysis_smooth_enabled;
-        metadata.analysis_smooth_span = analysis_smooth_span;
-        metadata.analysis_smooth_method = analysis_smooth_method;
-        metadata.analysis_show_raw_signal = getShowRawFlag();
-        
-        % Добавляем rel_shift только если его нет в переданных метаданных
-        if ~isfield(metadata, 'rel_shift')
-            if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
-                metadata.rel_shift = stims(stim_inx);
-            else
-                metadata.rel_shift = chosen_time_interval(1);
-            end
-        end
-        
-        % Добавляем позиции курсоров в метаданные
-        metadata.cursor_positions = struct();
-        metadata.cursor_positions.baseline_start = slope_measurement_settings.baseline_start;
-        metadata.cursor_positions.baseline_end = slope_measurement_settings.baseline_end;
-        metadata.cursor_positions.peak_start = slope_measurement_settings.peak_start;
-        metadata.cursor_positions.peak_end = slope_measurement_settings.peak_end;
-        
-        % Добавляем результат в структуру
-        new_result = struct('baseline_value', baseline_value, 'slope_value', slope_value, ...
-                           'peak_time', peak_time, 'peak_value', peak_value, ...
-                           'onset_time', onset_time, 'onset_value', onset_value, 'onset_method', onset_method, ...
-                           'metadata', metadata);
-
-        % Добавляем время стимула в метаданные если оно есть
-        if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
-            new_result.metadata.stim_time = stims(stim_inx);
-        else
-            new_result.metadata.stim_time = NaN;
-        end
-
+        values = currentMeasurementValues();
+        ctx = currentMeasurementContext();
+        new_result = buildSlopeMeasurementResult(values, current_measurement_metadata, ctx);
         slope_measurement_results = [slope_measurement_results, new_result];
-        
-        % Обновляем таблицу
         updateResultsTable();
-        
         debugState('addResult', '✓ Result added to table (total: %d)', length(slope_measurement_results));
     end
     
     function addResultSilent()
-        % Добавляет результат БЕЗ обновления UI (для автоанализа)
-        
-        % Используем глобальные метаданные если они есть, иначе создаем новые
-        if ~isempty(current_measurement_metadata)
-            % Используем существующие метаданные с rel_shift
-            metadata = current_measurement_metadata;
-        else
-            % Создаем новые метаданные
-            metadata = struct();
-        end
-        
-        % Добавляем недостающие поля в метаданные
-        metadata.channel = slope_measurement_settings.channel;
-        metadata.baseline_start = slope_measurement_settings.baseline_start;
-        metadata.baseline_end = slope_measurement_settings.baseline_end;
-        metadata.peak_start = slope_measurement_settings.peak_start;
-        metadata.peak_end = slope_measurement_settings.peak_end;
-        metadata.slope_percent = slope_measurement_settings.slope_percent;
-        metadata.peak_polarity = slope_measurement_settings.peak_polarity;
-        metadata.chosen_time_interval = chosen_time_interval;
-
-        metadata.selectedCenter = selectedCenter;
-        metadata.event_inx = event_inx;
-        metadata.stim_inx = stim_inx;
-        metadata.sweep_inx = sweep_inx;
-        metadata.onset_method = slope_measurement_settings.onset_method;
-        metadata.onset_threshold = slope_measurement_settings.onset_threshold;
-        metadata.show_baseline = slope_measurement_settings.show_baseline;
-        metadata.show_onset = slope_measurement_settings.show_onset;
-        metadata.show_slope = slope_measurement_settings.show_slope;
-        metadata.show_peak = slope_measurement_settings.show_peak;
-        
-        % Сохраняем настройки сглаживания
-        metadata.analysis_smooth_enabled = analysis_smooth_enabled;
-        metadata.analysis_smooth_span = analysis_smooth_span;
-        metadata.analysis_smooth_method = analysis_smooth_method;
-        metadata.analysis_show_raw_signal = getShowRawFlag();
-        
-        % Добавляем rel_shift только если его нет в переданных метаданных
-        if ~isfield(metadata, 'rel_shift')
-            if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
-                metadata.rel_shift = stims(stim_inx);
-            else
-                metadata.rel_shift = chosen_time_interval(1);
-            end
-        end
-        
-        % Добавляем позиции курсоров в метаданные
-        metadata.cursor_positions = struct();
-        metadata.cursor_positions.baseline_start = slope_measurement_settings.baseline_start;
-        metadata.cursor_positions.baseline_end = slope_measurement_settings.baseline_end;
-        metadata.cursor_positions.peak_start = slope_measurement_settings.peak_start;
-        metadata.cursor_positions.peak_end = slope_measurement_settings.peak_end;
-        
-        % Добавляем результат в структуру
-        new_result = struct('baseline_value', baseline_value, 'slope_value', slope_value, ...
-                           'peak_time', peak_time, 'peak_value', peak_value, ...
-                           'onset_time', onset_time, 'onset_value', onset_value, 'onset_method', onset_method, ...
-                           'metadata', metadata);
-
-        % Добавляем время стимула в метаданные если оно есть
-        if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
-            new_result.metadata.stim_time = stims(stim_inx);
-        else
-            new_result.metadata.stim_time = NaN;
-        end
-
+        values = currentMeasurementValues();
+        ctx = currentMeasurementContext();
+        new_result = buildSlopeMeasurementResult(values, current_measurement_metadata, ctx);
         slope_measurement_results = [slope_measurement_results, new_result];
-        
-        % НЕ обновляем таблицы и график - только добавляем в память
-        % updateResultsTable(); - ЗАКОММЕНТИРОВАНО
-        % updatePlotAndCalculation(); - ЗАКОММЕНТИРОВАНО
     end
     
     function removeResult(~, ~)
@@ -2125,83 +2166,55 @@ updateCursorEditFields();
     end
     
     function replaceResultSilent()
-        % Заменяет выбранный результат текущим измерением БЕЗ обновления UI
-        % Используется для Hot Resave
-        
         if isempty(selected_row_slope) || selected_row_slope > length(slope_measurement_results)
             return;
         end
-        
-        % Проверяем, что у нас есть текущие результаты
         if ~exist('slope_value', 'var') || isnan(slope_value)
             return;
         end
-        
-        % Используем глобальные метаданные если они есть, иначе создаем новые
-        if ~isempty(current_measurement_metadata)
-            metadata = current_measurement_metadata;
-        else
-            metadata = struct();
-        end
-        
-        % Добавляем недостающие поля в метаданные
-        metadata.channel = slope_measurement_settings.channel;
-        metadata.baseline_start = slope_measurement_settings.baseline_start;
-        metadata.baseline_end = slope_measurement_settings.baseline_end;
-        metadata.peak_start = slope_measurement_settings.peak_start;
-        metadata.peak_end = slope_measurement_settings.peak_end;
-        metadata.slope_percent = slope_measurement_settings.slope_percent;
-        metadata.peak_polarity = slope_measurement_settings.peak_polarity;
-        metadata.chosen_time_interval = chosen_time_interval;
-        
-        metadata.selectedCenter = selectedCenter;
-        metadata.event_inx = event_inx;
-        metadata.stim_inx = stim_inx;
-        metadata.sweep_inx = sweep_inx;
-        metadata.onset_method = slope_measurement_settings.onset_method;
-        metadata.onset_threshold = slope_measurement_settings.onset_threshold;
-        metadata.show_baseline = slope_measurement_settings.show_baseline;
-        metadata.show_onset = slope_measurement_settings.show_onset;
-        metadata.show_slope = slope_measurement_settings.show_slope;
-        metadata.show_peak = slope_measurement_settings.show_peak;
-        
-        % Сохраняем настройки сглаживания
-        metadata.analysis_smooth_enabled = analysis_smooth_enabled;
-        metadata.analysis_smooth_span = analysis_smooth_span;
-        metadata.analysis_smooth_method = analysis_smooth_method;
-        metadata.analysis_show_raw_signal = getShowRawFlag();
-        
-        % Добавляем rel_shift только если его нет в переданных метаданных
-        if ~isfield(metadata, 'rel_shift')
-            if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
-                metadata.rel_shift = stims(stim_inx);
-            else
-                metadata.rel_shift = chosen_time_interval(1);
-            end
-        end
-        
-        % Добавляем позиции курсоров в метаданные
-        metadata.cursor_positions = struct();
-        metadata.cursor_positions.baseline_start = slope_measurement_settings.baseline_start;
-        metadata.cursor_positions.baseline_end = slope_measurement_settings.baseline_end;
-        metadata.cursor_positions.peak_start = slope_measurement_settings.peak_start;
-        metadata.cursor_positions.peak_end = slope_measurement_settings.peak_end;
-        
-        % Создаем новый результат
-        new_result = struct('baseline_value', baseline_value, 'slope_value', slope_value, ...
-                           'peak_time', peak_time, 'peak_value', peak_value, ...
-                           'onset_time', onset_time, 'onset_value', onset_value, 'onset_method', onset_method, ...
-                           'metadata', metadata);
-
-        % Добавляем время стимула в метаданные если оно есть
-        if strcmp(selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
-            new_result.metadata.stim_time = stims(stim_inx);
-        else
-            new_result.metadata.stim_time = NaN;
-        end
-
-        % Заменяем выбранный результат (без обновления UI)
+        values = currentMeasurementValues();
+        ctx = currentMeasurementContext();
+        new_result = buildSlopeMeasurementResult(values, current_measurement_metadata, ctx);
         slope_measurement_results(selected_row_slope) = new_result;
+    end
+
+    function values = currentMeasurementValues()
+        values = struct( ...
+            'baseline_value', baseline_value, ...
+            'slope_value', slope_value, ...
+            'peak_time', peak_time, ...
+            'peak_value', peak_value, ...
+            'onset_time', onset_time, ...
+            'onset_value', onset_value, ...
+            'onset_method', onset_method);
+    end
+
+    function ctx = currentMeasurementContext()
+        ctx = struct();
+        ctx.channel = slope_measurement_settings.channel;
+        ctx.baseline_start = slope_measurement_settings.baseline_start;
+        ctx.baseline_end = slope_measurement_settings.baseline_end;
+        ctx.peak_start = slope_measurement_settings.peak_start;
+        ctx.peak_end = slope_measurement_settings.peak_end;
+        ctx.slope_percent = slope_measurement_settings.slope_percent;
+        ctx.peak_polarity = slope_measurement_settings.peak_polarity;
+        ctx.chosen_time_interval = chosen_time_interval;
+        ctx.selectedCenter = selectedCenter;
+        ctx.event_inx = event_inx;
+        ctx.stim_inx = stim_inx;
+        ctx.sweep_inx = sweep_inx;
+        ctx.onset_method = slope_measurement_settings.onset_method;
+        ctx.onset_threshold = slope_measurement_settings.onset_threshold;
+        ctx.show_baseline = slope_measurement_settings.show_baseline;
+        ctx.show_onset = slope_measurement_settings.show_onset;
+        ctx.show_slope = slope_measurement_settings.show_slope;
+        ctx.show_peak = slope_measurement_settings.show_peak;
+        ctx.analysis_smooth_enabled = analysis_smooth_enabled;
+        ctx.analysis_smooth_span = analysis_smooth_span;
+        ctx.analysis_smooth_method = analysis_smooth_method;
+        ctx.analysis_show_raw_signal = getShowRawFlag();
+        ctx.stims = stims;
+        ctx.stims_exist = stims_exist;
     end
     
     function replaceResult(~, ~)
@@ -2313,7 +2326,7 @@ updateCursorEditFields();
                 if ~is_overwrite && ~isempty(matFilePath)
                     result = struct( ...
                         'module_name', 'signalAnalysis', ...
-                        'module_display_name', 'Signal Analysis', ...
+                        'module_display_name', 'Analyze Responses', ...
                         'module_description', 'Анализ сигнала с измерениями slope, peak, onset', ...
                         'report_path', result_info.excel_path, ...
                         'parameters', struct('total_records', length(slope_measurement_results)));
@@ -2808,66 +2821,46 @@ updateCursorEditFields();
 
 
     function [channel_data, time_in] = getCurrentData(custom_interval)
-        % Получает текущие данные для измерений
-        
-        % Проверяем, нужно ли использовать средний сигнал
         if mean_results_active && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
-            % Используем средний сигнал
             channel_data = mean_signal_data;
             time_in = mean_signal_time;
-            
             if analysis_smooth_enabled && analysis_smooth_span >= 5
                 channel_data = smooth1(channel_data(:), analysis_smooth_span, analysis_smooth_method);
             end
-        else
-            if nargin < 1 || isempty(custom_interval)
-                data_interval = chosen_time_interval;
-                data_interval(1) = data_interval(1) - time_back;
-                data_interval(2) = chosen_time_interval(1) + time_forward;
-                store_raw_data = true;
-            else
-                data_interval = custom_interval;
-                store_raw_data = false;
-            end
-            
-            row_start = find(time >= data_interval(1), 1, 'first');
-            row_end = find(time < data_interval(2), 1, 'last');
-            cond = [];
-            if ~isempty(row_start) && ~isempty(row_end) && row_start <= row_end
-                cond = row_start:row_end;
-            end
-            if ~any(cond)
-                channel_data = [];
-                time_in = [];
-                return;
-            end
-            local_lfp = lfp_file.lfp(cond, :);
-            
-            % Вычитание средних каналов если нужно
-            if ~isempty(mean_group_ch) && any(mean_group_ch)
-                local_lfp(:, mean_group_ch) = local_lfp(:, mean_group_ch) - mean(local_lfp(:, mean_group_ch), 2);
-            end
-            
-            selected_channel = slope_measurement_settings.channel;
-            channel_data = local_lfp(:, selected_channel);
-            time_in = time(cond);
-            
-            % Убираем артефакт стимуляции если есть стимулы
-            if not(isempty(stims)) && visualSettings.stim_show
-                Fs_fascor = Fs/1000;
-                channel_data = removeStimArtifact(channel_data, stims, time_in, art_rem_settings.artifact_window_ms*Fs_fascor*0.5, art_rem_settings.interp_method);
-            end
-        
-            raw_channel_data = channel_data;
-            
-            if analysis_smooth_enabled && analysis_smooth_span >= 5
-                channel_data = smooth1(channel_data(:), analysis_smooth_span, analysis_smooth_method);
-            end
-            
-            if store_raw_data
-                setappdata(hPlotAxes, 'analysis_raw_data', raw_channel_data);
-            end
+            return
         end
+
+        if nargin < 1 || isempty(custom_interval)
+            data_interval = chosen_time_interval;
+            data_interval(1) = data_interval(1) - time_back;
+            data_interval(2) = chosen_time_interval(1) + time_forward;
+            store_raw_data = true;
+        else
+            data_interval = custom_interval;
+            store_raw_data = false;
+        end
+
+        data_params = struct( ...
+            'smoothing_enabled', analysis_smooth_enabled, ...
+            'smoothing_span', analysis_smooth_span, ...
+            'smoothing_method', analysis_smooth_method, ...
+            'remove_artifact', ~isempty(stims) && visualSettings.stim_show, ...
+            'artifact_window_ms', art_rem_settings.artifact_window_ms, ...
+            'artifact_interp_method', art_rem_settings.interp_method, ...
+            'stims', stims, ...
+            'Fs', Fs, ...
+            'mean_group_ch', mean_group_ch);
+
+        if store_raw_data
+            raw_params = data_params;
+            raw_params.smoothing_enabled = false;
+            [raw_channel_data, ~] = getSignalDataForInterval( ...
+                lfp_file.lfp, time, slope_measurement_settings.channel, data_interval, raw_params);
+            setappdata(hPlotAxes, 'analysis_raw_data', raw_channel_data);
+        end
+
+        [channel_data, time_in] = getSignalDataForInterval( ...
+            lfp_file.lfp, time, slope_measurement_settings.channel, data_interval, data_params);
     end
     
 
@@ -2915,150 +2908,88 @@ updateCursorEditFields();
         mean_signal_data = [];
         mean_signal_time = [];
         
-        % Обновляем состояние кнопок
         updateButtonStates();
         
-        % Сохраняем текущее состояние
         original_interval = chosen_time_interval;
-        original_stim_inx = stim_inx;
-        original_sweep_inx = sweep_inx;
-        
         timeCenterNav('applyInterval', time_forward);
         
-        % Определяем количество участков в зависимости от режима
         switch selectedCenter
             case 'stimulus'
-                if stims_exist && ~isempty(stims)
-                    total_ranges = length(stims);
-                    debugState('autoMeasureAllTimeRanges', 'Automatic measurement of %d stimuli...', total_ranges);
-                else
+                if ~(stims_exist && ~isempty(stims))
                     debugState('autoMeasureAllTimeRanges', 'ERROR: No stimuli for measurement');
-                    return;
+                    return
                 end
-
+                centers = stims(:);
             case 'events'
-                if events_exist && ~isempty(events)
-                    total_ranges = length(events);
-                    debugState('autoMeasureAllTimeRanges', 'Automatic measurement of %d events...', total_ranges);
-                else
+                if ~(events_exist && ~isempty(events))
                     debugState('autoMeasureAllTimeRanges', 'ERROR: No events for measurement');
-                    return;
+                    return
                 end
-                
+                centers = events(:);
             case 'continuous'
                 windowSize = chosen_time_interval(2) - chosen_time_interval(1);
                 if windowSize <= 0
                     debugState('autoMeasureAllTimeRanges', 'ERROR: Invalid time window size');
-                    return;
+                    return
                 end
-                total_ranges = floor((time(end) - time(1)) / windowSize);
-                if total_ranges <= 0
+                nSeg = floor((time(end) - time(1)) / windowSize);
+                if nSeg <= 0
                     debugState('autoMeasureAllTimeRanges', 'ERROR: Insufficient data for measurement');
-                    return;
+                    return
                 end
-                debugState('autoMeasureAllTimeRanges', 'Automatic measurement of %d time segments...', total_ranges);
+                centers = time(1) + (0:nSeg-1)' * windowSize;
+            otherwise
+                debugState('autoMeasureAllTimeRanges', 'ERROR: Unknown selectedCenter');
+                return
         end
         
-        % Сохраняем относительные позиции текущих диапазонов
         [baseline_rel, peak_rel] = getRelativePositions();
-        
-        % Получаем размер окна из текущего интервала
         windowSize = chosen_time_interval(2) - chosen_time_interval(1);
         
-        % Устанавливаем флаг автоанализа
-        auto_analysis_mode = true;
+        opts = struct();
+        opts.centers = centers;
+        opts.windowSize = windowSize;
+        opts.baseline_rel = baseline_rel;
+        opts.peak_rel = peak_rel;
+        opts.selectedCenter = selectedCenter;
+        opts.channel = slope_measurement_settings.channel;
+        opts.slope_percent = slope_measurement_settings.slope_percent;
+        opts.peak_polarity = slope_measurement_settings.peak_polarity;
+        opts.onset_method = slope_measurement_settings.onset_method;
+        opts.onset_threshold = slope_measurement_settings.onset_threshold;
+        opts.show_baseline = slope_measurement_settings.show_baseline;
+        opts.show_onset = slope_measurement_settings.show_onset;
+        opts.show_slope = slope_measurement_settings.show_slope;
+        opts.show_peak = slope_measurement_settings.show_peak;
+        opts.time_back = time_back;
+        opts.time_forward = time_forward;
+        opts.analysis_smooth_enabled = analysis_smooth_enabled;
+        opts.analysis_smooth_span = analysis_smooth_span;
+        opts.analysis_smooth_method = analysis_smooth_method;
+        opts.analysis_show_raw_signal = getShowRawFlag();
+        opts.remove_artifact = ~isempty(stims) && visualSettings.stim_show;
+        opts.artifact_window_ms = art_rem_settings.artifact_window_ms;
+        opts.artifact_interp_method = art_rem_settings.interp_method;
         
-        % Создаем окно прогресса
         hWaitBar = waitbar(0, 'Starting auto analysis...', 'Name', 'Auto analysis');
-        
-        % Циклически измеряем каждый участок
         try
-            for i = 1:total_ranges
-                % Проверяем, не было ли закрыто окно прогресса
-                if ~ishandle(hWaitBar)
-                    debugState('autoMeasureAllTimeRanges', '❌ Automatic measurement cancelled by user');
-                    break;
-                end
-                
-                % Обновляем прогресс
-                progress = i / total_ranges;
-                percent = round(progress * 100);
-                current_message = sprintf('Measuring segment %d of %d (%d%%)', i, total_ranges, percent);
-                waitbar(progress, hWaitBar, current_message);
-                
-                debugState('autoMeasureAllTimeRanges', 'Measuring segment %d/%d...', i, total_ranges);
-                
-                % Переключаемся на следующий участок (аналогично Next)
-                switch selectedCenter
-                    case 'stimulus'
-                        stim_inx = i;
-                        chosen_time_interval(1) = stims(stim_inx);
-                        chosen_time_interval(2) = stims(stim_inx) + windowSize;
-
-                    case 'events'
-                        event_inx = i;
-                        chosen_time_interval(1) = events(event_inx);
-                        chosen_time_interval(2) = events(event_inx) + windowSize;
-                        
-                    case 'continuous'
-                        chosen_time_interval(1) = time(1) + (i-1) * windowSize;
-                        chosen_time_interval(2) = chosen_time_interval(1) + windowSize;
-                end
-            
-                % Применяем сохраненные относительные позиции к новому интервалу
-                setRelativePositions(baseline_rel, peak_rel);
-                
-                % Обновляем edit fields после изменения позиций
-                updateCursorEditFields();
-                
-                % Вычисляем результаты для текущего участка
-                [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = calculateResults();
-                
-                % Автоматически добавляем результат в таблицу БЕЗ обновления UI
-                addResultSilent();
-                
-                % Минимальная задержка для проверки отмены
-                pause(0.01);
-                
-                % Минимальное обновление для прогресса
-                if mod(i, 10) == 0 || i == total_ranges
-                    debugState('autoMeasureAllTimeRanges', 'Progress: %d/%d', i, total_ranges);
-                end
-            end
-            
-            % Проверяем, была ли отмена
-            if ~ishandle(hWaitBar)
-                debugState('autoMeasureAllTimeRanges', '❌ Автоматическое измерение отменено пользователем');
-            else
-                debugState('autoMeasureAllTimeRanges', 'SUCCESS: Automatic measurement completed! Added %d results', total_ranges);
-            end
-            
-            % Принудительно закрываем окно прогресса после завершения цикла
-            if exist('hWaitBar', 'var') && ishandle(hWaitBar)
+            batch_results = autoMeasureSlopeRanges(opts);
+            if ishandle(hWaitBar)
+                waitbar(1, hWaitBar, 'Complete');
                 close(hWaitBar);
-                debugState('autoMeasureAllTimeRanges', '✓ Progress window closed after completion');
             end
-            
         catch ME
-            % Закрываем окно прогресса при ошибке
             if exist('hWaitBar', 'var') && ishandle(hWaitBar)
                 close(hWaitBar);
-                debugState('autoMeasureAllTimeRanges', '✓ Progress window closed on error');
             end
-            
-            % Сбрасываем флаг автоанализа
-            auto_analysis_mode = false;
-            
-            % Показываем ошибку пользователю
-            debugState('autoMeasureAllTimeRanges', 'Error in auto-analysis: %s', ME.message);
             debugState('autoMeasureAllTimeRanges', '❌ Error in auto-analysis: %s', ME.message);
-            return;
+            return
         end
         
-        % Восстанавливаем исходное состояние
-        chosen_time_interval = original_interval;
+        slope_measurement_results = [slope_measurement_results, batch_results];
+        debugState('autoMeasureAllTimeRanges', 'SUCCESS: Automatic measurement completed! Added %d results', numel(batch_results));
         
-        % Восстанавливаем индексы в зависимости от режима
+        chosen_time_interval = original_interval;
         switch selectedCenter
             case 'stimulus'
                 if stims_exist && ~isempty(stims)
@@ -3069,27 +3000,11 @@ updateCursorEditFields();
                     [~, event_inx] = min(abs(events - chosen_time_interval(1)));
                 end
         end
-        
-        % Восстанавливаем относительные позиции диапазонов
         setRelativePositions(baseline_rel, peak_rel);
         
-        % Сбрасываем флаг автоанализа
-        auto_analysis_mode = false;
-        
-        % Закрываем окно прогресса в любом случае
-        if exist('hWaitBar', 'var') && ishandle(hWaitBar)
-            close(hWaitBar);
-            debugState('autoMeasureAllTimeRanges', '✓ Progress window closed');
-        end
-        
-        % ФИНАЛЬНОЕ обновление всех таблиц и графика
         updateResultsTable();
         updatePlotAndCalculation();
-        
-        % Обновляем статус навигации
         updateNavigationStatus();
-        
-        % Обновляем состояние кнопки Replace
         updateReplaceButtonState();
     end
     
@@ -3268,6 +3183,7 @@ updateCursorEditFields();
                 if isvalid(hWaitBar)
                     close(hWaitBar);
                 end
+                setupAnalysisUIAfterFileReady();
                 metadata = struct('hd', hd, 'stims', stims, 'filePath', matFilePath);
                 return;
             end
@@ -3303,21 +3219,8 @@ updateCursorEditFields();
             
             % Устанавливаем флаги
             stims_exist = ~isempty(stims);
-            sweep_inx = 1;
-            
-            % Устанавливаем временные параметры
-            chosen_time_interval = [0, time_forward];
-            
-            % Устанавливаем newFs
-            newFs = Fs; % используем частоту даунсемплинга
-            
-            % Автоматический выбор режима центра
-            if stims_exist && numel(stims) > 1
-                selectedCenter = 'stimulus';
-            else
-                selectedCenter = 'continuous';
-            end
-            stim_inx = 1;
+            newFs = Fs;
+            resetAnalysisNavigationState();
             
             % === ДОБАВЛЕНО: Загрузка групповых настроек ===
             % Инициализируем переменные для настроек
@@ -3345,82 +3248,12 @@ updateCursorEditFields();
             matFilePath = filepath;
             [~, matFileName, ~] = fileparts(matFilePath);
             
-            % Загружаем настройки каналов 
-            loadChannelSettings();
-            
-            % Загружаем сохраненный канал из глобальных настроек
-            saved_channel = 1; % значение по умолчанию
-            try
-                if exist(SettingsFilepath, 'file')
-                    loadedSettings = load(SettingsFilepath, '-mat');
-                    if isfield(loadedSettings, 'analysis_selected_channel')
-                        saved_channel = loadedSettings.analysis_selected_channel;
-                    end
-                end
-            catch
-                % Используем значение по умолчанию при ошибке
-            end
-            
-            % Обновляем popup каналов
-            if exist('hChannelPopup', 'var') && ishandle(hChannelPopup)
-                if isfield(hd, 'recChNames') && iscell(hd.recChNames) && ~isempty(hd.recChNames)
-                    % Ограничиваем сохраненный канал диапазоном доступных каналов
-                    saved_channel = min(max(1, saved_channel), length(hd.recChNames));
-                    set(hChannelPopup, 'String', hd.recChNames, 'Value', saved_channel);
-                    slope_measurement_settings.channel = saved_channel;
-                else
-                    set(hChannelPopup, 'String', {'Ch1'}, 'Value', 1);
-                    slope_measurement_settings.channel = 1;
-                end
-            end
-            
-            % Показываем оси после загрузки файла
-            set(hPlotAxes, 'Visible', 'on');
-            
-            % Обновляем rel_shift перед первым автоскейлом
-            refreshRelShift();
-            
-            % Вычисляем и применяем оптимальные границы осей ДО обновления курсоров и графика
-            [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
-            
-            % Сохраняем как original для правильной работы зума
-            original_xlim = optimal_xlim;
-            original_ylim = optimal_ylim;
-            
-            % Обновляем поля ввода курсоров после автоскейла
-            updateCursorEditFields();
-            
-            % Обновляем отображение
-            updateNavigationStatus();
-            updatePlotAndCalculation();
-            updateResultsTable();
-            updateButtonStates();
-            
-            % Обновляем состояние кнопки Replace
-            updateReplaceButtonState();
-            
-            % Загружаем позиции курсоров из настроек ПОСЛЕ загрузки файла
-            loadCursorPositionsFromSettings();
-            
-            % После загрузки позиций курсоров обновляем rel_shift и повторно применяем автоскейл
-            refreshRelShift();
-            [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
-            original_xlim = optimal_xlim;
-            original_ylim = optimal_ylim;
-            updateCursorEditFields();
-            updateNavigationStatus();
-            updatePlotAndCalculation();
+            setupAnalysisUIAfterFileReady();
             
             debugState('openFile', '✓ File successfully loaded: %s', matFileName);
             debugState('openFile', '  Data size: %dx%dx%d', size(lfp_file.lfp));
             debugState('openFile', '  Sampling rate: %.1f Hz', Fs);
             debugState('openFile', '  Duration: %.3f s', time(end));
-            
-            % Обновляем список результатов в выпадающем списке
-            updateResultsDropdown();
-            
-            % Обновляем состояние чекбокса Hot Resave
-            updateHotResaveState();
             
             % Возвращаем метаданные для совместимости с launchFile
             metadata.hd = hd;
@@ -3435,6 +3268,66 @@ updateCursorEditFields();
         end
     end
 
+    function resetAnalysisNavigationState()
+        stim_inx = 1;
+        event_inx = 1;
+        sweep_inx = 1;
+        if stims_exist && numel(stims) > 1
+            selectedCenter = 'stimulus';
+        else
+            selectedCenter = 'continuous';
+        end
+        chosen_time_interval = [0, time_forward];
+    end
+
+    function setupAnalysisUIAfterFileReady()
+        if isfield(hd, 'recChNames') && iscell(hd.recChNames) && ~isempty(hd.recChNames)
+            numChannels = length(hd.recChNames);
+        end
+        
+        loadChannelSettings();
+        resetAnalysisNavigationState();
+        timeCenterNav('applyInterval', time_forward);
+        refreshRelShift();
+        
+        saved_channel = 1;
+        try
+            if exist(SettingsFilepath, 'file')
+                loadedSettings = load(SettingsFilepath, '-mat');
+                if isfield(loadedSettings, 'analysis_selected_channel')
+                    saved_channel = loadedSettings.analysis_selected_channel;
+                end
+            end
+        catch
+        end
+        
+        if exist('hChannelPopup', 'var') && ishandle(hChannelPopup)
+            if isfield(hd, 'recChNames') && iscell(hd.recChNames) && ~isempty(hd.recChNames)
+                saved_channel = min(max(1, saved_channel), length(hd.recChNames));
+                set(hChannelPopup, 'String', hd.recChNames, 'Value', saved_channel);
+                slope_measurement_settings.channel = saved_channel;
+            else
+                set(hChannelPopup, 'String', {'Ch1'}, 'Value', 1);
+                slope_measurement_settings.channel = 1;
+            end
+        end
+        
+        set(hPlotAxes, 'Visible', 'on');
+        loadCursorPositionsFromSettings();
+        refreshRelShift();
+        [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
+        original_xlim = optimal_xlim;
+        original_ylim = optimal_ylim;
+        updateCursorEditFields();
+        updateNavigationStatus();
+        updatePlotAndCalculation();
+        updateResultsTable();
+        updateButtonStates();
+        updateReplaceButtonState();
+        updateResultsDropdown();
+        updateHotResaveState();
+    end
+    
     function resetToNoFileState()
         lfp_file = []; spks = []; hd = []; zavp = []; lfpVar = []; chnlGrp = []; time = []; stims = [];
         sweep_info = struct('is_sweep_data', false, 'sweep_count', 0, 'sweep_times', []);
@@ -3799,20 +3692,17 @@ updateCursorEditFields();
             if exist(SettingsFilepath, 'file')
                 loadedSettings = load(SettingsFilepath, '-mat');
                 if isfield(loadedSettings, 'cursor_positions')
-                    % Восстанавливаем абсолютные позиции курсоров из относительных
+                    refreshRelShift();
                     slope_measurement_settings.baseline_start = loadedSettings.cursor_positions.baseline_start + rel_shift;
                     slope_measurement_settings.baseline_end = loadedSettings.cursor_positions.baseline_end + rel_shift;
                     slope_measurement_settings.peak_start = loadedSettings.cursor_positions.peak_start + rel_shift;
                     slope_measurement_settings.peak_end = loadedSettings.cursor_positions.peak_end + rel_shift;
                     
                     debugState('loadCursorPositionsFromSettings', '✓ Cursor positions loaded from settings');
-                    
-                    % Обновляем edit fields с новыми позициями
                     updateCursorEditFields();
-                    
-                    % НЕ вызываем updatePlotAndCalculation() здесь, чтобы не перезаписывать границы осей
-                    % Границы осей уже применены в OpenFilePath() через calculateOptimalAxisLimits()
                 else
+                    setDefaultCursorPositions();
+                    updateCursorEditFields();
                     debugState('loadCursorPositionsFromSettings', 'ℹ️ Cursor positions not found in settings');
                 end
             else
@@ -4007,11 +3897,7 @@ updateCursorEditFields();
         % Вычисляем и применяем оптимальные границы осей
         [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
         
-        % Отключаем все инструменты
-        zoom(signalFig, 'off');
-        pan(signalFig, 'off');
-        datacursormode(signalFig, 'off');
-        brush(signalFig, 'off');
+        disableBuiltinTools();
         
         % Обновляем статус навигации
         updateNavigationStatus();
@@ -4075,7 +3961,6 @@ updateCursorEditFields();
 
     function results = getAnalysisResultsFromDatabase(fileId)
         % Запрашивает результаты анализа из базы данных
-        % Фильтрует по модулям 'signalAnalysis' и 'autoSlopeMeasurement'
         % Возвращает структуру с полями: report_path, module_name, analysis_timestamp
         
         results = [];
@@ -4085,14 +3970,12 @@ updateCursorEditFields();
         end
         
         try
-            % SQL запрос аналогичный updateAnalysisTable() из File Manager
-            % Используем escapeSql для экранирования строковых значений в IN clause
             query = sprintf(['SELECT report_path, module_name, analysis_timestamp ' ...
                 'FROM analysis_results ' ...
                 'WHERE file_id = %d ' ...
-                'AND module_name IN (''%s'', ''%s'') ' ...
+                'AND module_name = ''%s'' ' ...
                 'ORDER BY analysis_timestamp DESC'], ...
-                fileId, escapeSql('signalAnalysis'), escapeSql('autoSlopeMeasurement'));
+                fileId, escapeSql('signalAnalysis'));
             
             rows = sqlFetch(query);
             
@@ -4497,10 +4380,6 @@ updateCursorEditFields();
     % Функция обработки изменения размера окна
     function resizeSignalAnalysisWindow(~, ~)
         try
-            % Путь к файлу координат
-            coordsFile = getGUIConfigPath('signalAnalysisGUI_coords.json');
-            
-            % Используем figure_position для правильного вычисления коэффициентов масштабирования
             ResizeElements(signalFig, coordsFile, figure_position);
             updateMagnetButtonPositions();
         catch ME

@@ -296,13 +296,15 @@ function [f, calculation_result] = plotMeanEvents(params)
         [csd_image, csd_trange, csd_ch_range] = csdCalc(params);
         
       
-        csdPlotting(csd_image, csd_trange, csd_ch_range, csd_contrast_coef);
+        csdPlotting(csd_image, csd_trange, csd_ch_range);
         imageHandles = findobj(ax, 'Type', 'image', '-depth', 1);
         if ~isempty(imageHandles)
             heatmap_handle = imageHandles(1);
             uistack(heatmap_handle, 'bottom');
             heatmap_base_clim = get(ax, 'CLim');
+            applyHeatmapContrast(ax, heatmap_base_clim, csd_contrast_coef);
         end
+        displayClim = get(ax, 'CLim');
         
         % Построение профиля CSD
         smoothCoef = double(csd_smooth_coef);
@@ -328,6 +330,7 @@ function [f, calculation_result] = plotMeanEvents(params)
         
         title(csd_profile_ax,  ['CSD (t=', num2str(t_profile, 3) ' sec)']);       
         
+        xlim(csd_profile_ax, displayClim);
         ylim([offsets(end)-pl_shiftCoeff, offsets(1)+pl_shiftCoeff])
         xline(0, 'r--')
         axis off
@@ -344,6 +347,8 @@ if not(isempty(ev_hists))  && not(show_CSD)
     im = imagesc(mua_x, offsets, ev_hists);
     heatmap_handle = im;
     heatmap_base_clim = get(ax, 'CLim');
+    applyHeatmapContrast(ax, heatmap_base_clim, csd_contrast_coef);
+    displayClim = get(ax, 'CLim');
     
     % Построение профиля MUA
     mua_time_profile_idx = round(ClosestIndex(t_profile, mua_x, true)); % находим индекс данных, соответствующий времени профиля
@@ -367,6 +372,7 @@ if not(isempty(ev_hists))  && not(show_CSD)
     
     title(mua_profile_ax, ['MUA (unit/sec, t=', num2str(t_profile, 3) ' sec)']);       
     
+    xlim(mua_profile_ax, displayClim);
     ylim([offsets(end)-pl_shiftCoeff, offsets(1)+pl_shiftCoeff])
     xline(0, 'r--')
     axis off

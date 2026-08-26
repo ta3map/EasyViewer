@@ -35,7 +35,7 @@ else
     local_evfilename = evfilename;
 end
 
-channelSettings = get(channelTable, 'Data');
+channelSettings = buildChannelSettingsTable();
 params.sourceType = sourceType;
 params.hd = hd;
 params.channelSettings = channelSettings;

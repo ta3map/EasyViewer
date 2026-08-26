@@ -466,10 +466,11 @@ if exist(event_file, 'file')
             end
             
             if isfield(loadedData.manlDet, 'metadata')
-                event_metadata = [loadedData.manlDet.metadata]';
+                event_metadata = normalizeEventMetadata({loadedData.manlDet.metadata}, length(events), 'loaded');
             else
                 event_metadata = createDefaultEventMetadata('loaded', length(events));
             end
+            event_channels = normalizeEventChannels(event_channels, length(events));
         else
             events = [];
             event_indices = [];

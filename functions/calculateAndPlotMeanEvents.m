@@ -18,7 +18,7 @@ global time_back time_forward
 global std_coef binsize % спайки/CSD
 global visualSettings
 global csd_avaliable filter_avaliable filterSettings
-global channelTable csd_smooth_coef csd_contrast_coef
+global channelTable csd_smooth_coef csd_contrast_coef csd_contrast_is_display
 global csd_split_by_channel_gaps
 global lfpVar 
 global mean_group_ch
@@ -76,7 +76,7 @@ end
 
 [mat_file_folder, original_filename, ~] = fileparts(matFilePath);
 
-channelSettings = get(channelTable, 'Data');
+channelSettings = buildChannelSettingsTable();
 
 params.sourceType = sourceType;
 if isfield(opts, 'csd_split_by_channel_gaps')
@@ -282,7 +282,7 @@ else
     paramsOut.figure = figure('Name', figureName, 'Tag', 'meanSignalResult', 'Visible', 'off', ...
         'MenuBar', 'none', 'ToolBar', 'figure');
 end
-basePosition = [32, 64, 1024, 820];
+basePosition = [32, 64, 1120, 820];
 paramsOut.figure.Position = basePosition + [positionShift(1), positionShift(2), 0, 0];
 set(paramsOut.figure, 'WindowButtonMotionFcn', []);
 
@@ -442,7 +442,11 @@ xmin_text_coords = [787, 7, 32, 20];
 xmin_edit_coords = [817, 7, 38, 20];
 xmax_text_coords = [857, 7, 32, 20];
 xmax_edit_coords = [893, 7, 38, 20];
-mua_trace_checkbox_coords = [940, 7, 95, 20];
+zmin_text_coords = [940, 7, 32, 20];
+zmin_edit_coords = [970, 7, 42, 20];
+zmax_text_coords = [1016, 7, 32, 20];
+zmax_edit_coords = [1046, 7, 42, 20];
+mua_trace_checkbox_coords = [600, 33, 95, 20];
 lfp_spacing_text_coords = [250, 33, 78, 20];
 lfp_spacing_edit_coords = [326, 33, 44, 20];
 lfp_spacing_slider_coords = [372, 35, 86, 18];
@@ -483,17 +487,22 @@ xMinLabel = [];
 xMinEdit = [];
 xMaxLabel = [];
 xMaxEdit = [];
+zMinLabel = [];
+zMinEdit = [];
+zMaxLabel = [];
+zMaxEdit = [];
 muaTraceWhiteCheckbox = [];
 useWhiteTracesInMua = true;
 refreshDebounceTimer = [];
 refreshDebounceDelay = 0.18;
 defaultXlims = Xlims;
 currentXlims = Xlims;
+currentZlims = [];
 currentShiftSpacing = params.shiftCoeff;
 showSecondaryAxes = true;
 currentHpCutoff = 100;
 currentBaselineBoundary = currentXlims(1) / 2;
-currentContrastPercent = defaultContrastPercent();
+currentContrastPercent = normalizeCsdContrastCoef(csd_contrast_coef);
 currentHeatmapSmoothSigma = defaultHeatmapSmoothSigma();
 if isfield(calculationResultOut, 'csd_hp_cutoff_hz')
     currentHpCutoff = calculationResultOut.csd_hp_cutoff_hz;
@@ -509,6 +518,7 @@ if isfield(calculationResultOut, 'baselineEnabled')
 end
 maxHpCutoff = 500;
 restoreMeanControlsState();
+currentContrastPercent = normalizeCsdContrastCoef(csd_contrast_coef);
 [contrastCenter, contrastHalfSpan] = resolveContrastBaseline();
 createContrastControls();
 createPreCsdControls();
@@ -543,48 +553,13 @@ function SaveClb(~,~)
             restoreSaveBtn = onCleanup(@() createSaveButton_meanEvents());
             savefig(figureHandleOut, filename, 'compact');
             disp(['Figure saved to ', filename]);
-        case '.pdf'
-            exportPlotContainerOnly(filename, '.pdf');
-            disp(['Image saved to ', filename]);
-        case '.eps'
-            exportPlotContainerOnly(filename, '.eps');
-            disp(['Image saved to ', filename]);
-        case '.png'
-            exportPlotContainerOnly(filename, '.png');
+        case {'.pdf', '.eps', '.png'}
+            saveMeanFigureImage(figureHandleOut, filename);
             disp(['Image saved to ', filename]);
         otherwise
             saveas(figureHandleOut, filename);
             disp(['Saved to ', filename]);
     end
-end
-
-function exportPlotContainerOnly(filename, ext)
-plotContainerHandle = getappdata(figureHandleOut, 'meanPlotContainer');
-if isempty(plotContainerHandle) || ~isgraphics(plotContainerHandle, 'uipanel')
-    saveas(figureHandleOut, filename);
-    return
-end
-tempFig = figure('Visible', 'off', 'Color', [1 1 1], 'MenuBar', 'none', 'ToolBar', 'none');
-cleanupTempFigure = onCleanup(@() deleteIfGraphic(tempFig));
-set(tempFig, 'Units', get(figureHandleOut, 'Units'), 'Position', get(figureHandleOut, 'Position'));
-plotContainerCopy = copyobj(plotContainerHandle, tempFig);
-set(plotContainerCopy, 'Units', 'normalized', 'Position', [0 0 1 1], 'BorderType', 'none');
-switch lower(ext)
-    case '.pdf'
-        print(tempFig, filename, '-dpdf', '-bestfit');
-    case '.eps'
-        print(tempFig, filename, '-depsc');
-    case '.png'
-        saveas(tempFig, filename, 'png');
-    otherwise
-        saveas(tempFig, filename);
-end
-end
-
-function deleteIfGraphic(h)
-if ~isempty(h) && isgraphics(h)
-    delete(h);
-end
 end
 
 function ResetClb(~, ~)
@@ -593,7 +568,10 @@ function ResetClb(~, ~)
         return
     end
     currentXlims = defaultXlims;
-    currentContrastPercent = defaultContrastPercent();
+    currentZlims = [];
+    currentContrastPercent = 100;
+    csd_contrast_coef = 100;
+    csd_contrast_is_display = true;
     currentHpCutoff = 100;
     currentBaselineBoundary = defaultXlims(1) / 2;
     hpFilterEnabled = true;
@@ -605,6 +583,7 @@ function ResetClb(~, ~)
     applyCurrentColormap();
     applyXlimToAxes();
     saveMeanControlsState();
+    saveChannelSettings('csd_contrast_coef', 'csd_contrast_is_display');
     requestDebouncedRefresh();
 end
 
@@ -644,7 +623,11 @@ contrastEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', 'String', n
     'BackgroundColor', 'white', 'Position', contrast_edit_coords, 'Callback', @ContrastEditClb);
 contrastSlider = uicontrol('Parent', figureHandleOut, 'Style', 'slider', 'Min', 0, 'Max', contrastSliderMax, ...
     'Value', initialSliderValue, 'Position', contrast_slider_coords, 'Callback', @ContrastSliderClb);
-applyContrast(initialCoef);
+if isempty(currentZlims) || numel(currentZlims) ~= 2 || any(~isfinite(currentZlims)) || currentZlims(1) >= currentZlims(2)
+    applyContrast(initialCoef);
+else
+    applyZlimToAxes();
+end
 end
 
 function deleteContrastControls()
@@ -707,6 +690,16 @@ xMaxLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'X m
 xMaxEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', ...
     'String', num2str(currentXlims(2), '%.6g'), 'BackgroundColor', 'white', ...
     'Position', xmax_edit_coords, 'Callback', @XlimEditClb);
+zMinLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'Z min', ...
+    'Position', zmin_text_coords, 'HorizontalAlignment', 'left');
+zMinEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', ...
+    'String', '', 'BackgroundColor', 'white', ...
+    'Position', zmin_edit_coords, 'Callback', @ZlimEditClb);
+zMaxLabel = uicontrol('Parent', figureHandleOut, 'Style', 'text', 'String', 'Z max', ...
+    'Position', zmax_text_coords, 'HorizontalAlignment', 'left');
+zMaxEdit = uicontrol('Parent', figureHandleOut, 'Style', 'edit', ...
+    'String', '', 'BackgroundColor', 'white', ...
+    'Position', zmax_edit_coords, 'Callback', @ZlimEditClb);
 muaTraceWhiteCheckbox = uicontrol('Parent', figureHandleOut, 'Style', 'checkbox', ...
     'String', 'white traces', 'Value', double(useWhiteTracesInMua), ...
     'Position', mua_trace_checkbox_coords, 'Callback', @MuaTraceWhiteCheckboxClb);
@@ -732,7 +725,7 @@ end
 
 function deletePreCsdControls()
 cancelDebouncedRefresh();
-handles = {hpLabel, hpEdit, hpSlider, hpActiveCheckbox, baselineActiveCheckbox, baselineLabel, baselineEdit, baselineSlider, smoothLabel, smoothEdit, smoothSlider, xMinLabel, xMinEdit, xMaxLabel, xMaxEdit, muaTraceWhiteCheckbox, lfpSpacingLabel, lfpSpacingEdit, lfpSpacingSlider, secondaryAxesCheckbox};
+handles = {hpLabel, hpEdit, hpSlider, hpActiveCheckbox, baselineActiveCheckbox, baselineLabel, baselineEdit, baselineSlider, smoothLabel, smoothEdit, smoothSlider, xMinLabel, xMinEdit, xMaxLabel, xMaxEdit, zMinLabel, zMinEdit, zMaxLabel, zMaxEdit, muaTraceWhiteCheckbox, lfpSpacingLabel, lfpSpacingEdit, lfpSpacingSlider, secondaryAxesCheckbox};
 for idx = 1:numel(handles)
     h = handles{idx};
     if ~isempty(h) && isgraphics(h, 'uicontrol')
@@ -754,6 +747,10 @@ xMinLabel = [];
 xMinEdit = [];
 xMaxLabel = [];
 xMaxEdit = [];
+zMinLabel = [];
+zMinEdit = [];
+zMaxLabel = [];
+zMaxEdit = [];
 muaTraceWhiteCheckbox = [];
 lfpSpacingLabel = [];
 lfpSpacingEdit = [];
@@ -828,6 +825,22 @@ syncPreCsdControls();
 applyXlimToAxes();
 saveMeanControlsState();
 requestDebouncedRefresh();
+end
+
+function ZlimEditClb(~, ~)
+zMinValue = str2double(strrep(get(zMinEdit, 'String'), ',', '.'));
+zMaxValue = str2double(strrep(get(zMaxEdit, 'String'), ',', '.'));
+if ~(isfinite(zMinValue) && isfinite(zMaxValue))
+    syncZlimEdits();
+    return
+end
+if zMinValue >= zMaxValue
+    zMaxValue = zMinValue + max(1e-6, abs(zMinValue) * 1e-6);
+end
+currentZlims = [zMinValue, zMaxValue];
+syncZlimEdits();
+applyZlimToAxes();
+saveMeanControlsState();
 end
 
 function MuaTraceWhiteCheckboxClb(src, ~)
@@ -1099,6 +1112,7 @@ end
 if ~isempty(xMaxEdit) && isgraphics(xMaxEdit, 'uicontrol')
     set(xMaxEdit, 'String', num2str(currentXlims(2), '%.6g'));
 end
+syncZlimEdits();
 if ~isempty(smoothEdit) && isgraphics(smoothEdit, 'uicontrol')
     set(smoothEdit, 'String', num2str(currentHeatmapSmoothSigma, '%.3g'));
 end
@@ -1220,18 +1234,27 @@ if isfield(calculationResultOut, 'show_CSD') && calculationResultOut.show_CSD
     csdParams.csd_split_by_channel_gaps = calculationResultOut.csd_split_by_channel_gaps;
     [csdImage, csdTime, csdCh] = csdCalc(csdParams);
     [csdImage, csdTime, csdCh] = applyHeatmapResampling(csdImage, csdTime, csdCh, currentHeatmapSmoothSigma);
-    csdPlotting(csdImage, csdTime, csdCh, calculationResultOut.csd_contrast_coef);
+    csdPlotting(csdImage, csdTime, csdCh);
     imageHandles = findobj(mainAxLocal, 'Type', 'image', '-depth', 1);
     if ~isempty(imageHandles)
         calculationResultOut.heatmap_handle = imageHandles(1);
         uistack(calculationResultOut.heatmap_handle, 'bottom');
     end
     calculationResultOut.heatmap_base_clim = get(mainAxLocal, 'CLim');
-    currentContrast = str2double(get(contrastEdit, 'String'));
-    if isnan(currentContrast) || ~isfinite(currentContrast)
-        currentContrast = defaultContrastPercent();
+    [contrastCenter, contrastHalfSpan] = resolveContrastBaseline();
+    currentContrast = normalizeCsdContrastCoef(csd_contrast_coef);
+    if ~isempty(contrastEdit) && isgraphics(contrastEdit, 'uicontrol')
+        editContrast = str2double(get(contrastEdit, 'String'));
+        if isfinite(editContrast)
+            currentContrast = normalizeCsdContrastCoef(editContrast);
+        end
     end
-    applyContrast(currentContrast);
+    currentContrastPercent = currentContrast;
+    if isempty(currentZlims) || numel(currentZlims) ~= 2 || any(~isfinite(currentZlims)) || currentZlims(1) >= currentZlims(2)
+        applyContrast(currentContrast);
+    else
+        applyZlimToAxes();
+    end
 elseif isfield(calculationResultOut, 'show_spikes') && calculationResultOut.show_spikes && ...
         isfield(calculationResultOut, 'ev_hists') && ~isempty(calculationResultOut.ev_hists)
     evHists = calculationResultOut.ev_hists;
@@ -1242,11 +1265,20 @@ elseif isfield(calculationResultOut, 'show_spikes') && calculationResultOut.show
     calculationResultOut.heatmap_handle = muaImage;
     uistack(calculationResultOut.heatmap_handle, 'bottom');
     calculationResultOut.heatmap_base_clim = get(mainAxLocal, 'CLim');
-    currentContrast = str2double(get(contrastEdit, 'String'));
-    if isnan(currentContrast) || ~isfinite(currentContrast)
-        currentContrast = defaultContrastPercent();
+    [contrastCenter, contrastHalfSpan] = resolveContrastBaseline();
+    currentContrast = normalizeCsdContrastCoef(csd_contrast_coef);
+    if ~isempty(contrastEdit) && isgraphics(contrastEdit, 'uicontrol')
+        editContrast = str2double(get(contrastEdit, 'String'));
+        if isfinite(editContrast)
+            currentContrast = normalizeCsdContrastCoef(editContrast);
+        end
     end
-    applyContrast(currentContrast);
+    currentContrastPercent = currentContrast;
+    if isempty(currentZlims) || numel(currentZlims) ~= 2 || any(~isfinite(currentZlims)) || currentZlims(1) >= currentZlims(2)
+        applyContrast(currentContrast);
+    else
+        applyZlimToAxes();
+    end
 else
     calculationResultOut.heatmap_handle = [];
 end
@@ -1348,20 +1380,26 @@ function ContrastSliderClb(~, ~)
 coef = coefFromSlider(get(contrastSlider, 'Value'));
 set(contrastEdit, 'String', num2str(coef, '%.3g'));
 currentContrastPercent = coef;
+csd_contrast_coef = normalizeCsdContrastCoef(coef);
+csd_contrast_is_display = true;
 saveMeanControlsState();
+saveChannelSettings('csd_contrast_coef', 'csd_contrast_is_display');
 applyContrast(coef);
 end
 
 function ContrastEditClb(~, ~)
 coef = str2double(get(contrastEdit, 'String'));
 if isnan(coef) || ~isfinite(coef)
-    coef = defaultContrastPercent();
+    coef = normalizeCsdContrastCoef(csd_contrast_coef);
 end
 coef = min(max(coef, contrastCoefMin), contrastCoefMax);
 set(contrastEdit, 'String', num2str(coef, '%.3g'));
 set(contrastSlider, 'Value', sliderFromCoef(coef));
 currentContrastPercent = coef;
+csd_contrast_coef = normalizeCsdContrastCoef(coef);
+csd_contrast_is_display = true;
 saveMeanControlsState();
+saveChannelSettings('csd_contrast_coef', 'csd_contrast_is_display');
 applyContrast(coef);
 end
 
@@ -1381,10 +1419,47 @@ end
 if isempty(heatmapHandle) || ~isgraphics(heatmapHandle)
     return
 end
-contrastScale = max(coef / 100, eps);
-halfSpan = contrastHalfSpan / contrastScale;
-newClim = contrastCenter + [-halfSpan, halfSpan];
-set(get(heatmapHandle, 'Parent'), 'CLim', newClim);
+mainAxLocal = get(heatmapHandle, 'Parent');
+[contrastCenter, contrastHalfSpan] = resolveContrastBaseline();
+baseClim = contrastCenter + [-contrastHalfSpan, contrastHalfSpan];
+applyHeatmapContrast(mainAxLocal, baseClim, coef);
+currentZlims = get(mainAxLocal, 'CLim');
+applyZlimToAxes();
+end
+
+function applyZlimToAxes()
+if isempty(currentZlims) || numel(currentZlims) ~= 2 || any(~isfinite(currentZlims)) || currentZlims(1) >= currentZlims(2)
+    return
+end
+heatmapHandle = [];
+if isfield(calculationResultOut, 'heatmap_handle')
+    heatmapHandle = calculationResultOut.heatmap_handle;
+end
+if isempty(heatmapHandle) || ~isgraphics(heatmapHandle)
+    return
+end
+mainAxLocal = get(heatmapHandle, 'Parent');
+set(mainAxLocal, 'CLim', currentZlims);
+secondaryAxes = findobj(figureHandleOut, 'Type', 'axes', 'Tag', 'mean_secondary_axis');
+if ~isempty(secondaryAxes) && isgraphics(secondaryAxes(1))
+    xlim(secondaryAxes(1), currentZlims);
+end
+syncZlimEdits();
+end
+
+function syncZlimEdits()
+zMinStr = '';
+zMaxStr = '';
+if ~isempty(currentZlims) && numel(currentZlims) == 2 && all(isfinite(currentZlims))
+    zMinStr = num2str(currentZlims(1), '%.6g');
+    zMaxStr = num2str(currentZlims(2), '%.6g');
+end
+if ~isempty(zMinEdit) && isgraphics(zMinEdit, 'uicontrol')
+    set(zMinEdit, 'String', zMinStr);
+end
+if ~isempty(zMaxEdit) && isgraphics(zMaxEdit, 'uicontrol')
+    set(zMaxEdit, 'String', zMaxStr);
+end
 end
 
 function applyCurrentColormap()
@@ -1400,7 +1475,7 @@ colormap(mainAxes(1), colormapName);
 end
 
 function coef = defaultContrastPercent()
-coef = 100 - 40 * double(isfield(calculationResultOut, 'show_CSD') && calculationResultOut.show_CSD);
+coef = normalizeCsdContrastCoef(csd_contrast_coef);
 end
 
 function sigma = defaultHeatmapSmoothSigma()
@@ -1418,9 +1493,6 @@ if isfield(meanControlsState, modeKey) && isstruct(meanControlsState.(modeKey))
 elseif isfield(meanControlsState, 'contrastPercent') || isfield(meanControlsState, 'hpCutoffHz')
     stateForMode = meanControlsState; % обратная совместимость со старым форматом
 end
-if isfield(stateForMode, 'contrastPercent')
-    currentContrastPercent = stateForMode.contrastPercent;
-end
 if isfield(stateForMode, 'hpCutoffHz')
     currentHpCutoff = stateForMode.hpCutoffHz;
 end
@@ -1429,6 +1501,9 @@ if isfield(stateForMode, 'baselineBoundary')
 end
 if isfield(stateForMode, 'xLim') && isnumeric(stateForMode.xLim) && numel(stateForMode.xLim) == 2
     currentXlims = stateForMode.xLim(:).';
+end
+if isfield(stateForMode, 'zLim') && isnumeric(stateForMode.zLim) && numel(stateForMode.zLim) == 2
+    currentZlims = stateForMode.zLim(:).';
 end
 if isfield(stateForMode, 'hpFilterEnabled')
     hpFilterEnabled = logical(stateForMode.hpFilterEnabled);
@@ -1451,6 +1526,9 @@ end
 if isfield(opts, 'xLimits') && isnumeric(opts.xLimits) && numel(opts.xLimits) == 2
     currentXlims = reshape(double(opts.xLimits), 1, 2);
 end
+if isfield(opts, 'zLimits') && isnumeric(opts.zLimits) && numel(opts.zLimits) == 2
+    currentZlims = reshape(double(opts.zLimits), 1, 2);
+end
 if isfield(opts, 'csd_hp_cutoff_hz')
     currentHpCutoff = double(opts.csd_hp_cutoff_hz);
 end
@@ -1469,9 +1547,6 @@ end
 if isfield(opts, 'heatmapSmoothSigma')
     currentHeatmapSmoothSigma = double(opts.heatmapSmoothSigma);
 end
-if isfield(opts, 'contrastPercent')
-    currentContrastPercent = double(opts.contrastPercent);
-end
 if isfield(opts, 'shiftCoeff')
     currentShiftSpacing = double(opts.shiftCoeff);
 end
@@ -1481,7 +1556,12 @@ end
 if currentXlims(1) >= currentXlims(2)
     currentXlims = Xlims;
 end
-currentContrastPercent = min(max(currentContrastPercent, contrastCoefMin), contrastCoefMax);
+currentContrastPercent = normalizeCsdContrastCoef(csd_contrast_coef);
+if isfield(opts, 'contrastPercent')
+    currentContrastPercent = normalizeCsdContrastCoef(opts.contrastPercent);
+end
+csd_contrast_coef = currentContrastPercent;
+csd_contrast_is_display = true;
 currentHpCutoff = clampHp(currentHpCutoff);
 currentHeatmapSmoothSigma = clampSmoothSigma(currentHeatmapSmoothSigma);
 currentShiftSpacing = clampShiftSpacing(currentShiftSpacing);
@@ -1496,6 +1576,7 @@ stateForMode = struct( ...
     'hpCutoffHz', currentHpCutoff, ...
     'baselineBoundary', currentBaselineBoundary, ...
     'xLim', currentXlims, ...
+    'zLim', currentZlims, ...
     'hpFilterEnabled', logical(hpFilterEnabled), ...
     'baselineEnabled', logical(baselineEnabled), ...
     'muaWhiteTraces', logical(useWhiteTracesInMua), ...
@@ -1506,7 +1587,7 @@ if ~isstruct(meanControlsState)
     meanControlsState = struct();
 end
 meanControlsState.(modeKey) = stateForMode;
-saveChannelSettings('meanControlsState');
+saveChannelSettings('meanControlsState', 'csd_contrast_coef', 'csd_contrast_is_display');
 end
 
 function modeKey = currentMeanModeKey()

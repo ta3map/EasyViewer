@@ -11,7 +11,7 @@ function buildUpdateInstaller()
     mkdir(p.updateDir);
 
     payloadZip = fullfile(p.updateDir, 'payload.zip');
-    zip(payloadZip, {'EasyView.exe', 'splash.png', 'assets', 'configs', 'modules', 'docs'}, p.applicationDir);
+    zip(payloadZip, {'EasyView.exe', 'splash.png', 'assets', 'configs', 'docs'}, p.applicationDir);
 
     installerExe = fullfile(p.updateDir, ['EasyView_' p.version '.exe']);
     csc = fullfile(getenv('WINDIR'), 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');

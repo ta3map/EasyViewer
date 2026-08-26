@@ -61,26 +61,19 @@ end
 function shiftImpl(direction, windowSize)
     global selectedCenter events event_inx events_exist stims stim_inx stims_exist chosen_time_interval
 
-    eventsDone = strcmp(selectedCenter, 'events') && ( ...
-        ~events_exist || isempty(events) || (direction == 1 && event_inx >= numel(events)));
-    stimsDone = strcmp(selectedCenter, 'stimulus') && ( ...
-        ~stims_exist || isempty(stims) || (direction == 1 && stim_inx >= numel(stims)));
-
-    if eventsDone || stimsDone
-        selectedCenter = 'continuous';
-        shiftContinuous(direction, windowSize);
-        return;
-    end
-
     switch selectedCenter
         case 'events'
-            event_inx = min(max(event_inx + direction, 1), numel(events));
-            chosen_time_interval(1) = events(event_inx);
-            chosen_time_interval(2) = events(event_inx) + windowSize;
+            if events_exist
+                event_inx = min(max(event_inx + direction, 1), numel(events));
+                chosen_time_interval(1) = events(event_inx);
+                chosen_time_interval(2) = events(event_inx) + windowSize;
+            end
         case 'stimulus'
-            stim_inx = min(max(stim_inx + direction, 1), numel(stims));
-            chosen_time_interval(1) = stims(stim_inx);
-            chosen_time_interval(2) = stims(stim_inx) + windowSize;
+            if stims_exist
+                stim_inx = min(max(stim_inx + direction, 1), numel(stims));
+                chosen_time_interval(1) = stims(stim_inx);
+                chosen_time_interval(2) = stims(stim_inx) + windowSize;
+            end
         case 'continuous'
             shiftContinuous(direction, windowSize);
     end

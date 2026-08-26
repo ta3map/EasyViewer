@@ -80,7 +80,7 @@ function fileManagerGUI()
         end
     end
     
-    moduleDir = fullfile(getAppRoot(), 'modules');
+    moduleDir = fullfile(getAppRoot(), 'archived_code', 'modules');
     addpath(moduleDir);
     
     % Функция обработки закрытия окна (определяем до создания окна)
@@ -1567,7 +1567,7 @@ function fileManagerGUI()
         end
         
         tasks = [];
-        moduleFolder = fullfile(getAppRoot(), 'modules');
+        moduleFolder = fullfile(getAppRoot(), 'archived_code', 'modules');
         
         for moduleIdx = 1:numel(state.moduleQueue)
             moduleAction = state.moduleQueue{moduleIdx};

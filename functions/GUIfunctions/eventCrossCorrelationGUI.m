@@ -237,7 +237,11 @@ function eventCrossCorrelationGUI()
 
     function loadEventFromPath(filepath, eventNum)
         loadedData = load(filepath, '-mat');
-        [eventTimesSec, amplitudes] = extractEventDataForCorrelation(loadedData);
+        if isempty(time)
+            warndlg('Time axis is not loaded. Open a .mat file first.', 'Load Events');
+            return;
+        end
+        [eventTimesSec, amplitudes] = extractEventTimesFromManlDet(loadedData, time);
         if isempty(eventTimesSec)
             warndlg('Selected file does not contain supported event data.', 'Load Events');
             return;
@@ -264,33 +268,6 @@ function eventCrossCorrelationGUI()
             eventcorrelation_settings.EventB_filepath = eventB_filepath;
         end
         save(SettingsFilepath, 'eventcorrelation_settings', '-append');
-    end
-
-    function [eventTimesSec, amplitudes] = extractEventDataForCorrelation(loadedData)
-        eventTimesSec = [];
-        amplitudes = [];
-        if ~isfield(loadedData, 'manlDet') || isempty(loadedData.manlDet)
-            return;
-        end
-        if isempty(time)
-            warndlg('Time axis is not loaded. Open a .mat file first.', 'Load Events');
-            return;
-        end
-
-        indices = round([loadedData.manlDet.t]);
-        indices = max(1, min(indices, length(time)));
-        eventTimesSec = time(indices)';
-
-        if isfield(loadedData.manlDet, 'amplitude')
-            amplitudes = [loadedData.manlDet.amplitude]';
-        else
-            amplitudes = NaN(size(indices(:)));
-        end
-
-        amplitudes = amplitudes(:);
-        if numel(amplitudes) ~= numel(eventTimesSec)
-            amplitudes = NaN(size(eventTimesSec));
-        end
     end
 
     function updateRangeText(eventNum)
@@ -394,22 +371,8 @@ function eventCrossCorrelationGUI()
         crossCorr = [];
 
         if any(strcmp(selectedPlotModes, 'Cross-Correlation'))
-            minTime = min([min(ev1), min(ev2)]);
-            maxTime = max([max(ev1), max(ev2)]);
-            maxTimeForEdges = max(maxTime, minTime + binSize);
-            edges = minTime:binSize:maxTimeForEdges;
-            eventHist1 = histcounts(ev1, edges, 'Normalization', 'count');
-            eventHist2 = histcounts(ev2, edges, 'Normalization', 'count');
-            if normalize
-                [crossCorrRaw, lags] = xcorr(eventHist1, eventHist2, 'normalized');
-            else
-                [crossCorrRaw, lags] = xcorr(eventHist1, eventHist2);
-            end
-            lagTimes = lags * binSize;
+            [lagTimes, crossCorr] = eventCrossCorrelationFromBins(ev1, ev2, binSize, windowSize, normalize ~= 0);
             lagTimes_scaled = lagTimes * timeUnitFactor;
-            validIndices = abs(lagTimes) <= windowSize / 2;
-            lagTimes_scaled = lagTimes_scaled(validIndices);
-            crossCorr = crossCorrRaw(validIndices);
             crossCorrToPlot = crossCorr;
             crossCorrYLabel = 'Cross-Correlation';
             if normalize
@@ -432,7 +395,7 @@ function eventCrossCorrelationGUI()
         end
 
         if any(strcmp(selectedPlotModes, 'Timing Boxplot')) || any(strcmp(selectedPlotModes, 'Timing Histogram'))
-            rel_times = computeRelativeTimes(ev1, ev2);
+            rel_times = eventRelativeTimes(ev1, ev2);
             rel_times_scaled = rel_times * timeUnitFactor;
             boxplotXLim = computeWhiskerLimitedXLim(rel_times_scaled, Xlims, binSize * timeUnitFactor);
 
@@ -629,14 +592,6 @@ function eventCrossCorrelationGUI()
             cla(axesList(iAx));
             axis(axesList(iAx), 'on');
             set(axesList(iAx), 'visible', 'off');
-        end
-    end
-
-    function rel_times = computeRelativeTimes(ev1Input, ev2Input)
-        rel_times = zeros(length(ev1Input), 1);
-        for i = 1:length(ev1Input)
-            [~, closest_idx] = min(abs(ev2Input - ev1Input(i)));
-            rel_times(i) = ev1Input(i) - ev2Input(closest_idx);
         end
     end
 
