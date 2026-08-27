@@ -512,9 +512,9 @@ function groupSettingsEditor()
         if strcmp(choice, 'Yes')
             % numChannels и Fs уже объявлены в основной функции
             [newFs_def, shiftCoeff_def, time_back_def, time_forward_def, stim_offset_def] = setDefaultGroupSettings(numChannels, Fs);
-            
-            art_rem_settings = struct('artifact_window_ms', 0, 'interp_method', 'linear');
-            
+
+            art_rem_settings = getDefaultGlobalSettings().art_rem_settings;
+
             set(newFsEdit, 'String', num2str(newFs_def));
             set(shiftCoeffEdit, 'String', num2str(shiftCoeff_def));
             set(timeBackEdit, 'String', num2str(time_back_def * timeUnitFactor));

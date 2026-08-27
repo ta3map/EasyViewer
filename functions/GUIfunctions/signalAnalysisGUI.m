@@ -80,39 +80,6 @@ function signalAnalysisGUI(editMode)
         analysis_smooth_method = 'moving';
     end
     
-    % Загрузка настроек единиц времени из основного приложения
-    % Сначала проверяем, есть ли уже глобальные переменные из EasyView
-    if ~exist('timeUnitFactor', 'var') || isempty(timeUnitFactor)
-        % Пытаемся загрузить из настроек основного приложения
-        if exist(SettingsFilepath, 'file')
-                    try
-            d = load(SettingsFilepath);
-            if isfield(d, 'timeUnitFactor')
-                timeUnitFactor = d.timeUnitFactor;
-            else
-                timeUnitFactor = 1; % по умолчанию
-            end
-            if isfield(d, 'selectedUnit')
-                selectedUnit = d.selectedUnit;
-            else
-                selectedUnit = 's'; % по умолчанию
-            end
-        catch ME
-            timeUnitFactor = 1;
-            selectedUnit = 's';
-        end
-    else
-        timeUnitFactor = 1;
-        selectedUnit = 's';
-    end
-else
-end
-
-if ~exist('selectedUnit', 'var') || isempty(selectedUnit)
-    selectedUnit = 's';
-else
-end
-    
     % Глобальная переменная для метаданных измерений
     global current_measurement_metadata
 
@@ -136,7 +103,7 @@ end
             d = load(SettingsFilepath);
             art_rem_settings = d.art_rem_settings;
         catch
-            art_rem_settings = struct('artifact_window_ms', 0, 'interp_method', 'linear');
+            art_rem_settings = getDefaultGlobalSettings().art_rem_settings;
         end
     end
 
@@ -1139,33 +1106,16 @@ updateCursorEditFields();
             return;
         end
         
-        calc_interval = getMeasurementInterval(slope_measurement_settings.baseline_start, ...
-            slope_measurement_settings.baseline_end, ...
-            slope_measurement_settings.peak_start, ...
-            slope_measurement_settings.peak_end, ...
-            chosen_time_interval, time_back, time_forward, time);
-        [calc_data, calc_time, calc_raw] = getCurrentData(calc_interval);
-        if isempty(calc_data) || all(isnan(calc_data)) || all(isinf(calc_data))
+        % Тот же data-path, что Viewer: prepareViewerPlotData (slice/artifact/resample)
+        [channel_data, time_in, raw_data] = getCurrentData();
+        if isempty(channel_data) || all(isnan(channel_data)) || all(isinf(channel_data))
             return;
         end
         
         [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = ...
-            applySlopeMeasurement(calc_data, calc_time);
-        
-        display_interval = chosen_time_interval;
-        display_interval(1) = chosen_time_interval(1) - time_back;
-        display_interval(2) = chosen_time_interval(1) + time_forward;
-        display_mask = calc_time >= display_interval(1) & calc_time < display_interval(2);
-        display_data = calc_data(display_mask);
-        display_time = calc_time(display_mask);
-        display_raw = [];
-        if ~isempty(calc_raw)
-            display_raw = calc_raw(display_mask);
-            setappdata(hPlotAxes, 'analysis_raw_data', display_raw);
-        end
-        
-        [original_xlim, original_ylim] = calculateOptimalAxisLimits(true, display_data, display_time);
-        refreshPlotLayers(true, false, display_data, display_time, display_raw);
+            applySlopeMeasurement(channel_data, time_in);
+        [original_xlim, original_ylim] = calculateOptimalAxisLimits(true, channel_data, time_in);
+        refreshPlotLayers(true, false, channel_data, time_in, raw_data);
     end
     
     function [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = applySlopeMeasurement(channel_data, time_in)
@@ -1267,6 +1217,9 @@ updateCursorEditFields();
         setPlotGfx(gfx);
         syncMarkerHandleArrays();
         grid(hPlotAxes, 'on');
+        xlabel(hPlotAxes, ['Time, ' selectedUnit]);
+        ylabel(hPlotAxes, 'Amplitude');
+        makeDraggable();
     end
     
     function syncMarkerHandleArrays()
@@ -1326,7 +1279,6 @@ updateCursorEditFields();
         updateMeasurementLayer();
         updateAxesDecorations();
         updateCurrentResultsTable();
-        makeDraggable();
         if restoreTools
             restoreActiveBuiltinTool();
         end
@@ -1449,13 +1401,15 @@ updateCursorEditFields();
     end
     
     function updateAxesDecorations()
-        xlabel(hPlotAxes, ['Time, ' selectedUnit]);
-        ylabel(hPlotAxes, 'Amplitude');
         if logFlag(mean_results_active)
-            title(hPlotAxes, {['File: ' matFileName], 'Mean Signal (Average of All Results)'});
+            titleStr = {['File: ' matFileName], 'Mean Signal (Average of All Results)'};
         else
             selected_channel = slope_measurement_settings.channel;
-            title(hPlotAxes, {['File: ' matFileName], ['Channel: ' hd.recChNames{selected_channel}]}, 'Interpreter', 'none');
+            titleStr = {['File: ' matFileName], ['Channel: ' hd.recChNames{selected_channel}]};
+        end
+        hTitle = get(hPlotAxes, 'Title');
+        if ~isequal(get(hTitle, 'String'), titleStr)
+            title(hPlotAxes, titleStr, 'Interpreter', 'none');
         end
     end
     
@@ -1509,12 +1463,7 @@ updateCursorEditFields();
             return;
         end
 
-        calc_interval = getMeasurementInterval(slope_measurement_settings.baseline_start, ...
-            slope_measurement_settings.baseline_end, ...
-            slope_measurement_settings.peak_start, ...
-            slope_measurement_settings.peak_end, ...
-            chosen_time_interval, time_back, time_forward, time);
-        [calc_channel_data, calc_time_in] = getCurrentData(calc_interval);
+        [calc_channel_data, calc_time_in] = getCurrentData();
         [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = ...
             applySlopeMeasurement(calc_channel_data, calc_time_in);
     end
@@ -1860,9 +1809,8 @@ updateCursorEditFields();
         
         % Применяем границы к текущим осям если нужно
         if should_apply_limits
-            axes(hPlotAxes);
-            xlim(optimal_xlim);
-            ylim(optimal_ylim);
+            xlim(hPlotAxes, optimal_xlim);
+            ylim(hPlotAxes, optimal_ylim);
         end
     end
 
@@ -2610,14 +2558,14 @@ updateCursorEditFields();
             return;
         end
 
-        if nargin < 1 || isempty(custom_interval)
-            data_interval = chosen_time_interval;
-            data_interval(1) = data_interval(1) - time_back;
-            data_interval(2) = chosen_time_interval(1) + time_forward;
-            store_raw_data = true;
-        else
-            data_interval = custom_interval;
-            store_raw_data = true;
+        display_interval = chosen_time_interval;
+        display_interval(1) = display_interval(1) - time_back;
+        display_interval(2) = chosen_time_interval(1) + time_forward;
+        useViewerPipeline = (nargin < 1 || isempty(custom_interval) || isequal(custom_interval(:), display_interval(:)));
+
+        if useViewerPipeline
+            [channel_data, time_in, raw_data] = loadAnalysisChannelViaViewerPipeline();
+            return;
         end
 
         data_params = struct( ...
@@ -2632,16 +2580,81 @@ updateCursorEditFields();
             'mean_group_ch', mean_group_ch);
 
         [raw_data, time_in] = getSignalDataForInterval( ...
-            lfp_file.lfp, time, slope_measurement_settings.channel, data_interval, data_params);
+            lfp_file, time, slope_measurement_settings.channel, custom_interval, data_params);
+        if ~isempty(raw_data) && ~isempty(newFs) && isfinite(newFs) && newFs > 0 && Fs > newFs
+            raw_data = resample1(raw_data(:), round(newFs), Fs);
+            time_in = linspace(time_in(1), time_in(end), numel(raw_data))';
+        end
         channel_data = raw_data;
         if analysis_smooth_enabled && analysis_smooth_span >= 5 && ~isempty(channel_data)
             channel_data = smooth1(channel_data(:), analysis_smooth_span, analysis_smooth_method);
         end
-        if store_raw_data
-            setappdata(hPlotAxes, 'analysis_raw_data', raw_data);
-        end
+        setappdata(hPlotAxes, 'analysis_raw_data', raw_data);
     end
-    
+
+    function [channel_data, time_in, raw_data] = loadAnalysisChannelViaViewerPipeline()
+        global ch_inxs m_coef baseline_subtract_available
+
+        ch = slope_measurement_settings.channel;
+        nChAll = lfp_size(lfp_file);
+        nChAll = nChAll(2);
+        if isempty(ch) || ch < 1
+            ch = 1;
+        end
+        if ch > nChAll
+            ch = nChAll;
+        end
+
+        prev_ch = ch_inxs;
+        prev_m = m_coef;
+        prev_bs = baseline_subtract_available;
+        prev_mg = mean_group_ch;
+        prev_fa = filter_avaliable;
+
+        ch_inxs = ch;
+        if ~isempty(scalingCoefficients) && numel(scalingCoefficients) >= ch
+            m_coef = scalingCoefficients(ch);
+        else
+            m_coef = 1;
+        end
+        m_coef = double(m_coef(1));
+
+        mean_group_ch = adaptLogicalChannelMask(mean_group_ch, nChAll);
+        filter_avaliable = adaptLogicalChannelMask(filter_avaliable, nChAll);
+        baseline_subtract_available = adaptLogicalChannelMask(baseline_subtract_available, nChAll);
+
+        pd = prepareViewerPlotData();
+
+        ch_inxs = prev_ch;
+        m_coef = prev_m;
+        baseline_subtract_available = prev_bs;
+        mean_group_ch = prev_mg;
+        filter_avaliable = prev_fa;
+
+        raw_data = pd.data_res(:, 1);
+        time_in = pd.time_res(:);
+        channel_data = raw_data;
+        if analysis_smooth_enabled && analysis_smooth_span >= 5
+            channel_data = smooth1(channel_data(:), analysis_smooth_span, analysis_smooth_method);
+        end
+        setappdata(hPlotAxes, 'analysis_raw_data', raw_data);
+    end
+
+    function mask = adaptLogicalChannelMask(src, nChAll)
+        mask = false(1, nChAll);
+        if isempty(src)
+            return;
+        end
+        if islogical(src)
+            v = src(:)';
+            n = min(numel(v), nChAll);
+            mask(1:n) = v(1:n);
+            return;
+        end
+        idx = src(isfinite(src) & src >= 1 & src <= nChAll);
+        mask(idx) = true;
+    end
+
 
     
     
@@ -2992,13 +3005,22 @@ updateCursorEditFields();
             [lfp_file, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
             
             % Получаем размеры для совместимости
-            [m, n, p] = size(lfp_file.lfp);
+            lfpDims = lfp_size(lfp_file);
+            m = lfpDims(1);
+            n = lfpDims(2);
+            if numel(lfpDims) >= 3
+                p = lfpDims(3);
+            else
+                p = 1;
+            end
             N = length(time);
             Fs = zavp.dwnSmplFrq;
             
             % Устанавливаем флаги
             stims_exist = ~isempty(stims);
-            newFs = Fs;
+            if isempty(newFs) || ~isfinite(newFs) || newFs <= 0
+                newFs = Fs;
+            end
             resetAnalysisNavigationState();
             
             % === ДОБАВЛЕНО: Загрузка групповых настроек ===
@@ -3030,7 +3052,7 @@ updateCursorEditFields();
             setupAnalysisUIAfterFileReady();
             
             debugState('openFile', '✓ File successfully loaded: %s', matFileName);
-            debugState('openFile', '  Data size: %dx%dx%d', size(lfp_file.lfp));
+            debugState('openFile', '  Data size: %dx%dx%d', m, n, p);
             debugState('openFile', '  Sampling rate: %.1f Hz', Fs);
             debugState('openFile', '  Duration: %.3f s', time(end));
             
@@ -3041,6 +3063,7 @@ updateCursorEditFields();
             
         catch ME
             debugState('openFile', '❌ Error loading file: %s', ME.message);
+            debugState('openFile', '%s', getReport(ME, 'extended', 'hyperlinks', 'off'));
             resetToNoFileState();
             metadata = [];
             return;
@@ -3369,17 +3392,6 @@ updateCursorEditFields();
         if ~exist('Fs', 'var') || isempty(Fs)
             debugState('openGroupSettingsEditor', 'Sampling rate information not available. Please reload the file.');
             return;
-        end
-        
-
-        
-        % Устанавливаем единицы времени если их нет
-        if ~exist('timeUnitFactor', 'var') || isempty(timeUnitFactor)
-            timeUnitFactor = 1;
-        end
-        
-        if ~exist('selectedUnit', 'var') || isempty(selectedUnit)
-            selectedUnit = 's';
         end
         
         % Создаем заглушки для функций обновления (аналогично signalViewerGUI.m)

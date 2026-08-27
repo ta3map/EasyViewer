@@ -55,7 +55,10 @@ end
 
 [~, name, ~] = fileparts(matFilePath);
 pd.titleLabel = name;
-eventFileLabel = strtrim(event_title_string);
+eventFileLabel = '';
+if exist('event_title_string', 'var') && ~isempty(event_title_string) && (ischar(event_title_string) || isstring(event_title_string))
+    eventFileLabel = strtrim(char(event_title_string));
+end
 if ~isempty(eventFileLabel) && ~strcmp(eventFileLabel, 'Events')
     pd.titleLabel = sprintf('%s | %s', name, eventFileLabel);
 end

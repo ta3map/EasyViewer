@@ -1,5 +1,6 @@
-function [channel_data, time_vector] = getSignalDataForInterval(lfp, time, channel_idx, time_interval, params)
+function [channel_data, time_vector] = getSignalDataForInterval(lfp_file, time, channel_idx, time_interval, params)
 %GETSIGNALDATAFORINTERVAL Channel data for a time window (narrow LFP slice).
+%   Pass lfp_file (matfile/struct), NOT lfp_file.lfp — bare .lfp loads the whole array.
 
 if nargin < 5
     params = struct();
@@ -40,15 +41,20 @@ if isempty(row_start)
     return;
 end
 
-nCh = size(lfp, 2);
+lfpDims = lfp_size(lfp_file);
+nCh = lfpDims(2);
 if isempty(channel_idx) || channel_idx < 1 || channel_idx > nCh
     channel_idx = 1;
 end
 
 mean_chs = params.mean_group_ch(:);
-mean_chs = mean_chs(mean_chs >= 1 & mean_chs <= nCh);
-cols = unique([channel_idx; mean_chs], 'stable');
-local_lfp = lfp(row_start:row_end, cols);
+if islogical(params.mean_group_ch)
+    mean_chs = find(params.mean_group_ch);
+else
+    mean_chs = mean_chs(mean_chs >= 1 & mean_chs <= nCh);
+end
+cols = unique([channel_idx; mean_chs(:)], 'stable');
+local_lfp = lfp_file.lfp(row_start:row_end, cols);
 
 if ~isempty(mean_chs)
     mean_local = ismember(cols, mean_chs);
@@ -60,9 +66,12 @@ channel_data = local_lfp(:, ch_local);
 time_vector = time(row_start:row_end);
 
 if params.remove_artifact && ~isempty(params.stims) && ~isempty(params.Fs)
-    Fs_fascor = params.Fs / 1000;
-    channel_data = removeStimArtifact(channel_data, params.stims, time_vector, ...
-        params.artifact_window_ms * Fs_fascor * 0.5, params.artifact_interp_method);
+    win_r = round(params.artifact_window_ms * (params.Fs / 1000));
+    stims_in = params.stims(params.stims >= time_interval(1) & params.stims < time_interval(2));
+    if ~isempty(stims_in)
+        channel_data = removeStimArtifact(channel_data, stims_in, time_vector, ...
+            win_r, params.artifact_interp_method);
+    end
 end
 
 if params.smoothing_enabled && params.smoothing_span >= 5
