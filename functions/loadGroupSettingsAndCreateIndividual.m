@@ -54,9 +54,6 @@ function loadGroupSettingsAndCreateIndividual(matFilePath, numChannels, Fs, EV_v
     
     % Сохраняем созданные индивидуальные настройки
     saveChannelSettingsFunc();
-    
-    % Обновляем график
-    updatePlotFunc();
 end
 
 function applyGroupSettings(groupSettings)

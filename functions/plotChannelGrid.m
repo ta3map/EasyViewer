@@ -1,235 +1,233 @@
-function plotChannelGrid(params)
-%PLOTCHANNELGRID Draw channel tiles in a host panel beside multiax.
+function plotChannelGrid(params, actions)
+%PLOTCHANNELGRID Draw channel tiles; reuse axes/lines when size unchanged.
 
-    global channelGridGfx multiax lines_and_styles visualSettings axes_background_color
+global channelGridGfx multiax lines_and_styles visualSettings axes_background_color
+global event_label_click_callback stim_label_click_callback
 
-    if isempty(channelGridGfx) || ~isstruct(channelGridGfx)
-        channelGridGfx = emptyChannelGridGfx();
-    end
+if nargin < 2 || isempty(actions)
+    actions = viewerPlotActions('visual');
+end
 
-    plotPanel = get(multiax, 'Parent');
-    indexGrid = params.indexGrid;
-    [nRows, nCols] = size(indexGrid);
-    bgColor = hex2rgb(axes_background_color);
-    tileSpacing = 'compact';
+if isempty(channelGridGfx) || ~isstruct(channelGridGfx)
+    channelGridGfx = emptyChannelGridGfx();
+end
 
-    set(multiax, 'Visible', 'off');
+plotPanel = get(multiax, 'Parent');
+indexGrid = params.indexGrid;
+[nRows, nCols] = size(indexGrid);
+bgColor = hex2rgb(axes_background_color);
+tileSpacing = 'compact';
 
-    needRebuild = isempty(channelGridGfx.host) || ~isgraphics(channelGridGfx.host) ...
-        || ~isequal(channelGridGfx.size, [nRows nCols]) ...
-        || ~isfield(channelGridGfx, 'spacing') ...
-        || ~strcmp(channelGridGfx.spacing, tileSpacing);
+set(multiax, 'Visible', 'off');
 
-    if needRebuild
-        clearChannelGrid();
-        channelGridGfx = emptyChannelGridGfx();
-        channelGridGfx.size = [nRows nCols];
-        channelGridGfx.spacing = tileSpacing;
-        channelGridGfx.axes = gobjects(nRows, nCols);
+needRebuild = actions.invalidate || isempty(channelGridGfx.host) || ~isgraphics(channelGridGfx.host) ...
+    || ~isequal(channelGridGfx.size, [nRows nCols]) ...
+    || ~isfield(channelGridGfx, 'spacing') ...
+    || ~strcmp(channelGridGfx.spacing, tileSpacing) ...
+    || ~isfield(channelGridGfx, 'traceLines') ...
+    || isempty(channelGridGfx.traceLines) ...
+    || ~isequal(size(channelGridGfx.traceLines), [nRows nCols]);
+
+if needRebuild
+    clearChannelGrid();
+    channelGridGfx = emptyChannelGridGfx();
+    channelGridGfx.size = [nRows nCols];
+    channelGridGfx.spacing = tileSpacing;
+    channelGridGfx.axes = gobjects(nRows, nCols);
+    channelGridGfx.traceLines = gobjects(nRows, nCols);
+    channelGridGfx.nameLabels = gobjects(nRows, nCols);
+    channelGridGfx.eventLines = cell(nRows, nCols);
+    channelGridGfx.stimLines = cell(nRows, nCols);
 
         channelGridGfx.host = uipanel( ...
             'Parent', plotPanel, ...
             'Units', 'normalized', ...
-            'Position', [0.08 0.02 0.92 0.96], ...
+            'Position', [0.08 0.02 0.92 0.87], ...
             'BorderType', 'none', ...
             'BackgroundColor', bgColor, ...
             'Tag', 'channelGridHost');
 
-        channelGridGfx.layout = tiledlayout(channelGridGfx.host, nRows, nCols, ...
-            'TileSpacing', tileSpacing, ...
-            'Padding', 'none');
+    channelGridGfx.layout = tiledlayout(channelGridGfx.host, nRows, nCols, ...
+        'TileSpacing', tileSpacing, ...
+        'Padding', 'none');
 
-        for r = 1:nRows
-            for c = 1:nCols
-                ax = nexttile(channelGridGfx.layout);
-                channelGridGfx.axes(r, c) = ax;
-                set(ax, 'Tag', 'channelGridAx', 'Box', 'off', ...
-                    'XTick', [], 'YTick', [], ...
-                    'XColor', 'none', 'YColor', 'none', ...
-                    'Color', bgColor);
-            end
-        end
-    else
-        set(channelGridGfx.host, 'Visible', 'on', ...
-            'BackgroundColor', bgColor, ...
-            'Position', [0.08 0.02 0.92 0.96]);
-    end
-
-    channelGridGfx.indexGrid = indexGrid;
-    Xlims = params.Xlims;
-    Ylims = params.Ylims;
-    timeVec = params.time;
-    data = params.data;
-    ch_inxs = params.ch_inxs;
-    colors = params.colors;
-    widths = params.widths;
-    labels = params.labels;
-
-    firstOccupied = [];
     for r = 1:nRows
         for c = 1:nCols
-            ax = channelGridGfx.axes(r, c);
-            cla(ax);
-            hold(ax, 'on');
-            set(ax, ...
-                'Color', bgColor, ...
-                'XLim', Xlims, ...
-                'YLim', Ylims, ...
+            ax = nexttile(channelGridGfx.layout);
+            channelGridGfx.axes(r, c) = ax;
+            set(ax, 'Tag', 'channelGridAx', 'Box', 'off', ...
                 'XTick', [], 'YTick', [], ...
                 'XColor', 'none', 'YColor', 'none', ...
-                'Box', 'off');
+                'Color', bgColor);
+            hold(ax, 'on');
+            channelGridGfx.traceLines(r, c) = plot(ax, nan, nan, 'Visible', 'off');
+            channelGridGfx.nameLabels(r, c) = text(ax, 0, 0, '', ...
+                'Color', [0.2 0.2 0.2], 'FontSize', 9, 'FontWeight', 'bold', ...
+                'Interpreter', 'none', 'HorizontalAlignment', 'left', ...
+                'VerticalAlignment', 'top', 'Clipping', 'on', 'Visible', 'off');
+            channelGridGfx.eventLines{r, c} = gobjects(0);
+            channelGridGfx.stimLines{r, c} = gobjects(0);
+        end
+    end
+else
+    set(channelGridGfx.host, 'Visible', 'on', ...
+        'BackgroundColor', bgColor, ...
+        'Position', [0.08 0.02 0.92 0.87]);
+end
 
-            chIdx = indexGrid(r, c);
-            if chIdx < 1
-                continue;
-            end
+channelGridGfx.indexGrid = indexGrid;
+Xlims = params.Xlims;
+Ylims = params.Ylims;
+timeVec = params.time;
+data = params.data;
+ch_inxs = params.ch_inxs;
+colors = params.colors;
+widths = params.widths;
+labels = params.labels;
 
+firstOccupied = [];
+for r = 1:nRows
+    for c = 1:nCols
+        ax = channelGridGfx.axes(r, c);
+        set(ax, ...
+            'Color', bgColor, ...
+            'XLim', Xlims, ...
+            'YLim', Ylims, ...
+            'XTick', [], 'YTick', [], ...
+            'XColor', 'none', 'YColor', 'none', ...
+            'Box', 'off');
+
+        chIdx = indexGrid(r, c);
+        hLine = channelGridGfx.traceLines(r, c);
+        hName = channelGridGfx.nameLabels(r, c);
+
+        col = [];
+        if chIdx >= 1
             col = find(ch_inxs == chIdx, 1, 'first');
-            if isempty(col)
-                continue;
-            end
+        end
 
-            if isempty(firstOccupied)
-                firstOccupied = [r c];
-            end
+        if isempty(col)
+            set(hLine, 'Visible', 'off');
+            set(hName, 'Visible', 'off');
+            channelGridGfx.eventLines{r, c} = updateXMarkersPool(ax, channelGridGfx.eventLines{r, c}, [], Ylims, lines_and_styles, 'events_lines');
+            channelGridGfx.stimLines{r, c} = updateXMarkersPool(ax, channelGridGfx.stimLines{r, c}, [], Ylims, lines_and_styles, 'stimulus_lines');
+            continue;
+        end
 
-            plot(ax, timeVec, data(:, col), ...
+        if isempty(firstOccupied)
+            firstOccupied = [r c];
+        end
+
+        if actions.traces || needRebuild
+            set(hLine, ...
+                'XData', timeVec, ...
+                'YData', data(:, col), ...
                 'Color', colors{col}, ...
-                'LineWidth', widths(col));
+                'LineWidth', widths(col), ...
+                'Visible', 'on');
+            set(hName, ...
+                'Position', [Xlims(1) + diff(Xlims) * 0.02, Ylims(2) - diff(Ylims) * 0.08, 0], ...
+                'String', labels{col}, ...
+                'Visible', 'on');
+        else
+            set(hLine, 'Visible', 'on');
+            set(hName, 'Position', [Xlims(1) + diff(Xlims) * 0.02, Ylims(2) - diff(Ylims) * 0.08, 0], 'Visible', 'on');
+        end
 
-            text(ax, Xlims(1) + diff(Xlims) * 0.02, Ylims(2) - diff(Ylims) * 0.08, ...
-                labels{col}, ...
-                'Color', [0.2 0.2 0.2], ...
-                'FontSize', 9, ...
-                'FontWeight', 'bold', ...
-                'Interpreter', 'none', ...
-                'HorizontalAlignment', 'left', ...
-                'VerticalAlignment', 'top', ...
-                'Clipping', 'on');
-
+        if actions.overlays || needRebuild
+            evX = [];
+            stX = [];
             if params.show_events && ~isempty(params.events_x)
-                drawXMarkers(ax, params.events_x, lines_and_styles, 'events_lines', Ylims);
+                evX = params.events_x;
             end
             if params.show_stim && ~isempty(params.stims_x)
-                drawXMarkers(ax, params.stims_x, lines_and_styles, 'stimulus_lines', Ylims);
+                stX = params.stims_x;
             end
+            channelGridGfx.eventLines{r, c} = updateXMarkersPool(ax, channelGridGfx.eventLines{r, c}, evX, Ylims, lines_and_styles, 'events_lines');
+            channelGridGfx.stimLines{r, c} = updateXMarkersPool(ax, channelGridGfx.stimLines{r, c}, stX, Ylims, lines_and_styles, 'stimulus_lines');
         end
-    end
-
-    if isempty(firstOccupied)
-        return;
-    end
-
-    axLab = channelGridGfx.axes(firstOccupied(1), firstOccupied(2));
-    drawEventStimLabels(axLab, params, Xlims, Ylims);
-
-    if isfield(visualSettings, 'show_scale_bars') && visualSettings.show_scale_bars
-        drawPlotScaleBars(axLab, params.shiftCoeff, params.timeSpan, params.selectedUnit);
-    end
-    if ~isempty(params.centerLabel)
-        text(axLab, mean(Xlims), Ylims(2), params.centerLabel, ...
-            'FontSize', 9, 'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', ...
-            'Interpreter', 'none', 'HitTest', 'off', 'Clipping', 'off');
     end
 end
 
-function drawXMarkers(ax, xVals, lines_and_styles, lineName, Ylims)
-    lineStyle = lines_and_styles.(lineName);
-    lineAlpha = 1;
-    if isfield(lineStyle, 'LineAlpha')
-        lineAlpha = lineStyle.LineAlpha;
-    end
-    lineColor = toRgbColorLocal(lineStyle.LineColor);
-
-    if lineAlpha >= 1
-        for i = 1:numel(xVals)
-            plot(ax, [xVals(i) xVals(i)], Ylims, ...
-                'Color', lineColor, ...
-                'LineStyle', lineStyle.LineStyle, ...
-                'LineWidth', lineStyle.LineWidth, ...
-                'HitTest', 'off');
-        end
-        return;
-    end
-
-    xSpan = max(eps, ax.XLim(2) - ax.XLim(1));
-    stripeWidth = max(eps, xSpan * 0.0008 * lineStyle.LineWidth);
-    for i = 1:numel(xVals)
-        x1 = xVals(i) - stripeWidth / 2;
-        x2 = xVals(i) + stripeWidth / 2;
-        patch(ax, [x1 x2 x2 x1], [Ylims(1) Ylims(1) Ylims(2) Ylims(2)], lineColor, ...
-            'FaceAlpha', lineAlpha, 'EdgeColor', 'none', 'HitTest', 'off');
-    end
+if isempty(firstOccupied)
+    return;
 end
 
-function drawEventStimLabels(ax, params, Xlims, Ylims)
-    global lines_and_styles event_label_click_callback stim_label_click_callback
+axLab = channelGridGfx.axes(firstOccupied(1), firstOccupied(2));
+if actions.overlays || actions.chrome || needRebuild
+    refreshGridChrome(axLab, params, Xlims, Ylims);
+end
+end
 
-    if params.show_events && ~isempty(params.events_x) && ~isempty(params.eventTexts)
-        eventLabelsVisible = true;
-        if isfield(lines_and_styles.events_lines, 'LabelVisible')
-            eventLabelsVisible = logical(lines_and_styles.events_lines.LabelVisible);
-        end
-        if eventLabelsVisible
-            text_y = Ylims(2) - diff(Ylims) * 0.10;
-            text_x = params.events_x + diff(Xlims) * 0.01;
-            lineStyle = lines_and_styles.events_lines;
-            for i = 1:numel(params.events_x)
-                cb = [];
-                if ~isempty(event_label_click_callback) && numel(params.eventIndices) >= i
-                    evIx = params.eventIndices(i);
-                    cb = @(~,~) event_label_click_callback(evIx);
-                end
-                drawLabelWithBg(ax, text_x(i), text_y, params.eventTexts{i}, lineStyle, cb);
-            end
-        end
+function refreshGridChrome(axLab, params, Xlims, Ylims)
+global channelGridGfx lines_and_styles visualSettings
+global event_label_click_callback stim_label_click_callback
+
+if ~isfield(channelGridGfx, 'eventLabels')
+    channelGridGfx.eventLabels = gobjects(0);
+    channelGridGfx.eventLabelRects = gobjects(0);
+    channelGridGfx.stimLabels = gobjects(0);
+    channelGridGfx.stimLabelRects = gobjects(0);
+    channelGridGfx.centerLabel = gobjects(0);
+    channelGridGfx.scaleBars = gobjects(0);
+end
+
+evXs = [];
+evYs = [];
+evStr = {};
+evCbs = {};
+if params.show_events && ~isempty(params.events_x) && ~isempty(params.eventTexts)
+    eventLabelsVisible = true;
+    if isfield(lines_and_styles.events_lines, 'LabelVisible')
+        eventLabelsVisible = logical(lines_and_styles.events_lines.LabelVisible);
     end
-
-    if params.show_stim && ~isempty(params.stims_x) && ~isempty(params.stimTexts)
-        stimLabelsVisible = true;
-        if isfield(lines_and_styles.stimulus_lines, 'LabelVisible')
-            stimLabelsVisible = logical(lines_and_styles.stimulus_lines.LabelVisible);
-        end
-        if stimLabelsVisible
-            text_y = Ylims(2) - diff(Ylims) * 0.05;
-            text_x = params.stims_x + diff(Xlims) * 0.01;
-            lineStyle = lines_and_styles.stimulus_lines;
-            for i = 1:numel(params.stims_x)
-                cb = [];
-                if ~isempty(stim_label_click_callback) && numel(params.stimIndices) >= i
-                    stIx = params.stimIndices(i);
-                    cb = @(~,~) stim_label_click_callback(stIx);
-                end
-                drawLabelWithBg(ax, text_x(i), text_y, params.stimTexts{i}, lineStyle, cb);
+    if eventLabelsVisible
+        evXs = params.events_x + diff(Xlims) * 0.01;
+        evYs = Ylims(2) - diff(Ylims) * 0.10 + zeros(size(evXs));
+        evStr = params.eventTexts;
+        for i = 1:numel(evXs)
+            evCbs{i} = []; %#ok<AGROW>
+            if ~isempty(event_label_click_callback) && numel(params.eventIndices) >= i
+                evIx = params.eventIndices(i);
+                evCbs{i} = @(~,~) event_label_click_callback(evIx);
             end
         end
     end
 end
+[channelGridGfx.eventLabels, channelGridGfx.eventLabelRects] = updateLabelPool( ...
+    axLab, channelGridGfx.eventLabels, channelGridGfx.eventLabelRects, ...
+    evXs, evYs, evStr, lines_and_styles.events_lines, evCbs);
 
-function rgb = toRgbColorLocal(colorValue)
-    if isnumeric(colorValue) && numel(colorValue) == 3
-        rgb = colorValue(:)';
-        return;
+stXs = [];
+stYs = [];
+stStr = {};
+stCbs = {};
+if params.show_stim && ~isempty(params.stims_x) && ~isempty(params.stimTexts)
+    stimLabelsVisible = true;
+    if isfield(lines_and_styles.stimulus_lines, 'LabelVisible')
+        stimLabelsVisible = logical(lines_and_styles.stimulus_lines.LabelVisible);
     end
-    switch colorValue
-        case 'r', rgb = [1 0 0];
-        case 'g', rgb = [0 1 0];
-        case 'b', rgb = [0 0 1];
-        case 'k', rgb = [0 0 0];
-        case 'y', rgb = [1 1 0];
-        case 'm', rgb = [1 0 1];
-        case 'c', rgb = [0 1 1];
-        case 'w', rgb = [1 1 1];
-        otherwise, rgb = [0 0 0];
+    if stimLabelsVisible
+        stXs = params.stims_x + diff(Xlims) * 0.01;
+        stYs = Ylims(2) - diff(Ylims) * 0.05 + zeros(size(stXs));
+        stStr = params.stimTexts;
+        for i = 1:numel(stXs)
+            stCbs{i} = []; %#ok<AGROW>
+            if ~isempty(stim_label_click_callback) && numel(params.stimIndices) >= i
+                stIx = params.stimIndices(i);
+                stCbs{i} = @(~,~) stim_label_click_callback(stIx);
+            end
+        end
     end
 end
+[channelGridGfx.stimLabels, channelGridGfx.stimLabelRects] = updateLabelPool( ...
+    axLab, channelGridGfx.stimLabels, channelGridGfx.stimLabelRects, ...
+    stXs, stYs, stStr, lines_and_styles.stimulus_lines, stCbs);
 
-function gfx = emptyChannelGridGfx()
-    gfx = struct( ...
-        'host', gobjects(0), ...
-        'layout', [], ...
-        'axes', gobjects(0), ...
-        'size', [0 0], ...
-        'spacing', '', ...
-        'indexGrid', []);
+deleteGraphicsWithListeners(channelGridGfx.scaleBars(isgraphics(channelGridGfx.scaleBars)));
+channelGridGfx.scaleBars = gobjects(0);
+if isfield(visualSettings, 'show_scale_bars') && visualSettings.show_scale_bars
+    drawPlotScaleBars(axLab, params.shiftCoeff, params.timeSpan, params.selectedUnit);
+    channelGridGfx.scaleBars = findobj(axLab, '-depth', 1, 'Tag', 'plotScaleBar');
+end
 end

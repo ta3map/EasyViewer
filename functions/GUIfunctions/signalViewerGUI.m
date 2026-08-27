@@ -51,6 +51,7 @@ function signalViewerGUI(filePath)
     
     % Кэшированные данные последнего updatePlot для ручных событий
     global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
+    global viewerPlotDataCache
     % Переменные для работы со свипами
     global sweep_info sweep_inx % информация о свипах и индекс текущего свипа
     global numChannels % число каналов
@@ -80,6 +81,7 @@ function signalViewerGUI(filePath)
     debugState('signalViewerGUI', 'Signal Viewer Started')
     meanControlsState = struct();
     mainPlotGfx = emptyMainPlotGfx();
+    viewerPlotDataCache = [];
 
     if nargin < 1
         filePath = [];
@@ -325,7 +327,7 @@ function signalViewerGUI(filePath)
         'BackgroundColor', get(f, 'Color'), ...
         'Tag', 'plot_panel');
     multiax = axes('Parent', plotPanel, 'Units', 'normalized', ...
-        'Position', [0.08 0.07 0.90 0.86], 'Tag', 'multiax');
+        'Position', [0.08 0.07 0.90 0.82], 'Tag', 'multiax');
     set(multiax,'TickLabelInterpreter','none')
 
     if ~isempty(axes_background_color)
@@ -839,7 +841,7 @@ function signalViewerGUI(filePath)
 
     function homeButtonCallback(src, ~)
         disableBuiltinTools();
-        updatePlot(); % Восстанавливаем исходные границы осей
+        updatePlot('visual'); % Восстанавливаем исходные границы осей
         debugState('homeButtonCallback', 'All tools reset, view restored');
     end
 
@@ -1091,7 +1093,8 @@ function signalViewerGUI(filePath)
         channelLayoutFilePath = fullfile(path, file);
         channelLayoutNameGrid = parseChannelLayout(channelLayoutFilePath);
         saveChannelSettings('channelLayoutFilePath', 'channelLayoutNameGrid');
-        updatePlot();
+        syncCSDControlsState();
+        updatePlot('layout_mode');
     end
 
     function clearChannelProfile()
@@ -1100,7 +1103,8 @@ function signalViewerGUI(filePath)
         clearChannelGrid();
         set(multiax, 'Visible', 'on');
         saveChannelSettings('channelLayoutFilePath', 'channelLayoutNameGrid');
-        updatePlot();
+        syncCSDControlsState();
+        updatePlot('layout_mode');
     end
 
 
@@ -1115,7 +1119,7 @@ function signalViewerGUI(filePath)
                 syncTimeCenterPopup();
                 changeTimeCenter(timeCenterPopup);
                 syncEventTable();
-                updatePlot();
+                updatePlot('visual');
             end
         end
     end
@@ -1219,7 +1223,7 @@ function signalViewerGUI(filePath)
                 wasApplied = setupSignalFilteringGUI();
                 if wasApplied
                     updateTable();
-                    updatePlot();
+                    updatePlot('filter_change');
                 end
             case options{9}%'Edit events'
                 editEventsGUI();
@@ -1285,12 +1289,12 @@ function signalViewerGUI(filePath)
         end
 
         toggleVisualSetting('stim_show', showStimButton, false, 3, {'Show stimulus','Hide stimulus'});
-        updatePlot()
+        updatePlot('overlay_toggle')
     end
 
     function toggleFullSignal()
         toggleVisualSetting('show_full_signal', showFullSignalCheckbox, true, 5, {'Show full signal','Hide full signal'});
-        updatePlot()
+        updatePlot('ylim_shift')
     end
 
     function toggleAutoShift()
@@ -1301,7 +1305,7 @@ function signalViewerGUI(filePath)
         end
 
         toggleVisualSetting('auto_shift', [], true, 7, {'Auto channel shift','Manual channel shift'});
-        updatePlot()
+        updatePlot('ylim_shift')
     end
 
     function toggleVisualSetting(fieldName, uiHandle, saveFlag, updateMenuIndex, labels)
@@ -1334,7 +1338,7 @@ function signalViewerGUI(filePath)
             setUIControlsEnable({sidePanel, mainPanel}, 'on');
             set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit, yLimResetBtn, fullTraceBtn], 'Enable', 'on');
             set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit], 'Visible', 'on');
-            updatePlot();
+            updatePlot('full_rebuild');
             return;
         end
         viewFullChannelGUI(@applyFullChannelTraceToMainAxes);
@@ -1351,6 +1355,7 @@ function signalViewerGUI(filePath)
         end
         clearMainAxesPlotContent(multiax, keepLoading);
         mainPlotGfx = emptyMainPlotGfx();
+        viewerPlotDataCache = [];
         plot(multiax, traceData.time, traceData.signal, 'Color', [0 0 0], 'LineWidth', 1);
         setUIControlsEnable({sidePanel, mainPanel}, 'off');
         set(yLimResetBtn, 'Enable', 'on');
@@ -1375,7 +1380,7 @@ function signalViewerGUI(filePath)
         wasApplied = MUASettingsGUI();
         syncMUAControlsState();
         if wasApplied
-            updatePlot();
+            updatePlot('spikes_toggle');
         end
     end
 
@@ -1578,7 +1583,7 @@ function signalViewerGUI(filePath)
         end
         shiftCoeff = newShiftCoeff;
         saveChannelSettings();
-        updatePlot();
+        updatePlot('ylim_shift');
     end
 
     function FsCoeffEditCallback(src, ~)
@@ -1589,17 +1594,17 @@ function signalViewerGUI(filePath)
         end
         newFs = newFsCoeff;
         saveChannelSettings();
-        updatePlot(); % Обновление графика с новым shiftCoeff
+        updatePlot('filter_change');
     end
     
     function ShowEventsButtonCallback(~, ~)
         toggleVisualSetting('events_show', showEventsButton, false, [], {});
-        updatePlot();
+        updatePlot('overlay_toggle');
     end
 
     function ShowStimButtonCallback(~, ~)
         toggleVisualSetting('stim_show', showStimButton, false, [], {});
-        updatePlot();
+        updatePlot('overlay_toggle');
     end
 
     function ensureLinesAndStylesLabelVisible()
@@ -1626,36 +1631,46 @@ function signalViewerGUI(filePath)
     function ShowEventsLogoButtonCallback(src, ~)
         lines_and_styles.events_lines.LabelVisible = logical(get(src, 'Value'));
         save(SettingsFilepath, 'lines_and_styles', '-append');
-        updatePlot();
+        updatePlot('overlay_toggle');
     end
 
     function ShowStimLogoButtonCallback(src, ~)
         lines_and_styles.stimulus_lines.LabelVisible = logical(get(src, 'Value'));
         save(SettingsFilepath, 'lines_and_styles', '-append');
-        updatePlot();
+        updatePlot('overlay_toggle');
     end
 
     function ShowSpikesButtonCallback(~, ~)
+        if ~hasUsableMuaData(spks)
+            visualSettings.show_spikes = false;
+            syncMUAControlsState();
+            return;
+        end
         toggleVisualSetting('show_spikes', showSpikesButton, true, [], {});
-        updatePlot();
+        updatePlot('spikes_toggle');
     end
 
     function fullSignalCheckboxCallback(src, ~)
         setVisualSetting('show_full_signal', logical(get(src, 'Value')), showFullSignalCheckbox, true, 5, {'Show full signal','Hide full signal'});
-        updatePlot();
+        updatePlot('ylim_shift');
     end
 
     function scaleBarsCheckboxCallback(src, ~)
         setVisualSetting('show_scale_bars', logical(get(src, 'Value')), showScaleBarsCheckbox, true, [], {});
-        updatePlot();
+        updatePlot('overlay_toggle');
     end
 
     function ampLabelsCheckboxCallback(src, ~)
         setVisualSetting('show_amplitude_labels', logical(get(src, 'Value')), [], true, [], {});
-        updatePlot();
+        updatePlot('amp_labels');
     end
 
     function ShowCSDButtonCallback(~, ~)
+        if ~isempty(channelLayoutNameGrid)
+            visualSettings.show_CSD = false;
+            syncCSDControlsState();
+            return;
+        end
         prev_show_csd = visualSettings.show_CSD;
         new_show_csd = ~prev_show_csd;
 
@@ -1677,7 +1692,7 @@ function signalViewerGUI(filePath)
         end
         set(showCSDbutton, 'Value', visualSettings.show_CSD);
         saveChannelSettings('visualSettings');
-        updatePlot();
+        updatePlot('csd_toggle');
     end
 
     function enough = isEnoughCsd(chIndices)
@@ -1713,7 +1728,7 @@ function signalViewerGUI(filePath)
         timeCenterNav('applyInterval', windowSize);
         
         saveChannelSettings();
-        updatePlot(); % Обновление графика
+        updatePlot('time_window');
     end
 
     % Функция обратного вызова для выпадающего списка
@@ -1735,7 +1750,7 @@ function signalViewerGUI(filePath)
         set(TimeWindowText, 'String', ['Time Window, ' selectedUnit ':']);
         
         UpdateEventTable();
-        updatePlot(); % Обновление графика с новыми единицами времени
+        updatePlot('time_window');
         
         % сохраняем фактор в глобальные настройки              
         save(SettingsFilepath, 'selectedUnit', 'timeUnitFactor', '-append');
@@ -1905,7 +1920,7 @@ function signalViewerGUI(filePath)
         if isRestoringStartupState || plot_updating
             return;
         end
-        updatePlot();
+        updatePlot('navigation');
     end
 
     function timeZeroEditCallback(src, ~)
@@ -1974,7 +1989,7 @@ function signalViewerGUI(filePath)
                     set(eventDeleteEdit, 'String', num2str(event_inx));
                 end
         end
-        updatePlot();
+        updatePlot('navigation');
     end
 
     function yLimEditCallback(~, ~)
@@ -1991,7 +2006,7 @@ function signalViewerGUI(filePath)
         viewerYlimManual = true;
         viewerYlim = [ymin ymax];
         saveChannelSettings('viewerYlim', 'viewerYlimManual');
-        updatePlot();
+        updatePlot('ylim_shift');
     end
 
     function yLimResetCallback(~, ~)
@@ -2001,7 +2016,7 @@ function signalViewerGUI(filePath)
         set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit, yLimResetBtn, fullTraceBtn], 'Enable', 'on');
         set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit], 'Visible', 'on');
         set(fullTraceBtn, 'Visible', 'on');
-        updatePlot();
+        updatePlot('ylim_shift');
     end
 
     % Функция для обновления данных на основе выбора в таблице
@@ -2044,7 +2059,7 @@ function signalViewerGUI(filePath)
         if isRestoringStartupState
             return;
         end
-        updatePlot();
+        updatePlot('channel_change');
     end
 
     function updateLocalCoefs()
@@ -2434,7 +2449,7 @@ function signalViewerGUI(filePath)
 
         set(eventDeleteEdit, 'String', num2str(event_inx));
 
-        updatePlot();
+        updatePlot('navigation');
     end
 
     function selectEventByIndex(ev_ix)
@@ -2446,7 +2461,7 @@ function signalViewerGUI(filePath)
         chosen_time_interval(1) = events(event_inx);
         chosen_time_interval(2) = events(event_inx) + windowSize;
         set(eventDeleteEdit, 'String', num2str(event_inx));
-        updatePlot();
+        updatePlot('navigation');
     end
 
     function selectStimulusByIndex(st_ix)
@@ -2457,7 +2472,7 @@ function signalViewerGUI(filePath)
         windowSize = time_forward;
         chosen_time_interval(1) = stims(stim_inx);
         chosen_time_interval(2) = stims(stim_inx) + windowSize;
-        updatePlot();
+        updatePlot('navigation');
     end
     
     % Внутренние функции для обработки событий GUI
@@ -2616,8 +2631,14 @@ function signalViewerGUI(filePath)
             loadGroupSettingsAndCreateIndividual(matFilePath, numChannels, Fs, EV_version);
         end
 
+        mainPlotGfx = emptyMainPlotGfx();
+        viewerPlotDataCache = [];
         clearChannelGrid();
         syncEventTable();
+        syncTimeCenterPopup();
+        updateSliderMaxValue();
+        timeCenterNav('applyInterval', time_forward);
+        updatePlot('full_rebuild');
 
         metadata = struct('hd', hd, 'stims', stims, 'filePath', filepath);
     end
@@ -2625,7 +2646,6 @@ function signalViewerGUI(filePath)
     function syncViewerControlsFromSession()
         set(FsCoeffEdit, 'String', num2str(newFs));
         set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
-        set(showCSDbutton, 'Value', visualSettings.show_CSD);
         set(timeBackEdit, 'String', num2str(time_back * timeUnitFactor));
         set(timeForwardEdit, 'String', num2str(time_forward * timeUnitFactor));
         if ~isempty(axes_background_color)
@@ -2633,6 +2653,7 @@ function signalViewerGUI(filePath)
             set(multiax, 'Color', bgRgb);
             applyAxesBackgroundToChannelGrid(bgRgb);
         end
+        syncCSDControlsState();
         syncMUAControlsState();
     end
 
@@ -2653,14 +2674,14 @@ function signalViewerGUI(filePath)
         end
         clearMainAxesPlotContent(multiax, keepLoading);
         mainPlotGfx = emptyMainPlotGfx();
+        viewerPlotDataCache = [];
         clearChannelGrid();
         channelLayoutFilePath = '';
         channelLayoutNameGrid = [];
+        updateViewerPlotTitle('');
         text(multiax, 0.5, 0.5, 'Open MAT or EV file', 'color', 'r', 'horizontalalignment', 'center', 'Units', 'normalized');
         set(multiax, 'Visible', 'off');
-        if ~isempty(loading_text_handle) && isvalid(loading_text_handle)
-            set(loading_text_handle, 'Visible', 'off');
-        end
+        loadingOverlay(get(multiax, 'Parent'), false);
         set(OptBtn, 'Enable', 'off');
         set(viewBtn, 'Enable', 'off');
         set(analysisBtn, 'Enable', 'off');
@@ -2735,6 +2756,7 @@ function signalViewerGUI(filePath)
         set(analysisBtn, 'Enable', 'on');
         
         set(showCSDbutton, 'Value', visualSettings.show_CSD);
+        syncCSDControlsState();
         syncMUAControlsState();
         set(showEventsButton, 'Value', visualSettings.events_show);
         set(showStimButton, 'Value', visualSettings.stim_show);
@@ -2775,8 +2797,33 @@ function signalViewerGUI(filePath)
     end
 
     function syncMUAControlsState()
+        hasMua = hasUsableMuaData(spks);
+        if ~hasMua
+            visualSettings.show_spikes = false;
+        end
+        enableState = 'off';
+        if hasMua
+            enableState = 'on';
+        end
         if ~isempty(showSpikesButton) && isgraphics(showSpikesButton, 'uicontrol')
-            set(showSpikesButton, 'Value', visualSettings.show_spikes);
+            set(showSpikesButton, 'Value', logical(visualSettings.show_spikes), 'Enable', enableState);
+        end
+        if ~isempty(muaSettingsBtn) && isgraphics(muaSettingsBtn, 'uicontrol')
+            set(muaSettingsBtn, 'Enable', enableState);
+        end
+    end
+
+    function syncCSDControlsState()
+        layoutActive = ~isempty(channelLayoutNameGrid);
+        if layoutActive
+            visualSettings.show_CSD = false;
+        end
+        enableState = 'on';
+        if layoutActive
+            enableState = 'off';
+        end
+        if ~isempty(showCSDbutton) && isgraphics(showCSDbutton, 'uicontrol')
+            set(showCSDbutton, 'Value', logical(visualSettings.show_CSD), 'Enable', enableState);
         end
     end
 
@@ -2939,6 +2986,7 @@ function loadSettingsFile()
                 visualSettings.mua_alpha = min(max(double(loadedVisualSettings.mua_alpha), 0), 1);
             end
             set(showCSDbutton, 'Value', visualSettings.show_CSD);
+            syncCSDControlsState();
             syncMUAControlsState();
         end
         if isfield(loadedSettings, 'binsize')
@@ -3174,7 +3222,7 @@ end
             end
         end
         appendEvent(t_absolute, evAmp, manualEventChannelIdx, 'manual');
-        updatePlot();
+        updatePlot('overlay_toggle');
     end
 
     function clearTable(~, ~)
@@ -3185,7 +3233,7 @@ end
             case 'Yes'
                 clearEventsState();
                 syncEventTable();
-                updatePlot();
+                updatePlot('visual');
             case 'No'
         end
     end
@@ -3219,7 +3267,7 @@ end
         
         keyboardpressed = false;
         debugState('shiftTime', 'chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
-        updatePlot();
+        updatePlot('navigation');
         debugState('shiftTime', 'plot updated');
     end
     
@@ -3261,7 +3309,7 @@ end
             updateSliderMaxValue();
         end
         
-        updatePlot();
+        updatePlot('visual');
     end
 
     function eventEdited(~, ~)
@@ -3278,7 +3326,7 @@ end
             chosen_time_interval(2) = events(event_inx)+windowSize;
         end
         
-        updatePlot()
+        updatePlot('navigation')
     end
 
     function applyEventsLoadedState()
@@ -3292,7 +3340,7 @@ end
         set(timeSlider, 'Value', events(1));
         set(timeSlider, 'Callback', cb);
         if ~isRestoringStartupState
-            updatePlot();
+            updatePlot('visual');
         end
     end
 
@@ -3372,7 +3420,7 @@ end
         if hasEvents
             applyEventsLoadedState();
         end
-        updatePlot();
+        updatePlot('spikes_toggle');
         debugState('loadMUAFromEvData', debugMessage);
     end
 
@@ -3620,7 +3668,7 @@ end
             end
             isRestoringStartupState = false;
             waitbar(0.95, restorationWaitBar, 'Applying final view...');
-            updatePlot();
+            updatePlot('full_rebuild');
             waitbar(1, restorationWaitBar, 'Done');
             if ~isempty(restorationWaitBar) && isvalid(restorationWaitBar)
                 close(restorationWaitBar);

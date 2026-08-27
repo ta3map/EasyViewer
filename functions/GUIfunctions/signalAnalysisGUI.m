@@ -793,14 +793,7 @@ updateCursorEditFields();
             % Игнорируем ошибки сохранения
         end
         
-        % Вычисляем и применяем оптимальные границы осей
-        [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
-        
-        % Сохраняем как original для правильной работы зума
-        original_xlim = optimal_xlim;
-        original_ylim = optimal_ylim;
-        
-        % Обновляем график
+        % Обновляем график (ylim внутри updatePlotAndCalculation)
         updatePlotAndCalculation();
         
         debugState('channelCallback', '✓ Channel changed, optimal axis sizes applied');
@@ -1059,7 +1052,6 @@ updateCursorEditFields();
         end
         time_back = new_before;
         refreshRelShift();
-        [original_xlim, original_ylim] = calculateOptimalAxisLimits(true);
         saveChannelSettings('time_back');
         updateNavigationStatus();
         updateCursorEditFields();
@@ -1074,7 +1066,6 @@ updateCursorEditFields();
         end
         time_forward = new_after;
         refreshRelShift();
-        [original_xlim, original_ylim] = calculateOptimalAxisLimits(true);
         saveChannelSettings('time_forward');
         updateNavigationStatus();
         updateCursorEditFields();
@@ -1134,9 +1125,67 @@ updateCursorEditFields();
             return;
         end
         
+        loadingOverlay(plotPanel, true);
+        loadCleaner = onCleanup(@() loadingOverlay(plotPanel, false));
+        
         timeCenterNav('applyInterval', time_forward);
-        [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = calculateResults();
-        requestPlotUpdate('visual');
+        
+        if logFlag(mean_results_active) && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
+            [channel_data, time_in, raw_data] = getCurrentData();
+            [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = ...
+                applySlopeMeasurement(channel_data, time_in);
+            [original_xlim, original_ylim] = calculateOptimalAxisLimits(true, channel_data, time_in);
+            refreshPlotLayers(true, false, channel_data, time_in, raw_data);
+            return;
+        end
+        
+        calc_interval = getMeasurementInterval(slope_measurement_settings.baseline_start, ...
+            slope_measurement_settings.baseline_end, ...
+            slope_measurement_settings.peak_start, ...
+            slope_measurement_settings.peak_end, ...
+            chosen_time_interval, time_back, time_forward, time);
+        [calc_data, calc_time, calc_raw] = getCurrentData(calc_interval);
+        if isempty(calc_data) || all(isnan(calc_data)) || all(isinf(calc_data))
+            return;
+        end
+        
+        [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = ...
+            applySlopeMeasurement(calc_data, calc_time);
+        
+        display_interval = chosen_time_interval;
+        display_interval(1) = chosen_time_interval(1) - time_back;
+        display_interval(2) = chosen_time_interval(1) + time_forward;
+        display_mask = calc_time >= display_interval(1) & calc_time < display_interval(2);
+        display_data = calc_data(display_mask);
+        display_time = calc_time(display_mask);
+        display_raw = [];
+        if ~isempty(calc_raw)
+            display_raw = calc_raw(display_mask);
+            setappdata(hPlotAxes, 'analysis_raw_data', display_raw);
+        end
+        
+        [original_xlim, original_ylim] = calculateOptimalAxisLimits(true, display_data, display_time);
+        refreshPlotLayers(true, false, display_data, display_time, display_raw);
+    end
+    
+    function [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = applySlopeMeasurement(channel_data, time_in)
+        if logFlag(mean_results_active) && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
+            [baseline_rel, peak_rel] = getRelativePositions();
+            [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = ...
+                calculateSlopeMeasurement(channel_data, time_in, ...
+                baseline_rel.start, baseline_rel.end, peak_rel.start, peak_rel.end, ...
+                slope_measurement_settings.slope_percent, slope_measurement_settings.peak_polarity, 0);
+        else
+            [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = ...
+                calculateSlopeMeasurement(channel_data, time_in, ...
+                slope_measurement_settings.baseline_start, slope_measurement_settings.baseline_end, ...
+                slope_measurement_settings.peak_start, slope_measurement_settings.peak_end, ...
+                slope_measurement_settings.slope_percent, slope_measurement_settings.peak_polarity, rel_shift);
+        end
+        current_measurement_metadata = measurement_metadata;
+        if isfield(measurement_metadata, 'onset_method')
+            onset_method = measurement_metadata.onset_method;
+        end
     end
     
     function requestPlotUpdate(reason)
@@ -1152,8 +1201,8 @@ updateCursorEditFields();
                 refreshPlotLayers(false);
             case 'full_rebuild'
                 invalidatePlotLayers();
-                [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = calculateResults();
-                refreshPlotLayers(true, true);
+                updatePlotAndCalculation();
+                restoreActiveBuiltinTool();
             otherwise
                 refreshPlotLayers(true);
         end
@@ -1238,23 +1287,35 @@ updateCursorEditFields();
         marker_x = (abs_time - rel_shift) * timeUnitFactor;
     end
     
-    function refreshPlotLayers(includeSignal, restoreTools)
+    function refreshPlotLayers(includeSignal, restoreTools, channel_data, time_in, raw_data)
         if nargin < 1
             includeSignal = true;
         end
         if nargin < 2
             restoreTools = false;
         end
+        if nargin < 3
+            channel_data = [];
+        end
+        if nargin < 4
+            time_in = [];
+        end
+        if nargin < 5
+            raw_data = [];
+        end
         
         if isempty(time) || isempty(time_forward)
             return;
         end
         
-        if includeSignal
-            [channel_data, time_in] = getCurrentData();
+        if includeSignal && isempty(channel_data)
+            [channel_data, time_in, raw_data] = getCurrentData();
             if isempty(channel_data) || all(isnan(channel_data)) || all(isinf(channel_data))
                 return;
             end
+        end
+        if includeSignal && ~isempty(raw_data)
+            setappdata(hPlotAxes, 'analysis_raw_data', raw_data);
         end
         
         ensurePlotLayers();
@@ -1441,32 +1502,21 @@ updateCursorEditFields();
         onset_value = NaN;
         measurement_metadata = struct();
 
-        [channel_data, time_in] = getCurrentData();
-
         if logFlag(mean_results_active) && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
-            [baseline_rel, peak_rel] = getRelativePositions();
+            [channel_data, time_in] = getCurrentData();
             [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = ...
-                calculateSlopeMeasurement(channel_data, time_in, ...
-                baseline_rel.start, baseline_rel.end, peak_rel.start, peak_rel.end, ...
-                slope_measurement_settings.slope_percent, slope_measurement_settings.peak_polarity, 0);
-        else
-            calc_interval = getMeasurementInterval(slope_measurement_settings.baseline_start, ...
-                slope_measurement_settings.baseline_end, ...
-                slope_measurement_settings.peak_start, ...
-                slope_measurement_settings.peak_end, ...
-                chosen_time_interval, time_back, time_forward, time);
-            [calc_channel_data, calc_time_in] = getCurrentData(calc_interval);
-            [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = ...
-                calculateSlopeMeasurement(calc_channel_data, calc_time_in, ...
-                slope_measurement_settings.baseline_start, slope_measurement_settings.baseline_end, ...
-                slope_measurement_settings.peak_start, slope_measurement_settings.peak_end, ...
-                slope_measurement_settings.slope_percent, slope_measurement_settings.peak_polarity, rel_shift);
+                applySlopeMeasurement(channel_data, time_in);
+            return;
         end
 
-        current_measurement_metadata = measurement_metadata;
-        if isfield(measurement_metadata, 'onset_method')
-            onset_method = measurement_metadata.onset_method;
-        end
+        calc_interval = getMeasurementInterval(slope_measurement_settings.baseline_start, ...
+            slope_measurement_settings.baseline_end, ...
+            slope_measurement_settings.peak_start, ...
+            slope_measurement_settings.peak_end, ...
+            chosen_time_interval, time_back, time_forward, time);
+        [calc_channel_data, calc_time_in] = getCurrentData(calc_interval);
+        [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = ...
+            applySlopeMeasurement(calc_channel_data, calc_time_in);
     end
 
     function updateSmoothingControls()
@@ -1630,7 +1680,6 @@ updateCursorEditFields();
         timeCenterNav('resetIndex');
         timeCenterNav('applyInterval', time_forward);
         setRelativePositions(baseline_rel, peak_rel);
-        [original_xlim, original_ylim] = calculateOptimalAxisLimits(true);
         updateCursorEditFields();
         updateNavigationStatus();
         updatePlotAndCalculation();
@@ -1643,7 +1692,6 @@ updateCursorEditFields();
         [baseline_rel, peak_rel] = getRelativePositions();
         timeCenterNav('shift', direction, time_forward);
         setRelativePositions(baseline_rel, peak_rel);
-        [original_xlim, original_ylim] = calculateOptimalAxisLimits(true);
         updateCursorEditFields();
         updateNavigationStatus();
         updatePlotAndCalculation();
@@ -1752,7 +1800,7 @@ updateCursorEditFields();
         end
     end
 
-    function [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(should_apply_limits)
+    function [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(should_apply_limits, y_data, time_in)
         % Вычисляет оптимальные границы осей на основе настроек файла и данных
         % и опционально применяет их к текущим осям
         %
@@ -1760,6 +1808,7 @@ updateCursorEditFields();
         %   should_apply_limits - если true, применяет границы к текущим осям,
         %                        если false, только возвращает значения
         %                        (по умолчанию true)
+        %   y_data, time_in     - опционально уже загруженные данные (без LFP-read)
         
         if nargin < 1
             should_apply_limits = true;
@@ -1771,41 +1820,43 @@ updateCursorEditFields();
         optimal_xlim = [x_start, x_end];
         
         % Границы по Y - оптимальные на основе данных
-        if logFlag(mean_results_active) && ~isempty(mean_signal_data)
-            % В режиме среднего сигнала используем его данные
-            y_data = mean_signal_data;
+        if nargin >= 3 && ~isempty(y_data)
+            y_work = y_data(:);
+        elseif logFlag(mean_results_active) && ~isempty(mean_signal_data)
+            y_work = mean_signal_data(:);
             x_data = mean_signal_time;
+            Fs_fascor = Fs/1000;
+            y_work = removeStimArtifact(y_work, 0, x_data, art_rem_settings.artifact_window_ms*Fs_fascor*0.5, art_rem_settings.interp_method);
         else
-            % В обычном режиме получаем данные текущего интервала
             plot_time_interval = chosen_time_interval;
             plot_time_interval(1) = plot_time_interval(1) - time_back;
             plot_time_interval(2) = chosen_time_interval(1) + time_forward;
             
-            row_start = find(time >= plot_time_interval(1), 1, 'first');
-            row_end = find(time < plot_time_interval(2), 1, 'last');
-            cond = [];
-            if ~isempty(row_start) && ~isempty(row_end) && row_start <= row_end
-                cond = row_start:row_end;
-            end
+            [row_start, row_end] = timeWindowIndices(time, plot_time_interval(1), plot_time_interval(2));
             selected_channel = slope_measurement_settings.channel;
-            y_data = lfp_file.lfp(cond, selected_channel);
-            x_data = time(cond)-rel_shift;
+            if isempty(row_start)
+                y_work = [];
+                x_data = [];
+            else
+                y_work = lfp_file.lfp(row_start:row_end, selected_channel);
+                x_data = time(row_start:row_end) - rel_shift;
+            end
+            Fs_fascor = Fs/1000;
+            y_work = removeStimArtifact(y_work, 0, x_data, art_rem_settings.artifact_window_ms*Fs_fascor*0.5, art_rem_settings.interp_method);
         end
         
-        % Вычисляем оптимальные границы амплитуды
-        % Удаляем артефакты для всех каналов
-        Fs_fascor = Fs/1000;
-        y_data = removeStimArtifact(y_data, 0, x_data, art_rem_settings.artifact_window_ms*Fs_fascor*0.5, art_rem_settings.interp_method);
-        y_min = min(y_data);
-        y_max = max(y_data);
-        y_range = y_max - y_min;
-        
-        if y_range == 0
-            y_range = abs(y_min) * 0.1;
+        y_min = min(y_work);
+        y_max = max(y_work);
+        if isempty(y_min) || isempty(y_max) || ~isfinite(y_min) || ~isfinite(y_max)
+            optimal_ylim = [-1, 1];
+        else
+            y_range = y_max - y_min;
+            if y_range == 0
+                y_range = max(abs(y_min) * 0.1, eps);
+            end
+            y_padding = y_range * 0.05;
+            optimal_ylim = [y_min - y_padding, y_max + y_padding];
         end
-        
-        y_padding = y_range * 0.05; % 5% запас
-        optimal_ylim = [y_min - y_padding, y_max + y_padding];
         
         % Применяем границы к текущим осям если нужно
         if should_apply_limits
@@ -2507,24 +2558,14 @@ updateCursorEditFields();
         mean_results_active = ~mean_results_active;
         
         if mean_results_active
-            % Вычисляем средний сигнал
             [mean_signal_data, mean_signal_time] = calculateMeanSignal();
             set(hMeanResultsBtn, 'String', 'Show Single');
             debugState('toggleMeanResults', '✓ Average signal mode enabled (%d results)', length(slope_measurement_results));
-            % вычисляем границы осей
-            [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
         else
-            % Сбрасываем средний сигнал
             mean_signal_data = [];
             mean_signal_time = [];
             set(hMeanResultsBtn, 'String', 'Av. Trace');
             debugState('toggleMeanResults', '✓ Single signal mode enabled');
-            if isempty(original_xlim) && isempty(original_ylim)
-                [original_xlim, original_ylim] = calculateOptimalAxisLimits(true);
-            else
-                xlim(original_xlim);
-                ylim(original_ylim);
-            end
         end
         
         invalidatePlotLayers();
@@ -2557,14 +2598,16 @@ updateCursorEditFields();
     
 
 
-    function [channel_data, time_in] = getCurrentData(custom_interval)
+    function [channel_data, time_in, raw_data] = getCurrentData(custom_interval)
+        raw_data = [];
         if logFlag(mean_results_active) && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
-            channel_data = mean_signal_data;
+            raw_data = mean_signal_data(:);
             time_in = mean_signal_time;
+            channel_data = raw_data;
             if analysis_smooth_enabled && analysis_smooth_span >= 5
-                channel_data = smooth1(channel_data(:), analysis_smooth_span, analysis_smooth_method);
+                channel_data = smooth1(channel_data, analysis_smooth_span, analysis_smooth_method);
             end
-            return
+            return;
         end
 
         if nargin < 1 || isempty(custom_interval)
@@ -2574,11 +2617,11 @@ updateCursorEditFields();
             store_raw_data = true;
         else
             data_interval = custom_interval;
-            store_raw_data = false;
+            store_raw_data = true;
         end
 
         data_params = struct( ...
-            'smoothing_enabled', analysis_smooth_enabled, ...
+            'smoothing_enabled', false, ...
             'smoothing_span', analysis_smooth_span, ...
             'smoothing_method', analysis_smooth_method, ...
             'remove_artifact', ~isempty(stims) && visualSettings.stim_show, ...
@@ -2588,16 +2631,15 @@ updateCursorEditFields();
             'Fs', Fs, ...
             'mean_group_ch', mean_group_ch);
 
-        if store_raw_data
-            raw_params = data_params;
-            raw_params.smoothing_enabled = false;
-            [raw_channel_data, ~] = getSignalDataForInterval( ...
-                lfp_file.lfp, time, slope_measurement_settings.channel, data_interval, raw_params);
-            setappdata(hPlotAxes, 'analysis_raw_data', raw_channel_data);
-        end
-
-        [channel_data, time_in] = getSignalDataForInterval( ...
+        [raw_data, time_in] = getSignalDataForInterval( ...
             lfp_file.lfp, time, slope_measurement_settings.channel, data_interval, data_params);
+        channel_data = raw_data;
+        if analysis_smooth_enabled && analysis_smooth_span >= 5 && ~isempty(channel_data)
+            channel_data = smooth1(channel_data(:), analysis_smooth_span, analysis_smooth_method);
+        end
+        if store_raw_data
+            setappdata(hPlotAxes, 'analysis_raw_data', raw_data);
+        end
     end
     
 

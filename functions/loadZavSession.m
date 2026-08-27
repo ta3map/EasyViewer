@@ -88,6 +88,14 @@ function loadZavSession(matPath, varargin)
 
     stims_exist = ~isempty(stims);
     ch_inxs = find(channelEnabled);
+    windowSize = time_forward;
+    if stims_exist && numel(stims) > 1
+        selectedCenter = 'stimulus';
+        chosen_time_interval = [stims(stim_inx), stims(stim_inx) + windowSize];
+    else
+        selectedCenter = 'continuous';
+        chosen_time_interval = [0, windowSize];
+    end
 end
 
 function applyStandardChannelSettings(numChannels)
