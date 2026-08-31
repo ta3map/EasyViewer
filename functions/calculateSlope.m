@@ -50,7 +50,7 @@ function [slope_value, slope_angle, regression_points, peak_time, peak_value, on
     
     % 3. Поиск всех точек в диапазоне от пика до начала (в обратном порядке)
     search_indices = find(time_vector >= peak_start & time_vector <= peak_time);
-    search_indices = fliplr(search_indices); % Переворачиваем индексы для поиска от пика
+    search_indices = search_indices(end:-1:1);
     search_data = channel_data(search_indices);
     search_time = time_vector(search_indices);
     
