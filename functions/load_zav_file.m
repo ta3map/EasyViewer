@@ -45,6 +45,7 @@ addParameter(p, 'auto_set_time_windows', true, @islogical);
 addParameter(p, 'auto_set_fs', true, @islogical);
 addParameter(p, 'waitbar_handle', [], @(x) isempty(x) || ishghandle(x));
 addParameter(p, 'keep_waitbar_open', false, @islogical);
+addParameter(p, 'metadata_fields', {'spks', 'hd', 'zavp', 'lfpVar', 'chnlGrp'}, @iscell);
 parse(p, varargin{:});
 
 load_events = p.Results.load_events;
@@ -53,6 +54,7 @@ auto_set_time_windows = p.Results.auto_set_time_windows;
 auto_set_fs = p.Results.auto_set_fs;
 waitbar_handle = p.Results.waitbar_handle;
 keep_waitbar_open = p.Results.keep_waitbar_open;
+metadata_fields = p.Results.metadata_fields;
 
 % Проверка существования файла
 if ~exist(filepath, 'file')
@@ -75,8 +77,9 @@ else
     hWaitBar = waitbar(0, 'Initializing...', 'Name', 'Loading file');
 end
 
-% Проверяем, является ли файл Heka форматом
-is_heka = detectHekaFormat(filepath);
+fileInfo = whos('-file', filepath);
+var_names = {fileInfo.name};
+is_heka = detectHekaFormat(filepath, fileInfo);
 is_v73 = false;
 
 if is_heka
@@ -88,36 +91,29 @@ if is_heka
 else
     waitbar(0.1, hWaitBar, 'Loading data in ZAV format...');
     fprintf('Loading data in ZAV format...\n');
-    whitelist_fields = {'spks', 'hd', 'zavp', 'lfpVar', 'chnlGrp'};
-    
-    % Пробуем matfile для ленивого чтения lfp (только v7.3)
+
+    lfp_idx = find(strcmp(var_names, 'lfp'), 1);
+    if isempty(lfp_idx)
+        error('Field lfp is required for loading ZAV file');
+    end
+    lfp_dims = fileInfo(lfp_idx).size;
+    vars_to_load = intersect(metadata_fields, var_names, 'stable');
+
     try
         mf = matfile(filepath);
-        lfp_info = whos(mf, 'lfp');
-        mf.lfp(1, 1);
         is_v73 = true;
-        lfp_dims = lfp_info.size;
         fprintf('v7.3 format detected, lazy LFP access enabled\n');
-        
-        % Загружаем только whitelist полей через matfile
-        all_info = whos(mf);
-        vars_to_load = intersect(whitelist_fields, {all_info.name}, 'stable');
         d = struct();
-        for vi = 1:length(vars_to_load)
+        for vi = 1:numel(vars_to_load)
             d.(vars_to_load{vi}) = mf.(vars_to_load{vi});
         end
     catch
-        % Не v7.3 — загружаем всё целиком
-        d_raw = load(filepath);
-        if isfield(d_raw, 'lfp')
-            lfp_dims = size(d_raw.lfp);
-            d = struct('lfp', d_raw.lfp);
-            vars_to_load = intersect(whitelist_fields, fieldnames(d_raw), 'stable');
-            for vi = 1:length(vars_to_load)
-                d.(vars_to_load{vi}) = d_raw.(vars_to_load{vi});
-            end
-        else
-            error('Field lfp is required for loading ZAV file');
+        load_fields = union(vars_to_load, {'lfp'}, 'stable');
+        d_raw = load(filepath, load_fields{:});
+        lfp_dims = size(d_raw.lfp);
+        d = struct('lfp', d_raw.lfp);
+        for vi = 1:numel(vars_to_load)
+            d.(vars_to_load{vi}) = d_raw.(vars_to_load{vi});
         end
     end
 end

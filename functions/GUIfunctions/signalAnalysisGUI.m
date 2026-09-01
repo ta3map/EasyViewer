@@ -2996,7 +2996,8 @@ updateCursorEditFields();
             % Используем универсальную функцию загрузки
             data = load_zav_file(filepath, ...
                 'auto_set_time_windows', false, ...
-                'auto_set_fs', true);
+                'auto_set_fs', true, ...
+                'metadata_fields', {'hd', 'zavp'});
             [lfp_file, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
             
             % Получаем размеры для совместимости
@@ -3113,9 +3114,6 @@ updateCursorEditFields();
         set(hPlotAxes, 'Visible', 'on');
         loadCursorPositionsFromSettings();
         refreshRelShift();
-        [optimal_xlim, optimal_ylim] = calculateOptimalAxisLimits(true);
-        original_xlim = optimal_xlim;
-        original_ylim = optimal_ylim;
         updateCursorEditFields();
         updateNavigationStatus();
         updatePlotAndCalculation();
