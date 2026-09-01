@@ -1,12 +1,42 @@
-function pd = prepareViewerPlotData()
+function pd = prepareViewerPlotData(context)
 %PREPAREVIEWERPLOTDATA Slice / filter / resample current viewer time window.
+%   prepareViewerPlotData() — globals (viewer).
+%   prepareViewerPlotData(context) — optional ch_inxs, m_coef, mean_group_ch,
+%   filter_avaliable, baseline_subtract_available; skips cache.
 
-global chosen_time_interval time_back cond time lfp_file mean_group_ch ch_inxs m_coef Fs newFs
+global chosen_time_interval time_back time lfp_file mean_group_ch ch_inxs m_coef Fs newFs
 global timeUnitFactor data time_in filterSettings filter_avaliable
 global art_rem_settings visualSettings stims
 global baseline_subtract_available
 global lastPlotTimeResForEvents lastPlotDataResForEvents lastPlotChInxsForEvents
 global viewerPlotDataCache
+
+if nargin < 1
+    context = struct();
+end
+
+useContext = isfield(context, 'ch_inxs') && ~isempty(context.ch_inxs);
+work_ch_inxs = ch_inxs;
+work_m_coef = m_coef;
+work_mean_group_ch = mean_group_ch;
+work_filter_avaliable = filter_avaliable;
+work_baseline_subtract_available = baseline_subtract_available;
+
+if useContext
+    work_ch_inxs = context.ch_inxs(:)';
+    if isfield(context, 'm_coef')
+        work_m_coef = context.m_coef;
+    end
+    if isfield(context, 'mean_group_ch')
+        work_mean_group_ch = context.mean_group_ch;
+    end
+    if isfield(context, 'filter_avaliable')
+        work_filter_avaliable = context.filter_avaliable;
+    end
+    if isfield(context, 'baseline_subtract_available')
+        work_baseline_subtract_available = context.baseline_subtract_available;
+    end
+end
 
 pd = struct();
 pd.show_events = true;
@@ -14,101 +44,100 @@ if isfield(visualSettings, 'events_show')
     pd.show_events = visualSettings.events_show;
 end
 
-pd.plot_time_interval = chosen_time_interval;
-pd.plot_time_interval(1) = pd.plot_time_interval(1) - time_back;
+if isfield(context, 'plot_time_interval') && numel(context.plot_time_interval) >= 2
+    pd.plot_time_interval = context.plot_time_interval(:)';
+else
+    pd.plot_time_interval = chosen_time_interval;
+    pd.plot_time_interval(1) = pd.plot_time_interval(1) - time_back;
+end
 pd.time_origin = chosen_time_interval(1);
 
-sig = buildViewerPlotDataSignature(pd.plot_time_interval);
-cacheHit = ~isempty(viewerPlotDataCache) && isstruct(viewerPlotDataCache) ...
-    && isfield(viewerPlotDataCache, 'signature') ...
-    && isequal(viewerPlotDataCache.signature, sig) ...
-    && isfield(viewerPlotDataCache, 'data_res') ...
-    && ~isempty(viewerPlotDataCache.data_res);
+skipCache = useContext;
+if ~skipCache
+    sig = buildViewerPlotDataSignature(pd.plot_time_interval);
+    cacheHit = ~isempty(viewerPlotDataCache) && isstruct(viewerPlotDataCache) ...
+        && isfield(viewerPlotDataCache, 'signature') ...
+        && isequal(viewerPlotDataCache.signature, sig) ...
+        && isfield(viewerPlotDataCache, 'data_res') ...
+        && ~isempty(viewerPlotDataCache.data_res);
 
-if cacheHit
-    pd.data_res = viewerPlotDataCache.data_res;
-    pd.time_res = viewerPlotDataCache.time_res;
-    pd.numChannels = viewerPlotDataCache.numChannels;
-    pd.baseline_subtract_active = viewerPlotDataCache.baseline_subtract_active;
-    pd.baseline_medians = viewerPlotDataCache.baseline_medians;
-    if isfield(viewerPlotDataCache, 'time_in')
-        time_in = viewerPlotDataCache.time_in;
+    if cacheHit
+        pd.data_res = viewerPlotDataCache.data_res;
+        pd.time_res = viewerPlotDataCache.time_res;
+        pd.numChannels = viewerPlotDataCache.numChannels;
+        pd.baseline_subtract_active = viewerPlotDataCache.baseline_subtract_active;
+        pd.baseline_medians = viewerPlotDataCache.baseline_medians;
+        if isfield(viewerPlotDataCache, 'time_in')
+            time_in = viewerPlotDataCache.time_in;
+        end
+        if ~isempty(stims) && visualSettings.stim_show
+            pd.cond3 = stims >= pd.plot_time_interval(1) & stims < pd.plot_time_interval(2);
+            pd.stims_x = (stims(pd.cond3) - pd.time_origin) * timeUnitFactor;
+        else
+            pd.cond3 = [];
+            pd.stims_x = [];
+        end
+        lastPlotTimeResForEvents = pd.time_res;
+        lastPlotDataResForEvents = pd.data_res;
+        lastPlotChInxsForEvents = ch_inxs;
+        pd.time_in_transformed = (pd.time_res - pd.time_origin) * timeUnitFactor;
+        pd.Xlims = (pd.plot_time_interval - pd.time_origin) * timeUnitFactor;
+        pd.timeSpan = diff(pd.Xlims);
+        pd = appendViewerOverlayMeta(pd);
+        return;
     end
-    if ~isempty(stims) && visualSettings.stim_show
-        pd.cond3 = stims >= pd.plot_time_interval(1) & stims < pd.plot_time_interval(2);
-        pd.stims_x = (stims(pd.cond3) - pd.time_origin) * timeUnitFactor;
-    else
-        pd.cond3 = [];
-        pd.stims_x = [];
-    end
-    lastPlotTimeResForEvents = pd.time_res;
-    lastPlotDataResForEvents = pd.data_res;
-    lastPlotChInxsForEvents = ch_inxs;
-    pd.time_in_transformed = (pd.time_res - pd.time_origin) * timeUnitFactor;
-    pd.Xlims = (pd.plot_time_interval - pd.time_origin) * timeUnitFactor;
-    pd.timeSpan = diff(pd.Xlims);
-    pd = appendViewerOverlayMeta(pd);
-    return;
 end
 
-[row_start, row_end] = timeWindowIndices(time, pd.plot_time_interval(1), pd.plot_time_interval(2));
-if isempty(row_start)
-    row_start = 1;
-    row_end = 0;
-end
-cond = row_start:row_end;
 lfpDims = lfp_size(lfp_file);
 nCh = lfpDims(2);
-mg = false(1, nCh);
-if ~isempty(mean_group_ch) && any(mean_group_ch(:))
-    rawMg = mean_group_ch(:);
-    if islogical(rawMg)
-        n = min(numel(rawMg), nCh);
-        mg(1:n) = rawMg(1:n);
-    else
-        idx = rawMg(isfinite(rawMg) & rawMg >= 1 & rawMg <= nCh);
-        mg(idx) = true;
-    end
-end
-chNeed = unique(ch_inxs(:)', 'stable');
+chNeed = unique(work_ch_inxs(:)', 'stable');
 chNeed = chNeed(chNeed >= 1 & chNeed <= nCh);
-cols = unique([chNeed, find(mg)], 'stable');
-local_lfp = lfp_file.lfp(row_start:row_end, cols);
-if any(mg)
-    meanLocal = ismember(cols, find(mg));
-    local_lfp(:, meanLocal) = local_lfp(:, meanLocal) - mean(local_lfp(:, meanLocal), 2);
-end
-[~, chLocal] = ismember(ch_inxs(:), cols);
-data = local_lfp(:, chLocal) .* m_coef(:)';
-time_in = time(cond);
 
+[local_lfp, time_in, cols] = readLfpChannelsForInterval( ...
+    lfp_file, time, pd.plot_time_interval, chNeed, work_mean_group_ch);
+
+if isempty(local_lfp)
+    data = zeros(0, numel(chNeed));
+else
+    [~, chLocal] = ismember(work_ch_inxs(:), cols);
+    work_m_coef = work_m_coef(:)';
+    nWorkCh = numel(work_ch_inxs);
+    if numel(work_m_coef) < nWorkCh
+        work_m_coef = [work_m_coef, ones(1, nWorkCh - numel(work_m_coef))];
+    end
+    data = local_lfp(:, chLocal) .* work_m_coef(1:nWorkCh);
+end
+
+stims_in = [];
 if ~isempty(stims) && visualSettings.stim_show
     pd.cond3 = stims >= pd.plot_time_interval(1) & stims < pd.plot_time_interval(2);
     pd.stims_x = (stims(pd.cond3) - pd.time_origin) * timeUnitFactor;
-    win_r = round(art_rem_settings.artifact_window_ms * (Fs / 1000));
-    debugState('updatePlot', 'Stim artifact removal: Fs=%dHz, window=%.3f ms (~%d samples)', Fs, art_rem_settings.artifact_window_ms, win_r);
-    data = removeStimArtifact(data, stims(pd.cond3), time_in, win_r, art_rem_settings.interp_method);
+    stims_in = stims(pd.cond3);
+    debugState('updatePlot', 'Stim artifact removal: Fs=%dHz, window=%.3f ms (~%d samples)', ...
+        Fs, art_rem_settings.artifact_window_ms, round(art_rem_settings.artifact_window_ms * (Fs / 1000)));
 else
     pd.cond3 = [];
     pd.stims_x = [];
 end
 
-if Fs <= newFs
-    pd.data_res = data;
-    pd.time_res = time_in;
-else
-    pd.data_res = resample1(data, round(newFs), Fs);
-    numPoints = size(pd.data_res, 1);
-    pd.time_res = linspace(time_in(1), time_in(end), numPoints);
+procOpts = struct( ...
+    'profile', 'viewer', ...
+    'remove_artifact', ~isempty(stims) && visualSettings.stim_show, ...
+    'stims_in', stims_in, ...
+    'artifact_window_ms', art_rem_settings.artifact_window_ms, ...
+    'artifact_interp_method', art_rem_settings.interp_method, ...
+    'Fs', Fs, ...
+    'newFs', newFs, ...
+    'filterSettings', filterSettings, ...
+    'filter_mask', false(1, max(1, size(data, 2))));
+if sum(work_filter_avaliable) > 0 && size(data, 2) > 0
+    procOpts.filter_mask = work_filter_avaliable(work_ch_inxs);
 end
 
-if sum(filter_avaliable) > 0
-    ch_to_filter = filter_avaliable(ch_inxs);
-    pd.data_res(:, ch_to_filter) = applyFilter(pd.data_res(:, ch_to_filter), filterSettings, newFs);
-end
+[pd.data_res, pd.time_res] = processSignalChannels(data, time_in, procOpts);
 
 pd.numChannels = size(pd.data_res, 2);
-pd.baseline_subtract_active = logical(baseline_subtract_available(ch_inxs));
+pd.baseline_subtract_active = logical(work_baseline_subtract_available(work_ch_inxs));
 pd.baseline_subtract_active = reshape(pd.baseline_subtract_active, 1, []);
 if numel(pd.baseline_subtract_active) ~= pd.numChannels
     tmp = false(1, pd.numChannels);
@@ -126,16 +155,18 @@ end
 
 lastPlotTimeResForEvents = pd.time_res;
 lastPlotDataResForEvents = pd.data_res;
-lastPlotChInxsForEvents = ch_inxs;
+lastPlotChInxsForEvents = work_ch_inxs;
 
-viewerPlotDataCache = struct( ...
-    'signature', sig, ...
-    'data_res', pd.data_res, ...
-    'time_res', pd.time_res, ...
-    'time_in', time_in, ...
-    'numChannels', pd.numChannels, ...
-    'baseline_subtract_active', pd.baseline_subtract_active, ...
-    'baseline_medians', pd.baseline_medians);
+if ~skipCache
+    viewerPlotDataCache = struct( ...
+        'signature', sig, ...
+        'data_res', pd.data_res, ...
+        'time_res', pd.time_res, ...
+        'time_in', time_in, ...
+        'numChannels', pd.numChannels, ...
+        'baseline_subtract_active', pd.baseline_subtract_active, ...
+        'baseline_medians', pd.baseline_medians);
+end
 
 pd.time_in_transformed = (pd.time_res - pd.time_origin) * timeUnitFactor;
 pd.Xlims = (pd.plot_time_interval - pd.time_origin) * timeUnitFactor;

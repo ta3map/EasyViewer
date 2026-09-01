@@ -36,11 +36,36 @@ if isempty(cols)
     return;
 end
 
-local_lfp = lfp_file.lfp(row_start:row_end, cols);
+local_lfp = readLfpSlice(lfp_file, row_start, row_end, cols);
 if any(mg)
     meanLocal = ismember(cols, find(mg));
     local_lfp(:, meanLocal) = local_lfp(:, meanLocal) - mean(local_lfp(:, meanLocal), 2);
 end
 time_vector = time(row_start:row_end);
 
+end
+
+function block = readLfpSlice(lfp_file, row_start, row_end, cols)
+rows = row_start:row_end;
+cols = cols(:)';
+if ~isa(lfp_file, 'matlab.io.MatFile')
+    block = lfp_file.lfp(rows, cols);
+    return
+end
+
+if isscalar(cols)
+    block = lfp_file.lfp(rows, cols);
+    return
+end
+
+d = diff(cols);
+if all(d == d(1))
+    block = lfp_file.lfp(rows, cols(1):d(1):cols(end));
+    return
+end
+
+colRange = min(cols):max(cols);
+wide = lfp_file.lfp(rows, colRange);
+[~, pick] = ismember(cols, colRange);
+block = wide(:, pick);
 end

@@ -11,9 +11,8 @@ function [f, calculation_result] = plotMeanEvents(params)
     hd = params.hd;
     channelSettings = params.channelSettings;
     Fs = params.Fs;
-    lfp = params.lfp;
-    N = params.N;
     time = params.time;
+    N = params.N;
     binsize = params.binsize;
     prg = params.spk_threshold;
     spks = params.spks;
@@ -30,7 +29,6 @@ function [f, calculation_result] = plotMeanEvents(params)
         csd_split_by_channel_gaps = logical(params.csd_split_by_channel_gaps);
     end
     lfpVar = params.lfpVar;
-    mean_group_ch = params.mean_group_ch;
     t_profile = params.t_profile;
     
     if isfield(params, 'timeUnitFactor')
@@ -71,62 +69,31 @@ function [f, calculation_result] = plotMeanEvents(params)
     colors_in = channelSettings(:, 4)';
     widths_in = [channelSettings{:, 5}];
 
+    winLen = round(meanWindow * Fs);
+    halfWin = round(meanWindow * Fs / 2);
+    nTime = numel(time);
+
     % Подготовка данных для среднего
-    meanData = zeros(round(meanWindow * Fs), size(lfp, 2));
     numEvents = length(timePoints);
-    
-    removeBaseline = isfield(params, 'removeBaseline') && logical(params.removeBaseline);
-    
-    if removeBaseline
-        lfp(:, mean_group_ch) = lfp(:, mean_group_ch) - nanmean(lfp(:, mean_group_ch), 2); % вычитание выбранных средних каналов
+    nProcessedEvents = numEvents;
+    totalEvents = numEvents;
+    wasCanceled = false;
+    if isfield(params, 'nProcessedEvents')
+        nProcessedEvents = params.nProcessedEvents;
     end
-    
-    ch_enabled = false(length(ch_labels), 1);    
-    ch_enabled(activeChannels) = true;
-    originalEventsData = {}; % Сохраняем данные каждого события отдельно
-    
-    % Проверяем, нужно ли показывать waitbar
-    showWaitbar = true; % по умолчанию показываем
-    if isfield(params, 'showWaitbar')
-        showWaitbar = logical(params.showWaitbar);
+    if isfield(params, 'totalEvents')
+        totalEvents = params.totalEvents;
     end
-    
-    % Создаем waitbar для обработки событий (если нужно)
-    wb = [];
-    if showWaitbar
-        wb = waitbar(0, 'Processing events...', 'Name', 'Calculating mean events');
+    if isfield(params, 'wasCanceled')
+        wasCanceled = logical(params.wasCanceled);
     end
-    
-    for i = 1:numEvents
-        % Вычисление индексов окна вокруг временной точки
-        eventIdx = round(timePoints(i) * Fs);
-        windowStart = max(eventIdx - round(meanWindow * Fs / 2), 1);
-        windowEnd = min(windowStart + round(meanWindow * Fs) - 1, N);
+    spikeTimePoints = timePoints;
+    if isfield(params, 'processedTimePoints') && ~isempty(params.processedTimePoints)
+        spikeTimePoints = params.processedTimePoints;
+    end
+    nSpikeEvents = numel(spikeTimePoints);
 
-        if windowEnd < size(lfp, 1)
-            eventDataRaw = lfp(windowStart:windowEnd, :);
-            if removeBaseline
-                eventDataProcessed = eventDataRaw - nanmedian(eventDataRaw);
-            else
-                eventDataProcessed = eventDataRaw;
-            end
-            
-            % Добавление данных в среднее
-            meanData = meanData + eventDataProcessed;
-            
-            % Сохраняем обработанные данные события для возможной детекции
-            eventDataScaled = eventDataProcessed(:, ch_enabled) .* scalingCoefficients(ch_enabled);
-            originalEventsData{end+1} = eventDataScaled;
-        end
-        
-        % Обновляем waitbar (если он создан)
-        if showWaitbar && ~isempty(wb)
-            waitbar(i / numEvents, wb, sprintf('Processing event %d of %d', i, numEvents));
-        end
-    end
-
-    % Нормализация среднего
-    meanData = meanData / numEvents;
+    [meanData, originalEventsData] = resolveMeanEventData(params);
 
     % Применение сглаживания к meanData и originalEventsData, если задано
     if isfield(params, 'SmoothingKernel_s') && params.SmoothingKernel_s > 0
@@ -162,41 +129,25 @@ function [f, calculation_result] = plotMeanEvents(params)
             ii = abs(double(spks(ch_inx).ampl)) >= (lfpVar(ch_inx) * prg);
             spk_times_sec{c} = spks(ch_inx).tStamp(ii) / 1000;
         end
-        for i = 1:numEvents
-            eventIdx = round(timePoints(i) * Fs);
-            windowStart = max(eventIdx - round(meanWindow * Fs / 2), 1);
-            windowEnd = min(windowStart + round(meanWindow * Fs) - 1, N);
+        for i = 1:nSpikeEvents
+            eventIdx = round(spikeTimePoints(i) * Fs);
+            idealStart = eventIdx - halfWin;
+            windowStart = max(idealStart, 1);
+            windowEnd = min(windowStart + winLen - 1, nTime);
 
-            if windowEnd < size(lfp, 1)
-                time_start = time(windowStart);
-                time_end = time(windowEnd);
-                edges = time_start:binsize:time_end;
-                ch_hists = zeros(numel(ch_inxs), max(numel(edges) - 1, 0));
-                for c = 1:numel(ch_inxs)
-                    spk = spk_times_sec{c};
-                    spk = spk(spk >= time_start & spk < time_end);
-                    ch_hists(c, :) = histcounts(spk, edges);
-                end
-                evs(i, :, :) = ch_hists;
+            time_start = time(windowStart);
+            time_end = time(windowEnd);
+            edges = time_start:binsize:time_end;
+            ch_hists = zeros(numel(ch_inxs), max(numel(edges) - 1, 0));
+            for c = 1:numel(ch_inxs)
+                spk = spk_times_sec{c};
+                spk = spk(spk >= time_start & spk < time_end);
+                ch_hists(c, :) = histcounts(spk, edges);
             end
-            if showWaitbar && ~isempty(wb)
-                waitbar(i / numEvents, wb, sprintf('Processing spikes: event %d of %d', i, numEvents));
-            end
+            evs(i, :, :) = ch_hists;
         end
-        if exist('evs')
-            ev_hists = squeeze(mean(evs,1));
-        else
-            ev_hists = [];
-        end
+        ev_hists = squeeze(mean(evs, 1));
     end
-    
-    % Закрываем waitbar (если он создан)
-    if showWaitbar && ~isempty(wb)
-        close(wb);
-    end
-
-
-    % Отображение среднего
     f = params.figure; % Создание нового окна для графика
 %     clf
 
@@ -204,14 +155,13 @@ function [f, calculation_result] = plotMeanEvents(params)
     end_time = meanWindow / 2;
 
     timeAxis = linspace(start_time, end_time, size(meanData, 1))*timeUnitFactor;% время в секундах
-    pl_meanData =  meanData.* scalingCoefficients;
-
-    pl_meanData = pl_meanData(:, ch_enabled);
-    pl_ch_labels = ch_labels(ch_enabled);
+    ch_inxs = ch_inxs(:)';
+    pl_meanData = meanData .* scalingCoefficients(ch_inxs);
+    pl_ch_labels = ch_labels(ch_inxs);
     autoScale = isfield(params, 'autoScale') && logical(params.autoScale);
     pl_shiftCoeff = shiftCoeff;
-    pl_widths_in = widths_in(ch_enabled);
-    pl_colors_in = colors_in(ch_enabled);     
+    pl_widths_in = widths_in(ch_inxs);
+    pl_colors_in = colors_in(ch_inxs);     
     
     numChannels = size(pl_meanData, 2);
     
@@ -404,11 +354,8 @@ end
 
     xlabel('Time');
     ylabel('Mean Value');
-    if strcmp(sourceType, 'stimuli')
-        title([titlename, ', ', num2str(numEvents), ' stimuli'], 'interpreter', 'none')
-    else
-        title([titlename, ', ', num2str(numEvents), ' events'], 'interpreter', 'none')
-    end        
+    eventsCountLabel = formatPlotMeanEventsCount(sourceType, nProcessedEvents, totalEvents, wasCanceled);
+    title([titlename, ', ', eventsCountLabel], 'interpreter', 'none')
 
     if autoScale
         debugState('plotMeanEvents', 'Auto scale enabled');
@@ -442,6 +389,14 @@ end
 
     calculation_result.meanData = meanData;
     calculation_result.timePoints = timePoints;
+    calculation_result.nProcessedEvents = nProcessedEvents;
+    calculation_result.totalEvents = totalEvents;
+    calculation_result.wasCanceled = wasCanceled;
+    if isfield(params, 'processedTimePoints')
+        calculation_result.processedTimePoints = params.processedTimePoints;
+    else
+        calculation_result.processedTimePoints = spikeTimePoints;
+    end
     calculation_result.sourceType = sourceType;
     calculation_result.channelSettings = channelSettings;
     calculation_result.activeChannels = activeChannels;
@@ -487,4 +442,30 @@ end
         calculation_result.secondary_axes_handle = [];
     end
 
+end
+
+function [meanData, originalEventsData] = resolveMeanEventData(params)
+if isfield(params, 'meanData') && ~isempty(params.meanData)
+    meanData = params.meanData;
+    if isfield(params, 'originalEventsData')
+        originalEventsData = params.originalEventsData;
+    else
+        originalEventsData = {};
+    end
+    return;
+end
+[meanData, originalEventsData] = accumulateMeanEventWindows(params);
+end
+
+function label = formatPlotMeanEventsCount(sourceType, nProcessed, nTotal, wasCanceled)
+if strcmp(sourceType, 'stimuli')
+    kind = 'stimuli';
+else
+    kind = 'events';
+end
+if wasCanceled && nProcessed < nTotal
+    label = [num2str(nProcessed), '/', num2str(nTotal), ' ', kind, ' (stopped)'];
+    return;
+end
+label = [num2str(nProcessed), ' ', kind];
 end

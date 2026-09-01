@@ -40,36 +40,6 @@ params.sourceType = sourceType;
 params.hd = hd;
 params.channelSettings = channelSettings;
 params.Fs = Fs;
-params.lfp = lfp_file.lfp;
-params.N = N;
-params.time = time;
-params.binsize = binsize;
-params.spk_threshold = std_coef;
-params.spks = spks;
-params.shiftCoeff = shiftCoeff;
-params.titlename = local_evfilename;
-params.show_spikes = visualSettings.show_spikes;
-params.ch_inxs = ch_inxs;
-if isfield(opts, 'Channel') && ~isempty(opts.Channel)
-    ch_sel = round(opts.Channel);
-    params.ch_inxs = ch_sel;
-    params.lfp = params.lfp(:, ch_sel);
-    params.channelSettings = channelSettings(ch_sel, :);
-    params.ch_inxs = 1;
-    params.ch_labels = hd.recChNames(ch_sel);
-    params.csd_active = csd_avaliable(ch_sel);
-    params.mean_group_ch = 1;
-    params.channel_index_original = ch_sel;
-else
-    params.csd_active = csd_avaliable(ch_inxs);
-end
-params.show_CSD = visualSettings.show_CSD;
-params.csd_smooth_coef = csd_smooth_coef;
-params.csd_contrast_coef = csd_contrast_coef;
-params.timeUnitFactor = timeUnitFactor;
-params.lfpVar = lfpVar;
-params.mean_group_ch = mean_group_ch;
-params.t_profile = t_mean_profile;
 
 if isfield(opts, 'meanWindow')
     params.meanWindow = opts.meanWindow;
@@ -79,6 +49,58 @@ elseif isfield(opts, 'xLimits') && ~isempty(opts.xLimits)
 else
     params.meanWindow = 2;
 end
+
+if isfield(opts, 'Channel') && ~isempty(opts.Channel)
+    ch_sel = round(opts.Channel);
+    read_ch = ch_sel;
+    read_mean_group = false(1, numel(hd.recChNames));
+else
+    read_ch = ch_inxs;
+    read_mean_group = mean_group_ch;
+end
+readProgress = struct();
+if ~isempty(wb) && isvalid(wb)
+    readProgress.wb = wb;
+    readProgress.fracLo = 0.05;
+    readProgress.fracHi = 0.70;
+end
+params.lfp_file = lfp_file;
+params.N = N;
+params.read_ch = read_ch;
+params.filter_enabled = filter_avaliable;
+params.newFs = newFs;
+params.filterSettings = filterSettings;
+params.stims = stims;
+params.artifact_interp_method = art_rem_settings.interp_method;
+params.progress = readProgress;
+params.wb = wb;
+params.showWaitbar = isempty(wb) || ~isvalid(wb);
+params.binsize = binsize;
+params.spk_threshold = std_coef;
+params.spks = spks;
+params.shiftCoeff = shiftCoeff;
+params.titlename = local_evfilename;
+params.show_spikes = visualSettings.show_spikes;
+params.ch_inxs = ch_inxs;
+if isfield(opts, 'Channel') && ~isempty(opts.Channel)
+    ch_sel = round(opts.Channel);
+    params.channelSettings = channelSettings(ch_sel, :);
+    params.ch_inxs = 1;
+    params.ch_labels = hd.recChNames(ch_sel);
+    params.csd_active = csd_avaliable(ch_sel);
+    params.mean_group_ch = false(1, numel(hd.recChNames));
+    params.channel_index_original = ch_sel;
+else
+    params.csd_active = csd_avaliable(ch_inxs);
+    params.mean_group_ch = mean_group_ch;
+end
+params.time = time;
+params.show_CSD = visualSettings.show_CSD;
+params.csd_smooth_coef = csd_smooth_coef;
+params.csd_contrast_coef = csd_contrast_coef;
+params.timeUnitFactor = timeUnitFactor;
+params.lfpVar = lfpVar;
+params.t_profile = t_mean_profile;
 
 if isfield(opts, 'removeArtifact')
     params.remove_artifact = strcmp(sourceType, 'stimuli') && logical(opts.removeArtifact);
@@ -94,6 +116,7 @@ end
 if isfield(opts, 'artifactWindow_ms')
     artifact_window_ms = opts.artifactWindow_ms;
 end
+params.artifact_window_ms = artifact_window_ms;
 params.autoScale = isfield(opts, 'autoScale') && logical(opts.autoScale);
 if isfield(opts, 'xLimits')
     params.customXLimits = opts.xLimits;
@@ -110,26 +133,10 @@ end
 params.SubtractMean = isfield(opts, 'SubtractMean') && logical(opts.SubtractMean);
 params.showWaitbar = false;
 
-if params.remove_artifact
+if params.remove_artifact && params.show_spikes
     win_r = round(artifact_window_ms * (Fs/1000));
-    params.lfp = removeStimArtifact(params.lfp, stims, time, win_r, art_rem_settings.interp_method);
-    if params.show_spikes
-        stim_inxs = ClosestIndex(stims, time, true);
-        params.spks = maskSpikesInStimWindows(params.spks, time, stim_inxs, win_r);
-    end
-end
-
-if isfield(params, 'channel_index_original') && size(params.lfp, 2) == 1
-    if filter_avaliable(params.channel_index_original)
-        params.lfp = applyFilter(params.lfp, filterSettings, newFs);
-    end
-elseif sum(filter_avaliable) > 0
-    params.lfp(:, filter_avaliable) = applyFilter(params.lfp(:, filter_avaliable), filterSettings, newFs);
-end
-
-try
-    delete(wb);
-catch
+    stim_inxs = ClosestIndex(stims, time, true);
+    params.spks = maskSpikesInStimWindows(params.spks, time, stim_inxs, win_r);
 end
 
 timePoints = params.timePoints;
@@ -138,7 +145,6 @@ meanWindow = params.meanWindow;
 hd = params.hd;
 channelSettings = params.channelSettings;
 Fs = params.Fs;
-lfp = params.lfp;
 N = params.N;
 time = params.time;
 binsize = params.binsize;
@@ -151,6 +157,7 @@ mean_group_ch = params.mean_group_ch;
 t_profile = params.t_profile;
 timeUnitFactor = params.timeUnitFactor;
 lfpVar = params.lfpVar;
+shiftCoeff = params.shiftCoeff;
 
 if isfield(params, 'ch_labels')
     ch_labels = params.ch_labels;
@@ -166,55 +173,37 @@ activeChannels = find([channelSettings{:, 2}]);
 scalingCoefficients = [channelSettings{:, 3}];
 colors_in = channelSettings(:, 4)';
 widths_in = [channelSettings{:, 5}];
+ch_inxs = ch_inxs(:)';
 
 winLen = round(meanWindow * Fs);
 halfWin = round(meanWindow * Fs / 2);
-meanData = zeros(winLen, size(lfp, 2));
 numEvents = length(timePoints);
-removeBaseline = params.removeBaseline;
 
-if removeBaseline
-    lfp(:, mean_group_ch) = lfp(:, mean_group_ch) - nanmean(lfp(:, mean_group_ch), 2);
+[meanData, originalEventsData, wasCanceled, nProcessed, processedTimePoints] = accumulateMeanEventWindows(params);
+
+if nProcessed == 0
+    if wasCanceled
+        fprintf('Mean events stopped by user.\n');
+    end
+    calculation_result = struct();
+    plotParams = params;
+    return;
 end
 
-ch_enabled = false(length(ch_labels), 1);
-ch_enabled(activeChannels) = true;
-scaleEnabled = scalingCoefficients(ch_enabled);
+params.nProcessedEvents = nProcessed;
+params.totalEvents = numEvents;
+params.wasCanceled = wasCanceled;
+params.processedTimePoints = processedTimePoints;
 
-eventIdx = round(timePoints(:) * Fs);
+try
+    delete(wb);
+catch
+end
+
+eventIdx = round(processedTimePoints(:) * Fs);
 windowStart = max(eventIdx - halfWin, 1);
-windowEnd = min(windowStart + winLen - 1, N);
-valid = windowEnd < size(lfp, 1);
-nValid = nnz(valid);
-originalEventsData = cell(nValid, 1);
-kValid = 0;
-
-showWaitbar = ~isfield(params, 'showWaitbar') || logical(params.showWaitbar);
-wb_local = [];
-if showWaitbar
-    wb_local = waitbar(0, 'Processing events...', 'Name', 'Calculating mean events');
-end
-wbStep = max(1, floor(numEvents / 20));
-
-for i = 1:numEvents
-    if valid(i)
-        eventDataRaw = lfp(windowStart(i):windowEnd(i), :);
-        if removeBaseline
-            eventDataProcessed = eventDataRaw - nanmedian(eventDataRaw);
-        else
-            eventDataProcessed = eventDataRaw;
-        end
-        meanData = meanData + eventDataProcessed;
-        kValid = kValid + 1;
-        originalEventsData{kValid} = eventDataProcessed(:, ch_enabled) .* scaleEnabled;
-    end
-
-    if showWaitbar && ~isempty(wb_local) && (mod(i, wbStep) == 0 || i == numEvents)
-        waitbar(i / numEvents, wb_local, sprintf('Processing event %d of %d', i, numEvents));
-    end
-end
-
-meanData = meanData / numEvents;
+windowEnd = min(windowStart + winLen - 1, numel(time));
+valid = true(nProcessed, 1);
 
 if params.SmoothingKernel_s > 0
     kernel_samples = max(5, round((params.SmoothingKernel_s / timeUnitFactor) * Fs));
@@ -242,10 +231,10 @@ if show_spikes && ~isempty(spks) && ~show_CSD
         t0 = time(windowStart(firstValid));
         t1 = time(windowEnd(firstValid));
         nBins = max(numel(t0:binsize:t1) - 1, 0);
-        evs = zeros(numEvents, numel(ch_inxs), nBins);
+        evs = zeros(nProcessed, numel(ch_inxs), nBins);
         nChSpk = numel(ch_inxs);
 
-        for i = 1:numEvents
+        for i = 1:nProcessed
             if valid(i) && nBins > 0
                 time_start = time(windowStart(i));
                 edges = linspace(time_start, time_start + nBins * binsize, nBins + 1);
@@ -258,28 +247,24 @@ if show_spikes && ~isempty(spks) && ~show_CSD
                 end
                 evs(i, :, :) = ch_hists;
             end
-            if showWaitbar && ~isempty(wb_local) && (mod(i, wbStep) == 0 || i == numEvents)
-                waitbar(i / numEvents, wb_local, sprintf('Processing spikes: event %d of %d', i, numEvents));
-            end
         end
         ev_hists = squeeze(mean(evs, 1));
     end
 end
 
-if showWaitbar && ~isempty(wb_local)
-    close(wb_local);
-end
-
 start_time = -meanWindow / 2;
 end_time = meanWindow / 2;
 timeAxis = linspace(start_time, end_time, size(meanData, 1)) * timeUnitFactor;
-pl_meanData = meanData .* scalingCoefficients;
-pl_meanData = pl_meanData(:, ch_enabled);
+pl_meanData = meanData .* scalingCoefficients(ch_inxs);
 numChannels = size(pl_meanData, 2);
 
 calculation_result = struct();
 calculation_result.meanData = meanData;
 calculation_result.timePoints = timePoints;
+calculation_result.nProcessedEvents = nProcessed;
+calculation_result.totalEvents = numEvents;
+calculation_result.wasCanceled = wasCanceled;
+calculation_result.processedTimePoints = processedTimePoints;
 calculation_result.sourceType = sourceType;
 calculation_result.channelSettings = channelSettings;
 calculation_result.activeChannels = activeChannels;

@@ -473,7 +473,7 @@ function signalViewerGUI(filePath)
     set(timeUnitPopup, 'Value', index);
 
     % Добавление выпадающего списка для выбора режима просмотра
-    timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', timeCenterNav('modes'), 'Position', getElementPosition('time_center_popup'), 'Callback', @changeTimeCenter, 'Tag', 'time_center_popup');
+    timeCenterPopup = uicontrol('Parent', mainPanel, 'Style', 'popup', 'String', timeCenterNav('modes'), 'Position', getElementPosition('time_center_popup'), 'Value', 1, 'Callback', @changeTimeCenter, 'Tag', 'time_center_popup');
 
     % Путь к папке с иконками
     assetsPath = getAssetsPath();
@@ -1107,8 +1107,11 @@ function signalViewerGUI(filePath)
         end
         channelLayoutFilePath = fullfile(path, file);
         channelLayoutNameGrid = parseChannelLayout(channelLayoutFilePath);
+        syncChannelEnabledFromLayout();
+        updateTable();
+        updateLocalCoefs();
         visualSettings.viewer_display_mode = 'grid';
-        saveChannelSettings('channelLayoutFilePath', 'channelLayoutNameGrid', 'visualSettings');
+        saveChannelSettings('channelLayoutFilePath', 'channelLayoutNameGrid', 'visualSettings', 'channelEnabled');
         syncViewerDisplayModeMenuLabel();
         syncCSDControlsState();
         updatePlot('layout_mode');
@@ -1804,7 +1807,7 @@ function signalViewerGUI(filePath)
     end
 
     function syncTimeCenterPopup()
-        set(timeCenterPopup, 'Value', timeCenterNav('popupIndex'));
+        timeCenterNav('syncPopup', timeCenterPopup, time_forward);
     end
     
     % Функция для обновления максимального значения слайдера в зависимости от режима
@@ -2802,7 +2805,6 @@ function signalViewerGUI(filePath)
         syncLogoCheckboxesFromLinesAndStyles();
         updateMUAControlsVisibility();
         
-        set(timeCenterPopup, 'String', timeCenterNav('modes'));
         syncTimeCenterPopup();
         
         set(timeBackEdit, 'String', num2str(time_back*timeUnitFactor));% time window before

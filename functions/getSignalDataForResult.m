@@ -1,112 +1,49 @@
 function [signal_data, time_data] = getSignalDataForResult(metadata)
-    % Получает данные сигнала для конкретного результата
-    
-    % Глобальные переменные для доступа к данным
-    global lfp_file time time_back hd
-    global newFs Fs timeUnitFactor selectedUnit
+    global lfp_file time time_back
+    global newFs Fs
     global filterSettings filter_avaliable mean_group_ch
-    global selectedCenter events stims sweep_info event_inx stim_inx sweep_inx events_exist stims_exist
+    global stims stims_exist
     global visualSettings art_rem_settings
-    
-    try
-        % fprintf('DEBUG: getSignalDataForResult - начало обработки\n');
-        
-        % Используем ЛОКАЛЬНУЮ копию, НЕ изменяем глобальную переменную
-        local_chosen_time_interval = metadata.chosen_time_interval;
-        
-        % fprintf('DEBUG: Временной интервал: [%.3f, %.3f]\n', local_chosen_time_interval(1), local_chosen_time_interval(2));
-        
-        % Получаем данные для этого временного интервала
-        plot_time_interval = local_chosen_time_interval;
-        plot_time_interval(1) = plot_time_interval(1) - time_back;
-        
-        % fprintf('DEBUG: Расширенный интервал: [%.3f, %.3f]\n', plot_time_interval(1), plot_time_interval(2));
-        
-        row_start = find(time >= plot_time_interval(1), 1, 'first');
-        row_end = find(time < plot_time_interval(2), 1, 'last');
-        cond = row_start:row_end;
-        local_lfp = lfp_file.lfp(cond, :);
-        
-        % fprintf('DEBUG: Размер local_lfp: %s\n', mat2str(size(local_lfp)));
-        
-        % Вычитание средних каналов если нужно
-        if ~isempty(mean_group_ch) && any(mean_group_ch)
-            local_lfp(:, mean_group_ch) = local_lfp(:, mean_group_ch) - mean(local_lfp(:, mean_group_ch), 2);
-        end
-        
-        selected_channel = metadata.channel;
-        signal_data = local_lfp(:, selected_channel)';
-        time_data = time(cond);
-        
-        % fprintf('DEBUG: Исходный размер signal_data: %s, time_data: %s\n', ...
-        %     mat2str(size(signal_data)), mat2str(size(time_data)));
-        
-        % Нормализуем время относительно rel_shift
-        if strcmp(metadata.selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
-            local_rel_shift = stims(metadata.stim_inx);
-        else
-            local_rel_shift = local_chosen_time_interval(1);
-        end
 
-        % Убираем артефакт стимуляции если есть стимулы
-        if not(isempty(stims)) && visualSettings.stim_show
-            % Используем локальный стимул для каждого результата
-            Fs_fascor = Fs/1000;
-            local_stim = stims(metadata.stim_inx);
-            % fprintf('DEBUG: Удаление артефакта - параметры:\n');
-            fprintf('  - Размер signal_data: %s\n', mat2str(size(signal_data)));
-            fprintf('  - Размер time_data: %s\n', mat2str(size(time_data)));
-            fprintf('  - Время стимула (абс.): %.3f\n', local_stim);
-            fprintf('  - Диапазон времени (абс.): [%.3f, %.3f]\n', time_data(1), time_data(end));
-            fprintf('  - Fs_fascor: %.3f\n', Fs_fascor);
-            fprintf('  - artifact_window_ms: %.3f\n', art_rem_settings.artifact_window_ms);
-            
-            % Нормализуем время стимула относительно текущего временного окна
-            local_stim_rel = local_stim - time_data(1);
-            fprintf('  - Время стимула (отн.): %.3f\n', local_stim_rel);
-            
-            % Нормализуем временную ось
-            time_data_rel = time_data - time_data(1);
-            fprintf('  - Диапазон времени (отн.): [%.3f, %.3f]\n', time_data_rel(1), time_data_rel(end));
-            
-            % Транспонируем signal_data обратно в столбец для removeStimArtifact
-            if size(signal_data, 1) == 1
-                signal_data = signal_data';
-            end
-            
-            signal_data = removeStimArtifact(signal_data, local_stim_rel, time_data_rel, art_rem_settings.artifact_window_ms*Fs_fascor*0.5, art_rem_settings.interp_method);
-            % fprintf('DEBUG: Артефакт стимула удален\n');
-            
-            % Возвращаем в строку для совместимости с остальным кодом
-            if size(signal_data, 2) == 1
-                signal_data = signal_data';
-            end
-        end
-        
-        % fprintf('DEBUG: rel_shift для нормализации = %.3f\n', local_rel_shift);
-        % fprintf('DEBUG: Время до нормализации: [%.3f, %.3f, %.3f, %.3f, %.3f]\n', ...
-        %     time_data(1:min(5, length(time_data))));
-        
-        time_data = time_data - local_rel_shift;
-        
-        % fprintf('DEBUG: Время после нормализации: [%.3f, %.3f, %.3f, %.3f, %.3f]\n', ...
-        %     time_data(1:min(5, length(time_data))));
-        
-        % Фильтрация если включена
-        if sum(filter_avaliable) > 0 && filter_avaliable(selected_channel)
-            signal_data = applyFilter(signal_data, filterSettings, newFs);
-            % fprintf('DEBUG: После фильтрации - размер signal_data: %s\n', mat2str(size(signal_data)));
-        end
-        
-        % Ресэмплинг убран - используем исходные данные
-        % fprintf('DEBUG: Ресэмплинг пропущен - используем исходные данные\n');
-        
-        % fprintf('DEBUG: getSignalDataForResult - финальный размер signal_data: %s, time_data: %s\n', ...
-        %     mat2str(size(signal_data)), mat2str(size(time_data)));
-        
-    catch ME
-        fprintf('❌ Ошибка при получении данных для результата: %s\n', ME.message);
-        signal_data = [];
-        time_data = [];
+    signal_data = [];
+    time_data = [];
+
+    local_chosen_time_interval = metadata.chosen_time_interval;
+    plot_time_interval = local_chosen_time_interval;
+    plot_time_interval(1) = plot_time_interval(1) - time_back;
+
+    selected_channel = metadata.channel;
+    [local_lfp, time_data, cols] = readLfpChannelsForInterval( ...
+        lfp_file, time, plot_time_interval, selected_channel, mean_group_ch);
+    if isempty(local_lfp)
+        return;
     end
-end 
+
+    ch_local = find(cols == selected_channel, 1, 'first');
+    signal_data = local_lfp(:, ch_local)';
+    time_data = time_data(:)';
+
+    if strcmp(metadata.selectedCenter, 'stimulus') && stims_exist && ~isempty(stims)
+        local_rel_shift = stims(metadata.stim_inx);
+    else
+        local_rel_shift = local_chosen_time_interval(1);
+    end
+
+    stims_in = [];
+    if ~isempty(stims) && visualSettings.stim_show
+        Fs_fascor = Fs / 1000;
+        local_stim = stims(metadata.stim_inx);
+        local_stim_rel = local_stim - time_data(1);
+        time_data_rel = time_data - time_data(1);
+        signal_col = signal_data(:);
+        signal_col = removeStimArtifact(signal_col, local_stim_rel, time_data_rel(:), ...
+            art_rem_settings.artifact_window_ms * Fs_fascor * 0.5, art_rem_settings.interp_method);
+        signal_data = signal_col';
+    end
+
+    time_data = time_data - local_rel_shift;
+
+    if sum(filter_avaliable) > 0 && filter_avaliable(selected_channel)
+        signal_data = applyFilter(signal_data, filterSettings, newFs);
+    end
+end

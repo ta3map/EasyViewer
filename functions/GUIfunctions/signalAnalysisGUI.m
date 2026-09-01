@@ -19,7 +19,7 @@ function signalAnalysisGUI(editMode)
     global EV_path EV_version EV_date
     global lfp_file time chosen_time_interval time_back time_forward hd
     global newFs Fs timeUnitFactor selectedUnit
-    global filterSettings filter_avaliable mean_group_ch
+    global filterSettings filter_avaliable mean_group_ch baseline_subtract_available
     global selectedCenter events stims sweep_info event_inx stim_inx sweep_inx events_exist stims_exist
     global visualSettings art_rem_settings
     global SettingsFilepath channelSettings
@@ -228,6 +228,13 @@ function signalAnalysisGUI(editMode)
     table_column_names = {'Stimulus', 'Slope', 'Peak Time (rel)', 'Peak Time (abs)', 'Peak Amplitude', 'Peak Value (rel)', 'Onset Time (rel)', 'Onset Time (abs)', 'Peak - Onset', 'Baseline', 'Channel', 'Stim Time', 'Info'};
     table_column_widths = {55, 50, 100, 100, 100, 100, 100, 100, 100, 80, 80, 80, 200};
     table_column_formats = {'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'char'};
+    
+    if ~isscalar(stims_exist)
+        stims_exist = false;
+    end
+    if ~isscalar(events_exist)
+        events_exist = false;
+    end
     
     % Поиск открытой фигуры с заданным идентификатором
     guiFig = findobj('Type', 'figure', 'Tag', figTag);
@@ -446,7 +453,7 @@ function signalAnalysisGUI(editMode)
     hTimeCenterPopup = uicontrol(signalFig, 'Style', 'popup', ...
         'String', timeCenterNav('modes'), ...
         'Position', getElementPosition('time_center_popup'), ...
-        'Value', timeCenterNav('popupIndex'), ...
+        'Value', 1, ...
         'Callback', @changeTimeCenter, 'Tag', 'time_center_popup');
     
     hNavigationStatus = uicontrol(signalFig, 'Style', 'text', 'Position', getElementPosition('navigation_status'), ...
@@ -1616,7 +1623,7 @@ updateCursorEditFields();
     end
 
     function updateNavigationStatus()
-        set(hTimeCenterPopup, 'Value', timeCenterNav('popupIndex'));
+        timeCenterNav('syncPopup', hTimeCenterPopup, time_forward);
         set(hNavigationStatus, 'String', timeCenterNav('status'));
     end
 
@@ -1780,15 +1787,17 @@ updateCursorEditFields();
             plot_time_interval = chosen_time_interval;
             plot_time_interval(1) = plot_time_interval(1) - time_back;
             plot_time_interval(2) = chosen_time_interval(1) + time_forward;
-            
-            [row_start, row_end] = timeWindowIndices(time, plot_time_interval(1), plot_time_interval(2));
+
             selected_channel = slope_measurement_settings.channel;
-            if isempty(row_start)
+            [local_lfp, x_data, cols] = readLfpChannelsForInterval( ...
+                lfp_file, time, plot_time_interval, selected_channel, mean_group_ch);
+            if isempty(local_lfp)
                 y_work = [];
                 x_data = [];
             else
-                y_work = lfp_file.lfp(row_start:row_end, selected_channel);
-                x_data = time(row_start:row_end) - rel_shift;
+                ch_local = find(cols == selected_channel, 1, 'first');
+                y_work = local_lfp(:, ch_local);
+                x_data = x_data - rel_shift;
             end
             Fs_fascor = Fs/1000;
             y_work = removeStimArtifact(y_work, 0, x_data, art_rem_settings.artifact_window_ms*Fs_fascor*0.5, art_rem_settings.interp_method);
@@ -2581,20 +2590,19 @@ updateCursorEditFields();
 
         [raw_data, time_in] = getSignalDataForInterval( ...
             lfp_file, time, slope_measurement_settings.channel, custom_interval, data_params);
-        if ~isempty(raw_data) && ~isempty(newFs) && isfinite(newFs) && newFs > 0 && Fs > newFs
-            raw_data = resample1(raw_data(:), round(newFs), Fs);
-            time_in = linspace(time_in(1), time_in(end), numel(raw_data))';
-        end
-        channel_data = raw_data;
-        if analysis_smooth_enabled && analysis_smooth_span >= 5 && ~isempty(channel_data)
-            channel_data = smooth1(channel_data(:), analysis_smooth_span, analysis_smooth_method);
-        end
+        procOpts = struct( ...
+            'profile', 'analysis', ...
+            'Fs', Fs, ...
+            'newFs', newFs, ...
+            'smoothing_enabled', analysis_smooth_enabled, ...
+            'smoothing_span', analysis_smooth_span, ...
+            'smoothing_method', analysis_smooth_method);
+        [channel_data, time_in] = processSignalChannels(raw_data, time_in, procOpts);
+        raw_data = channel_data;
         setappdata(hPlotAxes, 'analysis_raw_data', raw_data);
     end
 
     function [channel_data, time_in, raw_data] = loadAnalysisChannelViaViewerPipeline()
-        global ch_inxs m_coef baseline_subtract_available
-
         ch = slope_measurement_settings.channel;
         nChAll = lfp_size(lfp_file);
         nChAll = nChAll(2);
@@ -2605,31 +2613,18 @@ updateCursorEditFields();
             ch = nChAll;
         end
 
-        prev_ch = ch_inxs;
-        prev_m = m_coef;
-        prev_bs = baseline_subtract_available;
-        prev_mg = mean_group_ch;
-        prev_fa = filter_avaliable;
-
-        ch_inxs = ch;
+        ctx = struct();
+        ctx.ch_inxs = ch;
         if ~isempty(scalingCoefficients) && numel(scalingCoefficients) >= ch
-            m_coef = scalingCoefficients(ch);
+            ctx.m_coef = double(scalingCoefficients(ch));
         else
-            m_coef = 1;
+            ctx.m_coef = 1;
         end
-        m_coef = double(m_coef(1));
+        ctx.mean_group_ch = adaptLogicalChannelMask(mean_group_ch, nChAll);
+        ctx.filter_avaliable = adaptLogicalChannelMask(filter_avaliable, nChAll);
+        ctx.baseline_subtract_available = adaptLogicalChannelMask(baseline_subtract_available, nChAll);
 
-        mean_group_ch = adaptLogicalChannelMask(mean_group_ch, nChAll);
-        filter_avaliable = adaptLogicalChannelMask(filter_avaliable, nChAll);
-        baseline_subtract_available = adaptLogicalChannelMask(baseline_subtract_available, nChAll);
-
-        pd = prepareViewerPlotData();
-
-        ch_inxs = prev_ch;
-        m_coef = prev_m;
-        baseline_subtract_available = prev_bs;
-        mean_group_ch = prev_mg;
-        filter_avaliable = prev_fa;
+        pd = prepareViewerPlotData(ctx);
 
         raw_data = pd.data_res(:, 1);
         time_in = pd.time_res(:);
@@ -3268,6 +3263,11 @@ updateCursorEditFields();
                 mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
                 csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
                 filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
+                if isfield(loadedSettings, 'baseline_subtract_available')
+                    baseline_subtract_available = np_flatten(loadedSettings.baseline_subtract_available);
+                else
+                    baseline_subtract_available = true(numChannels, 1);
+                end
 
                 % fprintf('DEBUG: loadSettingsFile: Загружено каналов: %d\n', length(channelNames));
             else % неактуально с 1.10.00  
@@ -3286,6 +3286,11 @@ updateCursorEditFields();
                 mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
                 csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
                 filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
+                if isfield(loadedSettings, 'baseline_subtract_available')
+                    baseline_subtract_available = np_flatten(loadedSettings.baseline_subtract_available);
+                else
+                    baseline_subtract_available = true(numChannels, 1);
+                end
                 
                 % fprintf('DEBUG: loadSettingsFile: Загружено каналов (старый формат): %d\n', length(channelNames));
             end
@@ -3359,6 +3364,7 @@ updateCursorEditFields();
             mean_group_ch = false(1, numChannels);
             csd_avaliable = true(1, numChannels);
             filter_avaliable = false(1, numChannels);
+            baseline_subtract_available = true(1, numChannels);
             
             filterSettings.filterType = 'highpass';
             filterSettings.freqLow = 10;

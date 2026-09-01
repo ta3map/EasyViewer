@@ -1,13 +1,28 @@
 function varargout = timeCenterNav(action, varargin)
     % Shared time-center navigation used by signalViewerGUI and signalAnalysisGUI.
-    % Modes: continuous, stimulus, events.
+    % Modes: continuous, stimulus, events (popup lists only modes with data in memory).
 
     global selectedCenter events event_inx events_exist stims stim_inx stims_exist
     global time chosen_time_interval
 
     switch action
         case 'modes'
-            varargout{1} = navModes();
+            varargout{1} = navModesAvailable();
+        case 'syncPopup'
+            popup = varargin{1};
+            windowSize = [];
+            if numel(varargin) >= 2
+                windowSize = varargin{2};
+            end
+            ensureAvailableCenter(windowSize);
+            modes = navModesAvailable();
+            set(popup, 'String', modes);
+            idx = find(strcmp(modes, selectedCenter), 1);
+            if isempty(idx)
+                idx = 1;
+                selectedCenter = modes{1};
+            end
+            set(popup, 'Value', idx);
         case 'shift'
             ensureCenter();
             shiftImpl(varargin{1}, varargin{2});
@@ -18,16 +33,27 @@ function varargout = timeCenterNav(action, varargin)
             ensureCenter();
             resetIndexImpl();
         case 'popupIndex'
-            ensureCenter();
-            varargout{1} = find(strcmp(navModes(), selectedCenter), 1);
+            ensureAvailableCenter();
+            idx = find(strcmp(navModesAvailable(), selectedCenter), 1);
+            if isempty(idx)
+                idx = 1;
+            end
+            varargout{1} = idx;
         case 'status'
             ensureCenter();
             varargout{1} = statusImpl();
     end
 end
 
-function names = navModes()
-    names = {'continuous', 'stimulus', 'events'};
+function names = navModesAvailable()
+    global events_exist stims_exist events stims
+    names = {'continuous'};
+    if isscalar(stims_exist) && stims_exist && ~isempty(stims)
+        names{end + 1} = 'stimulus';
+    end
+    if isscalar(events_exist) && events_exist && ~isempty(events)
+        names{end + 1} = 'events';
+    end
 end
 
 function ensureCenter()
@@ -45,6 +71,19 @@ function ensureCenter()
             return;
         otherwise
             selectedCenter = 'continuous';
+    end
+end
+
+function ensureAvailableCenter(windowSize)
+    global selectedCenter time
+    ensureCenter();
+    modes = navModesAvailable();
+    if ~any(strcmp(modes, selectedCenter))
+        selectedCenter = 'continuous';
+        resetIndexImpl();
+        if nargin >= 1 && ~isempty(windowSize) && ~isempty(time)
+            applyIntervalImpl(windowSize);
+        end
     end
 end
 

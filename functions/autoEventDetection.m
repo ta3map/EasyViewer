@@ -301,23 +301,27 @@ function [coreTrace, coreTime] = processDetectionChunk(chunk, params)
 
     switch DetectionType
         case 'one channel positive'
-            [posRaw, ~] = getSignalDataForInterval(lfp_file, time, ChPos, time_interval, dataParams);
+            [posRaw, timePad] = getSignalDataForInterval(lfp_file, time, ChPos, time_interval, dataParams);
             if isempty(posRaw)
                 coreTrace = [];
                 coreTime = [];
                 return;
             end
-            posRaw = filterDetectionChannel(posRaw, ChPos, filterSettings, filter_avaliable, newFs);
-            traceExt = resample1(posRaw, lfpFrq, rawFrq)';
+            detOpts = struct('profile', 'detection', 'filter_enabled', filter_avaliable(ChPos), ...
+                'filterSettings', filterSettings, 'newFs', newFs, 'Fs', rawFrq);
+            [posRaw, timeExt] = processSignalChannels(posRaw, timePad, detOpts);
+            traceExt = posRaw(:)';
         case 'one channel negative'
-            [negRaw, ~] = getSignalDataForInterval(lfp_file, time, ChNeg, time_interval, dataParams);
+            [negRaw, timePad] = getSignalDataForInterval(lfp_file, time, ChNeg, time_interval, dataParams);
             if isempty(negRaw)
                 coreTrace = [];
                 coreTime = [];
                 return;
             end
-            negRaw = filterDetectionChannel(negRaw, ChNeg, filterSettings, filter_avaliable, newFs);
-            traceExt = resample1(-negRaw, lfpFrq, rawFrq)';
+            detOpts = struct('profile', 'detection', 'filter_enabled', filter_avaliable(ChNeg), ...
+                'filterSettings', filterSettings, 'newFs', newFs, 'Fs', rawFrq);
+            [negRaw, timeExt] = processSignalChannels(negRaw, timePad, detOpts);
+            traceExt = -negRaw(:)';
         otherwise
             [posRaw, ~] = getSignalDataForInterval(lfp_file, time, ChPos, time_interval, dataParams);
             [negRaw, ~] = getSignalDataForInterval(lfp_file, time, ChNeg, time_interval, dataParams);
@@ -329,9 +333,13 @@ function [coreTrace, coreTime] = processDetectionChunk(chunk, params)
             posRaw = filterDetectionChannel(posRaw, ChPos, filterSettings, filter_avaliable, newFs);
             negRaw = filterDetectionChannel(negRaw, ChNeg, filterSettings, filter_avaliable, newFs);
             traceExt = buildDetectionTraceSegment(posRaw, negRaw, DetectionType, lfpFrq, rawFrq);
+            timeExt = linspace(time(chunk.padStart), time(chunk.padEnd), numel(traceExt));
     end
 
-    timeExt = linspace(time(chunk.padStart), time(chunk.padEnd), numel(traceExt));
+    timeExt = timeExt(:)';
+    if numel(timeExt) ~= numel(traceExt)
+        timeExt = linspace(time(chunk.padStart), time(chunk.padEnd), numel(traceExt));
+    end
     coreT1 = time(chunk.coreStart);
     coreT2 = time(chunk.coreEnd);
     coreMask = timeExt >= coreT1 & timeExt <= coreT2;

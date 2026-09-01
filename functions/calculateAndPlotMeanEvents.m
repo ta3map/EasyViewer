@@ -32,10 +32,15 @@ global matFileName
 global axes_background_color
 global meanControlsState
 
+meanWasCanceled = false;
+meanEventsProcessed = 0;
+meanEventsTotal = 0;
+
 wbCreatedHere = isempty(wb) || ~isvalid(wb);
 if wbCreatedHere
-    wb = waitbar(0.10, 'Preparing mean trace...', 'Name', 'Mean Events');
+    wb = createCancelableWaitbar(0.10, 'Preparing mean trace...', 'Mean Events');
 else
+    setappdata(wb, 'canceling', 0);
     waitbar(0.10, wb, 'Preparing mean trace...');
 end
 drawnow;
@@ -77,8 +82,10 @@ end
 [mat_file_folder, original_filename, ~] = fileparts(matFilePath);
 
 channelSettings = buildChannelSettingsTable();
-
-params.sourceType = sourceType;
+activeChannels = find([channelSettings{:, 2}]);
+ch_inxs = activeChannels(:)';
+params.ch_inxs = ch_inxs;
+params.read_ch = ch_inxs;
 if isfield(opts, 'csd_split_by_channel_gaps')
     csd_split_by_channel_gaps = logical(opts.csd_split_by_channel_gaps);
 end
@@ -105,8 +112,17 @@ end
 params.hd = hd;
 params.channelSettings = channelSettings;
 params.Fs = Fs;
-params.lfp = lfp_file.lfp;
+params.lfp_file = lfp_file;
 params.N = N;
+params.read_ch = ch_inxs;
+params.filter_enabled = filter_avaliable;
+params.newFs = newFs;
+params.filterSettings = filterSettings;
+params.stims = stims;
+params.artifact_interp_method = art_rem_settings.interp_method;
+params.wb = wb;
+params.progress = struct('fracLo', 0.15, 'fracHi', 0.85);
+params.showWaitbar = isempty(wb) || ~isvalid(wb);
 params.time = time;
 params.binsize = binsize;
 params.spk_threshold = std_coef;
@@ -122,7 +138,6 @@ if isfield(opts, 'show_spikes')
 else
     params.show_spikes = visualSettings.show_spikes;
 end
-params.ch_inxs = ch_inxs; % Индексы активированных каналов
 if isfield(opts, 'show_CSD')
     params.show_CSD = logical(opts.show_CSD);
 else
@@ -136,10 +151,6 @@ params.lfpVar = lfpVar;
 params.mean_group_ch = mean_group_ch;
 params.t_profile = t_mean_profile;
 
-if ~isempty(wb) && isvalid(wb)
-    waitbar(0.15, wb, 'Preparing input data...');
-    drawnow;
-end
 % Определение параметров удаления артефакта: приоритет у параметров из opts
 if isfield(opts, 'removeArtifact')
     params.remove_artifact = strcmp(sourceType, 'stimuli') && logical(opts.removeArtifact);
@@ -152,6 +163,7 @@ else
     params.remove_artifact = strcmp(sourceType, 'stimuli') && art_rem_settings.artifact_window_ms > 0;
     artifact_window_ms = art_rem_settings.artifact_window_ms;
 end
+params.artifact_window_ms = artifact_window_ms;
 if isfield(opts, 'autoScale')
     params.autoScale = logical(opts.autoScale);
 else
@@ -205,39 +217,48 @@ else
     params.baselineEnabled = true;
 end
 
-% Убираем артефакт стимуляции в окне усреднения
-if params.remove_artifact
+if params.remove_artifact && params.show_spikes
     win_r = round(artifact_window_ms * (Fs/1000));
-    debugState('calculateAndPlotMeanEvents', 'Stim artifact removal: Fs=%dHz, window=%.3f ms (~%d samples)', Fs, artifact_window_ms, win_r);
-    if ~isempty(wb) && isvalid(wb)
-        waitbar(0.3, wb, 'Removing stimulus artifacts...');
-        drawnow;
-    end
-    params.lfp = removeStimArtifact(params.lfp, stims, time, win_r, art_rem_settings.interp_method);
-    
-    if params.show_spikes
-        stim_inxs = ClosestIndex(stims, time, true);
-        params.spks = maskSpikesInStimWindows(params.spks, time, stim_inxs, win_r);
-    end
+    stim_inxs = ClosestIndex(stims, time, true);
+    params.spks = maskSpikesInStimWindows(params.spks, time, stim_inxs, win_r);
 end
 
-% Фильтруем
-if sum(filter_avaliable)>0
-    ch_to_filter = filter_avaliable;
-    if ~isempty(wb) && isvalid(wb)
-        waitbar(0.5, wb, sprintf('Applying filters (channels: %d)...', sum(ch_to_filter)));
-        drawnow;
+drawnow;
+if isWaitbarCanceled(wb)
+    meanWasCanceled = true;
+    fprintf('Mean events stopped by user.\n');
+    closeMeanEventsWaitbar(wb, wbCreatedHere, meanWasCanceled);
+    mean_f = [];
+    calculation_result = [];
+    return;
+end
+
+[params.meanData, params.originalEventsData, meanWasCanceled, meanEventsProcessed, params.processedTimePoints] = ...
+    accumulateMeanEventWindows(params);
+meanEventsTotal = numel(params.timePoints);
+params.nProcessedEvents = meanEventsProcessed;
+params.totalEvents = meanEventsTotal;
+params.wasCanceled = meanWasCanceled;
+
+if meanEventsProcessed == 0
+    if meanWasCanceled
+        fprintf('Mean events stopped by user.\n');
     end
-    params.lfp(:, ch_to_filter) = applyFilter(params.lfp(:, ch_to_filter), filterSettings, newFs);        
+    closeMeanEventsWaitbar(wb, wbCreatedHere, meanWasCanceled);
+    mean_f = [];
+    calculation_result = [];
+    if meanWasCanceled
+        return;
+    end
+    error('accumulateMeanEventWindows:noData', 'No event data available for mean trace.');
 end
 
 if ~isempty(wb) && isvalid(wb)
-    waitbar(0.85, wb, 'Rendering mean trace...');
+    waitbar(0.90, wb, 'Rendering mean trace...');
     drawnow;
 end
 
 renderBothModes = params.show_CSD && params.show_spikes;
-numEvents = numel(params.timePoints);
 if renderBothModes
     params_csd = params;
     params_csd.show_CSD = true;
@@ -261,22 +282,27 @@ else
     [mean_f, calculation_result] = finalizeMeanFigure(mean_f, calculation_result, '', true);
 end
 
-if ~buildFigure
+if meanWasCanceled
+    fprintf('Mean events stopped by user.\n');
+else
     fprintf('Mean events calculated.\n');
-    if ~isempty(wb) && isvalid(wb)
-        waitbar(1.0, wb, 'Complete');
-        drawnow;
+end
+closeMeanEventsWaitbar(wb, wbCreatedHere, meanWasCanceled);
+if buildFigure && exist('mean_f', 'var') && ~isempty(mean_f)
+    figList = mean_f(isgraphics(mean_f));
+    for figIdx = 1:numel(figList)
+        set(figList(figIdx), 'Visible', 'on');
     end
-    if wbCreatedHere && ~isempty(wb) && isvalid(wb)
-        delete(wb);
-    end
+end
+
+if ~buildFigure
     return
 end
 
 function paramsOut = createRenderParams(paramsIn, positionShift)
 paramsOut = paramsIn;
 if buildFigure
-    paramsOut.figure = figure('Name', figureName, 'Tag', 'meanSignalResult', ...
+    paramsOut.figure = figure('Name', figureName, 'Tag', 'meanSignalResult', 'Visible', 'off', ...
         'MenuBar', 'none', 'ToolBar', 'figure');
 else
     paramsOut.figure = figure('Name', figureName, 'Tag', 'meanSignalResult', 'Visible', 'off', ...
@@ -312,9 +338,9 @@ figureHandleOut = meanFigureIn;
 calculationResultOut = calculationResultIn;
 
 if strcmp(sourceType, 'stimuli')
-    figureHandleOut.Name = [figureName, ': ', local_evfilename, ' (', num2str(numEvents), ' stimuli)', nameSuffix];
+    figureHandleOut.Name = [figureName, ': ', local_evfilename, ' (', formatMeanEventsCountLabel('stimuli'), ')', nameSuffix];
 else
-    figureHandleOut.Name = [figureName, ': ', local_evfilename, ' (', num2str(numEvents), ' events)', nameSuffix];
+    figureHandleOut.Name = [figureName, ': ', local_evfilename, ' (', formatMeanEventsCountLabel('events'), ')', nameSuffix];
 end
 
 bgHex = axes_background_color;
@@ -344,7 +370,8 @@ if ~buildFigure
     return
 end
 
-numChannels = numel(ch_inxs);
+numChannels = numel(calculationResultOut.ch_inxs);
+chIdx = calculationResultOut.ch_inxs(:)';
 plotOffsets = zeros(1, numChannels);
 for p = 1:numChannels
     plotOffsets(p) = -(p-1) * params.shiftCoeff;
@@ -352,13 +379,13 @@ end
 y_pixel_size = 768;
 y_tick_min_pixel_size = 32;
 [chRanges, chRangesOffsets, chRangeIndexes] = calculateChRanges(plotOffsets, params.shiftCoeff, calculationResultOut.meanData, ...
-    numChannels, calculationResultOut.scalingCoefficients(ch_inxs), y_pixel_size, y_tick_min_pixel_size);
+    numChannels, calculationResultOut.scalingCoefficients(chIdx), y_pixel_size, y_tick_min_pixel_size);
 
 if isfield(calculationResultOut, 'baseline_medians')
     baseline_medians = calculationResultOut.baseline_medians;
     for ch_inx = 1:numChannels
         ch_mask = chRangeIndexes == ch_inx;
-        chRanges(ch_mask) = chRanges(ch_mask) + baseline_medians(ch_inx) / calculationResultOut.scalingCoefficients(ch_inxs(ch_inx));
+        chRanges(ch_mask) = chRanges(ch_mask) + baseline_medians(ch_inx) / calculationResultOut.scalingCoefficients(chIdx(ch_inx));
         chRangesOffsets(ch_mask) = chRangesOffsets(ch_mask) + baseline_medians(ch_inx);
     end
 end
@@ -367,7 +394,7 @@ if drawRangeLabels
     rangesTimeTicks = Xlims(1)+zeros(size(chRangesOffsets)) + 0.02*(Xlims(end) - Xlims(1));
     rangesTimeLabels = Xlims(1)+zeros(size(chRangesOffsets)) + 0.005*(Xlims(end) - Xlims(1));
     colors_in = channelSettings(:, 4)';
-    colors_in_selected = colors_in(ch_inxs);
+    colors_in_selected = colors_in(chIdx);
     ch_inx = 0;
     for color = colors_in_selected
         ch_inx = ch_inx+1;
@@ -391,7 +418,7 @@ if ~isempty(ax)
         mainAx = ax(1);
     end
     if visualSettings.show_full_signal
-        pl_meanData = calculationResultOut.meanData(:, ch_inxs) .* calculationResultOut.scalingCoefficients(ch_inxs);
+        pl_meanData = calculationResultOut.meanData .* reshape(calculationResultOut.scalingCoefficients(chIdx), 1, []);
         data_with_offsets = pl_meanData + plotOffsets;
         yMin = min(data_with_offsets(:));
         yMax = max(data_with_offsets(:));
@@ -1296,8 +1323,8 @@ applySecondaryAxesVisibility();
 end
 
 function plMeanData = prepareLfpForCsd(timeAxis)
-plMeanData = calculationResultOut.meanData(:, calculationResultOut.ch_inxs) .* ...
-    calculationResultOut.scalingCoefficients(calculationResultOut.ch_inxs);
+chIdx = calculationResultOut.ch_inxs(:)';
+plMeanData = calculationResultOut.meanData .* reshape(calculationResultOut.scalingCoefficients(chIdx), 1, []);
 plMeanData = double(plMeanData);
 processRight = currentXlims(2);
 if baselineEnabled
@@ -1630,20 +1657,30 @@ halfSpanOut = (baseClim(2) - baseClim(1)) / 2;
 end
 end
 
-fprintf('Mean events calculated.\n');
-if ~isempty(wb) && isvalid(wb)
-    waitbar(1.0, wb, 'Complete');
-    drawnow;
-end
-if wbCreatedHere && ~isempty(wb) && isvalid(wb)
-    delete(wb);
-end
-end
-
 function rgb = hex2rgb_meanEvents(hexColor)
 hexColor = strrep(hexColor, '#', '');
 r = hex2dec(hexColor(1:2)) / 255;
 g = hex2dec(hexColor(3:4)) / 255;
 b = hex2dec(hexColor(5:6)) / 255;
 rgb = [r, g, b];
+end
+
+function closeMeanEventsWaitbar(wbIn, createdHere, wasCanceled)
+if ~wasCanceled && ~isempty(wbIn) && isvalid(wbIn)
+    waitbar(1.0, wbIn, 'Complete');
+    drawnow;
+end
+if createdHere && ~isempty(wbIn) && isvalid(wbIn)
+    delete(wbIn);
+end
+end
+
+function label = formatMeanEventsCountLabel(kind)
+if meanWasCanceled && meanEventsProcessed < meanEventsTotal
+    label = [num2str(meanEventsProcessed), '/', num2str(meanEventsTotal), ' ', kind, ' (stopped)'];
+    return;
+end
+label = [num2str(meanEventsProcessed), ' ', kind];
+end
+
 end

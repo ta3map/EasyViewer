@@ -1081,7 +1081,7 @@ function autoEventDetectionGUI()
 
         if events_exist && ~isempty(events)
             selectedCenter = 'events';
-            set(timeCenterPopup, 'Value', timeCenterNav('popupIndex'));
+            timeCenterNav('syncPopup', timeCenterPopup, windowSize);
             chosen_time_interval(1) = events(event_inx);
             chosen_time_interval(2) = events(event_inx) + windowSize;
         else
