@@ -44,9 +44,6 @@ function updatePlot(reason)
         mainPlotGfx = ensureMainPlotGfxFields(mainPlotGfx);
     end
 
-    fprintf('[%s] updatePlot(%s): START, chosen_time_interval=[%.3f, %.3f], selectedCenter=%s\n', ...
-        datestr(now, 'HH:MM:SS.FFF'), reason, chosen_time_interval(1), chosen_time_interval(2), selectedCenter);
-
     plot_updating = true;
     keepLoading = ensureLoadingVisible(actions.showLoading);
 
@@ -64,6 +61,16 @@ function updatePlot(reason)
         return;
     end
 
+    if strcmp(reason, 'ylim_manual') && ~isViewerGridDisplayActive()
+        manualYlimValid = viewerYlimManual && numel(viewerYlim) == 2 ...
+            && all(isfinite(viewerYlim)) && viewerYlim(1) < viewerYlim(2);
+        if manualYlimValid && isgraphics(multiax)
+            ylim(multiax, [viewerYlim(1), viewerYlim(2)]);
+        end
+        finishPlotUpdate(chosen_time_interval(1));
+        return;
+    end
+
     if actions.needData
         pd = prepareViewerPlotData();
     else
@@ -73,7 +80,7 @@ function updatePlot(reason)
         end
     end
 
-    layoutActive = ~isempty(channelLayoutNameGrid);
+    layoutActive = isViewerGridDisplayActive();
 
     if layoutActive
         if actions.invalidate || actions.layoutSwitch
@@ -171,7 +178,18 @@ function pd = refreshGridBranch(pd, actions)
     params.stimTexts = pd.stimTexts;
     params.eventIndices = pd.eventIndices;
     params.stimIndices = pd.stimIndices;
-    plotChannelGrid(params, actions);
+    params.eventChannels = pd.eventChannels;
+    params.eventAmps = pd.eventAmps;
+    params.plot_time_interval = pd.plot_time_interval;
+    params.time_origin = pd.time_origin;
+    params.cond3 = pd.cond3;
+    layerOnlyGrid = ~actions.traces && ~actions.overlays && ~actions.chrome;
+    if ~layerOnlyGrid
+        plotChannelGrid(params, actions);
+    end
+    if actions.mua
+        refreshGridMuaLayer(pd, params, actions);
+    end
     refreshSharedPlotHeader(pd);
 end
 
@@ -188,19 +206,17 @@ function pd = refreshLinearBranch(pd, actions, keepLoading)
     sig = struct();
     sig.ch_inxs = ch_inxs(:)';
     sig.numChannels = numChannels;
-    sig.show_CSD = logical(visualSettings.show_CSD);
-    sig.show_spikes = logical(visualSettings.show_spikes) && ~isempty(spks);
-    sig.mua_use_mask = sig.show_spikes && logical(use_mua_mask);
     sig.gapIdx = gapIdx(:)';
 
     canReuse = ~actions.invalidate && canReuseMainPlotGfx(mainPlotGfx, sig);
+    layerOnlyRefresh = canReuse && ~actions.traces && ~actions.overlays && ~actions.chrome;
     axes(multiax);
     hold(multiax, 'on');
 
     if ~canReuse
         clearMainAxesPlotContent(multiax, keepLoading);
         mainPlotGfx = emptyMainPlotGfx();
-    else
+    elseif ~layerOnlyRefresh
         clearEphemeralLinearOverlays(keepLoading);
     end
 
@@ -295,21 +311,20 @@ end
 
 function refreshCsdLayer(pd, canReuse)
     global mainPlotGfx multiax visualSettings shiftCoeff offsets
-    global ch_inxs csd_avaliable Fs csd_smooth_coef csd_split_by_channel_gaps
+    global ch_inxs csd_avaliable Fs newFs csd_smooth_coef csd_split_by_channel_gaps
     global csd_image csd_t_range csd_ch_range csd_contrast_coef
 
     if ~visualSettings.show_CSD
         if ~isempty(mainPlotGfx.csdImage) && isgraphics(mainPlotGfx.csdImage)
             set(mainPlotGfx.csdImage, 'Visible', 'off');
         end
-        mainPlotGfx.csdImage = gobjects(0);
         return;
     end
 
     csd_active = csd_avaliable(ch_inxs);
     params.time_in_csd = pd.time_in_transformed;
     params.data_in_csd = pd.data_res;
-    params.Fs = Fs;
+    params.Fs = newFs;
     params.offsets = offsets;
     params.csd_smooth_coef = csd_smooth_coef;
     params.csd_active = csd_active;
@@ -391,8 +406,6 @@ function refreshMuaLayer(pd, canReuse, use_mua_mask)
         if ~isempty(mainPlotGfx.muaScatter) && isgraphics(mainPlotGfx.muaScatter)
             set(mainPlotGfx.muaScatter, 'Visible', 'off');
         end
-        mainPlotGfx.muaImage = gobjects(0);
-        mainPlotGfx.muaScatter = gobjects(0);
         return;
     end
 
@@ -412,44 +425,26 @@ function refreshMuaLayer(pd, canReuse, use_mua_mask)
     end
 
     c = 0;
-    nEst = 0;
-    if ~use_mua_mask
-        for ch_pre = ch_inxs
-            nEst = nEst + numel(spks(ch_pre).tStamp);
-        end
-    end
-    x_coord = zeros(1, nEst);
-    y_coord = zeros(1, nEst);
-    nFill = 0;
+    x_coord = [];
+    y_coord = [];
     for ch_inx = ch_inxs
         c = c + 1;
         offset = offsets(c);
-        if ch_inx > numel(spks) || ~isfield(spks, 'tStamp') || ~isfield(spks, 'ampl')
+        spk = spikesInTimeWindow(ch_inx, pd.plot_time_interval(1), pd.plot_time_interval(2), prg, lfpVar(ch_inx));
+        if isempty(spk)
             continue;
         end
-        nTs = numel(spks(ch_inx).tStamp);
-        nAm = numel(spks(ch_inx).ampl);
-        if nTs == 0 || nTs ~= nAm
+        if ~isempty(stims) && visualSettings.stim_show
+            stims_in = stims(pd.cond3);
+            stim_inxs = ClosestIndex(stims_in, time_in, true);
+            win_r = round(art_rem_settings.artifact_window_ms * (Fs / 1000));
+            keepSpk = maskTimesOutsideStimWindows(spk, time_in, stim_inxs, win_r);
+            spk = spk(keepSpk);
+        end
+        if isempty(spk)
             continue;
         end
-        ii = abs(double(spks(ch_inx).ampl)) >= (lfpVar(ch_inx) * prg);
-        spk = spks(ch_inx).tStamp(ii) / 1000;
         if use_mua_mask
-            cond4 = spk >= pd.plot_time_interval(1) & spk < pd.plot_time_interval(2);
-            spk = spk(cond4);
-            if isempty(spk)
-                continue;
-            end
-            if ~isempty(stims) && visualSettings.stim_show
-                stims_in = stims(pd.cond3);
-                stim_inxs = ClosestIndex(stims_in, time_in, true);
-                win_r = round(art_rem_settings.artifact_window_ms * (Fs / 1000));
-                keepSpk = maskTimesOutsideStimWindows(spk, time_in, stim_inxs, win_r);
-                spk = spk(keepSpk);
-            end
-            if isempty(spk)
-                continue;
-            end
             bin_idx = floor((spk - pd.plot_time_interval(1)) ./ local_binsize) + 1;
             bin_idx = bin_idx(bin_idx >= 1 & bin_idx <= n_bins);
             if isempty(bin_idx)
@@ -457,10 +452,8 @@ function refreshMuaLayer(pd, canReuse, use_mua_mask)
             end
             mua_counts(c, :) = accumarray(bin_idx(:), 1, [n_bins, 1], @sum, 0).';
         else
-            nSpk = numel(spk);
-            x_coord(nFill + (1:nSpk)) = spk;
-            y_coord(nFill + (1:nSpk)) = offset;
-            nFill = nFill + nSpk;
+            x_coord = [x_coord, spk(:)']; %#ok<AGROW>
+            y_coord = [y_coord, repmat(offset, 1, numel(spk))]; %#ok<AGROW>
         end
     end
 
@@ -503,19 +496,6 @@ function refreshMuaLayer(pd, canReuse, use_mua_mask)
         return;
     end
 
-    x_coord = x_coord(1:nFill);
-    y_coord = y_coord(1:nFill);
-    cond4 = x_coord >= pd.plot_time_interval(1) & x_coord < pd.plot_time_interval(2);
-    x_coord = x_coord(cond4);
-    y_coord = y_coord(cond4);
-    if ~isempty(stims) && visualSettings.stim_show
-        stims_in = stims(pd.cond3);
-        stim_inxs = ClosestIndex(stims_in, time_in, true);
-        win_r = round(art_rem_settings.artifact_window_ms * (Fs / 1000));
-        keepSpk = maskTimesOutsideStimWindows(x_coord, time_in, stim_inxs, win_r);
-        x_coord = x_coord(keepSpk);
-        y_coord = y_coord(keepSpk);
-    end
     x_plot = (x_coord - pd.time_origin) * timeUnitFactor;
     if canReuse && ~isempty(mainPlotGfx.muaScatter) && isgraphics(mainPlotGfx.muaScatter)
         set(mainPlotGfx.muaScatter, 'XData', x_plot, 'YData', y_coord, ...
@@ -532,6 +512,190 @@ function refreshMuaLayer(pd, canReuse, use_mua_mask)
         delete(mainPlotGfx.muaImage);
     end
     mainPlotGfx.muaImage = gobjects(0);
+end
+
+function refreshGridMuaLayer(pd, params, actions)
+    global channelGridGfx visualSettings
+    global spks lfpVar std_coef binsize stims art_rem_settings Fs time_in timeUnitFactor
+
+    if isempty(channelGridGfx) || ~isstruct(channelGridGfx) ...
+            || ~isfield(channelGridGfx, 'axes') || ~isgraphics(channelGridGfx.axes)
+        return;
+    end
+
+    indexGrid = params.indexGrid;
+    [nRows, nCols] = size(indexGrid);
+    Xlims = params.Xlims;
+    Ylims = params.Ylims;
+    ax = channelGridGfx.axes;
+    use_mua_mask = isfield(visualSettings, 'mua_use_mask') && visualSettings.mua_use_mask;
+
+    if ~(visualSettings.show_spikes && ~isempty(spks))
+        hideGridMuaLayer(nRows, nCols);
+        return;
+    end
+
+    prg = std_coef;
+    mua_alpha = 0.8;
+    if isfield(visualSettings, 'mua_alpha')
+        mua_alpha = min(max(double(visualSettings.mua_alpha), 0), 1);
+    end
+    mua_color_rgb = resolveMuaColor();
+    local_binsize = binsize;
+    if isempty(local_binsize) || ~isfinite(local_binsize) || local_binsize <= 0
+        local_binsize = 0.001;
+    end
+    n_bins = ceil((pd.plot_time_interval(2) - pd.plot_time_interval(1)) / local_binsize);
+    canReuse = ~actions.invalidate && isfield(channelGridGfx, 'muaImages') ...
+        && isequal(size(channelGridGfx.muaImages), [nRows nCols]);
+
+    if ~isfield(channelGridGfx, 'muaImages') || ~isequal(size(channelGridGfx.muaImages), [nRows nCols])
+        channelGridGfx.muaImages = gobjects(nRows, nCols);
+        channelGridGfx.muaScatters = gobjects(nRows, nCols);
+        canReuse = false;
+    end
+
+    for r = 1:nRows
+        for c = 1:nCols
+            chIdx = indexGrid(r, c);
+            hImg = channelGridGfx.muaImages(r, c);
+            hSc = channelGridGfx.muaScatters(r, c);
+            if chIdx < 1
+                hideGridMuaCell(hImg, hSc);
+                channelGridGfx.muaImages(r, c) = gobjects(1);
+                channelGridGfx.muaScatters(r, c) = gobjects(1);
+                continue;
+            end
+            [cellXlims, cellYlims] = gridCellLimits(r, c, nRows, nCols, Xlims, Ylims);
+            spk = gridChannelSpikes(chIdx, pd, prg, use_mua_mask, local_binsize, n_bins);
+            if use_mua_mask
+                [hImg, hSc] = drawGridMuaMask(ax, hImg, hSc, spk, cellXlims, cellYlims, Xlims, c, pd, ...
+                    mua_color_rgb, mua_alpha, canReuse);
+                channelGridGfx.muaImages(r, c) = hImg;
+                channelGridGfx.muaScatters(r, c) = gobjects(1);
+            else
+                [hSc, hImg] = drawGridMuaScatter(ax, hSc, hImg, spk, r, c, Xlims, Ylims, nRows, pd, ...
+                    mua_color_rgb, canReuse);
+                channelGridGfx.muaScatters(r, c) = hSc;
+                channelGridGfx.muaImages(r, c) = gobjects(1);
+            end
+        end
+    end
+
+    muaLayer = findobj(ax, '-depth', 1, 'Tag', 'mua_layer');
+    if ~isempty(muaLayer)
+        uistack(muaLayer, 'bottom');
+    end
+end
+
+function spk = gridChannelSpikes(chIdx, pd, prg, use_mua_mask, local_binsize, n_bins)
+    global lfpVar stims visualSettings art_rem_settings Fs time_in
+
+    spk = spikesInTimeWindow(chIdx, pd.plot_time_interval(1), pd.plot_time_interval(2), prg, lfpVar(chIdx));
+    if isempty(spk)
+        return;
+    end
+    if ~isempty(stims) && visualSettings.stim_show
+        stims_in = stims(pd.cond3);
+        stim_inxs = ClosestIndex(stims_in, time_in, true);
+        win_r = round(art_rem_settings.artifact_window_ms * (Fs / 1000));
+        keepSpk = maskTimesOutsideStimWindows(spk, time_in, stim_inxs, win_r);
+        spk = spk(keepSpk);
+    end
+    if use_mua_mask && ~isempty(spk)
+        bin_idx = floor((spk - pd.plot_time_interval(1)) ./ local_binsize) + 1;
+        bin_idx = bin_idx(bin_idx >= 1 & bin_idx <= n_bins);
+        counts = accumarray(bin_idx(:), 1, [n_bins, 1], @sum, 0).';
+        spk = counts;
+    end
+end
+
+function [hImg, hSc] = drawGridMuaMask(ax, hImg, hSc, mua_counts, cellXlims, cellYlims, Xlims, c, pd, ...
+        mua_color_rgb, mua_alpha, canReuse)
+    global timeUnitFactor
+    hSc = gobjects(1);
+    if isempty(hImg) || ~isgraphics(hImg)
+        hImg = gobjects(1);
+    end
+    if isempty(mua_counts)
+        hideGridMuaCell(hImg, hSc);
+        hImg = gobjects(1);
+        return;
+    end
+    max_count = max(mua_counts);
+    if max_count <= 0
+        hideGridMuaCell(hImg, hSc);
+        hImg = gobjects(1);
+        return;
+    end
+    x_start = mapTimeToGrid((pd.plot_time_interval(1) - pd.time_origin) * timeUnitFactor, c, Xlims);
+    x_end = mapTimeToGrid((pd.plot_time_interval(2) - pd.time_origin) * timeUnitFactor, c, Xlims);
+    tone_denom = max(1 - 0.5 * mua_alpha, eps);
+    mua_tone = min(1, (mua_counts / max_count) / tone_denom);
+    mua_alpha_map = mua_alpha * mua_tone;
+    mua_rgb = zeros(1, numel(mua_counts), 3);
+    mua_rgb(1, :, 1) = mua_tone * mua_color_rgb(1);
+    mua_rgb(1, :, 2) = mua_tone * mua_color_rgb(2);
+    mua_rgb(1, :, 3) = mua_tone * mua_color_rgb(3);
+    if canReuse && isgraphics(hImg)
+        set(hImg, 'CData', mua_rgb, 'XData', [x_start, x_end], ...
+            'YData', cellYlims, 'AlphaData', mua_alpha_map, ...
+            'AlphaDataMapping', 'none', 'Visible', 'on');
+        return;
+    end
+    if isgraphics(hImg)
+        delete(hImg);
+    end
+    hImg = image(ax, [x_start, x_end], cellYlims, mua_rgb);
+    set(hImg, 'AlphaData', mua_alpha_map, 'AlphaDataMapping', 'none', 'Tag', 'mua_layer');
+end
+
+function [hSc, hImg] = drawGridMuaScatter(ax, hSc, hImg, spk, r, c, Xlims, Ylims, nRows, pd, ...
+        mua_color_rgb, canReuse)
+    global timeUnitFactor
+    hImg = gobjects(1);
+    if isgraphics(hImg)
+        delete(hImg);
+    end
+    if isempty(spk)
+        hideGridMuaCell(gobjects(1), hSc);
+        hSc = gobjects(1);
+        return;
+    end
+    x_plot = mapTimeToGrid((spk - pd.time_origin) * timeUnitFactor, c, Xlims);
+    y_plot = mapAmpToGrid(zeros(size(spk)), r, Ylims, nRows);
+    if canReuse && isgraphics(hSc)
+        set(hSc, 'XData', x_plot, 'YData', y_plot, 'MarkerEdgeColor', mua_color_rgb, 'Visible', 'on');
+        return;
+    end
+    if isgraphics(hSc)
+        delete(hSc);
+    end
+    hSc = scatter(ax, x_plot, y_plot, 'MarkerEdgeColor', mua_color_rgb, 'Marker', '|');
+    set(hSc, 'Tag', 'mua_layer');
+end
+
+function hideGridMuaLayer(nRows, nCols)
+    global channelGridGfx
+    if ~isfield(channelGridGfx, 'muaImages') || isempty(channelGridGfx.muaImages)
+        return;
+    end
+    for r = 1:nRows
+        for c = 1:nCols
+            hideGridMuaCell(channelGridGfx.muaImages(r, c), channelGridGfx.muaScatters(r, c));
+            channelGridGfx.muaImages(r, c) = gobjects(1);
+            channelGridGfx.muaScatters(r, c) = gobjects(1);
+        end
+    end
+end
+
+function hideGridMuaCell(hImg, hSc)
+    if isgraphics(hImg)
+        set(hImg, 'Visible', 'off');
+    end
+    if isgraphics(hSc)
+        set(hSc, 'Visible', 'off');
+    end
 end
 
 function rgb = resolveMuaColor()
@@ -567,32 +731,44 @@ end
 function refreshAmpLabels(pd, chRanges, chRangesOffsets, chRangeIndexes)
     global mainPlotGfx multiax visualSettings colors_in_l
 
-    deleteGraphicsWithListeners(mainPlotGfx.ampTexts(isgraphics(mainPlotGfx.ampTexts)));
-    delete(mainPlotGfx.ampScatters(isgraphics(mainPlotGfx.ampScatters)));
-    mainPlotGfx.ampTexts = gobjects(0);
-    mainPlotGfx.ampScatters = gobjects(0);
     if ~visualSettings.show_amplitude_labels
+        [mainPlotGfx.ampTexts, mainPlotGfx.ampScatters] = updateAmpLabelPool( ...
+            multiax, mainPlotGfx.ampTexts, mainPlotGfx.ampScatters, ...
+            [], [], [], [], {}, {});
         return;
     end
-    rangesTimeTicks = pd.time_in_transformed(1) + zeros(size(chRangesOffsets)) + 0.02 * (pd.time_in_transformed(end) - pd.time_in_transformed(1));
-    rangesTimeLabels = pd.time_in_transformed(1) + zeros(size(chRangesOffsets)) + 0.005 * (pd.time_in_transformed(end) - pd.time_in_transformed(1));
+
+    xSpan = pd.time_in_transformed(end) - pd.time_in_transformed(1);
+    rangesTimeTicks = pd.time_in_transformed(1) + zeros(size(chRangesOffsets)) + 0.02 * xSpan;
+    rangesTimeLabels = pd.time_in_transformed(1) + zeros(size(chRangesOffsets)) + 0.005 * xSpan;
+
+    tickX = [];
+    tickY = [];
+    markX = [];
+    markY = [];
+    strings = {};
+    colors = {};
     ch_inx = 0;
-    texts = gobjects(0);
-    scats = gobjects(0);
     for color = np_flatten(colors_in_l)
         ch_inx = ch_inx + 1;
         group_index = ch_inx == chRangeIndexes;
         if ~any(group_index)
             continue;
         end
-        hT = text(multiax, rangesTimeTicks(group_index), chRangesOffsets(group_index), num2str(chRanges(group_index)', '%.2f'), ...
-            'Color', color{:}, 'BackgroundColor', 'w');
-        hS = scatter(multiax, rangesTimeLabels(group_index), chRangesOffsets(group_index), [], 'Marker', '_', 'MarkerEdgeColor', color{:});
-        texts = [texts; hT(:)]; %#ok<AGROW>
-        scats = [scats; hS(:)]; %#ok<AGROW>
+        vals = chRanges(group_index);
+        n = numel(vals);
+        tickX = [tickX; rangesTimeTicks(group_index(:))]; %#ok<AGROW>
+        tickY = [tickY; chRangesOffsets(group_index(:))]; %#ok<AGROW>
+        markX = [markX; rangesTimeLabels(group_index(:))]; %#ok<AGROW>
+        markY = [markY; chRangesOffsets(group_index(:))]; %#ok<AGROW>
+        lbl = arrayfun(@(v) sprintf('%.2f', v), vals, 'UniformOutput', false);
+        strings = [strings, lbl]; %#ok<AGROW>
+        colors = [colors, repmat({color{:}}, 1, n)]; %#ok<AGROW>
     end
-    mainPlotGfx.ampTexts = texts;
-    mainPlotGfx.ampScatters = scats;
+
+    [mainPlotGfx.ampTexts, mainPlotGfx.ampScatters] = updateAmpLabelPool( ...
+        multiax, mainPlotGfx.ampTexts, mainPlotGfx.ampScatters, ...
+        tickX, tickY, markX, markY, strings, colors);
 end
 
 function refreshModeAndTitle(pd)
@@ -617,12 +793,16 @@ end
 function refreshScaleBars(pd)
     global mainPlotGfx multiax visualSettings shiftCoeff selectedUnit
 
-    delete(mainPlotGfx.scaleBars(isgraphics(mainPlotGfx.scaleBars)));
-    mainPlotGfx.scaleBars = gobjects(0);
-    if isfield(visualSettings, 'show_scale_bars') && visualSettings.show_scale_bars
-        drawPlotScaleBars(multiax, shiftCoeff, pd.timeSpan, selectedUnit);
-        mainPlotGfx.scaleBars = findobj(multiax, '-depth', 1, 'Tag', 'plotScaleBar');
+    showBars = isfield(visualSettings, 'show_scale_bars') && visualSettings.show_scale_bars;
+    if ~showBars
+        if ~isempty(mainPlotGfx.scaleBars) && any(isgraphics(mainPlotGfx.scaleBars))
+            set(mainPlotGfx.scaleBars(isgraphics(mainPlotGfx.scaleBars)), 'Visible', 'off');
+        end
+        return;
     end
+
+    mainPlotGfx.scaleBars = updatePlotScaleBars(multiax, mainPlotGfx.scaleBars, ...
+        shiftCoeff, pd.timeSpan, selectedUnit, [], []);
 end
 
 function refreshLinearOverlays(pd)

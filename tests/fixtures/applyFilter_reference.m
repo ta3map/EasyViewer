@@ -1,12 +1,5 @@
-function filteredData = applyFilter(data, filterSettings, Fs)
-% data — samples × channels
-% filterSettings — filterType, freqLow/freqHigh, order, smoothSpan, smoothMethod
-% Fs — частота дискретизации
-
-if evProcessSignalEnabled()
-    filteredData = applyFilterMex(data, filterSettings, Fs);
-    return;
-end
+function filteredData = applyFilter_reference(data, filterSettings, Fs)
+%APPLYFILTER_REFERENCE MATLAB-only reference (pre-MEX applyFilter.m).
 
 filteredData = zeros(size(data));
 freqFilterOn = ~isfield(filterSettings, 'filterEnabled') || filterSettings.filterEnabled;
@@ -50,7 +43,7 @@ if smoothOn
             end
             filteredData = medfilt1(filteredData, span);
         otherwise
-            error('Неизвестный метод сглаживания: %s', method);
+            error('Unknown smooth method: %s', method);
     end
 end
 

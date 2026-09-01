@@ -34,36 +34,23 @@ if ~isfield(params, 'mean_group_ch')
     params.mean_group_ch = [];
 end
 
-[row_start, row_end] = timeWindowIndices(time, time_interval(1), time_interval(2));
-if isempty(row_start)
-    channel_data = [];
-    time_vector = [];
-    return;
-end
-
 lfpDims = lfp_size(lfp_file);
 nCh = lfpDims(2);
 if isempty(channel_idx) || channel_idx < 1 || channel_idx > nCh
     channel_idx = 1;
 end
 
-mean_chs = params.mean_group_ch(:);
-if islogical(params.mean_group_ch)
-    mean_chs = find(params.mean_group_ch);
-else
-    mean_chs = mean_chs(mean_chs >= 1 & mean_chs <= nCh);
-end
-cols = unique([channel_idx; mean_chs(:)], 'stable');
-local_lfp = lfp_file.lfp(row_start:row_end, cols);
-
-if ~isempty(mean_chs)
-    mean_local = ismember(cols, mean_chs);
-    local_lfp(:, mean_local) = local_lfp(:, mean_local) - mean(local_lfp(:, mean_local), 2);
+mean_group_ch = params.mean_group_ch;
+[local_lfp, time_vector, cols] = readLfpChannelsForInterval( ...
+    lfp_file, time, time_interval, channel_idx, mean_group_ch);
+if isempty(local_lfp)
+    channel_data = [];
+    time_vector = [];
+    return;
 end
 
 ch_local = find(cols == channel_idx, 1, 'first');
 channel_data = local_lfp(:, ch_local);
-time_vector = time(row_start:row_end);
 
 if params.remove_artifact && ~isempty(params.stims) && ~isempty(params.Fs)
     win_r = round(params.artifact_window_ms * (params.Fs / 1000));

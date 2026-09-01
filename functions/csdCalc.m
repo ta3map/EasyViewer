@@ -48,12 +48,12 @@ function [csd_image, csd_t_range, csd_ch_range] = csdCalc(params)
     csd_ch_range = 0;
     
     if numCh >= 4
-        [csd_ref, csd_t_range, ~] = CurSrcDnsAz(zeros(size(data, 1), numCh), time_res, 1);
-        csd_ref = flip(csd_ref');
-        numY = size(csd_ref, 1);
-        numT = size(csd_ref, 2);
+        geom = csdCachedGeometry(size(data, 1), numCh, offsets, time_res, splitByGaps);
+        csd_t_range = geom.csd_t_range;
+        csd_ch_range = geom.csd_ch_range;
+        numY = geom.numY;
+        numT = geom.numT;
         csd_image = zeros(numY, numT);
-        csd_ch_range = linspace(offsets(end-1), offsets(2), numY).';
         
         for s = 1:numel(segmentStartPos)
             segStart = segmentStartPos(s);
@@ -90,4 +90,26 @@ function [csd_image, csd_t_range, csd_ch_range] = csdCalc(params)
         csd_image = movmean(csd_image.', csd_smooth_coef, 1, 'Endpoints', 'shrink').';
     end
     
+end
+
+function geom = csdCachedGeometry(nRows, numCh, offsets, time_res, splitByGaps)
+persistent cacheKey cacheGeom
+
+key = struct('nRows', nRows, 'numCh', numCh, 'split', splitByGaps, ...
+    'offsets', offsets(:)', 'nTime', numel(time_res));
+if ~isempty(cacheKey) && isequal(cacheKey, key)
+    geom = cacheGeom;
+    return;
+end
+
+[csd_ref, csd_t_range, ~] = CurSrcDnsAz(zeros(nRows, numCh), time_res, 1);
+csd_ref = flip(csd_ref');
+geom = struct();
+geom.csd_t_range = csd_t_range;
+geom.numY = size(csd_ref, 1);
+geom.numT = size(csd_ref, 2);
+geom.csd_ch_range = linspace(offsets(end - 1), offsets(2), geom.numY).';
+cacheKey = key;
+cacheGeom = geom;
+
 end

@@ -93,11 +93,6 @@ else
     pd.stims_x = [];
 end
 
-if sum(filter_avaliable) > 0
-    ch_to_filter = filter_avaliable(ch_inxs);
-    data(:, ch_to_filter) = applyFilter(data(:, ch_to_filter), filterSettings, newFs);
-end
-
 if Fs <= newFs
     pd.data_res = data;
     pd.time_res = time_in;
@@ -105,6 +100,11 @@ else
     pd.data_res = resample1(data, round(newFs), Fs);
     numPoints = size(pd.data_res, 1);
     pd.time_res = linspace(time_in(1), time_in(end), numPoints);
+end
+
+if sum(filter_avaliable) > 0
+    ch_to_filter = filter_avaliable(ch_inxs);
+    pd.data_res(:, ch_to_filter) = applyFilter(pd.data_res(:, ch_to_filter), filterSettings, newFs);
 end
 
 pd.numChannels = size(pd.data_res, 2);

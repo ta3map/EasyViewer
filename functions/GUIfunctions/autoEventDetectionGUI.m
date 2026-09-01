@@ -6,12 +6,13 @@ function autoEventDetectionGUI()
     global timeUnitFactor selectedUnit matFilePath
     global hMinPeakProminence hDetectionType hMainChannel hSubtractChannelCheck hSubtractChannel hMaxPeakWidth
     global hMinPeakDistance
-    global hSourceType selectedCenter timeCenterPopup windowSize chosen_time_interval
+    global selectedCenter timeCenterPopup windowSize chosen_time_interval
     global hSearchAroundStimuli hSearchWindow hSearchAroundDirection stims_exist stims
     global hUseTimeRange hStartTime hEndTime time
     global hShowMeanPreview
     global wb
     global autodetection_settings
+    global autoDetectionAccum
 
     settings = [];
     if ~isempty(matFilePath)
@@ -43,6 +44,7 @@ function autoEventDetectionGUI()
     indices_detected = [];
     prominences_detected = [];
     events_detected = [];
+    previewSnapshot = struct();
     
     % Идентификатор (tag) для GUI фигуры
     figTag = 'EventDetection';
@@ -69,10 +71,6 @@ function autoEventDetectionGUI()
         set(hToolbar, 'Visible', 'off');
     end
     
-    % Окно выбора источника данных LFP или CSD
-    uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('sourceText'), 'String', 'Source:', 'Tag', 'sourceText', 'Visible', 'off');
-    hSourceType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('sourceType'), 'String', {'LFP', 'CSD'}, 'Callback', @changeDetectionType, 'Tag', 'sourceType', 'Visible', 'off');
-
     % Режим: Positive / Negative
     uicontrol(detectionFig, 'Style', 'text', 'Position', getElementPosition('detectionTypeText'), 'String', 'Mode:', 'Tag', 'detectionTypeText');
     hDetectionType = uicontrol(detectionFig, 'Style', 'popupmenu', 'Position', getElementPosition('detectionType'), 'String', {'Positive', 'Negative'}, 'Callback', @detectionControlsCallback, 'Tag', 'detectionType');
@@ -162,24 +160,11 @@ function autoEventDetectionGUI()
     end
 
     if ~isempty(settings)
-        safeSetPopupValue(hSourceType, settings.SourceTypeIndex, ...
-                          numel(get(hSourceType,'String')), 'SourceType');
-
         set(hMinPeakProminence, 'String', num2str(settings.MinPeakProminence));
 
         set(hMinPeakDistance, 'String', num2str(settings.MinPeakDistance*timeUnitFactor));
         set(hMinPeakDistance_text, 'String', ['Minimal Time Between Peaks (' selectedUnit '):']);
-        
-        if isfield(settings, 'SourceTypeIndex')
-            if ~isempty(settings.SourceTypeIndex)
-                set(hSourceType, 'Value', settings.SourceTypeIndex);
-            else
-                set(hSourceType, 'Value', 1);
-            end
-        else
-            set(hSourceType, 'Value', 1);
-        end
-        
+
         if isfield(settings, 'MaxPeakWidth')
             if ~isempty(settings.MaxPeakWidth)
                 set(hMaxPeakWidth, 'String', num2str(settings.MaxPeakWidth*timeUnitFactor));
@@ -287,6 +272,7 @@ function autoEventDetectionGUI()
             snap.meanN = 0;
         end
         events_detected = snap.events_detected;
+        previewSnapshot = snap;
         amplitudes_detected = [];
         widths_detected = [];
         channels_detected = [];
@@ -396,7 +382,6 @@ function autoEventDetectionGUI()
         set(hMainChannel, 'Value', 1);
         set(hSubtractChannelCheck, 'Value', 0);
         set(hSubtractChannel, 'Value', 1);
-        set(hSourceType, 'Value', 1);
         set(hMinPeakProminence, 'String', '50');
         set(hMinPeakDistance, 'String', num2str(3*timeUnitFactor));
         set(hMaxPeakWidth, 'String', num2str(0.05*timeUnitFactor));
@@ -479,8 +464,6 @@ function autoEventDetectionGUI()
         [params.DetectionType, params.ChPos, params.ChNeg] = uiToDetectionParams();
         params.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
         params.MinPeakDistance = str2double(get(hMinPeakDistance, 'String')) / timeUnitFactor;
-        SourceTypes = get(hSourceType, 'String');
-        params.SourceType = SourceTypes{get(hSourceType, 'Value')};
         params.detect = false;
         params.max_peak_width = str2double(get(hMaxPeakWidth, 'String')) / timeUnitFactor;
         params.SearchAroundStimuli = get(hSearchAroundStimuli, 'Value');
@@ -491,8 +474,10 @@ function autoEventDetectionGUI()
         params.EndTime = str2double(get(hEndTime, 'String')) / timeUnitFactor;
         params.ShowMeanPreview = get(hShowMeanPreview, 'Value');
 
-        [~, Trace_out, time_res, ~, ~, ~, ~, ~, ~, wasCanceled] = autoEventDetection(params);
-        if wasCanceled
+        [~, ~, ~, ~, ~, ~, ~, ~, ~, wasCanceled] = autoEventDetection(params);
+        Trace_out = autoDetectionAccum.trace;
+        time_res = autoDetectionAccum.time_res;
+        if isempty(Trace_out)
             return;
         end
 
@@ -602,11 +587,13 @@ function autoEventDetectionGUI()
             snap.meanN = 0;
             snap.meanWinSec = 0;
             drawPlotsFromSnapshot(snap);
+            previewSnapshot = snap;
             return;
         end
 
         hBar = findobj(ax1, 'Type', 'bar');
         set(hBar, 'XData', time_res * timeUnitFactor, 'YData', Trace_out);
+        delete(findobj(ax1, 'Tag', 'detectionEventLine'));
         if useTimeRange
             xlim(ax1, [params.StartTime, params.EndTime] * timeUnitFactor);
         else
@@ -646,54 +633,48 @@ function autoEventDetectionGUI()
         ylabel(ax2, 'Peak Height');
         title(ax2, 'Distribution of Peak Height');
         hold(ax2, 'off');
+
+        previewSnapshot = struct();
+        previewSnapshot.Trace_out = Trace_out(:);
+        previewSnapshot.time_res = time_res(:);
+        previewSnapshot.events_detected = events_detected(:);
+        previewSnapshot.amplitudes_detected = amplitudes_detected(:);
+        previewSnapshot.widths_detected = widths_detected(:);
+        previewSnapshot.channels_detected = channels_detected;
+        previewSnapshot.metadata_detected = metadata_detected;
+        previewSnapshot.indices_detected = indices_detected;
+        previewSnapshot.prominences_detected = prominences_detected(:);
+        previewSnapshot.yMin = yMin;
+        previewSnapshot.yMax = yMax;
+        previewSnapshot.outlier = outlier;
+        previewSnapshot.std3 = std3;
+        previewSnapshot.chosen_th = chosen_th;
+        previewSnapshot.detect = false;
+        previewSnapshot.needStimuliPlots = false;
+        previewSnapshot.UseTimeRange = logical(useTimeRange);
+        previewSnapshot.StartTime = 0;
+        previewSnapshot.EndTime = 0;
+        if useTimeRange
+            previewSnapshot.StartTime = params.StartTime;
+            previewSnapshot.EndTime = params.EndTime;
+        end
+        previewSnapshot.histPeak = struct('edges', peakEdges, 'values', peakValues);
+        previewSnapshot.rel_times = [];
+        previewSnapshot.histRel = struct('edges', [], 'values', []);
+        previewSnapshot.histAmp = struct('edges', [], 'values', []);
+        previewSnapshot.meanTrace = [];
+        previewSnapshot.meanMin = [];
+        previewSnapshot.meanMax = [];
+        previewSnapshot.meanRaster = [];
+        previewSnapshot.meanTime = [];
+        previewSnapshot.meanN = 0;
+        previewSnapshot.meanWinSec = 0;
     end
 
     function checkDetectionCallback(~, ~)
-        
-        % Очищаем контейнер графиков
-        plotPanel = findobj(detectionFig, 'Tag', 'plotPanel');
-        if ~isempty(plotPanel)
-            delete(plotPanel.Children);
-            
-            % Проверяем, включен ли поиск вокруг стимулов
-            searchEnabled = get(hSearchAroundStimuli, 'Value') && stims_exist && ~isempty(stims);
-            previewEnabled = get(hShowMeanPreview, 'Value');
-            
-            if searchEnabled
-                if previewEnabled
-                    t = tiledlayout(plotPanel, 4, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-                    numTiles = 8;
-                else
-                    t = tiledlayout(plotPanel, 3, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-                    numTiles = 6;
-                end
-            else
-                if previewEnabled
-                    t = tiledlayout(plotPanel, 2, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-                    numTiles = 4;
-                else
-                    t = tiledlayout(plotPanel, 1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-                    numTiles = 2;
-                end
-            end
-            
-            % Показываем "Detecting ..." только на нужных осях
-            for i = 1:numTiles
-                ax = nexttile(t);
-                text(ax, 0.5, 0.5, 'Detecting ...', 'HorizontalAlignment', 'center', ...
-                     'VerticalAlignment', 'middle', 'FontSize', 14, 'Units', 'normalized');
-                axis(ax, 'off');
-            end
-        end
-        
-        drawnow;
-        
-        % Сбор значений параметров и упаковка их в структуру
         [params.DetectionType, params.ChPos, params.ChNeg] = uiToDetectionParams();
         params.MinPeakProminence = str2double(get(hMinPeakProminence, 'String'));
         params.MinPeakDistance = str2double(get(hMinPeakDistance, 'String')) / timeUnitFactor;
-        SourceTypes = get(hSourceType, 'String');
-        params.SourceType = SourceTypes{get(hSourceType, 'Value')};
         params.detect = true;
         params.max_peak_width = str2double(get(hMaxPeakWidth, 'String')) / timeUnitFactor;
         params.SearchAroundStimuli = get(hSearchAroundStimuli, 'Value');
@@ -703,22 +684,40 @@ function autoEventDetectionGUI()
         params.StartTime = str2double(get(hStartTime, 'String')) / timeUnitFactor;
         params.EndTime = str2double(get(hEndTime, 'String')) / timeUnitFactor;
         params.ShowMeanPreview = get(hShowMeanPreview, 'Value');
-        
-        [events_detected, Trace_out, time_res, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = autoEventDetection(params);
-        if wasCanceled
+        params.onDetectionProgress = @applyDetectionEventLines;
+
+        if ~isfield(previewSnapshot, 'Trace_out') || isempty(previewSnapshot.Trace_out)
+            previewData();
+        end
+
+        events_detected = [];
+        [events_detected, ~, ~, amplitudes_detected, widths_detected, channels_detected, metadata_detected, prominences_detected, indices_detected, wasCanceled] = autoEventDetection(params);
+
+        applyDetectionEventLines(events_detected);
+        previewSnapshot.events_detected = events_detected(:);
+        previewSnapshot.amplitudes_detected = amplitudes_detected(:);
+        previewSnapshot.widths_detected = widths_detected(:);
+        previewSnapshot.channels_detected = channels_detected;
+        previewSnapshot.metadata_detected = metadata_detected;
+        previewSnapshot.indices_detected = indices_detected;
+        previewSnapshot.prominences_detected = prominences_detected(:);
+        previewSnapshot.detect = true;
+        saveSettings(previewSnapshot);
+        updateApplyButton();
+    end
+
+    function applyDetectionEventLines(ev)
+        ax1 = findobj(detectionFig, 'Tag', 'axPreviewTrace');
+        if isempty(ax1)
             return;
         end
-        
-        Trace_out(isnan(Trace_out)) = 0;
-        Trace_out(isinf(Trace_out)) = 0;
-        
-        [~, plotSnapshot] = plotRequest(events_detected, Trace_out, time_res, params, prominences_detected, amplitudes_detected, widths_detected);
-        plotSnapshot.channels_detected = channels_detected;
-        plotSnapshot.metadata_detected = metadata_detected;
-        plotSnapshot.indices_detected = indices_detected;
-        plotSnapshot.prominences_detected = prominences_detected;
-        saveSettings(plotSnapshot);
-        updateApplyButton();
+        drawDetectionEventLines(ax1, ev, timeUnitFactor);
+        ev = ev(:);
+        if isempty(ev)
+            title(ax1, '');
+            return;
+        end
+        title(ax1, [num2str(numel(ev)), ' events'], 'interpreter', 'none');
     end
 
     function updateApplyButton()
@@ -735,6 +734,20 @@ function autoEventDetectionGUI()
             inWindow = time_res >= params.StartTime & time_res <= params.EndTime;
             Trace_out = Trace_out(inWindow);
             time_res = time_res(inWindow);
+        end
+
+        if ~isempty(events_in) && ~isempty(time_res)
+            inTrace = events_in >= time_res(1) & events_in <= time_res(end);
+            events_in = events_in(inTrace);
+            if ~isempty(amplitudes_in)
+                amplitudes_in = amplitudes_in(inTrace);
+            end
+            if ~isempty(widths_in)
+                widths_in = widths_in(inTrace);
+            end
+            if ~isempty(prominences_detected)
+                prominences_detected = prominences_detected(inTrace);
+            end
         end
         
         meanTrace = [];
@@ -911,17 +924,15 @@ function autoEventDetectionGUI()
             xlim(ax1, [snap.time_res(1), snap.time_res(end)] * timeUnitFactor);
         end
         ylim(ax1, [snap.yMin, snap.yMax]);
-        tBins = snap.time_res(:);
-        dtBin = (tBins(end) - tBins(1)) / max(numel(tBins) - 1, 1);
-        binIdx = round((snap.events_detected(:) - tBins(1)) / dtBin) + 1;
-        binIdx = unique(max(1, min(numel(tBins), binIdx)), 'stable');
-        Lines(tBins(binIdx) * timeUnitFactor, [], 'r', ':');
-        if ~isempty(snap.events_detected)
-            title(ax1, [num2str(numel(snap.events_detected)), ' events'], 'interpreter', 'none');
+        evTimes = snap.events_detected(:);
+        drawDetectionEventLines(ax1, evTimes, timeUnitFactor);
+        if ~isempty(evTimes)
+            title(ax1, [num2str(numel(evTimes)), ' events'], 'interpreter', 'none');
         else
             title(ax1, '');
         end
         hold(ax1, 'off');
+        previewSnapshot = snap;
         
         ax2 = nexttile(t);
         ax2.Tag = 'axPreviewHist';
@@ -1087,10 +1098,25 @@ function autoEventDetectionGUI()
 
 end
 
+function drawDetectionEventLines(ax1, ev, timeUnitFactor)
+    delete(findobj(ax1, 'Tag', 'detectionEventLine'));
+    ev = ev(:);
+    if isempty(ev)
+        return;
+    end
+    yl = ylim(ax1);
+    xEv = ev * timeUnitFactor;
+    n = numel(xEv);
+    xSeg = reshape([xEv'; xEv'; NaN(1, n)], 1, []);
+    ySeg = reshape([repmat(yl(1), 1, n); repmat(yl(2), 1, n); NaN(1, n)], 1, []);
+    line(ax1, xSeg, ySeg, 'Color', 'r', 'LineStyle', ':', 'LineWidth', 1, ...
+        'Tag', 'detectionEventLine', 'HitTest', 'off', 'Clipping', 'on');
+end
+
 function saveSettings(plotSnapshot)
     global hMinPeakProminence hDetectionType hMainChannel hSubtractChannelCheck hSubtractChannel hMaxPeakWidth
     global hMinPeakDistance
-    global hSourceType timeUnitFactor hSearchAroundStimuli hSearchWindow hSearchAroundDirection
+    global timeUnitFactor hSearchAroundStimuli hSearchWindow hSearchAroundDirection
     global hUseTimeRange hStartTime hEndTime
     global hShowMeanPreview
     global autodetection_settings
@@ -1101,7 +1127,6 @@ function saveSettings(plotSnapshot)
     settings.SubtractChannelEnabled = get(hSubtractChannelCheck, 'Value');
     settings.SubtractChannel = get(hSubtractChannel, 'Value');
     settings.MinPeakDistance = str2double(get(hMinPeakDistance, 'String')) / timeUnitFactor;
-    settings.SourceTypeIndex = get(hSourceType, 'Value');
     settings.MaxPeakWidth = str2double(get(hMaxPeakWidth, 'String')) / timeUnitFactor;
     settings.SearchAroundStimuli = get(hSearchAroundStimuli, 'Value');
     settings.SearchWindow = str2double(get(hSearchWindow, 'String')) / timeUnitFactor;

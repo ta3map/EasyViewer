@@ -260,6 +260,9 @@ function signalViewerGUI(filePath)
     if ~isfield(visualSettings, 'show_scale_bars')
         visualSettings.show_scale_bars = true;
     end
+    if ~isfield(visualSettings, 'viewer_display_mode') || isempty(visualSettings.viewer_display_mode)
+        visualSettings.viewer_display_mode = 'linear';
+    end
     std_coef = 0;
     time_back = 0.6;
     time_forward = 0.6;
@@ -612,6 +615,7 @@ function signalViewerGUI(filePath)
         '', ...
         'Manual channel shift', ...
         '----------', ...
+        'Grid display', ...
         'Full channel trace', ...
         '', ...
         '----------', ...
@@ -747,6 +751,8 @@ function signalViewerGUI(filePath)
     else
         view_functions{7} = 'Auto channel shift';
     end
+    normalizeViewerDisplayMode();
+    syncViewerDisplayModeMenuLabel();
     set(view_menu, 'String', view_functions);
 
     f.WindowButtonDownFcn = @(src, event)ButtonDownFcn(multiax, f);
@@ -759,6 +765,21 @@ function signalViewerGUI(filePath)
     % Разворачиваем окно после успешной инициализации
     f.WindowState = 'maximized';
     
+    function xLocal = decodePlotClickX(x, clickAx)
+        xLocal = x;
+        global channelGridGfx
+        if ~isViewerGridDisplayActive()
+            return;
+        end
+        if ~isgraphics(clickAx) || clickAx ~= multiax
+            return;
+        end
+        if isempty(channelGridGfx) || ~isstruct(channelGridGfx) || ~isfield(channelGridGfx, 'Xlims')
+            return;
+        end
+        xLocal = mapTimeFromGrid(x, channelGridGfx.Xlims, channelGridGfx.nCols);
+    end
+
     function ButtonDownFcn(ax, fig)
         % Проверяем, зажата ли клавиша Ctrl
         modifiers = get(fig, 'CurrentModifier');
@@ -770,13 +791,13 @@ function signalViewerGUI(filePath)
             
         elseif ismember('shift', modifiers) % Добавление события по клику (та же логика, что у маркера)
             cp = get(clickAx, 'CurrentPoint');
-            x = cp(1, 1);
+            x = decodePlotClickX(cp(1, 1), clickAx);
             time_origin = chosen_time_interval(1);
             t_absolute = time_origin + x / timeUnitFactor;
             addEventAtTime(t_absolute);
         elseif add_event_pending
             cp = get(clickAx, 'CurrentPoint');
-            x = cp(1, 1);
+            x = decodePlotClickX(cp(1, 1), clickAx);
             time_origin = chosen_time_interval(1);
             t_absolute = time_origin + x / timeUnitFactor;
             addEventAtTime(t_absolute);
@@ -786,21 +807,14 @@ function signalViewerGUI(filePath)
 
     function clickAx = resolveClickAxes(fig, fallbackAx)
         clickAx = fallbackAx;
-        global channelGridGfx
-        if isempty(channelGridGfx) || ~isstruct(channelGridGfx)
-            return;
-        end
-        if isempty(channelGridGfx.axes) || ~any(isgraphics(channelGridGfx.axes(:)))
+        if ~isViewerGridDisplayActive()
             return;
         end
         hit = hittest(fig);
         while ~isempty(hit) && isgraphics(hit)
-            if strcmp(get(hit, 'Type'), 'axes')
-                tag = get(hit, 'Tag');
-                if strcmp(tag, 'channelGridAx')
-                    clickAx = hit;
-                    return;
-                end
+            if isequal(hit, multiax)
+                clickAx = multiax;
+                return;
             end
             hit = get(hit, 'Parent');
         end
@@ -855,39 +869,40 @@ function signalViewerGUI(filePath)
         pan(f, 'off');
         datacursormode(f, 'off');
         brush(f, 'off');
+        if isappdata(f, 'viewer_active_tool')
+            rmappdata(f, 'viewer_active_tool');
+        end
     end
 
     function useBuiltinTool(toolName)
         disableBuiltinTools();
+        plotAx = resolvePlotAxes();
+        setappdata(f, 'viewer_active_tool', toolName);
         switch toolName
             case 'zoom'
                 zoom(f, 'on');
-                zoom(multiax, 'on');
+                zoom(plotAx, 'on');
             case 'pan'
                 pan(f, 'on');
-                pan(multiax, 'on');
+                pan(plotAx, 'on');
             case 'datacursor'
                 datacursormode(f, 'on');
             case 'brush'
                 brush(f, 'on');
-                brush(multiax, 'on');
+                brush(plotAx, 'on');
         end
     end
     
     % Функция для добавления маркера
     function marker = addMarker(ax)
-%         global hT
-        % Получение координат клика
         cp = ax.CurrentPoint;
         x = cp(1,1);
+        xLabel = decodePlotClickX(x, ax);
         
-        % Добавление вертикальной линии
         marker = line(ax, [x x], ylim, 'Color', 'r', 'LineWidth', 2, 'Tag', 'Draggable');
         
-        % Добавление текста с временем
-        hT = text(x, ax.YLim(2), sprintf('%.2f', x), 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center');
+        hT = text(x, ax.YLim(2), sprintf('%.2f', xLabel), 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center');
         
-        % Добавление обработчика для перетаскивания
         draggable(ax, marker, hT, 'h');
     end
     
@@ -1092,7 +1107,9 @@ function signalViewerGUI(filePath)
         end
         channelLayoutFilePath = fullfile(path, file);
         channelLayoutNameGrid = parseChannelLayout(channelLayoutFilePath);
-        saveChannelSettings('channelLayoutFilePath', 'channelLayoutNameGrid');
+        visualSettings.viewer_display_mode = 'grid';
+        saveChannelSettings('channelLayoutFilePath', 'channelLayoutNameGrid', 'visualSettings');
+        syncViewerDisplayModeMenuLabel();
         syncCSDControlsState();
         updatePlot('layout_mode');
     end
@@ -1100,11 +1117,35 @@ function signalViewerGUI(filePath)
     function clearChannelProfile()
         channelLayoutFilePath = '';
         channelLayoutNameGrid = [];
+        visualSettings.viewer_display_mode = 'linear';
         clearChannelGrid();
         set(multiax, 'Visible', 'on');
-        saveChannelSettings('channelLayoutFilePath', 'channelLayoutNameGrid');
+        saveChannelSettings('channelLayoutFilePath', 'channelLayoutNameGrid', 'visualSettings');
+        syncViewerDisplayModeMenuLabel();
         syncCSDControlsState();
         updatePlot('layout_mode');
+    end
+
+    function toggleViewerDisplayMode()
+        normalizeViewerDisplayMode();
+        if isViewerGridDisplayActive()
+            visualSettings.viewer_display_mode = 'linear';
+        else
+            if isempty(channelLayoutNameGrid)
+                errordlg('Load a channel profile first (File → Load channel profile).', 'Grid display');
+                return;
+            end
+            visualSettings.viewer_display_mode = 'grid';
+        end
+        syncViewerDisplayModeMenuLabel();
+        syncCSDControlsState();
+        saveChannelSettings('visualSettings');
+        updatePlot('layout_mode');
+    end
+
+    function syncViewerDisplayModeMenuLabel()
+        labels = {'Grid display', 'Linear display'};
+        updateViewMenuLabel(9, labels{1 + isViewerGridDisplayActive()});
     end
 
 
@@ -1141,10 +1182,7 @@ function signalViewerGUI(filePath)
            filename = fullfile(path, file);
            [~, ~, ext] = fileparts(filename);
            exportTarget = multiax;
-           global channelGridGfx
-           if ~isempty(channelGridGfx) && isstruct(channelGridGfx) ...
-                   && isfield(channelGridGfx, 'host') && ~isempty(channelGridGfx.host) ...
-                   && isgraphics(channelGridGfx.host)
+           if isViewerGridDisplayActive()
                exportTarget = plotPanel;
            end
            switch lower(ext)
@@ -1178,23 +1216,25 @@ function signalViewerGUI(filePath)
             case view_functions{8}
                 % separator
             case view_functions{9}
+                toggleViewerDisplayMode();
+            case view_functions{10}
                 toggleFullChannelTraceMode();
-            case view_functions{11}
-                % separator
             case view_functions{12}
-                openChannelColorPalette();
-            case view_functions{13}
-                openBackgroundColorPalette();
-            case view_functions{15}
                 % separator
+            case view_functions{13}
+                openChannelColorPalette();
+            case view_functions{14}
+                openBackgroundColorPalette();
             case view_functions{16}
+                % separator
+            case view_functions{17}
                 CSDSettingsGUI();
                 updateTable();
-            case view_functions{17}
-                openMUASettingsGUI();
             case view_functions{18}
-                lineStyleGUI('stimulus_lines')
+                openMUASettingsGUI();
             case view_functions{19}
+                lineStyleGUI('stimulus_lines')
+            case view_functions{20}
                 lineStyleGUI('events_lines')
             case ''
             dont_close_menu = true;
@@ -1666,7 +1706,7 @@ function signalViewerGUI(filePath)
     end
 
     function ShowCSDButtonCallback(~, ~)
-        if ~isempty(channelLayoutNameGrid)
+        if isViewerGridDisplayActive()
             visualSettings.show_CSD = false;
             syncCSDControlsState();
             return;
@@ -2006,7 +2046,7 @@ function signalViewerGUI(filePath)
         viewerYlimManual = true;
         viewerYlim = [ymin ymax];
         saveChannelSettings('viewerYlim', 'viewerYlimManual');
-        updatePlot('ylim_shift');
+        updatePlot('ylim_manual');
     end
 
     function yLimResetCallback(~, ~)
@@ -2393,9 +2433,6 @@ function signalViewerGUI(filePath)
         if isempty(channelGridGfx) || ~isstruct(channelGridGfx)
             return;
         end
-        if isgraphics(channelGridGfx.host)
-            set(channelGridGfx.host, 'BackgroundColor', bgRgb);
-        end
         if isempty(channelGridGfx.axes)
             return;
         end
@@ -2655,6 +2692,8 @@ function signalViewerGUI(filePath)
         end
         syncCSDControlsState();
         syncMUAControlsState();
+        normalizeViewerDisplayMode();
+        syncViewerDisplayModeMenuLabel();
     end
 
     function resetToNoFileState()
@@ -2814,7 +2853,7 @@ function signalViewerGUI(filePath)
     end
 
     function syncCSDControlsState()
-        layoutActive = ~isempty(channelLayoutNameGrid);
+        layoutActive = isViewerGridDisplayActive();
         if layoutActive
             visualSettings.show_CSD = false;
         end
@@ -2969,25 +3008,15 @@ function loadSettingsFile()
             set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
         end
         if isfield(loadedSettings, 'visualSettings')
-            loadedVisualSettings = loadedSettings.visualSettings;
-            if isfield(loadedVisualSettings, 'show_spikes')
-                visualSettings.show_spikes = logical(loadedVisualSettings.show_spikes);
-            end
-            if isfield(loadedVisualSettings, 'show_CSD')
-                visualSettings.show_CSD = logical(loadedVisualSettings.show_CSD);
-            end
-            if isfield(loadedVisualSettings, 'mua_use_mask')
-                visualSettings.mua_use_mask = logical(loadedVisualSettings.mua_use_mask);
-            end
-            if isfield(loadedVisualSettings, 'mua_color') && ~isempty(loadedVisualSettings.mua_color)
-                visualSettings.mua_color = loadedVisualSettings.mua_color;
-            end
-            if isfield(loadedVisualSettings, 'mua_alpha')
-                visualSettings.mua_alpha = min(max(double(loadedVisualSettings.mua_alpha), 0), 1);
-            end
+            applyChannelVisualSettings(loadedSettings.visualSettings);
+            normalizeViewerDisplayMode();
+            syncViewerDisplayModeMenuLabel();
             set(showCSDbutton, 'Value', visualSettings.show_CSD);
             syncCSDControlsState();
             syncMUAControlsState();
+        else
+            normalizeViewerDisplayMode();
+            syncViewerDisplayModeMenuLabel();
         end
         if isfield(loadedSettings, 'binsize')
             binsize = loadedSettings.binsize;

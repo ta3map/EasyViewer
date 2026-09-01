@@ -34,6 +34,7 @@ function loadZavSession(matPath, varargin)
         'keep_waitbar_open', p.Results.keep_waitbar_open);
 
     [lfp_file, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
+    spks = sortSpikeTimestamps(spks);
 
     matFilePath = matPath;
     [~, matFileName, ~] = fileparts(matPath);
@@ -186,22 +187,7 @@ function applyChannelSettingsFile(settingsPath, numChannels)
         csd_split_by_channel_gaps = logical(loadedSettings.csd_split_by_channel_gaps);
     end
     if isfield(loadedSettings, 'visualSettings')
-        loadedVisual = loadedSettings.visualSettings;
-        if isfield(loadedVisual, 'show_spikes')
-            visualSettings.show_spikes = logical(loadedVisual.show_spikes);
-        end
-        if isfield(loadedVisual, 'show_CSD')
-            visualSettings.show_CSD = logical(loadedVisual.show_CSD);
-        end
-        if isfield(loadedVisual, 'mua_use_mask')
-            visualSettings.mua_use_mask = logical(loadedVisual.mua_use_mask);
-        end
-        if isfield(loadedVisual, 'mua_color') && ~isempty(loadedVisual.mua_color)
-            visualSettings.mua_color = loadedVisual.mua_color;
-        end
-        if isfield(loadedVisual, 'mua_alpha')
-            visualSettings.mua_alpha = min(max(double(loadedVisual.mua_alpha), 0), 1);
-        end
+        applyChannelVisualSettings(loadedSettings.visualSettings);
     end
     if isfield(loadedSettings, 'meanControlsState') && isstruct(loadedSettings.meanControlsState)
         meanControlsState = loadedSettings.meanControlsState;
@@ -223,6 +209,7 @@ function applyChannelSettingsFile(settingsPath, numChannels)
     if isfield(loadedSettings, 'channelLayoutFilePath')
         channelLayoutFilePath = loadedSettings.channelLayoutFilePath;
     end
+    normalizeViewerDisplayMode();
     if isfield(loadedSettings, 'viewerYlim') && numel(loadedSettings.viewerYlim) == 2
         viewerYlim = double(loadedSettings.viewerYlim(:)');
     end

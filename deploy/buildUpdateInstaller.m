@@ -29,4 +29,13 @@ function buildUpdateInstaller()
     if status ~= 0
         error('Failed to build update installer');
     end
+
+    installerName = ['EasyView_' p.version '_update.exe'];
+    for i = 1:numel(p.updatePublishDirs)
+        destDir = p.updatePublishDirs{i};
+        if ~exist(destDir, 'dir')
+            mkdir(destDir);
+        end
+        copyfile(installerExe, fullfile(destDir, installerName), 'f');
+    end
 end

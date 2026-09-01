@@ -118,18 +118,16 @@ function [offsets, shiftCoeff, hLines] = multiplot(varargin)
     offsets = zeros(1, size(data, 2));
     numChannels = size(data, 2);
     hLines = gobjects(1, numChannels);
-    % Plot each column with specified parameters
+    ax = gca;
+    maxPoints = plotDecimationLimit(ax);
     for chIdx = 1:numChannels
-        % Determine the offset
         offsets(chIdx) = -(chIdx-1) * shiftCoeff;
 
-        % Plotting the line with an offset
         plotArgs = {'LineWidth', getOptionalParam(lineWidths, chIdx),...
                     'Color', getOptionalParam(colors, chIdx),...
                     'DisplayName', getOptionalParam(displayNames, chIdx),...
                     'LineStyle', getOptionalParam(lineStyles, chIdx)};
-                
-        % Add marker-related properties if a marker is specified
+
         marker = getOptionalParam(markers, chIdx);
         if ~isempty(marker)
             plotArgs = [plotArgs, {'Marker', marker,...
@@ -137,7 +135,8 @@ function [offsets, shiftCoeff, hLines] = multiplot(varargin)
                                     'MarkerEdgeColor', getOptionalParam(markerEdgeColors, chIdx), ...
                                     'MarkerFaceColor', getOptionalParam(markerFaceColors, chIdx)}];
         end
-        hLines(chIdx) = plot(time, data(:, chIdx) + offsets(chIdx), plotArgs{:});
+        [tPlot, yPlot] = decimateForDisplay(time, data(:, chIdx), maxPoints);
+        hLines(chIdx) = plot(tPlot, yPlot + offsets(chIdx), plotArgs{:});
     end
     
     if size(data, 2)>1

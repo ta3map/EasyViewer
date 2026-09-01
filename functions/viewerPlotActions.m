@@ -26,9 +26,13 @@ switch reason
         a.csd = false;
         a.mua = false;
     case 'ylim_shift'
-        global visualSettings
-        a.needData = isfield(visualSettings, 'auto_shift') && logical(visualSettings.auto_shift);
-        a.showLoading = a.needData;
+        a.needData = false;
+        a.showLoading = false;
+        a.csd = false;
+        a.mua = false;
+    case 'ylim_manual'
+        a.needData = false;
+        a.showLoading = false;
         a.csd = false;
         a.mua = false;
     case 'amp_labels'
@@ -39,17 +43,25 @@ switch reason
         a.mua = false;
         a.overlays = false;
     case 'csd_toggle'
-        % needData stays true; prepareViewerPlotData cache hits when window unchanged
         a.mua = false;
+        a.traces = false;
+        a.overlays = false;
+        a.chrome = false;
+        a.showLoading = false;
     case 'spikes_toggle'
-        % needData stays true; prepareViewerPlotData cache hits when window unchanged
         a.csd = false;
+        a.traces = false;
+        a.overlays = false;
+        a.chrome = false;
+        a.showLoading = false;
     case 'layout_mode'
         a.layoutSwitch = true;
         a.invalidate = true;
     case 'full_rebuild'
         a.invalidate = true;
-    case {'navigation', 'time_window', 'channel_change', 'filter_change', 'visual'}
+    case {'navigation', 'time_window'}
+        a.showLoading = false;
+    case {'channel_change', 'filter_change', 'visual'}
         % full data path defaults
     otherwise
         % unknown reason -> visual defaults

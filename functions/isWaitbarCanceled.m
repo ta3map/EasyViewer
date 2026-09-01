@@ -1,6 +1,10 @@
 function tf = isWaitbarCanceled(wb)
-    tf = isempty(wb) || ~isvalid(wb);
-    if tf
+    if isempty(wb)
+        tf = false;
+        return;
+    end
+    if ~isvalid(wb)
+        tf = true;
         return;
     end
     tf = isequal(getappdata(wb, 'canceling'), 1);

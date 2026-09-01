@@ -1,11 +1,5 @@
-function y = resample1(x, p, q)
-%RESAMPLE1 Linear resample without edge effects (like resample, but interp1-based).
-%   Y = RESAMPLE1(X, P, Q) — частота P/Q; X: вектор (N×1) или матрица (N×C).
-
-if evProcessSignalEnabled()
-    y = resample1Mex(x, p, q);
-    return;
-end
+function y = resample1_reference(x, p, q)
+%RESAMPLE1_REFERENCE MATLAB-only reference (pre-MEX resample1.m).
 
 orig_Fs = q;
 new_Fs = p;
