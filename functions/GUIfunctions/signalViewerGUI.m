@@ -936,7 +936,7 @@ function signalViewerGUI(filePath)
         closeChildWindows();
 
         % Сбрасываем состояние загруженного файла перед закрытием окна
-        resetToNoFileState();
+        % Сессия ZAV остаётся в памяти для других GUI
         
         % Удаляем окно
         delete(src);
@@ -2589,7 +2589,6 @@ function signalViewerGUI(filePath)
         debugState('loadMatFile', 'loading mat file:');
         ica_flag = false;
         pca_flag = false;
-        stims_loaded_from_settings = false; % сбрасываем флаг при загрузке нового файла
         viewerYlimManual = false;
         
         windowSize = str2double(get(timeForwardEdit, 'String'))/timeUnitFactor;% должен быть в секундах
@@ -2616,69 +2615,33 @@ function signalViewerGUI(filePath)
             end
         end
         
-        % Проверка, открыт ли уже файл
-        if exist('matFilePath', 'var') && ~isempty(matFilePath) && exist('hd', 'var') && ~isempty(hd)
-            [~, currentFileName, ~] = fileparts(matFilePath);
-            [~, newFileName, ~] = fileparts(filepath);
-            if strcmp(currentFileName, newFileName) && strcmp(matFilePath, filepath)
-                debugState('loadMatFile', 'File already open: %s', newFileName);
-                hWaitBar = waitbar(0, 'File already open...', 'Name', 'Loading file');
-                waitbar(0.5, hWaitBar, 'File already open...');
-                pause(0.3);
-                waitbar(1, hWaitBar, 'Complete');
-                pause(0.1);
-                if isvalid(hWaitBar)
-                    close(hWaitBar);
-                end
-                metadata = struct('hd', hd, 'stims', stims, 'filePath', matFilePath);
-                return;
-            end
+        if isZavSessionLoaded(filepath)
+            debugState('loadMatFile', 'Reusing ZAV session: %s', filepath);
+            setupViewerUIAfterSessionReady();
+            metadata = struct('hd', hd, 'stims', stims, 'filePath', matFilePath);
+            return;
         end
+
+        stims_loaded_from_settings = false;
         
         debugState('loadMatFile', '%s', filepath);
 
         if isRestoringStartupState && ~isempty(restorationWaitBar) && isvalid(restorationWaitBar)
             loadZavSession(filepath, ...
+                'profile', 'viewer', ...
                 'auto_set_time_windows', autoSetTimeWindowsFromSweeps, ...
                 'auto_set_fs', autoSetNewFsFromFs, ...
                 'waitbar_handle', restorationWaitBar, ...
                 'keep_waitbar_open', true);
         else
             loadZavSession(filepath, ...
+                'profile', 'viewer', ...
                 'auto_set_time_windows', autoSetTimeWindowsFromSweeps, ...
                 'auto_set_fs', autoSetNewFsFromFs);
         end
 
-        debugState('loadMatFile', 'stims_exist=%d, selectedCenter=%s, stim_inx=%d', ...
-            stims_exist, selectedCenter, stim_inx);
-
-        if stims_exist
-            set(StimuliTitle, 'String', ['Stimuli: ', num2str(numel(stims))]);
-        else
-            set(StimuliTitle, 'String', 'Stimuli');
-        end
-
-        resetMainWindowButtons()
         lastOpenedFiles{end + 1} = filepath;
-
-        [path, name, ~] = fileparts(matFilePath);
-        channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
-        if isfile(channelSettingsFilePath)
-            syncViewerControlsFromSession();
-            updateTable();
-            updateLocalCoefs();
-        else
-            loadGroupSettingsAndCreateIndividual(matFilePath, numChannels, Fs, EV_version);
-        end
-
-        mainPlotGfx = emptyMainPlotGfx();
-        viewerPlotDataCache = [];
-        clearChannelGrid();
-        syncEventTable();
-        syncTimeCenterPopup();
-        updateSliderMaxValue();
-        timeCenterNav('applyInterval', time_forward);
-        updatePlot('full_rebuild');
+        setupViewerUIAfterSessionReady();
 
         metadata = struct('hd', hd, 'stims', stims, 'filePath', filepath);
     end
@@ -2699,14 +2662,7 @@ function signalViewerGUI(filePath)
         syncViewerDisplayModeMenuLabel();
     end
 
-    function resetToNoFileState()
-        lfp_file = []; spks = []; spks_events = {}; hd = []; zavp = []; lfpVar = []; chnlGrp = []; time = []; stims = [];
-        ch_inxs = [];
-        sweep_info = struct('is_sweep_data', false, 'sweep_count', 0, 'sweep_times', []);
-        time_forward = []; time_back = []; matFilePath = ''; matFileName = ''; stims_exist = false;
-        clearEventsState();
-        N = []; Fs = []; newFs = []; sweep_inx = 1; selectedCenter = 'continuous'; stim_inx = 1;
-        chosen_time_interval = [0, 0];
+    function resetViewerNoFileUI()
         viewerYlimManual = false;
         set(StimuliTitle, 'String', 'Stimuli');
         axes(multiax);
@@ -2735,6 +2691,60 @@ function signalViewerGUI(filePath)
         updateMUAControlsVisibility();
         syncEventTable();
         data_loaded = false;
+    end
+
+    function resetToNoFileState()
+        clearZavSession();
+        ch_inxs = [];
+        clearEventsState();
+        N = []; Fs = []; newFs = []; sweep_inx = 1; selectedCenter = 'continuous'; stim_inx = 1;
+        chosen_time_interval = [0, 0];
+        resetViewerNoFileUI();
+    end
+
+    function setupViewerUIAfterSessionReady()
+        ensureMetadataFields({'spks', 'lfpVar', 'chnlGrp'});
+
+        debugState('loadMatFile', 'stims_exist=%d, selectedCenter=%s, stim_inx=%d', ...
+            stims_exist, selectedCenter, stim_inx);
+
+        if stims_exist
+            set(StimuliTitle, 'String', ['Stimuli: ', num2str(numel(stims))]);
+        else
+            set(StimuliTitle, 'String', 'Stimuli');
+        end
+
+        resetMainWindowButtons();
+
+        [path, name, ~] = fileparts(matFilePath);
+        channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
+        settingsPath = channelSettingsPathForMat(matFilePath);
+        if isChannelSettingsApplied(settingsPath)
+            syncViewerControlsFromSession();
+            updateTable();
+            updateLocalCoefs();
+        elseif isfile(channelSettingsFilePath)
+            loadSettingsFile();
+            updateChannelSelection();
+        else
+            loadGroupSettingsAndCreateIndividual(matFilePath, numChannels, Fs, EV_version);
+        end
+
+        mainPlotGfx = emptyMainPlotGfx();
+        viewerPlotDataCache = [];
+        clearChannelGrid();
+        syncEventTable();
+        syncTimeCenterPopup();
+        updateSliderMaxValue();
+        timeCenterNav('applyInterval', time_forward);
+        updatePlot('full_rebuild');
+        data_loaded = true;
+        set(OptBtn, 'Enable', 'on');
+        set(viewBtn, 'Enable', 'on');
+        set(analysisBtn, 'Enable', 'on');
+        setUIControlsEnable({sidePanel, mainPanel}, 'on');
+        set([yLimMinText, yLimMinEdit, yLimMaxText, yLimMaxEdit, yLimResetBtn, fullTraceBtn], 'Enable', 'on');
+        updateMUAControlsVisibility();
     end
 
     function closeChildWindows()
@@ -2917,176 +2927,21 @@ function signalViewerGUI(filePath)
 % Функция загрузки настроек из файла
 function loadSettingsFile()
     try
-        loadedSettings = load(channelSettingsFilePath, '-mat');
-        meanControlsState = struct();
-        if isfield(loadedSettings, 'EV_version') % работает с 1.10.00  
-            channelNames = np_flatten(loadedSettings.channelNames);
-            channelEnabled  = np_flatten(loadedSettings.channelEnabled);
-            scalingCoefficients  = np_flatten(loadedSettings.scalingCoefficients);
-            colorsIn = np_flatten(loadedSettings.colorsIn);
-            lineCoefficients = np_flatten(loadedSettings.lineCoefficients);
-            mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
-            csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
-            filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
-            if isfield(loadedSettings, 'baseline_subtract_available')
-                baseline_subtract_available = np_flatten(loadedSettings.baseline_subtract_available);
-            else
-                baseline_subtract_available = true(numChannels, 1);
-            end
-        else % неактуально с 1.10.00  
-            warning('Old settings')
-            % Получение данных из таблицы
-            updatedData = loadedSettings.channelSettings;
-
-            channelNames = updatedData(:, 1)';
-            channelEnabled = [updatedData{:, 2}];
-            scalingCoefficients = [updatedData{:, 3}];
-            colorsIn = updatedData(:, 4)';
-            lineCoefficients = [updatedData{:, 5}];
-            
-            mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
-            csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
-            filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
-            if isfield(loadedSettings, 'baseline_subtract_available')
-                baseline_subtract_available = np_flatten(loadedSettings.baseline_subtract_available);
-            else
-                baseline_subtract_available = true(numChannels, 1);
-            end
+        applied = applyChannelSettingsFromFile(channelSettingsFilePath, numChannels);
+        if ~applied
+            return;
         end
         updateTable();
-
-        if isfield(loadedSettings, 'filterSettings') && ~(isempty(loadedSettings.filterSettings))
-            filterSettings = loadedSettings.filterSettings;
-            if ~isfield(filterSettings, 'smoothSpan')
-                filterSettings.smoothSpan = 0;
-            end
-            if ~isfield(filterSettings, 'smoothMethod')
-                filterSettings.smoothMethod = 'moving';
-            end
-        else % если настройки старые
-            filterSettings.filterType = 'highpass';
-            filterSettings.freqLow = 10;
-            filterSettings.freqHigh = 50;
-            filterSettings.order = 4;
-            filterSettings.channelsToFilter = false(numChannels, 1); % Ни один канал не участвует в фильтрации
-            filterSettings.smoothSpan = 0;
-            filterSettings.smoothMethod = 'moving';
-            debugState('loadSettingsFile', 'settings were without filterSettings');
-        end
-        if ~islogical(filterSettings.channelsToFilter) || numel(filterSettings.channelsToFilter) ~= numel(filter_avaliable)
-            filterSettings.channelsToFilter = np_flatten(filter_avaliable);
-        end       
-
-        if isfield(loadedSettings, 'newFs')
-            newFs = loadedSettings.newFs;
-            set(FsCoeffEdit, 'String', num2str(newFs));
-        end
-        if isfield(loadedSettings, 'lastEventsFilePath')
-            lastEventsFilePath = loadedSettings.lastEventsFilePath;
-        end
-        channelLayoutFilePath = '';
-        channelLayoutNameGrid = [];
-        if isfield(loadedSettings, 'channelLayoutNameGrid') && ~isempty(loadedSettings.channelLayoutNameGrid)
-            channelLayoutNameGrid = loadedSettings.channelLayoutNameGrid;
-        end
-        if isfield(loadedSettings, 'channelLayoutFilePath')
-            channelLayoutFilePath = loadedSettings.channelLayoutFilePath;
-        end
-        if isfield(loadedSettings, 'viewerYlim') && numel(loadedSettings.viewerYlim) == 2
-            viewerYlim = double(loadedSettings.viewerYlim(:)');
-        end
-        if isfield(loadedSettings, 'viewerYlimManual')
-            viewerYlimManual = logical(loadedSettings.viewerYlimManual);
-        end
-        if isfield(loadedSettings, 'event_inx')
-            loaded_event_inx = round(double(loadedSettings.event_inx));
-            if isfinite(loaded_event_inx) && loaded_event_inx >= 1
-                restored_event_inx = loaded_event_inx;
-                event_inx = loaded_event_inx;
-            end
-        end
-        if isfield(loadedSettings, 'shiftCoeff')
-            shiftCoeff = loadedSettings.shiftCoeff;
-            set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
-        end
-        if isfield(loadedSettings, 'visualSettings')
-            applyChannelVisualSettings(loadedSettings.visualSettings);
-            normalizeViewerDisplayMode();
-            syncViewerDisplayModeMenuLabel();
-            set(showCSDbutton, 'Value', visualSettings.show_CSD);
-            syncCSDControlsState();
-            syncMUAControlsState();
+        syncViewerControlsFromSession();
+        set(showCSDbutton, 'Value', visualSettings.show_CSD);
+        syncCSDControlsState();
+        syncMUAControlsState();
+        if stims_exist
+            set(StimuliTitle, 'String', ['Stimuli: ', num2str(numel(stims))]);
         else
-            normalizeViewerDisplayMode();
-            syncViewerDisplayModeMenuLabel();
+            set(StimuliTitle, 'String', 'Stimuli');
         end
-        if isfield(loadedSettings, 'binsize')
-            binsize = loadedSettings.binsize;
-        end
-        if isfield(loadedSettings, 'meanControlsState') && isstruct(loadedSettings.meanControlsState)
-            meanControlsState = loadedSettings.meanControlsState;
-        end
-        if isfield(loadedSettings, 'autodetection_settings') && isstruct(loadedSettings.autodetection_settings)
-            autodetection_settings = loadedSettings.autodetection_settings;
-        end
-        if isfield(loadedSettings, 'std_coef')
-            std_coef = min(max(double(loadedSettings.std_coef), 0), 10);
-        end
-        if isfield(loadedSettings, 'time_back')
-            time_back = loadedSettings.time_back; % time window before (s)
-            debugState('loadSettingsFileVIEWER', 'time_back=%f', time_back);
-            set(timeBackEdit, 'String', num2str(time_back * timeUnitFactor));
-        end
-        if isfield(loadedSettings, 'time_forward')
-            time_forward = loadedSettings.time_forward; % time window after (s)
-            set(timeForwardEdit, 'String', num2str(time_forward * timeUnitFactor));
-        end
-
-        if isfield(loadedSettings, 'csd_smooth_coef')
-            csd_smooth_coef = loadedSettings.csd_smooth_coef;
-        else
-            csd_smooth_coef = 5;
-            debugState('loadSettingsFile', 'settings were without CSD smooth coef');
-        end
-        csd_contrast_coef = loadCsdContrastCoefFromSettings(loadedSettings);
-        csd_contrast_is_display = true;
-        
-        if isfield(loadedSettings, 'csd_split_by_channel_gaps')
-            csd_split_by_channel_gaps = logical(loadedSettings.csd_split_by_channel_gaps);
-        else
-            csd_split_by_channel_gaps = false;
-        end
-        
-        % Загружаем смещенные стимулы если они есть
-        if isfield(loadedSettings, 'stims')
-            stims = loadedSettings.stims;
-            stims_exist = ~isempty(stims);
-            stims_loaded_from_settings = true;
-            debugState('loadSettingsFile', 'Loaded shifted stimulus times from settings');
-            
-            % Обновляем заголовок стимулов
-            if stims_exist
-                set(StimuliTitle, 'String', ['Stimuli: ', num2str(numel(stims))]);
-            else
-                set(StimuliTitle, 'String', 'Stimuli');
-            end
-        end
-
-        if isfield(loadedSettings, 'axes_background_color') && ~isempty(loadedSettings.axes_background_color)
-            axes_background_color = loadedSettings.axes_background_color;
-            bgRgb = hex2rgb_local(axes_background_color);
-            set(multiax, 'Color', bgRgb);
-            applyAxesBackgroundToChannelGrid(bgRgb);
-        else
-            axes_background_color = '#FFFFFF';
-            bgRgb = hex2rgb_local(axes_background_color);
-            set(multiax, 'Color', bgRgb);
-            applyAxesBackgroundToChannelGrid(bgRgb);
-        end
-        
-        % Правильно устанавливаем chosen_time_interval в зависимости от режима
-        % Делаем это ПОСЛЕ загрузки всех настроек, включая stims
-        if isfield(loadedSettings, 'time_forward')
+        if ~isempty(time_forward)
             switch selectedCenter
                 case 'stimulus'
                     if stims_exist && stim_inx > 0 && stim_inx <= numel(stims)
@@ -3098,6 +2953,7 @@ function loadSettingsFile()
                     chosen_time_interval = [0, time_forward];
             end
         end
+        debugState('loadSettingsFile', 'Channel settings loaded successfully');
     catch
         createNewChoice = questdlg('An error occurred when loading channel settings. Do you want to create new channel settings file?', ...
             'Save Results', ...
@@ -3634,8 +3490,13 @@ end
                 UpdateEventTable();
         end
     else
-        resetToNoFileState();
-        autoOpenLastFile();
+        if ~isempty(lastOpenedFiles) && isZavSessionLoaded(lastOpenedFiles{end})
+            debugState('loadMatFile', 'Reusing shared ZAV session on startup');
+            setupViewerUIAfterSessionReady();
+        else
+            resetViewerNoFileUI();
+            autoOpenLastFile();
+        end
     end
     
     function autoOpenLastFile(forceRestore)
@@ -3682,6 +3543,18 @@ end
                 return;
             end
             
+            if isZavSessionLoaded(lastFile)
+                waitbar(0.5, restorationWaitBar, 'Reusing ZAV session...');
+                setupViewerUIAfterSessionReady();
+                isRestoringStartupState = false;
+                waitbar(1, restorationWaitBar, 'Done');
+                if ~isempty(restorationWaitBar) && isvalid(restorationWaitBar)
+                    close(restorationWaitBar);
+                end
+                restorationWaitBar = [];
+                return;
+            end
+
             % Загружаем файл
             waitbar(0.22, restorationWaitBar, 'Loading MAT data...');
             loadMatFile(lastFile);

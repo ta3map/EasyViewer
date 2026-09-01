@@ -2956,24 +2956,11 @@ updateCursorEditFields();
             end
         end
         
-        % Проверка, открыт ли уже файл
-        if exist('matFilePath', 'var') && ~isempty(matFilePath) && exist('hd', 'var') && ~isempty(hd)
-            [~, currentFileName, ~] = fileparts(matFilePath);
-            [~, newFileName, ~] = fileparts(filepath);
-            if strcmp(currentFileName, newFileName) && strcmp(matFilePath, filepath)
-                debugState('openFile', 'File already open: %s', newFileName);
-                hWaitBar = waitbar(0, 'File already open...', 'Name', 'Loading file');
-                waitbar(0.5, hWaitBar, 'File already open...');
-                pause(0.3);
-                waitbar(1, hWaitBar, 'Complete');
-                pause(0.1);
-                if isvalid(hWaitBar)
-                    close(hWaitBar);
-                end
-                setupAnalysisUIAfterFileReady();
-                metadata = struct('hd', hd, 'stims', stims, 'filePath', matFilePath);
-                return;
-            end
+        if isZavSessionLoaded(filepath)
+            debugState('openFile', 'Reusing ZAV session: %s', filepath);
+            setupAnalysisUIAfterFileReady();
+            metadata = struct('hd', hd, 'stims', stims, 'filePath', matFilePath);
+            return;
         end
         
         % Очищаем все предыдущие результаты и измерения
@@ -2993,14 +2980,11 @@ updateCursorEditFields();
         
         % Загружаем новый файл используя универсальную функцию
         try
-            % Используем универсальную функцию загрузки
-            data = load_zav_file(filepath, ...
+            loadZavSession(filepath, ...
+                'profile', 'analysis', ...
                 'auto_set_time_windows', false, ...
-                'auto_set_fs', true, ...
-                'metadata_fields', {'hd', 'zavp'});
-            [lfp_file, spks, hd, zavp, lfpVar, chnlGrp, time, stims, sweep_info, time_forward, time_back] = struct2vars(data);
-            
-            % Получаем размеры для совместимости
+                'auto_set_fs', true);
+
             lfpDims = lfp_size(lfp_file);
             m = lfpDims(1);
             n = lfpDims(2);
@@ -3009,28 +2993,8 @@ updateCursorEditFields();
             else
                 p = 1;
             end
-            N = length(time);
             Fs = zavp.dwnSmplFrq;
             
-            % Устанавливаем флаги
-            stims_exist = ~isempty(stims);
-            if isempty(newFs) || ~isfinite(newFs) || newFs <= 0
-                newFs = Fs;
-            end
-            resetAnalysisNavigationState();
-            
-            % === ДОБАВЛЕНО: Загрузка групповых настроек ===
-            % Инициализируем переменные для настроек
-            if isfield(hd, 'recChNames') && iscell(hd.recChNames)
-                channelNames = hd.recChNames;
-            else
-                channelNames = {'Ch1'};
-            end
-            numChannels = length(channelNames);
-            
-            % === КОНЕЦ ДОБАВЛЕННОГО КОДА ===
-            
-            % Обновление и сохранение списка последних открытых файлов
             lastOpenedFiles{end + 1} = filepath;
             
             % Сохраняем обновленный список в настройки
@@ -3126,12 +3090,8 @@ updateCursorEditFields();
     end
     
     function resetToNoFileState()
+        clearZavSession();
         invalidatePlotLayers();
-        lfp_file = []; spks = []; hd = []; zavp = []; lfpVar = []; chnlGrp = []; time = []; stims = [];
-        sweep_info = struct('is_sweep_data', false, 'sweep_count', 0, 'sweep_times', []);
-        time_forward = []; time_back = []; matFilePath = ''; matFileName = ''; stims_exist = false;
-        N = []; Fs = []; newFs = []; sweep_inx = 1; selectedCenter = 'continuous'; stim_inx = 1;
-        chosen_time_interval = [0, 0];
         slope_measurement_results = []; current_loaded_excel_path = [];
         selected_row_slope = []; selected_measurement_row = [];
         mean_results_active = false; mean_signal_data = []; mean_signal_time = [];
@@ -3216,137 +3176,34 @@ updateCursorEditFields();
     end
     
     function loadChannelSettings()
-        % Загружает настройки каналов (индивидуальные или групповые)
-        % fprintf('DEBUG: loadChannelSettings: Начало функции\n');
-        % fprintf('DEBUG: loadChannelSettings: matFilePath = %s\n', matFilePath);
-        % fprintf('DEBUG: loadChannelSettings: numChannels = %d\n', numChannels);
-        % fprintf('DEBUG: loadChannelSettings: Fs = %.1f\n', Fs);
-        % fprintf('DEBUG: loadChannelSettings: EV_version = %s\n', EV_version);
-        
-        [path, name, ~] = fileparts(matFilePath);
-        channelSettingsFilePath = fullfile(path, [name '_channelSettings.stn']);
-        % fprintf('DEBUG: loadChannelSettings: channelSettingsFilePath = %s\n', channelSettingsFilePath);
-        
-        if isfile(channelSettingsFilePath)
-            % Индивидуальные настройки существуют - загружаем их полностью
-            % fprintf('DEBUG: loadChannelSettings: Индивидуальные настройки найдены\n');
+        settingsPath = channelSettingsPathForMat(matFilePath);
+        if isChannelSettingsApplied(settingsPath)
+            return;
+        end
+
+        if isfile(settingsPath)
             debugState('loadChannelSettings', 'Loading individual channel settings...')
-            loadSettingsFile(channelSettingsFilePath);
+            loadSettingsFile(settingsPath);
         else
-            % Индивидуальных настроек нет - загружаем групповые + создаем индивидуальные
-            % fprintf('DEBUG: loadChannelSettings: Индивидуальные настройки НЕ найдены, загружаем групповые\n');
             debugState('loadChannelSettings', 'No individual settings found, loading group settings...')
-            % Загружаем групповые настройки и создаем индивидуальные
             loadGroupSettingsAndCreateIndividual(matFilePath, numChannels, Fs, EV_version);
         end
-        
-        % fprintf('DEBUG: loadChannelSettings: Конец функции\n');
     end
     
     function loadSettingsFile(channelSettingsFilePath)
-        % Загружает настройки из файла настроек каналов
-        % fprintf('DEBUG: loadSettingsFile: Начало загрузки из %s\n', channelSettingsFilePath);
-        
         try
-            loadedSettings = load(channelSettingsFilePath, '-mat');
-            % fprintf('DEBUG: loadSettingsFile: Файл загружен, поля: ');
-            % disp(fieldnames(loadedSettings));
-            if isfield(loadedSettings, 'EV_version') % работает с 1.10.00  
-                % fprintf('DEBUG: loadSettingsFile: Новый формат настроек (EV_version = %s)\n', loadedSettings.EV_version);
-                channelNames = np_flatten(loadedSettings.channelNames);
-                channelEnabled = np_flatten(loadedSettings.channelEnabled);
-                scalingCoefficients = np_flatten(loadedSettings.scalingCoefficients);
-                colorsIn = np_flatten(loadedSettings.colorsIn);
-                lineCoefficients = np_flatten(loadedSettings.lineCoefficients);
-                mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
-                csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
-                filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
-                if isfield(loadedSettings, 'baseline_subtract_available')
-                    baseline_subtract_available = np_flatten(loadedSettings.baseline_subtract_available);
-                else
-                    baseline_subtract_available = true(numChannels, 1);
-                end
-
-                % fprintf('DEBUG: loadSettingsFile: Загружено каналов: %d\n', length(channelNames));
-            else % неактуально с 1.10.00  
-                % fprintf('DEBUG: loadSettingsFile: Старый формат настроек\n');
-                warning('Old settings format detected')
-                % Получение данных из таблицы
-                updatedData = loadedSettings.channelSettings;
-
-                channelNames = updatedData(:, 1)';
-                channelEnabled = [updatedData{:, 2}];
-                scalingCoefficients = [updatedData{:, 3}];
-                colorsIn = updatedData(:, 4)';
-                lineCoefficients = [updatedData{:, 5}];
-                channelSettings = updatedData;
-
-                mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
-                csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
-                filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
-                if isfield(loadedSettings, 'baseline_subtract_available')
-                    baseline_subtract_available = np_flatten(loadedSettings.baseline_subtract_available);
-                else
-                    baseline_subtract_available = true(numChannels, 1);
-                end
-                
-                % fprintf('DEBUG: loadSettingsFile: Загружено каналов (старый формат): %d\n', length(channelNames));
+            applied = applyChannelSettingsFromFile(channelSettingsFilePath, numChannels);
+            if ~applied
+                return;
             end
-            
-            % fprintf('DEBUG: loadSettingsFile: Вызываем updateTable()\n');
             updateTable();
-            % fprintf('DEBUG: loadSettingsFile: После updateTable(): numChannels = %d\n', numChannels);
-
-            if isfield(loadedSettings, 'filterSettings') && ~(isempty(loadedSettings.filterSettings))
-                filterSettings = loadedSettings.filterSettings;
-                if ~isfield(filterSettings, 'smoothSpan')
-                    filterSettings.smoothSpan = 0;
-                end
-                if ~isfield(filterSettings, 'smoothMethod')
-                    filterSettings.smoothMethod = 'moving';
-                end
-            else % если настройки старые
-                filterSettings.filterType = 'highpass';
-                filterSettings.freqLow = 10;
-                filterSettings.freqHigh = 50;
-                filterSettings.order = 4;
-                filterSettings.channelsToFilter = false(length(channelNames), 1);
-                filterSettings.smoothSpan = 0;
-                filterSettings.smoothMethod = 'moving';
-                debugState('loadSettingsFile', 'settings were without filterSettings')
-            end       
-
-            if isfield(loadedSettings, 'newFs')
-                newFs = loadedSettings.newFs;
-            end
-            if isfield(loadedSettings, 'shiftCoeff')
-                shiftCoeff = loadedSettings.shiftCoeff;
-            end
-            if isfield(loadedSettings, 'time_back')
-                time_back = loadedSettings.time_back;
-                debugState('loadSettingsFileANALYSIS', 'time_back=%f', time_back);
-            end
-            if isfield(loadedSettings, 'time_forward')
-                time_forward = loadedSettings.time_forward;
+            if ~isempty(time_forward)
                 chosen_time_interval = [0, time_forward];
             end
-
-            % Загружаем смещенные стимулы если они есть
-            if isfield(loadedSettings, 'stims')
-                stims = loadedSettings.stims;
-                stims_exist = ~isempty(stims);
-                stims_loaded_from_settings = true;
-                debugState('loadSettingsFile', 'Loaded shifted stimulus times from settings')
-            end
-            
-
-            
-            % fprintf('DEBUG: loadSettingsFile: Настройки каналов загружены успешно\n');
+            debugState('loadSettingsFileANALYSIS', 'time_back=%f', time_back);
             debugState('loadSettingsFile', 'Channel settings loaded successfully')
-            
         catch ME
             warning('Error loading channel settings: %s', ME.message)
-            % В случае ошибки создаем настройки по умолчанию
             setDefaultChannelSettings();
         end
     end
@@ -3676,6 +3533,11 @@ updateCursorEditFields();
                 return;
             end
             debugState('autoOpenLastFile', '🔄 Automatically opening last file: %s', lastFile);
+            if isZavSessionLoaded(lastFile)
+                debugState('autoOpenLastFile', 'Reusing ZAV session: %s', lastFile);
+                setupAnalysisUIAfterFileReady();
+                return;
+            end
             outside_calling_filepath = lastFile;
             openFile([], []);
         catch ME
