@@ -46,7 +46,6 @@ function signalViewerGUI(filePath)
     global ica_flag pca_flag
     global autoSetNewFsFromFs % флаг автоматической установки newFs на основе Fs
     global autoSetTimeWindowsFromSweeps % флаг автоматической установки time_back/time_forward на основе свипов
-    global slope_measurement_settings % настройки измерения slope
     global stims_loaded_from_settings % флаг загрузки стимулов из настроек
     
     % Кэшированные данные последнего updatePlot для ручных событий
@@ -140,17 +139,6 @@ function signalViewerGUI(filePath)
         'TimerFcn', @debouncedSliderUpdatePlotCallback, ...
         'StartDelay', 0.15, ...
         'ExecutionMode', 'singleShot');
-    
-    % Инициализация настроек slope measurement
-    slope_measurement_settings = struct();
-    slope_measurement_settings.channel = 1;
-    slope_measurement_settings.baseline_start = 0;
-    slope_measurement_settings.baseline_end = 0;
-    slope_measurement_settings.peak_start = 0;
-    slope_measurement_settings.peak_end = 0;
-    slope_measurement_settings.slope_percent = 20;
-    slope_measurement_settings.peak_polarity = 'positive';
-
     
     % Инициализируем lines_and_styles только если они не были загружены из настроек
     if isempty(lines_and_styles) || ~isfield(lines_and_styles, 'stimulus_lines') || ~isfield(lines_and_styles, 'events_lines')
@@ -1764,8 +1752,7 @@ function signalViewerGUI(filePath)
         timeCenterNav('applyInterval', windowSize);
         
         saveChannelSettings();
-        updatePlot('time_window');
-        notifySessionPeers('navigation', 'SignalViewerGUI');
+        finishNavigationAndSync('time_window');
     end
 
     % Функция обратного вызова для выпадающего списка
@@ -1873,67 +1860,10 @@ function signalViewerGUI(filePath)
         % Иначе это перетаскивание ползунка - работаем как обычно
         previousSliderValue = sliderValue;
         
-        windowSize = str2double(get(timeForwardEdit, 'String'))/timeUnitFactor;% должен быть в секундах;
-        
-        switch selectedCenter
-            case 'stimulus'
-                if stims_exist
-                    % Находим ближайший стимул к текущему значению слайдера
-                    stim_inx = ClosestIndex(sliderValue, stims);
-                    
-                    % Проверяем границы
-                    if stim_inx > numel(stims)
-                        stim_inx = numel(stims);
-                    elseif stim_inx < 1
-                        stim_inx = 1;
-                    end
-                    
-                    % Устанавливаем временной интервал относительно найденного стимула
-                    chosen_time_interval(1) = stims(stim_inx);
-                    chosen_time_interval(2) = stims(stim_inx) + windowSize;
-                else
-                    % Если стимулов нет, работаем как с обычным временем
-                    if sliderValue + windowSize > time(end)
-                        sliderValue = time(end) - windowSize;
-                    end
-                    chosen_time_interval = [sliderValue, sliderValue + windowSize];
-                end
-            case 'events'
-                if events_exist
-                    % Находим ближайшее событие к текущему значению слайдера
-                    event_inx = ClosestIndex(sliderValue, events);
-                    
-                    % Проверяем границы
-                    if event_inx > numel(events)
-                        event_inx = numel(events);
-                    elseif event_inx < 1
-                        event_inx = 1;
-                    end
-                    
-                    % Устанавливаем временной интервал относительно найденного события
-                    chosen_time_interval(1) = events(event_inx);
-                    chosen_time_interval(2) = events(event_inx) + windowSize;
-                    
-                    % Обновляем активное окно
-                    set(eventDeleteEdit, 'String', num2str(event_inx));
-                else
-                    % Если событий нет, работаем как с обычным временем
-                    if sliderValue + windowSize > time(end)
-                        sliderValue = time(end) - windowSize;
-                    end
-                    chosen_time_interval = [sliderValue, sliderValue + windowSize];
-                end
-            case 'continuous'
-                % Проверка на выход за границы времени
-                if sliderValue + windowSize > time(end)
-                    sliderValue = time(end) - windowSize;
-                end
-                chosen_time_interval = [sliderValue, sliderValue + windowSize];
-                
-                if not(isempty(events))
-                    event_inx = ClosestIndex(sliderValue, events);
-                    set(eventDeleteEdit, 'String', num2str(event_inx));  
-                end
+        windowSize = str2double(get(timeForwardEdit, 'String'))/timeUnitFactor;
+        navState = timeCenterNav('setAnchor', sliderValue, windowSize);
+        if ~isempty(navState.event_inx)
+            set(eventDeleteEdit, 'String', num2str(navState.event_inx));
         end
         
         requestDebouncedSliderUpdatePlot();
@@ -1957,7 +1887,7 @@ function signalViewerGUI(filePath)
         if isRestoringStartupState || plot_updating
             return;
         end
-        updatePlot('navigation');
+        finishNavigationAndSync('navigation');
     end
 
     function timeZeroEditCallback(src, ~)
@@ -1980,53 +1910,13 @@ function signalViewerGUI(filePath)
             set(src, 'String', num2str(tor_restore * timeUnitFactor));
             return;
         end
-        switch selectedCenter
-            case 'stimulus'
-                if stims_exist
-                    stim_inx = ClosestIndex(sliderValue, stims);
-                    if stim_inx > numel(stims)
-                        stim_inx = numel(stims);
-                    end
-                    if stim_inx < 1
-                        stim_inx = 1;
-                    end
-                    chosen_time_interval(1) = stims(stim_inx);
-                    chosen_time_interval(2) = stims(stim_inx) + windowSize;
-                else
-                    if sliderValue + windowSize > time(end)
-                        sliderValue = time(end) - windowSize;
-                    end
-                    chosen_time_interval = [sliderValue, sliderValue + windowSize];
-                end
-            case 'events'
-                if events_exist
-                    event_inx = ClosestIndex(sliderValue, events);
-                    if event_inx > numel(events)
-                        event_inx = numel(events);
-                    end
-                    if event_inx < 1
-                        event_inx = 1;
-                    end
-                    chosen_time_interval(1) = events(event_inx);
-                    chosen_time_interval(2) = events(event_inx) + windowSize;
-                    set(eventDeleteEdit, 'String', num2str(event_inx));
-                else
-                    if sliderValue + windowSize > time(end)
-                        sliderValue = time(end) - windowSize;
-                    end
-                    chosen_time_interval = [sliderValue, sliderValue + windowSize];
-                end
-            case 'continuous'
-                if sliderValue + windowSize > time(end)
-                    sliderValue = time(end) - windowSize;
-                end
-                chosen_time_interval = [sliderValue, sliderValue + windowSize];
-                if not(isempty(events))
-                    event_inx = ClosestIndex(sliderValue, events);
-                    set(eventDeleteEdit, 'String', num2str(event_inx));
-                end
+        navState = timeCenterNav('setAnchor', sliderValue, windowSize);
+        set(timeSlider, 'Value', navState.anchorTime);
+        previousSliderValue = navState.anchorTime;
+        if ~isempty(navState.event_inx)
+            set(eventDeleteEdit, 'String', num2str(navState.event_inx));
         end
-        updatePlot('navigation');
+        finishNavigationAndSync('navigation');
     end
 
     function yLimEditCallback(~, ~)
@@ -2483,7 +2373,7 @@ function signalViewerGUI(filePath)
 
         set(eventDeleteEdit, 'String', num2str(event_inx));
 
-        updatePlot('navigation');
+        finishNavigationAndSync('navigation');
     end
 
     function selectEventByIndex(ev_ix)
@@ -2495,7 +2385,7 @@ function signalViewerGUI(filePath)
         chosen_time_interval(1) = events(event_inx);
         chosen_time_interval(2) = events(event_inx) + windowSize;
         set(eventDeleteEdit, 'String', num2str(event_inx));
-        updatePlot('navigation');
+        finishNavigationAndSync('navigation');
     end
 
     function selectStimulusByIndex(st_ix)
@@ -2506,7 +2396,7 @@ function signalViewerGUI(filePath)
         windowSize = time_forward;
         chosen_time_interval(1) = stims(stim_inx);
         chosen_time_interval(2) = stims(stim_inx) + windowSize;
-        updatePlot('navigation');
+        finishNavigationAndSync('navigation');
     end
     
     % Внутренние функции для обработки событий GUI
@@ -2728,6 +2618,7 @@ function signalViewerGUI(filePath)
         elseif isfile(channelSettingsFilePath)
             loadSettingsFile();
             updateChannelSelection();
+            syncViewerControlsFromSession();
         else
             loadGroupSettingsAndCreateIndividual(matFilePath, numChannels, Fs, EV_version);
         end
@@ -2745,7 +2636,7 @@ function signalViewerGUI(filePath)
         if gridActive
             updatePlot('layout_mode');
         else
-            updatePlot('full_rebuild');
+            updatePlot('navigation');
         end
         data_loaded = true;
         set(OptBtn, 'Enable', 'on');
@@ -2909,15 +2800,12 @@ function signalViewerGUI(filePath)
 
     function syncCSDControlsState()
         layoutActive = isViewerGridDisplayActive();
-        if layoutActive
-            visualSettings.show_CSD = false;
-        end
         enableState = 'on';
         if layoutActive
             enableState = 'off';
         end
         if ~isempty(showCSDbutton) && isgraphics(showCSDbutton, 'uicontrol')
-            set(showCSDbutton, 'Value', logical(visualSettings.show_CSD), 'Enable', enableState);
+            set(showCSDbutton, 'Value', logical(visualSettings.show_CSD) && ~layoutActive, 'Enable', enableState);
         end
     end
 
@@ -3175,6 +3063,14 @@ end
         updateSliderMaxValue();
     end
 
+    function finishNavigationAndSync(plotReason)
+        if nargin < 1 || isempty(plotReason)
+            plotReason = 'navigation';
+        end
+        updatePlot(plotReason);
+        commitSessionNavigation('SignalViewerGUI');
+    end
+
     function shiftTime(~, ~, direction, timeForwardEdit)
         if plot_updating
             return;
@@ -3197,8 +3093,7 @@ end
         
         keyboardpressed = false;
         debugState('shiftTime', 'chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
-        updatePlot('navigation');
-        notifySessionPeers('navigation', 'SignalViewerGUI');
+        finishNavigationAndSync('navigation');
         debugState('shiftTime', 'plot updated');
     end
     
@@ -3257,7 +3152,7 @@ end
             chosen_time_interval(2) = events(event_inx)+windowSize;
         end
         
-        updatePlot('navigation')
+        finishNavigationAndSync('navigation');
     end
 
     function applyEventsLoadedState()
@@ -3603,11 +3498,13 @@ end
             % Загружаем файл
             waitbar(0.22, restorationWaitBar, 'Loading MAT data...');
             loadMatFile(lastFile);
+            loadedEventsOnStartup = false;
             waitbar(0.74, restorationWaitBar, 'Checking events file...');
             if isLastEventsFileMatchingCurrentMat(lastEventsFilePath, matFilePath)
                 outside_calling_filepath = lastEventsFilePath;
                 waitbar(0.86, restorationWaitBar, 'Loading events...');
                 loadEvents();
+                loadedEventsOnStartup = events_exist;
             end
             if ~isempty(channelUpdateDebounceTimer) && isvalid(channelUpdateDebounceTimer)
                 stop(channelUpdateDebounceTimer);
@@ -3616,8 +3513,9 @@ end
                 stop(sliderUpdateDebounceTimer);
             end
             isRestoringStartupState = false;
-            waitbar(0.95, restorationWaitBar, 'Applying final view...');
-            updatePlot('full_rebuild');
+            if loadedEventsOnStartup
+                updatePlot('navigation');
+            end
             waitbar(1, restorationWaitBar, 'Done');
             if ~isempty(restorationWaitBar) && isvalid(restorationWaitBar)
                 close(restorationWaitBar);

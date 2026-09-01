@@ -60,6 +60,7 @@ switch reason
         a.invalidate = true;
     case 'full_rebuild'
         a.invalidate = true;
+        a.showLoading = false;
     case {'navigation', 'time_window'}
         a.showLoading = false;
     case 'peer_sync'

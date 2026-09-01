@@ -50,6 +50,7 @@ function updatePlot(reason)
     if isempty(ch_inxs)
         clearChannelGrid();
         set(multiax, 'Visible', 'on');
+        restoreLinearAxesChrome(multiax);
         clearMainAxesPlotContent(multiax, keepLoading);
         mainPlotGfx = emptyMainPlotGfx();
         viewerPlotDataCache = [];
@@ -94,6 +95,7 @@ function updatePlot(reason)
 
     clearChannelGrid();
     set(multiax, 'Visible', 'on');
+    restoreLinearAxesChrome(multiax);
     pd = refreshLinearBranch(pd, actions, keepLoading);
     finishPlotUpdate(pd.time_origin, pd, actions);
 end
@@ -230,10 +232,6 @@ function pd = refreshLinearBranch(pd, actions, keepLoading)
     end
     offsets = -(0:numChannels-1) * shiftCoeff;
 
-    if actions.csd || ~canReuse
-        refreshCsdLayer(pd, canReuse);
-    end
-
     if actions.traces || ~canReuse
         refreshTraceLayer(pd, canReuse, gapIdx);
     end
@@ -253,7 +251,6 @@ function pd = refreshLinearBranch(pd, actions, keepLoading)
     end
 
     mainPlotGfx.signature = sig;
-    applySignalLayerOrder(multiax);
 
     xlim(multiax, pd.Xlims);
     manualYlimValid = viewerYlimManual && numel(viewerYlim) == 2 && all(isfinite(viewerYlim)) && viewerYlim(1) < viewerYlim(2);
@@ -273,6 +270,12 @@ function pd = refreshLinearBranch(pd, actions, keepLoading)
     end
     ylim(multiax, Ylims);
     pd.Ylims = Ylims;
+
+    if actions.csd || ~canReuse
+        refreshCsdLayer(pd, false);
+    end
+
+    applySignalLayerOrder(multiax);
 
     xlabel(multiax, 'Time, ' + string(selectedUnit) + '');
     ylabel(multiax, 'Channels');
@@ -340,7 +343,7 @@ function refreshCsdLayer(pd, canReuse)
     if canReuse && ~isempty(mainPlotGfx.csdImage) && isgraphics(mainPlotGfx.csdImage)
         hCsd = mainPlotGfx.csdImage;
     end
-    mainPlotGfx.csdImage = csdPlotting(csd_image, csd_t_range, csd_ch_range, hCsd);
+    mainPlotGfx.csdImage = csdPlotting(csd_image, csd_t_range, csd_ch_range, hCsd, multiax);
     set(mainPlotGfx.csdImage, 'Visible', 'on');
     applyHeatmapContrast(multiax, get(multiax, 'CLim'), csd_contrast_coef);
 end
@@ -942,4 +945,15 @@ function gfx = ensureMainPlotGfxFields(gfx)
             gfx.(names{i}) = template.(names{i});
         end
     end
+end
+
+function restoreLinearAxesChrome(ax)
+    set(ax, ...
+        'XTickMode', 'auto', ...
+        'YTickMode', 'auto', ...
+        'XTickLabelMode', 'auto', ...
+        'YTickLabelMode', 'auto', ...
+        'XColor', get(0, 'DefaultAxesXColor'), ...
+        'YColor', get(0, 'DefaultAxesYColor'), ...
+        'Box', 'on');
 end

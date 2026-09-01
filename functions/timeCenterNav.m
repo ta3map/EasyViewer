@@ -26,6 +26,9 @@ function varargout = timeCenterNav(action, varargin)
         case 'shift'
             ensureCenter();
             shiftImpl(varargin{1}, varargin{2});
+        case 'setAnchor'
+            ensureCenter();
+            varargout{1} = setAnchorImpl(varargin{1}, varargin{2});
         case 'applyInterval'
             ensureCenter();
             applyIntervalImpl(varargin{1});
@@ -130,6 +133,58 @@ function shiftContinuous(direction, windowSize)
     if ~(next_step_1 < 0 || next_step_2 > time(end) + windowSize)
         chosen_time_interval(1) = next_step_1;
         chosen_time_interval(2) = next_step_2;
+    end
+end
+
+function navState = setAnchorImpl(anchorTime, windowSize)
+    global selectedCenter events event_inx events_exist stims stim_inx stims_exist
+    global time chosen_time_interval
+
+    navState = struct('anchorTime', anchorTime, 'event_inx', [], 'stim_inx', []);
+
+    switch selectedCenter
+        case 'stimulus'
+            if stims_exist
+                stim_inx = ClosestIndex(anchorTime, stims);
+                stim_inx = min(max(stim_inx, 1), numel(stims));
+                chosen_time_interval(1) = stims(stim_inx);
+                chosen_time_interval(2) = stims(stim_inx) + windowSize;
+                navState.stim_inx = stim_inx;
+                navState.anchorTime = stims(stim_inx);
+                return;
+            end
+        case 'events'
+            if events_exist
+                event_inx = ClosestIndex(anchorTime, events);
+                event_inx = min(max(event_inx, 1), numel(events));
+                chosen_time_interval(1) = events(event_inx);
+                chosen_time_interval(2) = events(event_inx) + windowSize;
+                navState.event_inx = event_inx;
+                navState.anchorTime = events(event_inx);
+                return;
+            end
+    end
+
+    anchorTime = clampContinuousStart(anchorTime, windowSize);
+    chosen_time_interval = [anchorTime, anchorTime + windowSize];
+    navState.anchorTime = anchorTime;
+    if events_exist && ~isempty(events)
+        event_inx = ClosestIndex(anchorTime, events);
+        event_inx = min(max(event_inx, 1), numel(events));
+        navState.event_inx = event_inx;
+    end
+end
+
+function startTime = clampContinuousStart(startTime, windowSize)
+    global time
+    if isempty(time)
+        return;
+    end
+    if startTime + windowSize > time(end)
+        startTime = time(end) - windowSize;
+    end
+    if startTime < time(1)
+        startTime = time(1);
     end
 end
 

@@ -8,6 +8,7 @@ function signalAnalysisGUI(editMode)
     figTag = 'SignalAnalysisGUI';
     guiFig = findobj('Type', 'figure', 'Tag', figTag);
     if ~isempty(guiFig)
+        ensureSlopeMeasurementSettings();
         registerAnalysisSessionCallbacks(guiFig);
         figure(guiFig);
         return
@@ -113,44 +114,7 @@ function signalAnalysisGUI(editMode)
         end
     end
 
-    % Инициализация настроек если их нет
-    if isempty(slope_measurement_settings)
-        slope_measurement_settings.channel = 1;
-        slope_measurement_settings.baseline_start = 0;
-        slope_measurement_settings.baseline_end = 0;
-        slope_measurement_settings.peak_start = 0;
-        slope_measurement_settings.peak_end = 0;
-        slope_measurement_settings.slope_percent = 20; % процент для slope расчета
-        slope_measurement_settings.peak_polarity = 'positive'; % 'positive' или 'negative'
-        slope_measurement_settings.onset_method = 'derivative'; % метод расчета онсета
-        slope_measurement_settings.onset_threshold = 3; % порог в единицах std
-        % Настройки видимости
-        slope_measurement_settings.show_baseline = true;
-        slope_measurement_settings.show_onset = true;
-        slope_measurement_settings.show_slope = true;
-        slope_measurement_settings.show_peak = true;
-    else
-        % Проверяем и добавляем недостающие поля для онсета
-        if ~isfield(slope_measurement_settings, 'onset_method')
-            slope_measurement_settings.onset_method = 'derivative';
-        end
-        if ~isfield(slope_measurement_settings, 'onset_threshold')
-            slope_measurement_settings.onset_threshold = 3;
-        end
-        % Проверяем и добавляем недостающие поля для видимости
-        if ~isfield(slope_measurement_settings, 'show_baseline')
-            slope_measurement_settings.show_baseline = true;
-        end
-        if ~isfield(slope_measurement_settings, 'show_onset')
-            slope_measurement_settings.show_onset = true;
-        end
-        if ~isfield(slope_measurement_settings, 'show_slope')
-            slope_measurement_settings.show_slope = true;
-        end
-        if ~isfield(slope_measurement_settings, 'show_peak')
-            slope_measurement_settings.show_peak = true;
-        end
-    end
+    ensureSlopeMeasurementSettings();
     
     % Инициализация результатов если их нет
     if isempty(slope_measurement_results)
@@ -1019,7 +983,7 @@ updateCursorEditFields();
         updateNavigationStatus();
         updateCursorEditFields();
         updatePlotAndCalculation();
-        notifySessionPeers('navigation', 'SignalAnalysisGUI');
+        commitSessionNavigation('SignalAnalysisGUI');
     end
     
     function timeForwardEditCallback(src, ~)
@@ -1034,7 +998,7 @@ updateCursorEditFields();
         updateNavigationStatus();
         updateCursorEditFields();
         updatePlotAndCalculation();
-        notifySessionPeers('navigation', 'SignalAnalysisGUI');
+        commitSessionNavigation('SignalAnalysisGUI');
     end
     
     function toggleShowRawSignal(src, ~)
@@ -1079,8 +1043,6 @@ updateCursorEditFields();
     end
     
     function updatePlotAndCalculation()
-        % Координирует вычисление результатов и обновление графика
-        
         if exist('auto_analysis_mode', 'var') & auto_analysis_mode
             [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = calculateResults();
             return;
@@ -1090,21 +1052,10 @@ updateCursorEditFields();
             return;
         end
         
+        refreshRelShift();
         loadingOverlay(plotPanel, true);
         loadCleaner = onCleanup(@() loadingOverlay(plotPanel, false));
         
-        timeCenterNav('applyInterval', time_forward);
-        
-        if logFlag(mean_results_active) && ~isempty(mean_signal_data) && ~isempty(mean_signal_time)
-            [channel_data, time_in, raw_data] = getCurrentData();
-            [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = ...
-                applySlopeMeasurement(channel_data, time_in);
-            [original_xlim, original_ylim] = calculateOptimalAxisLimits(true, channel_data, time_in);
-            refreshPlotLayers(true, false, channel_data, time_in, raw_data);
-            return;
-        end
-        
-        % Тот же data-path, что Viewer: prepareViewerPlotData (slice/artifact/resample)
         [channel_data, time_in, raw_data] = getCurrentData();
         if isempty(channel_data) || all(isnan(channel_data)) || all(isinf(channel_data))
             return;
@@ -1629,7 +1580,7 @@ updateCursorEditFields();
         updateCursorEditFields();
         updateNavigationStatus();
         updatePlotAndCalculation();
-        notifySessionPeers('navigation', 'SignalAnalysisGUI');
+        commitSessionNavigation('SignalAnalysisGUI');
     end
     
     function shiftTimeSlope(direction)
@@ -1642,7 +1593,7 @@ updateCursorEditFields();
         updateCursorEditFields();
         updateNavigationStatus();
         updatePlotAndCalculation();
-        notifySessionPeers('navigation', 'SignalAnalysisGUI');
+        commitSessionNavigation('SignalAnalysisGUI');
     end
     
     function [baseline_rel, peak_rel] = getRelativePositions()
@@ -2909,7 +2860,6 @@ updateCursorEditFields();
     end
     
     function metadata = openFile(varargin)
-        % Открывает новый файл для анализа (аналогично OpenZavLfpFile из signalViewerGUI.m)
         metadata = struct('hd', [], 'stims', [], 'filePath', '');
         
         % Определяем filepath из аргументов или глобальной переменной
@@ -2955,6 +2905,8 @@ updateCursorEditFields();
             return;
         end
         
+        invalidatePlotLayers();
+        
         % Очищаем все предыдущие результаты и измерения
         slope_measurement_results = [];
         
@@ -2973,7 +2925,6 @@ updateCursorEditFields();
         % Загружаем новый файл используя универсальную функцию
         try
             loadZavSession(filepath, ...
-                'profile', 'analysis', ...
                 'auto_set_time_windows', false, ...
                 'auto_set_fs', true, ...
                 'notify_source', 'SignalAnalysisGUI');
@@ -2986,7 +2937,6 @@ updateCursorEditFields();
             else
                 p = 1;
             end
-            Fs = zavp.dwnSmplFrq;
             
             lastOpenedFiles{end + 1} = filepath;
             
@@ -2997,10 +2947,6 @@ updateCursorEditFields();
                 % Если не удалось сохранить, создаем новый файл
                 save(SettingsFilepath, 'lastOpenedFiles');
             end
-            
-            % Обновляем глобальные переменные
-            matFilePath = filepath;
-            [~, matFileName, ~] = fileparts(matFilePath);
             
             setupAnalysisUIAfterFileReady();
             
@@ -3024,7 +2970,7 @@ updateCursorEditFields();
     end
 
     function setupAnalysisUIAfterFileReady()
-        invalidatePlotLayers();
+        ensureSlopeMeasurementSettings();
         refreshRelShift();
         
         saved_channel = 1;
@@ -3067,6 +3013,11 @@ updateCursorEditFields();
         if isempty(time) || isempty(matFilePath)
             return;
         end
+        ensureSlopeMeasurementSettings();
+        baseline_rel.start = slope_measurement_settings.baseline_start - rel_shift;
+        baseline_rel.end = slope_measurement_settings.baseline_end - rel_shift;
+        peak_rel.start = slope_measurement_settings.peak_start - rel_shift;
+        peak_rel.end = slope_measurement_settings.peak_end - rel_shift;
         if ishandle(hTimeBackEdit)
             set(hTimeBackEdit, 'String', sprintf('%.3f', time_back * timeUnitFactor));
         end
@@ -3074,29 +3025,16 @@ updateCursorEditFields();
             set(hTimeForwardEdit, 'String', sprintf('%.3f', time_forward * timeUnitFactor));
         end
         refreshRelShift();
+        setRelativePositions(baseline_rel, peak_rel);
         updateNavigationStatus();
-        updateCursorEditFields();
-        syncAnalysisFromSession();
-    end
-
-    function syncAnalysisFromSession()
-        if isempty(time) || isempty(time_forward)
-            return;
-        end
-        [channel_data, time_in, raw_data] = getCurrentData();
-        if isempty(channel_data) || all(isnan(channel_data)) || all(isinf(channel_data))
-            return;
-        end
-        [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = ...
-            applySlopeMeasurement(channel_data, time_in);
-        [original_xlim, original_ylim] = calculateOptimalAxisLimits(true, channel_data, time_in);
-        refreshPlotLayers(true, false, channel_data, time_in, raw_data);
+        updatePlotAndCalculation();
     end
 
     function onPeerSessionFileLoaded()
         if isempty(matFilePath)
             return;
         end
+        invalidatePlotLayers();
         setupAnalysisUIAfterFileReady();
     end
 

@@ -107,8 +107,6 @@ function loadZavSession(matPath, varargin)
         t_mean_profile = 0;
         meanControlsState = struct();
         axes_background_color = '#FFFFFF';
-        visualSettings.show_spikes = false;
-        visualSettings.show_CSD = false;
 
         clearEventsState();
         lastEventsFilePath = '';
