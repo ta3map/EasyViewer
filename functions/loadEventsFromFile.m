@@ -17,7 +17,7 @@ function loadEventsFromFile(filepath, options)
     global lastOpenedFiles outside_calling_filepath
     
     % Глобальные callback функции
-    global table_calling zav_calling updatePlotFunc
+    global table_calling zav_calling
     
     % Обработка опций
     if nargin < 2
@@ -28,6 +28,9 @@ function loadEventsFromFile(filepath, options)
     end
     if ~isfield(options, 'skip_callbacks')
         options.skip_callbacks = false;
+    end
+    if ~isfield(options, 'gui_tag')
+        options.gui_tag = 'SignalViewerGUI';
     end
     
     % Если filepath не передан, запрашиваем у пользователя
@@ -151,13 +154,7 @@ function loadEventsFromFile(filepath, options)
         end
 
         if ~options.skip_callbacks
-            if exist('updatePlotFunc', 'var') && ~isempty(updatePlotFunc)
-                try
-                    updatePlotFunc();
-                catch ME
-                    warning('Error calling updatePlotFunc: %s', ME.message);
-                end
-            end
+            guiSessionCallback(options.gui_tag, 'updatePlot');
         end
 
         fprintf('✓ Events loaded: %d events from %s\n', length(events), file);

@@ -13,36 +13,20 @@ function applied = applyChannelSettingsFromFile(settingsPath, numChannels)
     end
 
     loadedSettings = load(settingsPath, '-mat');
-
-    if isfield(loadedSettings, 'EV_version')
-        channelNames = np_flatten(loadedSettings.channelNames);
-        channelEnabled = np_flatten(loadedSettings.channelEnabled);
-        scalingCoefficients = np_flatten(loadedSettings.scalingCoefficients);
-        colorsIn = np_flatten(loadedSettings.colorsIn);
-        lineCoefficients = np_flatten(loadedSettings.lineCoefficients);
-        mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
-        csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
-        filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
-        baseline_subtract_available = true(1, numChannels);
-        if isfield(loadedSettings, 'baseline_subtract_available')
-            baseline_subtract_available = np_flatten(loadedSettings.baseline_subtract_available);
-        end
-    else
-        warning('Old settings format detected');
-        updatedData = loadedSettings.channelSettings;
-        channelNames = updatedData(:, 1)';
-        channelEnabled = [updatedData{:, 2}];
-        scalingCoefficients = [updatedData{:, 3}];
-        colorsIn = updatedData(:, 4)';
-        lineCoefficients = [updatedData{:, 5}];
-        mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
-        csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
-        filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
-        baseline_subtract_available = true(1, numChannels);
-        if isfield(loadedSettings, 'baseline_subtract_available')
-            baseline_subtract_available = np_flatten(loadedSettings.baseline_subtract_available);
-        end
+    parsed = parseLoadedChannelArrays(loadedSettings, numChannels);
+    if ~parsed.ok
+        return;
     end
+
+    channelNames = parsed.channelNames;
+    channelEnabled = parsed.channelEnabled;
+    scalingCoefficients = parsed.scalingCoefficients;
+    colorsIn = parsed.colorsIn;
+    lineCoefficients = parsed.lineCoefficients;
+    mean_group_ch = parsed.mean_group_ch;
+    csd_avaliable = parsed.csd_avaliable;
+    filter_avaliable = parsed.filter_avaliable;
+    baseline_subtract_available = parsed.baseline_subtract_available;
 
     if isfield(loadedSettings, 'filterSettings') && ~isempty(loadedSettings.filterSettings)
         filterSettings = loadedSettings.filterSettings;
@@ -108,8 +92,6 @@ function applied = applyChannelSettingsFromFile(settingsPath, numChannels)
     if isfield(loadedSettings, 'lastEventsFilePath')
         lastEventsFilePath = loadedSettings.lastEventsFilePath;
     end
-    channelLayoutFilePath = '';
-    channelLayoutNameGrid = [];
     if isfield(loadedSettings, 'channelLayoutNameGrid') && ~isempty(loadedSettings.channelLayoutNameGrid)
         channelLayoutNameGrid = loadedSettings.channelLayoutNameGrid;
     end
@@ -135,4 +117,55 @@ function applied = applyChannelSettingsFromFile(settingsPath, numChannels)
 
     zavSessionSettingsPath = settingsPath;
     applied = true;
+end
+
+function parsed = parseLoadedChannelArrays(loadedSettings, numChannels)
+    parsed = struct('ok', false);
+
+    if isfield(loadedSettings, 'EV_version')
+        channelNames = np_flatten(loadedSettings.channelNames);
+        channelEnabled = np_flatten(loadedSettings.channelEnabled);
+        scalingCoefficients = np_flatten(loadedSettings.scalingCoefficients);
+        colorsIn = np_flatten(loadedSettings.colorsIn);
+        lineCoefficients = np_flatten(loadedSettings.lineCoefficients);
+        mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
+        csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
+        filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
+        baseline_subtract_available = true(1, numChannels);
+        if isfield(loadedSettings, 'baseline_subtract_available')
+            baseline_subtract_available = np_flatten(loadedSettings.baseline_subtract_available);
+        end
+    elseif isfield(loadedSettings, 'channelSettings')
+        warning('Old settings format detected');
+        updatedData = loadedSettings.channelSettings;
+        channelNames = updatedData(:, 1)';
+        channelEnabled = [updatedData{:, 2}];
+        scalingCoefficients = [updatedData{:, 3}];
+        colorsIn = updatedData(:, 4)';
+        lineCoefficients = [updatedData{:, 5}];
+        mean_group_ch = np_flatten(loadedSettings.mean_group_ch);
+        csd_avaliable = np_flatten(loadedSettings.csd_avaliable);
+        filter_avaliable = np_flatten(loadedSettings.filter_avaliable);
+        baseline_subtract_available = true(1, numChannels);
+        if isfield(loadedSettings, 'baseline_subtract_available')
+            baseline_subtract_available = np_flatten(loadedSettings.baseline_subtract_available);
+        end
+    else
+        return;
+    end
+
+    if length(channelNames) ~= numChannels || length(channelEnabled) ~= numChannels
+        return;
+    end
+
+    parsed.ok = true;
+    parsed.channelNames = channelNames;
+    parsed.channelEnabled = channelEnabled;
+    parsed.scalingCoefficients = scalingCoefficients;
+    parsed.colorsIn = colorsIn;
+    parsed.lineCoefficients = lineCoefficients;
+    parsed.mean_group_ch = mean_group_ch;
+    parsed.csd_avaliable = csd_avaliable;
+    parsed.filter_avaliable = filter_avaliable;
+    parsed.baseline_subtract_available = baseline_subtract_available;
 end

@@ -1,12 +1,18 @@
 function signalAnalysisGUI(editMode)
     debugState('signalAnalysisGUI', 'Signal Analysis Started')
 
-    % Проверяем режим редактирования
     if nargin < 1
         editMode = 'normal';
     end
-    
-    % Загружаем глобальные настройки (включая инициализацию по умолчанию)
+
+    figTag = 'SignalAnalysisGUI';
+    guiFig = findobj('Type', 'figure', 'Tag', figTag);
+    if ~isempty(guiFig)
+        registerAnalysisSessionCallbacks(guiFig);
+        figure(guiFig);
+        return
+    end
+
     loadGlobalSettings();
     
     [coordsData, coordsFile] = loadGUICoords('signalAnalysisGUI_coords.json');
@@ -209,20 +215,11 @@ function signalAnalysisGUI(editMode)
     % Инициализация флага восстановления состояния из метаданных
     restoring_from_metadata = false;
     
-    % Инициализация глобальной функции обновления графика
-    updatePlotFunc = @updateAnalysisPlotFunc;
-    
     % Инициализация флага автоанализа
     auto_analysis_mode = false;
     
     % Режим выбора точки на графике кликом (magnet ★)
     magnet_pick_pending = false;
-    
-    % Идентификатор (tag) для GUI фигуры
-    figTag = 'SignalAnalysisGUI';
-    
-    % Закрываем окно просмотра сигналов при запуске анализа
-    delete(findobj('Type', 'figure', 'Tag', 'SignalViewerGUI'));
     
     % Определяем названия колонок как единый источник (доступны во всех функциях)
     table_column_names = {'Stimulus', 'Slope', 'Peak Time (rel)', 'Peak Time (abs)', 'Peak Amplitude', 'Peak Value (rel)', 'Onset Time (rel)', 'Onset Time (abs)', 'Peak - Onset', 'Baseline', 'Channel', 'Stim Time', 'Info'};
@@ -234,15 +231,6 @@ function signalAnalysisGUI(editMode)
     end
     if ~isscalar(events_exist)
         events_exist = false;
-    end
-    
-    % Поиск открытой фигуры с заданным идентификатором
-    guiFig = findobj('Type', 'figure', 'Tag', figTag);
-    
-    if ~isempty(guiFig)
-        % Делаем существующее окно текущим (активным)
-        figure(guiFig);
-        return
     end
     
     % Создание главного окна с использованием базового положения из JSON
@@ -651,6 +639,7 @@ function signalAnalysisGUI(editMode)
     
     signalFig.WindowState = 'maximized';
     
+    registerAnalysisSessionCallbacks(signalFig);
     autoOpenLastFile();
     if ~isempty(matFilePath) && ~isempty(hd) && ishandle(hPlotAxes) && strcmp(get(hPlotAxes, 'Visible'), 'off')
         setupAnalysisUIAfterFileReady();
@@ -1030,6 +1019,7 @@ updateCursorEditFields();
         updateNavigationStatus();
         updateCursorEditFields();
         updatePlotAndCalculation();
+        notifySessionPeers('navigation', 'SignalAnalysisGUI');
     end
     
     function timeForwardEditCallback(src, ~)
@@ -1044,6 +1034,7 @@ updateCursorEditFields();
         updateNavigationStatus();
         updateCursorEditFields();
         updatePlotAndCalculation();
+        notifySessionPeers('navigation', 'SignalAnalysisGUI');
     end
     
     function toggleShowRawSignal(src, ~)
@@ -1200,7 +1191,6 @@ updateCursorEditFields();
             return;
         end
         
-        axes(hPlotAxes);
         hold(hPlotAxes, 'on');
         
         gfx = struct();
@@ -1639,6 +1629,7 @@ updateCursorEditFields();
         updateCursorEditFields();
         updateNavigationStatus();
         updatePlotAndCalculation();
+        notifySessionPeers('navigation', 'SignalAnalysisGUI');
     end
     
     function shiftTimeSlope(direction)
@@ -1651,6 +1642,7 @@ updateCursorEditFields();
         updateCursorEditFields();
         updateNavigationStatus();
         updatePlotAndCalculation();
+        notifySessionPeers('navigation', 'SignalAnalysisGUI');
     end
     
     function [baseline_rel, peak_rel] = getRelativePositions()
@@ -2983,7 +2975,8 @@ updateCursorEditFields();
             loadZavSession(filepath, ...
                 'profile', 'analysis', ...
                 'auto_set_time_windows', false, ...
-                'auto_set_fs', true);
+                'auto_set_fs', true, ...
+                'notify_source', 'SignalAnalysisGUI');
 
             lfpDims = lfp_size(lfp_file);
             m = lfpDims(1);
@@ -3030,27 +3023,8 @@ updateCursorEditFields();
         end
     end
 
-    function resetAnalysisNavigationState()
-        stim_inx = 1;
-        event_inx = 1;
-        sweep_inx = 1;
-        if stims_exist && numel(stims) > 1
-            selectedCenter = 'stimulus';
-        else
-            selectedCenter = 'continuous';
-        end
-        chosen_time_interval = [0, time_forward];
-    end
-
     function setupAnalysisUIAfterFileReady()
-        if isfield(hd, 'recChNames') && iscell(hd.recChNames) && ~isempty(hd.recChNames)
-            numChannels = length(hd.recChNames);
-        end
-        
-        loadChannelSettings();
         invalidatePlotLayers();
-        resetAnalysisNavigationState();
-        timeCenterNav('applyInterval', time_forward);
         refreshRelShift();
         
         saved_channel = 1;
@@ -3087,6 +3061,54 @@ updateCursorEditFields();
         updateResultsDropdown();
         updateHotResaveState();
         restoreActiveBuiltinTool();
+    end
+
+    function onPeerSessionNavigation()
+        if isempty(time) || isempty(matFilePath)
+            return;
+        end
+        if ishandle(hTimeBackEdit)
+            set(hTimeBackEdit, 'String', sprintf('%.3f', time_back * timeUnitFactor));
+        end
+        if ishandle(hTimeForwardEdit)
+            set(hTimeForwardEdit, 'String', sprintf('%.3f', time_forward * timeUnitFactor));
+        end
+        refreshRelShift();
+        updateNavigationStatus();
+        updateCursorEditFields();
+        syncAnalysisFromSession();
+    end
+
+    function syncAnalysisFromSession()
+        if isempty(time) || isempty(time_forward)
+            return;
+        end
+        [channel_data, time_in, raw_data] = getCurrentData();
+        if isempty(channel_data) || all(isnan(channel_data)) || all(isinf(channel_data))
+            return;
+        end
+        [slope_value, slope_angle, peak_time, peak_value, baseline_value, onset_time, onset_value, measurement_metadata] = ...
+            applySlopeMeasurement(channel_data, time_in);
+        [original_xlim, original_ylim] = calculateOptimalAxisLimits(true, channel_data, time_in);
+        refreshPlotLayers(true, false, channel_data, time_in, raw_data);
+    end
+
+    function onPeerSessionFileLoaded()
+        if isempty(matFilePath)
+            return;
+        end
+        setupAnalysisUIAfterFileReady();
+    end
+
+    function registerAnalysisSessionCallbacks(figHandle)
+        ud = get(figHandle, 'UserData');
+        if ~isstruct(ud)
+            ud = struct();
+        end
+        ud.navigation = @onPeerSessionNavigation;
+        ud.fileLoaded = @onPeerSessionFileLoaded;
+        ud.updatePlot = @updatePlotAndCalculation;
+        set(figHandle, 'UserData', ud);
     end
     
     function resetToNoFileState()
@@ -3159,77 +3181,6 @@ updateCursorEditFields();
             debugState('updateAnalysisPlotFunc', '✓ Signal analysis plot updated from group settings');
         catch ME
             warning('Error updating analysis plot: %s', ME.message);
-        end
-    end
-
-    % === ДОБАВЛЕНО: Функции для загрузки настроек каналов ===
-    
-    function updateTable()
-        % Простая версия функции updateTable для signalAnalysisGUI
-        % fprintf('DEBUG: updateTable: Функция вызвана\n');
-        % fprintf('DEBUG: updateTable: channelNames = ');
-        % disp(channelNames);
-        % fprintf('DEBUG: updateTable: numChannels = %d\n', numChannels);
-        
-        % Здесь можно добавить логику обновления таблицы если нужно
-        % fprintf('DEBUG: updateTable: Таблица обновлена\n');
-    end
-    
-    function loadChannelSettings()
-        settingsPath = channelSettingsPathForMat(matFilePath);
-        if isChannelSettingsApplied(settingsPath)
-            return;
-        end
-
-        if isfile(settingsPath)
-            debugState('loadChannelSettings', 'Loading individual channel settings...')
-            loadSettingsFile(settingsPath);
-        else
-            debugState('loadChannelSettings', 'No individual settings found, loading group settings...')
-            loadGroupSettingsAndCreateIndividual(matFilePath, numChannels, Fs, EV_version);
-        end
-    end
-    
-    function loadSettingsFile(channelSettingsFilePath)
-        try
-            applied = applyChannelSettingsFromFile(channelSettingsFilePath, numChannels);
-            if ~applied
-                return;
-            end
-            updateTable();
-            if ~isempty(time_forward)
-                chosen_time_interval = [0, time_forward];
-            end
-            debugState('loadSettingsFileANALYSIS', 'time_back=%f', time_back);
-            debugState('loadSettingsFile', 'Channel settings loaded successfully')
-        catch ME
-            warning('Error loading channel settings: %s', ME.message)
-            setDefaultChannelSettings();
-        end
-    end
-    
-    function setDefaultChannelSettings()
-        % Устанавливает настройки каналов по умолчанию
-        if exist('numChannels', 'var') && ~isempty(numChannels)
-            channelNames = np_flatten(channelNames);
-            channelEnabled = true(1, numChannels);
-            scalingCoefficients = ones(1, numChannels);
-            colorsIn = np_flatten(repmat({'black'}, numChannels, 1));
-            lineCoefficients = ones(1, numChannels) * 0.5;
-            mean_group_ch = false(1, numChannels);
-            csd_avaliable = true(1, numChannels);
-            filter_avaliable = false(1, numChannels);
-            baseline_subtract_available = true(1, numChannels);
-            
-            filterSettings.filterType = 'highpass';
-            filterSettings.freqLow = 10;
-            filterSettings.freqHigh = 50;
-            filterSettings.order = 4;
-            filterSettings.channelsToFilter = false(numChannels, 1);
-            filterSettings.smoothSpan = 0;
-            filterSettings.smoothMethod = 'moving';
-
-            debugState('setDefaultChannelSettings', 'Default channel settings applied')
         end
     end
 
@@ -3567,46 +3518,19 @@ updateCursorEditFields();
     end
 
     function loadEvents(~, ~)
-        % Загружает события из файла используя универсальную функцию
-        
-        % Сохраняем текущие callback функции
-        old_updatePlotFunc = [];
-        old_table_calling = [];
-        if exist('updatePlotFunc', 'var')
-            old_updatePlotFunc = updatePlotFunc;
-        end
-        if exist('table_calling', 'var')
-            old_table_calling = table_calling;
-        end
-        
-        % Устанавливаем callback функции для signalAnalysisGUI
-        updatePlotFunc = @() updatePlotAndCalculation();
-        table_calling = []; % В signalAnalysisGUI нет таблицы событий
-        
-        % Определяем источник файла
         if ~isempty(outside_calling_filepath)
             filepath = outside_calling_filepath;
             outside_calling_filepath = [];
         else
             filepath = [];
         end
-        
-        % Вызываем универсальную функцию загрузки
+
         if isempty(filepath)
-            loadEventsFromFile();
+            loadEventsFromFile([], struct('gui_tag', 'SignalAnalysisGUI'));
         else
-            loadEventsFromFile(filepath, struct('skip_mode_change', true));
+            loadEventsFromFile(filepath, struct('skip_mode_change', true, 'gui_tag', 'SignalAnalysisGUI'));
         end
-        
-        % Восстанавливаем callback функции
-        if ~isempty(old_updatePlotFunc)
-            updatePlotFunc = old_updatePlotFunc;
-        end
-        if ~isempty(old_table_calling)
-            table_calling = old_table_calling;
-        end
-        
-        % Если события успешно загружены, переключаемся на режим событий и обновляем график
+
         if events_exist && ~isempty(events)
             selectedCenter = 'events';
             event_inx = 1;

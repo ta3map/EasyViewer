@@ -94,6 +94,7 @@ function [offsets, shiftCoeff, hLines] = multiplot(varargin)
     addParameter(params, 'MarkerFaceColor', {'auto'});
     addParameter(params, 'AmplitudeMarkerColor', 'r');
     addParameter(params, 'ChannelLabels', []); % Add ch_labels as an optional parameter
+    addParameter(params, 'Parent', []);
     parse(params, varargin{paramIndex:end});
 
     % Get the parameters
@@ -108,6 +109,7 @@ function [offsets, shiftCoeff, hLines] = multiplot(varargin)
     markerFaceColors = params.Results.MarkerFaceColor;
     AmplitudeMarkerColor = params.Results.AmplitudeMarkerColor;
     ch_labels = params.Results.ChannelLabels;
+    plotParent = params.Results.Parent;
 
     % Generate default ch_labels if not provided
     if isempty(ch_labels)
@@ -118,7 +120,11 @@ function [offsets, shiftCoeff, hLines] = multiplot(varargin)
     offsets = zeros(1, size(data, 2));
     numChannels = size(data, 2);
     hLines = gobjects(1, numChannels);
-    ax = gca;
+    if isempty(plotParent)
+        ax = gca;
+    else
+        ax = plotParent;
+    end
     maxPoints = plotDecimationLimit(ax);
     for chIdx = 1:numChannels
         offsets(chIdx) = -(chIdx-1) * shiftCoeff;
@@ -136,7 +142,7 @@ function [offsets, shiftCoeff, hLines] = multiplot(varargin)
                                     'MarkerFaceColor', getOptionalParam(markerFaceColors, chIdx)}];
         end
         [tPlot, yPlot] = decimateForDisplay(time, data(:, chIdx), maxPoints);
-        hLines(chIdx) = plot(tPlot, yPlot + offsets(chIdx), plotArgs{:});
+        hLines(chIdx) = plot(ax, tPlot, yPlot + offsets(chIdx), plotArgs{:});
     end
     
     if size(data, 2)>1
@@ -158,8 +164,8 @@ function [offsets, shiftCoeff, hLines] = multiplot(varargin)
     %plot(coord_x_line, coord_y_line, AmplitudeMarkerColor, 'LineWidth',2)
     %text(text_x,text_y, text_in, 'Color', AmplitudeMarkerColor)
 
-    yticks(flip(offsets));
-    yticklabels(flip(ch_labels)); % Use ch_labels for y-axis labels
+    yticks(ax, flip(offsets));
+    yticklabels(ax, flip(ch_labels)); % Use ch_labels for y-axis labels
 end
 
 function param = getOptionalParam(paramArray, index)

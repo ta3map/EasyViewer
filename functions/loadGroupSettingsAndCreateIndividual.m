@@ -7,9 +7,6 @@ function loadGroupSettingsAndCreateIndividual(matFilePath, numChannels, Fs, EV_v
     %   Fs - частота дискретизации исходных данных
     %   EV_version - версия EasyViewer
     
-    % Глобальные переменные для функций обновления
-    global updateTableFunc updateLocalCoefsFunc updatePlotFunc saveChannelSettingsFunc
-    
     % Глобальные переменные для настроек (будут созданы в createIndividualSettingsFromGroup)
     global channelNames channelEnabled scalingCoefficients colorsIn lineCoefficients
     global mean_group_ch csd_avaliable filter_avaliable baseline_subtract_available filterSettings
@@ -49,11 +46,11 @@ function loadGroupSettingsAndCreateIndividual(matFilePath, numChannels, Fs, EV_v
     end
     
     % Обновляем таблицу и локальные коэффициенты
-    updateTableFunc();
-    updateLocalCoefsFunc();
+    guiSessionCallback('SignalViewerGUI', 'updateTable');
+    guiSessionCallback('SignalViewerGUI', 'updateLocalCoefs');
     
     % Сохраняем созданные индивидуальные настройки
-    saveChannelSettingsFunc();
+    guiSessionCallback('SignalViewerGUI', 'saveChannelSettings');
 end
 
 function applyGroupSettings(groupSettings)
@@ -97,13 +94,20 @@ end
 function createIndividualSettingsFromGroup(numChannels, matFilePath)
     % Создает полные индивидуальные настройки на основе групповых
     
-    global channelNames channelEnabled scalingCoefficients colorsIn lineCoefficients
+    global hd channelNames channelEnabled scalingCoefficients colorsIn lineCoefficients
     global mean_group_ch csd_avaliable filter_avaliable baseline_subtract_available filterSettings
     global stims stims_exist stims_loaded_from_settings
     global newFs shiftCoeff time_back time_forward stim_offset EV_version
     
-    % Устанавливаем стандартные настройки каналов
-    channelNames = np_flatten(channelNames);
+    if isstruct(hd) && isfield(hd, 'recChNames') && ~isempty(hd.recChNames)
+        channelNames = np_flatten(hd.recChNames);
+        channelNames = channelNames(1:min(numChannels, numel(channelNames)));
+    else
+        channelNames = {};
+    end
+    while numel(channelNames) < numChannels
+        channelNames{end + 1} = sprintf('Ch%d', numel(channelNames) + 1);
+    end
     channelEnabled = true(1, numChannels);
     scalingCoefficients = ones(1, numChannels);
     colorsIn = np_flatten(getColors(numChannels));

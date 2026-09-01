@@ -57,7 +57,7 @@ function updatePlot(reason)
         xlabel(multiax, 'Time, s');
         ylabel(multiax, 'Channels');
         text(multiax, 0.5, 0.5, 'No channels selected', 'HorizontalAlignment', 'center', 'Units', 'normalized');
-        finishPlotUpdate(chosen_time_interval(1));
+        finishPlotUpdate(chosen_time_interval(1), [], actions);
         return;
     end
 
@@ -67,7 +67,7 @@ function updatePlot(reason)
         if manualYlimValid && isgraphics(multiax)
             ylim(multiax, [viewerYlim(1), viewerYlim(2)]);
         end
-        finishPlotUpdate(chosen_time_interval(1));
+        finishPlotUpdate(chosen_time_interval(1), [], actions);
         return;
     end
 
@@ -88,14 +88,14 @@ function updatePlot(reason)
             mainPlotGfx = emptyMainPlotGfx();
         end
         pd = refreshGridBranch(pd, actions);
-        finishPlotUpdate(pd.time_origin, pd);
+        finishPlotUpdate(pd.time_origin, pd, actions);
         return;
     end
 
     clearChannelGrid();
     set(multiax, 'Visible', 'on');
     pd = refreshLinearBranch(pd, actions, keepLoading);
-    finishPlotUpdate(pd.time_origin, pd);
+    finishPlotUpdate(pd.time_origin, pd, actions);
 end
 
 function keepLoading = ensureLoadingVisible(showLoading)
@@ -105,32 +105,38 @@ function keepLoading = ensureLoadingVisible(showLoading)
     loading_text_handle = loadingOverlay(plotPanel, showLoading);
 end
 
-function finishPlotUpdate(time_origin, pd)
+function finishPlotUpdate(time_origin, pd, actions)
     global plot_updating loading_text_handle timeSlider previousSliderValue
     global timeZeroEdit yLimMinEdit yLimMaxEdit shiftCoeffEdit
     global chosen_time_interval timeUnitFactor shiftCoeff multiax
     global viewerYlimManual
 
-    sliderMin = get(timeSlider, 'Min');
-    sliderMax = get(timeSlider, 'Max');
-    sliderValue = chosen_time_interval(1);
-    sliderValue = max(sliderMin, min(sliderMax, sliderValue));
-    set(timeSlider, 'Value', sliderValue);
-    previousSliderValue = sliderValue;
-    set(timeZeroEdit, 'String', num2str(time_origin * timeUnitFactor));
+    if nargin < 3 || isempty(actions)
+        actions = viewerPlotActions('visual');
+    end
 
-    if nargin >= 2 && isfield(pd, 'Ylims')
-        set(yLimMinEdit, 'String', sprintf('%.6g', pd.Ylims(1)));
-        set(yLimMaxEdit, 'String', sprintf('%.6g', pd.Ylims(2)));
-    elseif isgraphics(multiax)
-        yl = get(multiax, 'YLim');
-        set(yLimMinEdit, 'String', sprintf('%.6g', yl(1)));
-        set(yLimMaxEdit, 'String', sprintf('%.6g', yl(2)));
+    if ~actions.background
+        sliderMin = get(timeSlider, 'Min');
+        sliderMax = get(timeSlider, 'Max');
+        sliderValue = chosen_time_interval(1);
+        sliderValue = max(sliderMin, min(sliderMax, sliderValue));
+        set(timeSlider, 'Value', sliderValue);
+        previousSliderValue = sliderValue;
+        set(timeZeroEdit, 'String', num2str(time_origin * timeUnitFactor));
+
+        if nargin >= 2 && isstruct(pd) && isfield(pd, 'Ylims')
+            set(yLimMinEdit, 'String', sprintf('%.6g', pd.Ylims(1)));
+            set(yLimMaxEdit, 'String', sprintf('%.6g', pd.Ylims(2)));
+        elseif isgraphics(multiax)
+            yl = get(multiax, 'YLim');
+            set(yLimMinEdit, 'String', sprintf('%.6g', yl(1)));
+            set(yLimMaxEdit, 'String', sprintf('%.6g', yl(2)));
+        end
+        if isgraphics(shiftCoeffEdit)
+            set(shiftCoeffEdit, 'String', sprintf('%.6g', shiftCoeff));
+        end
+        loadingOverlay(get(multiax, 'Parent'), false);
     end
-    if isgraphics(shiftCoeffEdit)
-        set(shiftCoeffEdit, 'String', sprintf('%.6g', shiftCoeff));
-    end
-    loadingOverlay(get(multiax, 'Parent'), false);
     plot_updating = false;
 end
 
@@ -210,7 +216,6 @@ function pd = refreshLinearBranch(pd, actions, keepLoading)
 
     canReuse = ~actions.invalidate && canReuseMainPlotGfx(mainPlotGfx, sig);
     layerOnlyRefresh = canReuse && ~actions.traces && ~actions.overlays && ~actions.chrome;
-    axes(multiax);
     hold(multiax, 'on');
 
     if ~canReuse
@@ -357,11 +362,11 @@ function refreshTraceLayer(pd, canReuse, gapIdx)
     else
         if visualSettings.auto_shift
             [offsets, shiftCoeff, hLines] = multiplot(pd.time_in_transformed, pd.data_res, ...
-                'ChannelLabels', ch_labels_l, 'linewidth', widths_in_l, 'color', colors_in_l);
+                'ChannelLabels', ch_labels_l, 'linewidth', widths_in_l, 'color', colors_in_l, 'Parent', multiax);
         else
             [offsets, shiftCoeff, hLines] = multiplot(pd.time_in_transformed, pd.data_res, ...
                 'ChannelLabels', ch_labels_l, 'shiftCoeff', shiftCoeff, ...
-                'linewidth', widths_in_l, 'color', colors_in_l);
+                'linewidth', widths_in_l, 'color', colors_in_l, 'Parent', multiax);
         end
         set(hLines, 'Tag', 'trace_layer');
         mainPlotGfx.traceLines = hLines;

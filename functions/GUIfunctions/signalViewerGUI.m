@@ -79,16 +79,35 @@ function signalViewerGUI(filePath)
     global mainPlotGfx
 
     debugState('signalViewerGUI', 'Signal Viewer Started')
-    meanControlsState = struct();
-    mainPlotGfx = emptyMainPlotGfx();
-    viewerPlotDataCache = [];
 
     if nargin < 1
         filePath = [];
     end
-    
-    % Загружаем глобальные настройки (включая инициализацию по умолчанию)
+
     loadGlobalSettings();
+
+    figTag = 'SignalViewerGUI';
+    guiFig = findobj('Type', 'figure', 'Tag', figTag);
+    if ~isempty(guiFig)
+        if ~isempty(filePath)
+            [~, ~, ext] = fileparts(filePath);
+            switch lower(ext)
+                case {'.ev', '.mua'}
+                    outside_calling_filepath = filePath;
+                    event_calling();
+                case {'.mat', '.abf'}
+                    zav_calling(filePath);
+                    table_calling();
+            end
+        end
+        registerViewerSessionCallbacks(guiFig);
+        figure(guiFig);
+        return
+    end
+
+    meanControlsState = struct();
+    mainPlotGfx = emptyMainPlotGfx();
+    viewerPlotDataCache = [];
 
     if isempty(axes_background_color)
         axes_background_color = '#FFFFFF';
@@ -166,28 +185,25 @@ function signalViewerGUI(filePath)
     end
     ensureLinesAndStylesLabelVisible();
 
-    
-    matFileName = '';
-    lastEventsFilePath = '';
-    channelLayoutFilePath = '';
-    channelLayoutNameGrid = [];
-    
+    if ~isZavSessionLoaded()
+        matFileName = '';
+        lastEventsFilePath = '';
+        channelLayoutFilePath = '';
+        channelLayoutNameGrid = [];
+        data_loaded = false;
+        viewerYlimManual = false;
+        viewerYlim = [0 1];
+    end
+
     visualSettings.stim_show = true;
-    
-    
-    csd_smooth_coef = 5;
-    csd_split_by_channel_gaps = false;
-    
-    event_title_string = 'Events';
-    csd_contrast_coef = 100;
-    csd_contrast_is_display = true;
-    
-    data_loaded = false;
-    viewerYlimManual = false;
-    viewerYlim = [0 1];
     autoSetNewFsFromFs = true; % по умолчанию включен автоматический расчет newFs
     autoSetTimeWindowsFromSweeps = true; % по умолчанию включен автоматический расчет временных окон на основе свипов
     stims_loaded_from_settings = false; % флаг загрузки стимулов из настроек
+    csd_smooth_coef = 5;
+    csd_split_by_channel_gaps = false;
+    event_title_string = 'Events';
+    csd_contrast_coef = 100;
+    csd_contrast_is_display = true;
     menu_visible = false;
     file_menu_visible = false;
     view_menu_visible = false;
@@ -197,25 +213,6 @@ function signalViewerGUI(filePath)
     
     min_scale_coef = 0.8;
     base_figure_position = [20 60 1280 650]*min_scale_coef;
-
-    figTag = 'SignalViewerGUI';
-    delete(findobj('Type', 'figure', 'Tag', 'SignalAnalysisGUI'));
-    guiFig = findobj('Type', 'figure', 'Tag', figTag);
-    if ~isempty(guiFig)
-        if ~isempty(filePath)
-            [~, ~, ext] = fileparts(filePath);
-            switch lower(ext)
-                case {'.ev', '.mua'}
-                    outside_calling_filepath = filePath;
-                    event_calling();
-                case {'.mat', '.abf'}
-                    zav_calling(filePath);
-                    table_calling();
-            end
-        end
-        figure(guiFig);
-        return
-    end
 
     % добавляем возможность вызвать функцию извне
     zav_calling = @loadMatFile;
@@ -229,12 +226,8 @@ function signalViewerGUI(filePath)
     call_resetMainWindowButtons = @resetMainWindowButtons;
     call_updateTable = @updateTable;
     call_setStandardChannelSettings = @setStandardChannelSettings;
-    saveChannelSettingsFunc = @saveChannelSettings;
     
-    % Присваиваем функции глобальным переменным для доступа из внешних файлов
-    updateTableFunc = @updateTable;
-    updateLocalCoefsFunc = @updateLocalCoefs;
-    updatePlotFunc = @updatePlot;
+    % Присваиваем функции глобальным переменным для внешних редакторов (settingsEditor)
     event_label_click_callback = @selectEventByIndex;
     stim_label_click_callback = @selectStimulusByIndex;
 
@@ -1772,6 +1765,7 @@ function signalViewerGUI(filePath)
         
         saveChannelSettings();
         updatePlot('time_window');
+        notifySessionPeers('navigation', 'SignalViewerGUI');
     end
 
     % Функция обратного вызова для выпадающего списка
@@ -2632,12 +2626,14 @@ function signalViewerGUI(filePath)
                 'auto_set_time_windows', autoSetTimeWindowsFromSweeps, ...
                 'auto_set_fs', autoSetNewFsFromFs, ...
                 'waitbar_handle', restorationWaitBar, ...
-                'keep_waitbar_open', true);
+                'keep_waitbar_open', true, ...
+                'notify_source', 'SignalViewerGUI');
         else
             loadZavSession(filepath, ...
                 'profile', 'viewer', ...
                 'auto_set_time_windows', autoSetTimeWindowsFromSweeps, ...
-                'auto_set_fs', autoSetNewFsFromFs);
+                'auto_set_fs', autoSetNewFsFromFs, ...
+                'notify_source', 'SignalViewerGUI');
         end
 
         lastOpenedFiles{end + 1} = filepath;
@@ -2647,10 +2643,7 @@ function signalViewerGUI(filePath)
     end
 
     function syncViewerControlsFromSession()
-        set(FsCoeffEdit, 'String', num2str(newFs));
-        set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
-        set(timeBackEdit, 'String', num2str(time_back * timeUnitFactor));
-        set(timeForwardEdit, 'String', num2str(time_forward * timeUnitFactor));
+        syncViewerNavigationFromSession();
         if ~isempty(axes_background_color)
             bgRgb = hex2rgb_local(axes_background_color);
             set(multiax, 'Color', bgRgb);
@@ -2660,6 +2653,14 @@ function signalViewerGUI(filePath)
         syncMUAControlsState();
         normalizeViewerDisplayMode();
         syncViewerDisplayModeMenuLabel();
+    end
+
+    function syncViewerNavigationFromSession()
+        set(FsCoeffEdit, 'String', num2str(newFs));
+        set(shiftCoeffEdit, 'String', num2str(shiftCoeff));
+        set(timeBackEdit, 'String', num2str(time_back * timeUnitFactor));
+        set(timeForwardEdit, 'String', num2str(time_forward * timeUnitFactor));
+        syncTimeCenterPopup();
     end
 
     function resetViewerNoFileUI()
@@ -2704,6 +2705,7 @@ function signalViewerGUI(filePath)
 
     function setupViewerUIAfterSessionReady()
         ensureMetadataFields({'spks', 'lfpVar', 'chnlGrp'});
+        ensureChannelSettingsForSession();
 
         debugState('loadMatFile', 'stims_exist=%d, selectedCenter=%s, stim_inx=%d', ...
             stims_exist, selectedCenter, stim_inx);
@@ -2732,12 +2734,19 @@ function signalViewerGUI(filePath)
 
         mainPlotGfx = emptyMainPlotGfx();
         viewerPlotDataCache = [];
-        clearChannelGrid();
+        gridActive = isViewerGridDisplayActive();
+        if ~gridActive
+            clearChannelGrid();
+        end
         syncEventTable();
         syncTimeCenterPopup();
         updateSliderMaxValue();
         timeCenterNav('applyInterval', time_forward);
-        updatePlot('full_rebuild');
+        if gridActive
+            updatePlot('layout_mode');
+        else
+            updatePlot('full_rebuild');
+        end
         data_loaded = true;
         set(OptBtn, 'Enable', 'on');
         set(viewBtn, 'Enable', 'on');
@@ -2747,12 +2756,46 @@ function signalViewerGUI(filePath)
         updateMUAControlsVisibility();
     end
 
+    function onPeerSessionNavigation()
+        if ~data_loaded
+            return;
+        end
+        syncViewerNavigationFromSession();
+        updateSliderMaxValue();
+        updatePlot('peer_sync');
+    end
+
+    function onPeerSessionFileLoaded()
+        if isempty(matFilePath)
+            return;
+        end
+        setupViewerUIAfterSessionReady();
+    end
+
+    function registerViewerSessionCallbacks(figHandle)
+        ud = get(figHandle, 'UserData');
+        if ~isstruct(ud)
+            ud = struct();
+        end
+        ud.navigation = @onPeerSessionNavigation;
+        ud.fileLoaded = @onPeerSessionFileLoaded;
+        ud.updatePlot = @updatePlot;
+        ud.updateTable = @updateTable;
+        ud.updateLocalCoefs = @updateLocalCoefs;
+        ud.saveChannelSettings = @saveChannelSettings;
+        set(figHandle, 'UserData', ud);
+
+        updatePlotFunc = @updatePlot;
+        updateTableFunc = @updateTable;
+        updateLocalCoefsFunc = @updateLocalCoefs;
+        saveChannelSettingsFunc = @saveChannelSettings;
+    end
+
     function closeChildWindows()
         % Список тегов окон для закрытия
         windowTags = {
             'editStimulusTimesGUI', ...
             'EventDetection', ...
-            'SignalAnalysisGUI', ...
             'ZScoreGUI', ...
             'spectralDensityGUI', ...
             'chCrossCorrelationGUI', ...
@@ -3155,6 +3198,7 @@ end
         keyboardpressed = false;
         debugState('shiftTime', 'chosen_time_interval=[%.3f, %.3f]', chosen_time_interval(1), chosen_time_interval(2));
         updatePlot('navigation');
+        notifySessionPeers('navigation', 'SignalViewerGUI');
         debugState('shiftTime', 'plot updated');
     end
     
@@ -3478,6 +3522,7 @@ end
 
     set(eventTable, 'CellEditCallback', @updateEventTable);
     set(channelTable, 'CellEditCallback', @updateChannelSelection);
+    registerViewerSessionCallbacks(f);
     
     if ~isempty(filePath)
         [~, ~, ext] = fileparts(filePath);

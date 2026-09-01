@@ -23,6 +23,7 @@ function loadZavSession(matPath, varargin)
     addParameter(p, 'keep_waitbar_open', false, @islogical);
     addParameter(p, 'metadata_fields', {}, @iscell);
     addParameter(p, 'force_reload', false, @islogical);
+    addParameter(p, 'notify_source', '', @ischar);
     parse(p, varargin{:});
 
     profileName = p.Results.profile;
@@ -48,6 +49,7 @@ function loadZavSession(matPath, varargin)
 
     if isZavSessionLoaded(matPath) && ~p.Results.force_reload
         ensureMetadataFields(metadata_fields);
+        ensureChannelSettingsForSession();
         return;
     end
 
@@ -110,8 +112,6 @@ function loadZavSession(matPath, varargin)
 
         clearEventsState();
         lastEventsFilePath = '';
-        channelLayoutFilePath = '';
-        channelLayoutNameGrid = [];
         viewerYlimManual = false;
         viewerYlim = [0 1];
     end
@@ -131,6 +131,9 @@ function loadZavSession(matPath, varargin)
         selectedCenter = 'continuous';
         chosen_time_interval = [0, windowSize];
     end
+
+    ensureChannelSettingsForSession();
+    notifySessionPeers('fileLoaded', p.Results.notify_source);
 end
 
 function applyStandardChannelSettings(numChannels)

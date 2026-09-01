@@ -39,8 +39,8 @@ for chIdx = 1:numChannels
         'Color', getOptionalParam(colors, chIdx));
 end
 
-yticks(flip(offsets));
-yticklabels(flip(ch_labels));
+yticks(ax, flip(offsets));
+yticklabels(ax, flip(ch_labels));
 
 end
 

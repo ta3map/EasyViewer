@@ -1,9 +1,12 @@
 function tf = isChannelSettingsApplied(settingsPath)
-    global zavSessionSettingsPath channelEnabled
+    global zavSessionSettingsPath channelEnabled channelNames numChannels
 
     if isempty(settingsPath) || exist(settingsPath, 'file') ~= 2
         tf = false;
         return;
     end
-    tf = strcmp(zavSessionSettingsPath, settingsPath) && ~isempty(channelEnabled);
+    tf = strcmp(zavSessionSettingsPath, settingsPath) ...
+        && numChannels >= 1 ...
+        && length(channelEnabled) == numChannels ...
+        && length(channelNames) == numChannels;
 end
