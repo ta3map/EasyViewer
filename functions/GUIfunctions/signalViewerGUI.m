@@ -290,7 +290,7 @@ function signalViewerGUI(filePath)
            'MenuBar', 'none', ...
            'ToolBar', 'figure', ...
            'Tag', figTag, ...
-           'KeyPressFcn', @keyPressFunction);
+           'WindowKeyPressFcn', @keyPressFunction);
     
     % Используем базовое положение из JSON файла для начального построения
     base_figure_position = coordsData.base_figure_position;
@@ -3106,7 +3106,12 @@ end
         
         idxs = idxs(~isnan(idxs) & idxs > 0 & idxs <= length(events));
         if isempty(idxs)
-            showErrorDialog('Invalid event index.');
+            editStr = strtrim(get(eventDeleteEdit, 'String'));
+            if isempty(selected_event_rows) && (isempty(editStr) || isnan(str2double(editStr)))
+                showErrorDialog('Select an event in the table to delete.');
+            else
+                showErrorDialog('Invalid event index.');
+            end
             return;
         end
 
