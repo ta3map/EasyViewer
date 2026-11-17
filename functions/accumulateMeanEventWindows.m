@@ -63,9 +63,27 @@ for i = 1:numEvents
 
     eventIdx = round(timePoints(i) * Fs);
     idealStart = eventIdx - halfWin;
+    % Идеальное окно события: idealStart ... idealStart+winLen-1.
+    % Обрезаем его по границам записи, но сохраняем положение внутри буфера
+    % усреднения относительно idealStart (иначе левая граница "уезжает" и
+    % destTo выходит за размер meanData для событий в начале записи).
     windowStart = max(idealStart, 1);
-    windowEnd = min(windowStart + winLen - 1, nTime);
-    time_interval = [time(windowStart), time(windowEnd)];
+    windowEnd = min(idealStart + winLen - 1, nTime);
+    if windowEnd < windowStart
+        updateEventWaitbar(wb, showWaitbar, i, numEvents, fracLo, fracHi);
+        continue;
+    end
+    % timeWindowIndices возвращает отсчёты t < t2, поэтому верхняя граница
+    % интервала должна быть больше времени последнего нужного отсчёта,
+    % чтобы включить сам отсчёт windowEnd.
+    if windowEnd < nTime
+        intervalEndTime = time(windowEnd + 1);
+    elseif nTime > 1
+        intervalEndTime = time(windowEnd) + (time(windowEnd) - time(windowEnd - 1));
+    else
+        intervalEndTime = time(windowEnd) + 1 / Fs;
+    end
+    time_interval = [time(windowStart), intervalEndTime];
 
     [local_lfp, time_vec, cols] = readLfpChannelsForInterval( ...
         params.lfp_file, time, time_interval, read_ch, mean_group_ch);
@@ -87,13 +105,39 @@ for i = 1:numEvents
         eventDataProcessed = eventDataRaw;
     end
 
-    destFrom = windowStart - idealStart + 1;
+    % time_vec — срез массива time, поэтому индекс первого считанного
+    % отсчёта берём оттуда (защита от ошибок округления границ интервала).
+    readStartIdx = find(time(:) == time_vec(1), 1, 'first');
+    if isempty(readStartIdx)
+        updateEventWaitbar(wb, showWaitbar, i, numEvents, fracLo, fracHi);
+        continue;
+    end
+    destFrom = readStartIdx - idealStart + 1;
     destTo = destFrom + size(eventDataProcessed, 1) - 1;
+    if destFrom < 1
+        trim = 1 - destFrom;
+        eventDataProcessed = eventDataProcessed(1 + trim:end, :);
+        destFrom = 1;
+    end
+    if destTo > winLen
+        eventDataProcessed = eventDataProcessed(1:winLen - destFrom + 1, :);
+        destTo = winLen;
+    end
+    if destFrom > destTo
+        updateEventWaitbar(wb, showWaitbar, i, numEvents, fracLo, fracHi);
+        continue;
+    end
     meanData(destFrom:destTo, :) = meanData(destFrom:destTo, :) + eventDataProcessed;
 
     nProcessed = nProcessed + 1;
     processedTimePoints(nProcessed) = timePoints(i);
-    eventDataScaled = eventDataProcessed .* chScale;
+    % Храним событие в полном размере окна: края, обрезанные границами
+    % записи, заполняем NaN, чтобы длина совпадала с timeAxis (иначе
+    % построение оригинальных трасс и детекция пиков падают из-за
+    % несовпадения размеров).
+    fullEventData = nan(winLen, nChOut);
+    fullEventData(destFrom:destTo, :) = eventDataProcessed;
+    eventDataScaled = fullEventData .* chScale;
     originalEventsData{end + 1} = eventDataScaled; %#ok<AGROW>
 
     updateEventWaitbar(wb, showWaitbar, i, numEvents, fracLo, fracHi);
