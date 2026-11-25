@@ -5,7 +5,7 @@ function loadZavSession(matPath, varargin)
     global time_forward time_back matFilePath matFileName evfilename
     global Fs N newFs shiftCoeff stims_exist stim_inx sweep_inx selectedCenter
     global chosen_time_interval windowSize spks_events numChannels
-    global channelNames channelEnabled scalingCoefficients colorsIn lineCoefficients
+    global channelNames channelEnabled scalingCoefficients colorsIn lineCoefficients channelFileOrder
     global mean_group_ch csd_avaliable filter_avaliable baseline_subtract_available filterSettings
     global visualSettings binsize std_coef
     global csd_smooth_coef csd_contrast_coef csd_contrast_is_display csd_split_by_channel_gaps
@@ -95,6 +95,7 @@ function loadZavSession(matPath, varargin)
 
     channelNames = np_flatten(hd.recChNames);
     numChannels = length(channelNames);
+    channelFileOrder = 1:numChannels;
     applyStandardChannelSettings(numChannels);
 
     if strcmp(profileName, 'viewer')
@@ -131,6 +132,8 @@ function loadZavSession(matPath, varargin)
     end
 
     ensureChannelSettingsForSession();
+    spks = reorderChannelVector(spks, channelFileOrder);
+    lfpVar = reorderChannelDim(lfpVar, channelFileOrder);
     notifySessionPeers('fileLoaded', p.Results.notify_source);
 end
 

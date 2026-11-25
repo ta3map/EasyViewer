@@ -4,7 +4,7 @@ function saveChannelSettings(varargin)
     
     % Глобальные переменные
     global matFilePath newFs shiftCoeff time_forward time_back
-    global channelNames channelEnabled scalingCoefficients colorsIn lineCoefficients
+    global channelNames channelEnabled scalingCoefficients colorsIn lineCoefficients channelFileOrder
     global mean_group_ch csd_avaliable filter_avaliable baseline_subtract_available filterSettings
     global stims EV_version csd_smooth_coef csd_contrast_coef csd_contrast_is_display
     global csd_split_by_channel_gaps
@@ -42,6 +42,7 @@ function saveChannelSettings(varargin)
             'binsize'
             'visualSettings'
             'channelNames'
+            'channelFileOrder'
             'channelEnabled'
             'scalingCoefficients'
             'colorsIn'

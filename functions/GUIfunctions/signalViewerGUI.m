@@ -57,6 +57,7 @@ function signalViewerGUI(filePath)
     global tableData
     global channelTable % отображаемые данные о каналах
     global channelNames % названия каналов
+    global channelFileOrder % столбец файла для каждой позиции списка
     global channelEnabled % вкл/выкл каналы
     global scalingCoefficients % множитель амплитуды
     global colorsIn % цвет линии
@@ -2970,7 +2971,14 @@ end
 
     
     function setStandardChannelSettings()
-            channelNames = np_flatten(channelNames);
+            fileRank = 1:numChannels;
+            if numel(channelFileOrder) == numChannels
+                [~, fileRank] = sort(channelFileOrder(:)');
+            end
+            spks = reorderChannelVector(spks, fileRank);
+            lfpVar = reorderChannelDim(lfpVar, fileRank);
+            channelFileOrder = 1:numChannels;
+            channelNames = np_flatten(hd.recChNames);
             channelEnabled = true(1, numChannels); % Все каналы активированы по умолчанию
             scalingCoefficients = ones(1, numChannels); % Коэффициенты масштабирования по умолчанию
             colorsIn = np_flatten(getColors(numChannels)); % Инициализация цветов

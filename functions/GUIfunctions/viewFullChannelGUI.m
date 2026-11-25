@@ -57,7 +57,7 @@ function viewFullChannelGUI(applyCallback)
         try
             waitbar(0.2, progressBar, 'Reading channel data...');
             Fs = zavp.dwnSmplFrq;
-            sig = lfp_file.lfp(:, chIdx);
+            sig = lfp_file.lfp(:, sessionToFileChannel(chIdx));
 
             if targetFs >= Fs
                 waitbar(0.5, progressBar, 'Resampling skipped (target >= source Fs)...');

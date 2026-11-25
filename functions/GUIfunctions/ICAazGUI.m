@@ -2,7 +2,7 @@ function ICAazGUI()
 global channelTable ch_labels_l colors_in_l widths_in_l matFileName matFilePath
 global lfp_file ch_inxs ica_params spks filterSettings
 global csd_avaliable filter_avaliable channelNames mean_group_ch channelSettings m_coef
-global ica_flag hd zav_saving chnlGrp lfpVar numChannels channelEnabled scalingCoefficients colorsIn lineCoefficients
+global ica_flag hd zav_saving chnlGrp lfpVar numChannels channelEnabled scalingCoefficients colorsIn lineCoefficients channelFileOrder
 
 % GUI for fastICA function
 %
@@ -108,9 +108,12 @@ end
         try
             settings = get(ICAchanneltable, 'Data');
             chosen_inx = cellfun(@(x) isequal(x, 1), settings(:, 2));
+            fileIdx = sessionToFileChannel(find(chosen_inx));
+            lfpDims = lfp_size(lfp_file);
+            lfpBlock = readLfpFileColumns(lfp_file, 1, lfpDims(1), fileIdx);
             
             % Call fastICA function
-            [~, W, T, mu] = fastICAdialog(lfp_file.lfp(:, chosen_inx), r, type, tol, maxIter, 1);
+            [~, W, T, mu] = fastICAdialog(lfpBlock, r, type, tol, maxIter, 1);
 
             ica_params.W = W;
             ica_params.T = T;
@@ -127,7 +130,7 @@ end
             matFilePath = fullfile(fileparts(matFilePath), matFileName);
 
             % Заменяем lfp на источники
-            lfp_file = struct('lfp', transformICA(lfp_file.lfp(:, chosen_inx), W, T, mu));
+            lfp_file = struct('lfp', transformICA(lfpBlock, W, T, mu));
             
             % устанавливаем новые имена каналов channelNames
             channelNames = cell(r, 1); % Preallocate cell array for efficiency
@@ -146,6 +149,7 @@ end
         
             % Формируем таблицу свойств              
             numChannels = r;% число каналов равно числу источников
+            channelFileOrder = 1:numChannels;
             
             channelNames = np_flatten(channelNames);
             channelEnabled = true(1, numChannels); % Все каналы активированы по умолчанию

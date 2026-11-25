@@ -40,6 +40,7 @@ else
     pd.eventChannels = [];
     if ~isempty(event_channels)
         ev_chs = event_channels(:);
+        ev_chs = fileToSessionChannel(ev_chs);
         if numel(ev_chs) >= max(pd.eventIndices)
             pd.eventChannels = ev_chs(pd.eventIndices);
         end

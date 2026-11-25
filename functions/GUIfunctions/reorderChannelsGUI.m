@@ -1,9 +1,8 @@
 function reorderChannelsGUI()
-    global channelNames matFilePath matFileName
-    global lfp_file spks lfpVar hd
+    global channelNames channelFileOrder
     global channelEnabled scalingCoefficients colorsIn lineCoefficients
     global mean_group_ch csd_avaliable filter_avaliable baseline_subtract_available filterSettings
-    global event_channels stims zavp numChannels
+    global spks lfpVar
 
     figTag = 'reorderChannelsGUI';
     guiFig = findobj('Type', 'figure', 'Tag', figTag);
@@ -34,9 +33,7 @@ function reorderChannelsGUI()
         'Position', [290, 260, 110, 32], 'Callback', @moveBottom);
 
     saveBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Save', ...
-        'Position', [20, 20, 120, 36], 'Enable', 'off', 'Callback', @saveOver);
-    saveAsBtn = uicontrol('Parent', fig, 'Style', 'pushbutton', 'String', 'Save as', ...
-        'Position', [150, 20, 120, 36], 'Enable', 'off', 'Callback', @saveAs);
+        'Position', [20, 20, 120, 36], 'Enable', 'off', 'Callback', @saveOrder);
 
     function moveUp(~, ~)
         k = get(channelList, 'Value');
@@ -70,90 +67,39 @@ function reorderChannelsGUI()
 
     function showOrder(selected)
         set(channelList, 'String', channelNames(order), 'Value', selected);
-        changed = ~isequal(order, 1:n);
         state = 'off';
-        if changed
+        if ~isequal(order, 1:n)
             state = 'on';
         end
         set(saveBtn, 'Enable', state);
-        set(saveAsBtn, 'Enable', state);
     end
 
-    function saveOver(~, ~)
-        set(fig, 'WindowStyle', 'normal');
-        choice = questdlg(['Overwrite ', matFilePath, '?'], ...
-            'Reorder channels', 'Save', 'Cancel', 'Cancel');
-        set(fig, 'WindowStyle', 'modal');
-        if ~strcmp(choice, 'Save')
-            return
-        end
-        commit(matFilePath);
-    end
-
-    function saveAs(~, ~)
-        set(fig, 'WindowStyle', 'normal');
-        [file, path] = uiputfile('*.mat', 'Save ZAV (.mat) File', matFilePath);
-        set(fig, 'WindowStyle', 'modal');
-        if isequal(file, 0) || isequal(path, 0)
-            return
-        end
-        commit(fullfile(path, file));
-    end
-
-    function commit(filepath)
-        applyChannelOrder(order);
-        zavp.realStim = struct('r', stims' / zavp.siS);
-        matFilePath = filepath;
-        [~, matFileName, ~] = fileparts(filepath);
-        saveZavFile(filepath);
+    function saveOrder(~, ~)
+        applyDisplayOrder(order);
         saveChannelSettings();
         refreshViewer();
         order = 1:n;
         showOrder(get(channelList, 'Value'));
     end
 
-    function applyChannelOrder(perm)
-        lfp_file.lfp = lfp_file.lfp(:, perm, :);
-        spks = spks(perm);
-        lfpVar = takeChannels(lfpVar, perm, n);
-        hd = takeHeaderChannels(hd, perm, n);
-        channelNames = takeChannels(channelNames, perm, n);
-        channelEnabled = takeChannels(channelEnabled, perm, n);
-        scalingCoefficients = takeChannels(scalingCoefficients, perm, n);
-        colorsIn = takeChannels(colorsIn, perm, n);
-        lineCoefficients = takeChannels(lineCoefficients, perm, n);
-        mean_group_ch = takeChannels(mean_group_ch, perm, n);
-        csd_avaliable = takeChannels(csd_avaliable, perm, n);
-        filter_avaliable = takeChannels(filter_avaliable, perm, n);
-        baseline_subtract_available = takeChannels(baseline_subtract_available, perm, n);
-        filterSettings.channelsToFilter = takeChannels(filterSettings.channelsToFilter, perm, n);
-        event_channels = remapEventChannels(event_channels, perm, n);
-        numChannels = n;
-    end
-end
-
-function values = takeChannels(values, perm, n)
-    dim = find(size(values) == n, 1);
-    idx = repmat({':'}, 1, max(ndims(values), dim));
-    idx{dim} = perm;
-    values = values(idx{:});
-end
-
-function hd = takeHeaderChannels(hd, perm, n)
-    names = {'recChNames', 'recChUnits', 'ch_si'};
-    for i = 1:numel(names)
-        name = names{i};
-        if isfield(hd, name) && numel(hd.(name)) == n
-            hd.(name) = takeChannels(hd.(name), perm, n);
+    function applyDisplayOrder(perm)
+        if numel(channelFileOrder) ~= n
+            channelFileOrder = 1:n;
         end
+        channelFileOrder = channelFileOrder(perm);
+        channelNames = channelNames(perm);
+        channelEnabled = channelEnabled(perm);
+        scalingCoefficients = scalingCoefficients(perm);
+        colorsIn = colorsIn(perm);
+        lineCoefficients = lineCoefficients(perm);
+        mean_group_ch = mean_group_ch(perm);
+        csd_avaliable = csd_avaliable(perm);
+        filter_avaliable = filter_avaliable(perm);
+        baseline_subtract_available = baseline_subtract_available(perm);
+        filterSettings.channelsToFilter = reorderChannelDim(filterSettings.channelsToFilter, perm);
+        spks = reorderChannelVector(spks, perm);
+        lfpVar = reorderChannelDim(lfpVar, perm);
     end
-end
-
-function channels = remapEventChannels(channels, perm, n)
-    rank = zeros(1, n);
-    rank(perm) = 1:n;
-    mask = channels >= 1 & channels <= n;
-    channels(mask) = rank(channels(mask));
 end
 
 function refreshViewer()

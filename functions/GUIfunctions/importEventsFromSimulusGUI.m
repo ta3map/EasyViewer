@@ -64,7 +64,8 @@ function importEventsFromSimulusGUI()
             end
 
             stimClusterInxs = ClosestIndex(stimCluster, time, true);
-            clusterData = mean(lfp_file.lfp(stimClusterInxs, selectedChannels), 2);
+            fileCols = sessionToFileChannel(selectedChannels);
+            clusterData = mean(lfp_file.lfp(stimClusterInxs, fileCols), 2);
             
             if ampCriterion == 1
                 % Select maximum amplitude
@@ -80,7 +81,7 @@ function importEventsFromSimulusGUI()
                 criterion_str = 'Minimum';
             end
             
-            analyzedChannels = [analyzedChannels; selectedChannels(:)'];
+            analyzedChannels = [analyzedChannels; fileCols(:)'];
             
             metadata = createDefaultEventMetadata('stimulus', 1);
             metadata.source = 'stimulus';

@@ -9,6 +9,7 @@ function appendEvent(t, amp, ch, source)
     t = double(t(1));
     amp = double(amp(1));
     ch = double(ch(1));
+    ch = sessionToFileChannel(ch);
     source = char(source);
 
     idx = 1;

@@ -220,6 +220,7 @@ function wasApplied = setupSignalFilteringGUI()
             row_end = find(time < plot_time_interval(2), 1, 'last');
             cond = row_start:row_end;
             local_lfp = lfp_file.lfp(cond, :);% все каналы данного участка времени
+            local_lfp = local_lfp(:, sessionToFileChannel(1:size(local_lfp, 2)));
             data = local_lfp(:, ch_inxs).*m_coef;
 
             filtered_data = applyFilter(data(:, selectedChannels), local_settings, newFs);        

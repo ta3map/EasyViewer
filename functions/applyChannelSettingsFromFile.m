@@ -1,5 +1,5 @@
 function applied = applyChannelSettingsFromFile(settingsPath, numChannels)
-    global channelNames channelEnabled scalingCoefficients colorsIn lineCoefficients
+    global channelNames channelEnabled scalingCoefficients colorsIn lineCoefficients channelFileOrder
     global mean_group_ch csd_avaliable filter_avaliable baseline_subtract_available filterSettings
     global visualSettings binsize std_coef newFs shiftCoeff time_back time_forward
     global csd_smooth_coef csd_contrast_coef csd_split_by_channel_gaps
@@ -19,6 +19,10 @@ function applied = applyChannelSettingsFromFile(settingsPath, numChannels)
     end
 
     channelNames = parsed.channelNames;
+    channelFileOrder = 1:numChannels;
+    if isfield(loadedSettings, 'channelFileOrder') && numel(loadedSettings.channelFileOrder) == numChannels
+        channelFileOrder = reshape(loadedSettings.channelFileOrder, 1, []);
+    end
     channelEnabled = parsed.channelEnabled;
     scalingCoefficients = parsed.scalingCoefficients;
     colorsIn = parsed.colorsIn;

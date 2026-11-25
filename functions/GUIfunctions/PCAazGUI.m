@@ -2,7 +2,7 @@ function PCAazGUI()
 global channelTable ch_labels_l colors_in_l widths_in_l matFileName matFilePath
 global lfp_file ch_inxs pca_params spks filterSettings
 global csd_avaliable filter_avaliable channelNames mean_group_ch channelSettings m_coef
-global pca_flag hd zav_saving chnlGrp lfpVar numChannels channelEnabled scalingCoefficients colorsIn lineCoefficients
+global pca_flag hd zav_saving chnlGrp lfpVar numChannels channelEnabled scalingCoefficients colorsIn lineCoefficients channelFileOrder
 
 % GUI for PCA function
 %
@@ -75,9 +75,12 @@ end
         try
             settings = get(PCAchanneltable, 'Data');
             chosen_inx = cellfun(@(x) isequal(x, 1), settings(:, 2));
+            fileIdx = sessionToFileChannel(find(chosen_inx));
+            lfpDims = lfp_size(lfp_file);
+            lfpBlock = readLfpFileColumns(lfp_file, 1, lfpDims(1), fileIdx);
             
             % Call PCA function
-            [coeff, score, ~, ~, explained] = pca(lfp_file.lfp(:, chosen_inx));
+            [coeff, score, ~, ~, explained] = pca(lfpBlock);
 
             % Select the required number of components
             pca_params.coeff = coeff(:, 1:r);
@@ -114,6 +117,7 @@ end
         
             % Form properties table              
             numChannels = r; % Number of channels equals number of sources
+            channelFileOrder = 1:numChannels;
             
             channelNames = channelNames;
             channelEnabled = true(1, numChannels); % All channels enabled by default
