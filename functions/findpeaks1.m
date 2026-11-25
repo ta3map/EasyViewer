@@ -107,7 +107,7 @@ function result = findpeaks1(params)
         end
         
         window_indices = change_idx:window_end_idx;
-        if length(window_indices) < 2
+        if length(window_indices) < 3
             continue;
         end
         

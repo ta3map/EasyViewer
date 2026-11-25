@@ -16,6 +16,20 @@ function events = detectPeaksInOriginalData(calcResult, params)
     MinPeakProminence = params.MinPeakProminence;
     MinPeakDistance = params.MinPeakDistance;
     max_peak_width = params.MaxPeakWidth;
+    maxPeakOnsetDist = 0.03 * timeUnitFactor;
+    if isfield(params, 'MaxPeakOnsetDist') && ~isempty(params.MaxPeakOnsetDist)
+        maxPeakOnsetDist = params.MaxPeakOnsetDist;
+    end
+
+    if isfield(params, 'UseProminence') && params.UseProminence
+        tmin = -inf;
+        tmax = inf;
+        if isfield(params, 'TimeMin'), tmin = params.TimeMin; end
+        if isfield(params, 'TimeMax'), tmax = params.TimeMax; end
+        events = detectProminencePeaks(originalEventsData, timeAxis, activeChannels, ...
+            MinPeakProminence, MinPeakDistance, max_peak_width, tmin, tmax);
+        return
+    end
     
     numChannels = length(activeChannels);
     numEvents = length(originalEventsData);
@@ -71,10 +85,14 @@ function events = detectPeaksInOriginalData(calcResult, params)
             findpeaks1_params.signal = Trace_out;
             findpeaks1_params.time = timeAxis;
             findpeaks1_params.timeUnitFactor = timeUnitFactor;
-            findpeaks1_params.max_peak_onset_dist = 0.03*timeUnitFactor;
+            findpeaks1_params.max_peak_onset_dist = maxPeakOnsetDist;
             findpeaks1_params.use_change_point_as_onset = false;
             findpeaks1_params.check_overlap = true;
-            findpeaks1_params.MinPeakHeight = MinPeakProminence;
+            if isfield(params, 'UseProminence') && params.UseProminence
+                findpeaks1_params.MinPeakProminence = MinPeakProminence;
+            else
+                findpeaks1_params.MinPeakHeight = MinPeakProminence;
+            end
             findpeaks1_params.MinPeakDistance = MinPeakDistance;
             findpeaks1_params.WidthReference = 'halfheight';
 
@@ -403,10 +421,14 @@ function events = detectPeaksInOriginalData(calcResult, params)
             findpeaks1_params.signal = Trace_out;
             findpeaks1_params.time = timeAxis;
             findpeaks1_params.timeUnitFactor = timeUnitFactor;
-            findpeaks1_params.max_peak_onset_dist = 0.03*timeUnitFactor;
+            findpeaks1_params.max_peak_onset_dist = maxPeakOnsetDist;
             findpeaks1_params.use_change_point_as_onset = false;
             findpeaks1_params.check_overlap = true;
-            findpeaks1_params.MinPeakHeight = MinPeakProminence;
+            if isfield(params, 'UseProminence') && params.UseProminence
+                findpeaks1_params.MinPeakProminence = MinPeakProminence;
+            else
+                findpeaks1_params.MinPeakHeight = MinPeakProminence;
+            end
             findpeaks1_params.MinPeakDistance = MinPeakDistance;
             findpeaks1_params.WidthReference = 'halfheight';
             fp1 = findpeaks1(findpeaks1_params);
@@ -454,4 +476,37 @@ function events = detectPeaksInOriginalData(calcResult, params)
         num_onsets = sum(~isnan(events.onset_times));
         debugState('detectPeaksInOriginalData', 'Onsets found: %d of %d', num_onsets, length(events.onset_times));
     end
+end
+
+function events = detectProminencePeaks(originalEventsData, timeAxis, activeChannels, minProm, minDist, maxWidth, tmin, tmax)
+    events.peak_times = [];
+    events.peaks = [];
+    events.widths = [];
+    events.prominences = [];
+    events.eventIndices = [];
+    events.channels = [];
+    channelIdx = activeChannels(1);
+    for eventIdx = 1:numel(originalEventsData)
+        y = originalEventsData{eventIdx}(:, 1);
+        ts = linspace(timeAxis(1), timeAxis(end), numel(y));
+        sel = ts > tmin & ts <= tmax;
+        if nnz(sel) < 3
+            continue
+        end
+        [pk, loc, w, prom] = findpeaks(y(sel), ts(sel), ...
+            'MinPeakProminence', minProm, 'MinPeakDistance', minDist);
+        keep = w <= maxWidth;
+        pk = pk(keep);
+        loc = loc(keep);
+        w = w(keep);
+        prom = prom(keep);
+        n = numel(pk);
+        events.peak_times = [events.peak_times; loc(:)];
+        events.peaks = [events.peaks; pk(:)];
+        events.widths = [events.widths; w(:)];
+        events.prominences = [events.prominences; prom(:)];
+        events.eventIndices = [events.eventIndices; repmat(eventIdx, n, 1)];
+        events.channels = [events.channels; repmat(channelIdx, n, 1)];
+    end
+    events.numEvents = numel(events.peak_times);
 end
